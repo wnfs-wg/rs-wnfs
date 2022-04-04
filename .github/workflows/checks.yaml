@@ -1,0 +1,28 @@
+name: 🧪 Tests and Checks
+
+on:
+  push:
+    branches: [ main ]
+
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  tests-and-checks:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v2
+
+      - name: Cache Project
+        uses: Swatinem/rust-cache@v1.3.0
+
+      - name: Check Format
+        run: cargo fmt --all -- --check
+
+      - name: Run Linter
+        run: cargo clippy --all
+
+      - name: Run Tests
+        run: cargo test --all
