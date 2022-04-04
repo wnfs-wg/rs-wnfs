@@ -1,5 +1,5 @@
 <div align="center">
-  <a href="assets/logo.svg" target="_blank">
+  <a href="https://github.com/fission-suite" target="_blank">
     <img src="https://raw.githubusercontent.com/fission-suite/rs-wnfs/main/assets/logo.svg" alt="Fission Logo" width="120" height="120"></img>
   </a>
 
@@ -12,10 +12,10 @@
     <!-- <a href="https://codecov.io/gh/fission-suite/rs-wnfs">
       <img src="https://codecov.io/gh/fission-suite/rs-wnfs/branch/main/graph/badge.svg?token=95YHXFMFF4" alt="Code Coverage"/>
     </a> -->
-    <!-- <a href="https://github.com/fission-suite/rs-wnfs/actions?query=">
+    <a href="https://github.com/fission-suite/rs-wnfs/actions?query=">
       <img src="https://github.com/fission-suite/rs-wnfs/actions/workflows/checks.yaml/badge.svg" alt="Build Status">
-    </a> -->
-    <a href="https://github.com/fission-suite/rs-wnfs/blob/master/LICENSE">
+    </a>
+    <a href="https://github.com/fission-suite/rs-wnfs/blob/main/LICENSE">
       <img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg" alt="License">
     </a>
     <!-- <a href="https://docs.rs/fission-suite/rs-wnfs">
@@ -27,7 +27,7 @@
   </p>
 </div>
 
-⚠️⚠️ Work in Progress, do not use ⚠️⚠️
+<div align="center">:warning: Work in Progress, do not use :warning:</div>
 
 This project will implement a pure rust crate for creating and manipulating IPLD graphs that encode WNFS.
 Its goal is to be as dependency-less as possible in order to be easily compiled to WASM and used in browsers or other environments.
