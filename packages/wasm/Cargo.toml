@@ -1,0 +1,32 @@
+[package]
+name = "wasm"
+version = "0.1.0"
+description = "WebNative filesystem WebAssembly API"
+keywords = ["wnfs", "webnative", "ipfs", "decentralisation"]
+categories = [
+  "filesystem",
+  "cryptography",
+  "web programming",
+]
+license-file = "LICENSE"
+readme = "README.md"
+edition = "2021"
+repository = "https://github.com/fission-suite/rs-wnfs"
+homepage = "https://fission.codes"
+authors = ["The Fission Authors"]
+
+[dependencies]
+fs = { path = "../fs", version = "0.1.0" }
+wasm-bindgen = { version = "0.2.79", optional = true }
+wasm-bindgen-futures = { version = "0.4.29", optional = true }
+js-sys = { version = "0.3.56", optional = true }
+web-sys = { version = "0.3.56", optional = true }
+
+[lib]
+path = "lib.rs"
+crate-type = ["cdylib" , "rlib"]
+
+[features]
+default = ["wasm"]
+wasm = ["wasm-bindgen", "wasm-bindgen-futures", "fs/wasm", "fs/wasm-bindgen",  "js-sys"]
+web = ["wasm", "web-sys"]

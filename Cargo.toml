@@ -1,4 +1,6 @@
 [workspace]
 members = [
-	'tests'
+	'packages/tests',
+	'packages/fs',
+	'packages/wasm'
 ]

@@ -1,0 +1,30 @@
+[package]
+name = "fs"
+version = "0.1.0"
+description = "WebNative filesystem core implementation"
+keywords = ["wnfs", "webnative", "ipfs", "decentralisation"]
+categories = [
+  "filesystem",
+  "cryptography",
+  "web programming",
+]
+license-file = "LICENSE"
+readme = "README.md"
+edition = "2021"
+repository = "https://github.com/fission-suite/rs-wnfs"
+homepage = "https://fission.codes"
+authors = ["The Fission Authors"]
+
+[dependencies]
+libipld = "0.13.1"
+multihash = "0.16.2"
+semver = "1.0.7"
+chrono = "0.4.19"
+
+[lib]
+path = "lib.rs"
+
+[features]
+default = []
+wasm = []
+wasm-bindgen = ["wasm"]

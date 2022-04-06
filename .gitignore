@@ -1,2 +1,5 @@
-target/
+**/target/
 **/.DS_Store
+**/node_modules
+packages/wasm/pkg
+**/yarn-error.log

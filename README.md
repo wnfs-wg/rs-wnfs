@@ -27,15 +27,22 @@
   </p>
 </div>
 
-<div align="center">:warning: Work in Progress, do not use :warning:</div>
+<div align="center"><sub>:warning: Work in progress. Do not use :warning:</sub></div>
+
+##
 
 This project will implement a pure rust crate for creating and manipulating IPLD graphs that encode WNFS.
 Its goal is to be as dependency-less as possible in order to be easily compiled to WASM and used in browsers or other environments.
 
-### Project Setup
+##
 
-- N/A
+## Building Project
 
-### Building Project
+- Install [Rustup](https://www.rust-lang.org/tools/install)
 
-- N/A
+- Clone the repository:
+
+```bash
+git clone https://github.com/fission-suite/rs-wnfs.git
+```
+
