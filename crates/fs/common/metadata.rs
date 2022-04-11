@@ -1,12 +1,27 @@
 //! File system metadata.
 
+use std::{
+    io::{Read, Seek, Write},
+    str::FromStr,
+};
+
+use anyhow::Result;
 use chrono::{DateTime, Utc};
+use libipld::{
+    cbor::DagCborCodec,
+    codec::{Decode, Encode},
+    DagCbor,
+};
 use semver::Version;
+
+//--------------------------------------------------------------------------------------------------
+// Type Definitions
+//--------------------------------------------------------------------------------------------------
 
 /// Represents the type of node in the UnixFS file system.
 ///
 /// See https://docs.ipfs.io/concepts/file-systems/#unix-file-system-unixfs
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Copy, DagCbor)]
 pub enum UnixFsNodeKind {
     Raw,
     File,
@@ -21,7 +36,7 @@ pub enum UnixFsNodeKind {
 /// See
 /// - https://docs.ipfs.io/concepts/file-systems/#unix-file-system-unixfs
 /// - https://en.wikipedia.org/wiki/File-system_permissions#Numeric_notation
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, DagCbor)]
 pub enum UnixFsMode {
     NoPermissions = 0,
     OwnerReadWriteExecute = 700,
@@ -41,20 +56,24 @@ pub enum UnixFsMode {
 /// The metadata of a node in the UnixFS file system.
 ///
 /// See https://docs.ipfs.io/concepts/file-systems/#unix-file-system-unixfs
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, DagCbor)]
 pub struct UnixFsMetadata {
-    created: DateTime<Utc>,
-    modified: DateTime<Utc>,
-    mode: UnixFsMode,
-    kind: UnixFsNodeKind,
+    pub(crate) created: i64,
+    pub(crate) modified: i64,
+    pub(crate) mode: UnixFsMode,
+    pub(crate) kind: UnixFsNodeKind,
 }
 
 /// The metadata of a node on the WNFS file system.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Metadata {
-    unixfs_metadata: UnixFsMetadata,
-    version: Version,
+    pub(crate) unix_fs: UnixFsMetadata,
+    pub(crate) version: Version,
 }
+
+//--------------------------------------------------------------------------------------------------
+// Implementations
+//--------------------------------------------------------------------------------------------------
 
 impl Metadata {
     /// Creates a new metadata representing a UnixFS node.
@@ -66,8 +85,10 @@ impl Metadata {
                 UnixFsMode::OwnerReadWriteExecuteGroupOthersReadExecute
             };
 
+        let time = time.timestamp();
+
         Self {
-            unixfs_metadata: UnixFsMetadata {
+            unix_fs: UnixFsMetadata {
                 created: time,
                 modified: time,
                 mode,
@@ -78,5 +99,29 @@ impl Metadata {
     }
 }
 
+impl Decode<DagCborCodec> for Metadata {
+    fn decode<R: Read + Seek>(c: DagCborCodec, r: &mut R) -> Result<Self> {
+        let unix_fs = UnixFsMetadata::decode(c, r)?;
+        let version_str = String::decode(c, r)?;
+        let version = Version::from_str(&version_str)?;
+
+        Ok(Self { unix_fs, version })
+    }
+}
+
+impl Encode<DagCborCodec> for Metadata {
+    fn encode<W: Write>(&self, c: DagCborCodec, w: &mut W) -> Result<()> {
+        self.unix_fs.encode(c, w)?;
+        self.version.to_string().encode(c, w)?;
+
+        Ok(())
+    }
+}
+
 #[cfg(test)]
-mod metadata_tests {}
+mod metadata_tests {
+    #[async_std::test]
+    async fn metadata_encode_decode_successful() {
+        // TODO(appcypher): Implement this.
+    }
+}

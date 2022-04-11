@@ -1,6 +1,5 @@
 [workspace]
 members = [
-	'packages/tests',
-	'packages/fs',
-	'packages/wasm'
+	'crates/fs',
+	'crates/wasm'
 ]

@@ -1,7 +1,7 @@
 [package]
-name = "wnfs-tests"
+name = "wasm-wnfs"
 version = "0.1.0"
-description = "WebNative filesystem integration tests"
+description = "WebNative filesystem WebAssembly API"
 keywords = ["wnfs", "webnative", "ipfs", "decentralisation"]
 categories = [
   "filesystem",
@@ -21,11 +21,22 @@ wasm-bindgen = { version = "0.2.79", optional = true }
 wasm-bindgen-futures = { version = "0.4.29", optional = true }
 js-sys = { version = "0.3.56", optional = true }
 web-sys = { version = "0.3.56", optional = true }
+chrono = { version = "0.4.19", features = ["wasmbind"] }
+anyhow = "1.0.56"
 
 [lib]
 path = "lib.rs"
+crate-type = ["cdylib" , "rlib"]
 
 [features]
-default = ["wasm"]
-wasm = ["wasm-bindgen", "wasm-bindgen-futures",  "js-sys", "wnfs/wasm"]
+default = ["js"]
+wasm = ["wnfs/wasm"]
+js = [
+  "wasm",
+  "wasm-bindgen",
+  "wasm-bindgen-futures",
+  "js-sys",
+  "chrono/wasmbind",
+]
 web = ["wasm", "web-sys"]
+

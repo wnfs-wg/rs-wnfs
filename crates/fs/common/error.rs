@@ -1,10 +1,11 @@
 //! File system errors.
 
-use anyhow::Result;
 use std::{
     error::Error,
     fmt::{Debug, Display},
 };
+
+use anyhow::Result;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FsError {
