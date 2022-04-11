@@ -38,7 +38,6 @@ impl Link {
     }
 }
 
-
 #[cfg(test)]
 mod public_link_tests {
     #[async_std::test]

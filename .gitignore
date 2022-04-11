@@ -1,6 +1,6 @@
 **/target/
 **/.DS_Store
 **/node_modules
-packages/wasm/pkg
-packages/wasm/index.*
+crates/wasm/pkg
+crates/wasm/index.*
 **/yarn-error.log

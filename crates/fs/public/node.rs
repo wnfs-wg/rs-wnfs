@@ -76,7 +76,7 @@ mod public_node_tests {
     use std::io::Cursor;
 
     use chrono::Utc;
-    use libipld::{cbor::DagCborCodec, codec::Decode, Cid, prelude::Encode};
+    use libipld::{cbor::DagCborCodec, codec::Decode, prelude::Encode, Cid};
 
     use crate::{
         public::{PublicDirectory, PublicFile, PublicNode},
