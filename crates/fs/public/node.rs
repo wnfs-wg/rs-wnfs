@@ -1,15 +1,15 @@
 //! Public file system in-memory representation.
 
 use std::{
-    collections::BTreeMap,
-    io::{Read, Seek},
+    io::{Cursor, Read, Seek},
+    result,
 };
 
 use anyhow::Result;
 use libipld::{cbor::DagCborCodec, codec::Decode, Cid};
 
-use super::{Link, PublicDirectory, PublicFile};
-use crate::{common::BlockStore, Metadata, UnixFsNodeKind};
+use super::{PublicDirectory, PublicFile};
+use crate::common::BlockStore;
 
 /// A node in a WNFS public file system. This can either be a file or a directory.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -27,6 +27,18 @@ impl PublicNode {
         })
     }
 
+    /// Casts a node to an owned directory.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the node is not a directory.
+    pub fn into_dir(self) -> PublicDirectory {
+        match self {
+            PublicNode::Dir(dir) => dir,
+            _ => unreachable!(),
+        }
+    }
+
     /// Casts a node to a directory.
     ///
     /// # Panics
@@ -38,33 +50,39 @@ impl PublicNode {
             _ => unreachable!(),
         }
     }
+
+    /// Casts a node to a mutable directory.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the node is not a directory.
+    pub fn as_mut_dir(&mut self) -> &mut PublicDirectory {
+        match self {
+            PublicNode::Dir(dir) => dir,
+            _ => unreachable!(),
+        }
+    }
 }
 
 impl Decode<DagCborCodec> for PublicNode {
     fn decode<R: Read + Seek>(c: DagCborCodec, r: &mut R) -> Result<Self> {
-        let metadata = Metadata::decode(c, r)?;
-        let node = if matches!(metadata.unix_fs.kind, UnixFsNodeKind::File) {
-            let userland = Cid::decode(c, r)?;
-            let previous = <Option<Cid>>::decode(c, r)?;
+        // NOTE(appcypher): There is really no great way to seek or peek at the data behind `r :: R: Read + Seek`.
+        // So we just copy the whole data behind the opaque type which allows us to cursor over the data multiple times.
+        // It is not ideal but it works.
+        let bytes: Vec<u8> = r.bytes().collect::<result::Result<_, _>>()?;
 
-            PublicNode::File(PublicFile {
-                metadata,
-                userland,
-                previous,
-            })
-        } else {
-            let userland = BTreeMap::<String, Cid>::decode(c, r)?
-                .into_iter()
-                .map(|(k, cid)| (k, Link::Cid(cid)))
-                .collect();
+        // We first try to decode as a file.
+        let mut try_file_cursor = Cursor::new(bytes);
+        let try_file_decode = PublicFile::decode(c, &mut try_file_cursor);
 
-            let previous = <Option<Cid>>::decode(c, r)?;
-
-            PublicNode::Dir(PublicDirectory {
-                metadata,
-                userland,
-                previous,
-            })
+        let node = match try_file_decode {
+            Ok(file) => PublicNode::File(file),
+            _ => {
+                // If the file decode failed, we try to decode as a directory.
+                let mut cursor = Cursor::new(try_file_cursor.into_inner());
+                let dir = PublicDirectory::decode(c, &mut cursor)?;
+                PublicNode::Dir(dir)
+            }
         };
 
         Ok(node)
@@ -83,24 +101,20 @@ mod public_node_tests {
         MemoryBlockStore,
     };
 
-    // #[async_std::test]
-    // async fn encoded_public_file_decoded_successfully() {
-    //     let file = PublicFile::new(Utc::now(), Cid::default());
+    #[async_std::test]
+    async fn encoded_public_file_decoded_successfully() {
+        let file = PublicFile::new(Utc::now(), Cid::default());
 
-    //     dbg!(&file);
+        let mut encoded_bytes = vec![];
 
-    //     let mut encoded_bytes = vec![];
+        file.encode(DagCborCodec, &mut encoded_bytes).unwrap();
 
-    //     file.encode(DagCborCodec, &mut encoded_bytes).unwrap();
+        let mut cursor = Cursor::new(encoded_bytes);
 
-    //     dbg!(format!("{:02x?}", encoded_bytes));
+        let decoded_file = PublicNode::decode(DagCborCodec, &mut cursor).unwrap();
 
-    //     let mut cursor = Cursor::new(encoded_bytes);
-
-    //     let decoded_file = PublicNode::decode(DagCborCodec, &mut cursor).unwrap();
-
-    //     assert_eq!(PublicNode::File(file), decoded_file);
-    // }
+        assert_eq!(PublicNode::File(file), decoded_file);
+    }
 
     #[async_std::test]
     async fn encoded_public_directory_decoded_successfully() {

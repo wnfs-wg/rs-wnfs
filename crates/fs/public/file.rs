@@ -24,7 +24,7 @@ impl PublicFile {
         }
     }
 
-    /// Stores WNFS block(s) in chosen block store.
+    /// Stores a file as block(s) in provided block store.
     pub async fn store<B: BlockStore>(&self, store: &mut B) -> Result<Cid> {
         let bytes = {
             let mut tmp = vec![];

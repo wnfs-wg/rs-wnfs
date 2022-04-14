@@ -17,16 +17,19 @@ authors = ["The Fission Authors"]
 
 [dependencies]
 wnfs = { path = "../fs", version = "0.1.0" }
-wasm-bindgen = { version = "0.2.79", optional = true }
-wasm-bindgen-futures = { version = "0.4.29", optional = true }
-js-sys = { version = "0.3.56", optional = true }
-web-sys = { version = "0.3.56", optional = true }
-chrono = { version = "0.4.19", features = ["wasmbind", "clock", "js-sys"] }
-anyhow = "1.0.56"
-async-trait = "0.1.53"
+wasm-bindgen = { version = "0.2", optional = true }
+wasm-bindgen-futures = { version = "0.4", optional = true }
+js-sys = { version = "0.3", optional = true }
+web-sys = { version = "0.3", optional = true }
+chrono = { version = "0.4", features = ["wasmbind"] }
+anyhow = "1.0"
+async-trait = "0.1"
+console_error_panic_hook = { version = "0.1", optional = true }
+wee_alloc = { version = "0.4", optional = true }
+cfg-if = "1.0.0"
 
 [dev-dependencies]
-wasm-bindgen-test = "0.3.30"
+wasm-bindgen-test = "0.3"
 
 [lib]
 path = "lib.rs"
@@ -41,8 +44,10 @@ js = [
   "wasm-bindgen-futures",
   "js-sys",
   "chrono/wasmbind",
-  "chrono/clock",
-  "chrono/js-sys",
+  "wee_alloc",
+  "console_error_panic_hook",
 ]
 web = ["wasm", "web-sys"]
 
+[build]
+target = "wasm32-unknown-unknown"

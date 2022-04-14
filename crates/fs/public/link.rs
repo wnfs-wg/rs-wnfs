@@ -1,6 +1,6 @@
 //! Node link.
 
-use std::rc::Rc;
+use std::{cell::RefCell, rc::Rc};
 
 use anyhow::Result;
 use libipld::{cbor::DagCborCodec, Cid};
@@ -14,16 +14,16 @@ use crate::BlockStore;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Link {
     Cid(Cid),
-    Node(Rc<PublicNode>),
+    Node(Rc<RefCell<PublicNode>>),
 }
 
 impl Link {
     // Resolves a CID link in the file system to a node.
-    pub async fn resolve<B: BlockStore>(&self, store: &B) -> Result<Rc<PublicNode>> {
+    pub async fn resolve<B: BlockStore>(&self, store: &B) -> Result<Rc<RefCell<PublicNode>>> {
         Ok(match self {
             Link::Cid(cid) => {
                 let node = store.load(cid, DagCborCodec).await?;
-                Rc::new(node)
+                Rc::new(RefCell::new(node))
             }
             Link::Node(node) => Rc::clone(node),
         })
@@ -33,7 +33,7 @@ impl Link {
     pub async fn seal<B: BlockStore>(&self, store: &mut B) -> Result<Cid> {
         Ok(match self {
             Link::Cid(cid) => *cid,
-            Link::Node(node) => node.store(store).await?,
+            Link::Node(node) => node.borrow().store(store).await?,
         })
     }
 }
@@ -42,11 +42,11 @@ impl Link {
 mod public_link_tests {
     #[async_std::test]
     async fn node_link_sealed_successfully() {
-        // TODO(appcypher): Implement.
+        // TODO(appcypher): Implement this.
     }
 
     #[async_std::test]
     async fn cid_link_resolved_successfully() {
-        // TODO(appcypher): Implement.
+        // TODO(appcypher): Implement this.
     }
 }

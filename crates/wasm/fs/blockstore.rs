@@ -1,80 +1,140 @@
-//! The bindgen API of WNFS block store implemenation.
+//! The bindgen API for WNFS block store.
 
-use std::{borrow::Cow, str::FromStr};
+use std::str::FromStr;
+use std::{borrow::Cow, cell::RefCell, rc::Rc};
 
 use async_trait::async_trait;
-use wasm_bindgen::prelude::wasm_bindgen;
+use js_sys::Promise;
+use wasm_bindgen::{prelude::wasm_bindgen, JsValue};
+use wasm_bindgen_futures::future_to_promise;
 use wnfs::{
     BlockStore as WnfsBlockStore, BlockStoreCidLoad as WnfsBlockStoreCidLoad,
     BlockStoreLookup as WnfsBlockStoreLookup, Cid, Codec, Decode, IpldCodec,
     MemoryBlockStore as WnfsMemoryBlockStore,
 };
 
-use super::JsResult;
+//--------------------------------------------------------------------------------------------------
+// Externs
+//--------------------------------------------------------------------------------------------------
 
 #[wasm_bindgen]
+extern "C" {
+    pub type ExternBlockStore;
+
+    #[wasm_bindgen(js_name = "getBlock")]
+    fn get_block(this: ExternBlockStore, cid: String) -> Promise;
+
+    #[wasm_bindgen(js_name = "putBlock")]
+    fn put_block(this: ExternBlockStore, cid: String) -> Promise;
+
+    #[wasm_bindgen(js_name = "putBlock")]
+    fn load(this: ExternBlockStore, cid: String) -> Promise;
+}
+
+//--------------------------------------------------------------------------------------------------
+// Type Definitions
+//--------------------------------------------------------------------------------------------------
+
+/// An in-memory block store to simulate IPFS.
+#[wasm_bindgen]
 #[derive(Default)]
-pub struct MemoryBlockStore(WnfsMemoryBlockStore);
+pub struct MemoryBlockStore(Rc<RefCell<WnfsMemoryBlockStore>>);
+
+/// A block store provided by the host (JavaScript) for csutom implementation like connection to the IPFS network.
+#[wasm_bindgen]
+pub struct ForeignBlockStore(ExternBlockStore);
+
+//--------------------------------------------------------------------------------------------------
+// Implementations
+//--------------------------------------------------------------------------------------------------
 
 #[wasm_bindgen]
 impl MemoryBlockStore {
+    /// Creates a new in-memory block store.
     #[wasm_bindgen(constructor)]
     pub fn new() -> Self {
         Self::default()
     }
 
+    /// Stores an array of bytes in the block store.
     #[wasm_bindgen(js_name = "putBlock")]
-    pub async fn put_block(&mut self, bytes: Vec<u8>, codec: u64) -> JsResult<String> {
-        let codec = IpldCodec::try_from(codec).map_err(|_| js_sys::Error::new("Invalid codec"))?;
+    pub fn put_block(&self, bytes: Vec<u8>, codec: u64) -> Promise {
+        let store = Rc::clone(&self.0);
 
-        let cid = self
-            .0
-            .put_block(bytes, codec)
-            .await
-            .map_err(|_| js_sys::Error::new("Failed to put block"))?;
+        future_to_promise(async move {
+            let codec =
+                IpldCodec::try_from(codec).map_err(|_| js_sys::Error::new("Invalid codec"))?;
 
-        Ok(cid.to_string())
+            let cid = store
+                .borrow_mut()
+                .put_block(bytes, codec)
+                .await
+                .map_err(|_| js_sys::Error::new("Failed to put block"))?;
+
+            let value = JsValue::from(cid.to_string());
+
+            Ok(value)
+        })
     }
 
+    /// Gets a block of bytes from the store with provided CID.
     #[wasm_bindgen(js_name = "getBlock")]
-    pub async fn get_block(&self, cid: &str) -> JsResult<js_sys::Uint8Array> {
-        let cid = Cid::from_str(cid).map_err(|_| js_sys::Error::new("Invalid CID"))?;
+    pub fn get_block(&self, cid: String) -> Promise {
+        let store = Rc::clone(&self.0);
 
-        let bytes = self
-            .0
-            .get_block(&cid)
-            .await
-            .map_err(|_| js_sys::Error::new("Failed to get block"))?;
+        future_to_promise(async move {
+            let cid = Cid::from_str(&cid).map_err(|_| js_sys::Error::new("Invalid CID"))?;
 
-        Ok(js_sys::Uint8Array::from(&bytes[..]))
+            let store_ref = store.borrow();
+
+            let bytes = store_ref
+                .get_block(&cid)
+                .await
+                .map_err(|_| js_sys::Error::new("Failed to get block"))?;
+
+            let value = JsValue::from(js_sys::Uint8Array::from(&bytes[..]));
+
+            Ok(value)
+        })
     }
 }
 
-#[async_trait]
+#[async_trait(?Send)]
 impl WnfsBlockStore for MemoryBlockStore {
     async fn put_block(
         &mut self,
         bytes: Vec<u8>,
         codec: wnfs::IpldCodec,
     ) -> Result<wnfs::Cid, anyhow::Error> {
-        self.0.put_block(bytes, codec).await
+        let mut store = self.0.borrow_mut();
+        store.put_block(bytes, codec).await
     }
 }
 
-#[async_trait]
+#[async_trait(?Send)]
 impl WnfsBlockStoreLookup for MemoryBlockStore {
-    async fn get_block<'a>(&'a self, cid: &wnfs::Cid) -> Result<Cow<'a, [u8]>, anyhow::Error> {
-        self.0.get_block(cid).await
+    async fn get_block<'a>(&'a self, cid: &wnfs::Cid) -> Result<Cow<'a, Vec<u8>>, anyhow::Error> {
+        let store = self.0.borrow();
+        store.get_block(cid).await.map(|x| Cow::Owned(x.to_vec()))
     }
 }
 
-#[async_trait]
+#[async_trait(?Send)]
 impl WnfsBlockStoreCidLoad for MemoryBlockStore {
     async fn load<T: Decode<C>, C: Codec>(
         &self,
         cid: &Cid,
         decoder: C,
     ) -> Result<T, anyhow::Error> {
-        self.0.load(cid, decoder).await
+        let store = self.0.borrow();
+        store.load(cid, decoder).await
     }
+}
+
+#[cfg(test)]
+mod public_file_tests {
+    use super::*;
+    use wasm_bindgen_test::*;
+
+    wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
 }

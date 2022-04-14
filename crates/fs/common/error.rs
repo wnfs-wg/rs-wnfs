@@ -7,11 +7,16 @@ use std::{
 
 use anyhow::Result;
 
+/// File system errors.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FsError {
     CIDNotFoundInBlockstore,
     InvalidPath,
-    NodeNotFound,
+    NotAFile,
+    NotADirectory,
+    NotFound,
+    FileAlreadyExists,
+    UndecodableCborData(String),
 }
 
 impl std::error::Error for FsError {}

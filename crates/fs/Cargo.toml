@@ -25,6 +25,7 @@ hashbrown = "0.12.0"
 async-trait = "0.1.53"
 async-std = { version = "1.11.0", features = ["attributes"] }
 async-recursion = "1.0.0"
+field_names = "0.2.0"
 
 [lib]
 path = "lib.rs"

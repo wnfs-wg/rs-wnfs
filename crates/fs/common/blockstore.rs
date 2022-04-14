@@ -19,25 +19,27 @@ use super::FsError;
 //--------------------------------------------------------------------------------------------------
 
 /// For types that implement getting a block from a CID.
-#[async_trait]
+#[async_trait(?Send)]
 pub trait BlockStoreLookup {
-    async fn get_block<'a>(&'a self, cid: &Cid) -> Result<Cow<'a, [u8]>>;
+    async fn get_block<'a>(&'a self, cid: &Cid) -> Result<Cow<'a, Vec<u8>>>;
 }
 
-/// For types that implement loading a cbor model from a blockstore using a CID.
-#[async_trait]
+/// For types that implement loading decodable object from a blockstore using a CID.
+#[async_trait(?Send)]
 pub trait BlockStoreCidLoad {
-    /// Loads a cbor model from the store with provided CID.
+    /// Loads a decodable object from the store with provided CID.
     async fn load<T: Decode<C>, C: Codec>(&self, cid: &Cid, decoder: C) -> Result<T>;
 }
 
-/// For types that implement block store operations.
-#[async_trait]
+/// For types that implement block store operations like adding, getting content from the store.
+#[async_trait(?Send)]
 pub trait BlockStore: BlockStoreLookup + BlockStoreCidLoad {
     async fn put_block(&mut self, bytes: Vec<u8>, codec: IpldCodec) -> Result<Cid>;
 }
 
-/// An in-memory block store to simulate IPFS. IPFS is basically an glorified HashMap.
+/// An in-memory block store to simulate IPFS.
+///
+/// IPFS is basically an glorified HashMap.
 #[derive(Debug, Default)]
 pub struct MemoryBlockStore(HashMap<String, Vec<u8>>);
 
@@ -52,7 +54,7 @@ impl MemoryBlockStore {
     }
 }
 
-#[async_trait]
+#[async_trait(?Send)]
 impl BlockStore for MemoryBlockStore {
     /// Stores an array of bytes in the block store.
     async fn put_block(&mut self, bytes: Vec<u8>, codec: IpldCodec) -> Result<Cid> {
@@ -65,10 +67,10 @@ impl BlockStore for MemoryBlockStore {
     }
 }
 
-#[async_trait]
+#[async_trait(?Send)]
 impl BlockStoreLookup for MemoryBlockStore {
     /// Retrieves an array of bytes from the block store with given CID.
-    async fn get_block<'a>(&'a self, cid: &Cid) -> Result<Cow<'a, [u8]>> {
+    async fn get_block<'a>(&'a self, cid: &Cid) -> Result<Cow<'a, Vec<u8>>> {
         let bytes = self
             .0
             .get(&cid.to_string())
@@ -78,9 +80,9 @@ impl BlockStoreLookup for MemoryBlockStore {
     }
 }
 
-#[async_trait]
+#[async_trait(?Send)]
 impl BlockStoreCidLoad for MemoryBlockStore {
-    /// Loads a cbor-encoded data from the store with provided CID.
+    /// Loads a CBOR-encoded data from the store with provided CID.
     async fn load<T: Decode<C>, C: Codec>(&self, cid: &Cid, decoder: C) -> Result<T> {
         let bytes = self.get_block(cid).await?;
         let decoded = decoder.decode(bytes.as_ref())?;
