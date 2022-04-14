@@ -16,6 +16,7 @@ pub enum FsError {
     NotADirectory,
     NotFound,
     FileAlreadyExists,
+    DirectoryAlreadyExists,
     UndecodableCborData(String),
 }
 
