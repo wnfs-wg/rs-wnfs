@@ -1,17 +1,17 @@
 ## The FileSystem
 
-### Building the Project
+## Building the Project
 
 - Build project
 
-```bash
-cargo build --release
-```
+  ```bash
+  cargo build --release
+  ```
 
-### Testing the Project
+## Testing the Project
 
-- Build project
+- Run tests
 
-```bash
-cargo test --release
-```
+  ```bash
+  cargo test --release
+  ```

@@ -1,29 +1,29 @@
 ## The WebAssembly API
 
-### Building the Project
+## Building the Project
 
 - Install `wasm-pack`
 
-```bash
-cargo install wasm-pack
-```
+  ```bash
+  cargo install wasm-pack
+  ```
 
 - Build project
 
-```bash
-wasm-pack build --target web
-```
+  ```bash
+  wasm-pack build --target web
+  ```
 
-### Testing the Project
+## Testing the Project
 
 - Start the test
 
-```bash
-wasm-pack test --chrome
-```
+  ```bash
+  wasm-pack test --chrome
+  ```
 
 - Run tests in the browser
 
-```bash
-open http://127.0.0.1:8000
-```
+  ```bash
+  open http://127.0.0.1:8000
+  ```

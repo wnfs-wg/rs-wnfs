@@ -8,7 +8,6 @@ use wnfs::public::PublicDirectory as WnfsPublicDirectory;
 #[wasm_bindgen]
 pub struct PublicDirectory(WnfsPublicDirectory);
 
-#[cfg(target_arch = "wasm32")]
 #[wasm_bindgen]
 impl PublicDirectory {
     /// Creates a new directory using the given metadata.
@@ -19,7 +18,6 @@ impl PublicDirectory {
     }
 }
 
-#[cfg(target_arch = "wasm32")]
 #[cfg(test)]
 mod public_directory_tests {
     use super::*;

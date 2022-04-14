@@ -34,15 +34,82 @@
 This project will implement a pure rust crate for creating and manipulating IPLD graphs that encode WNFS.
 Its goal is to be as dependency-less as possible in order to be easily compiled to WASM and used in browsers or other environments.
 
-##
 
-## Building Project
+## Building the Project
 
-- Install [Rustup](https://www.rust-lang.org/tools/install)
+#### REQUIREMENTS
 
-- Clone the repository:
+- Rust toolchain
 
-```bash
-git clone https://github.com/fission-suite/rs-wnfs.git
-```
+  Rust toolchain can be installed by following the instructions [here](https://doc.rust-lang.org/cargo/getting-started/installation.html)
 
+- WebAssembly toolchain
+
+  We need to build the project in WebAssembly. To do so, we need to install `wasm-pack` and tweak Rust toolchain context.
+
+  <details>
+    <summary>Read more</summary>
+
+  - Install `wasm32-unknown-unknown` target
+
+    ```bash
+    rustup target add wasm32-unknown-unknown
+    ```
+
+  - [rust-analyzer](https://rust-analyzer.github.io/manual.html#installation) is the go-to IDE tool for Rust and if you have it set up, you may want to set the `rust-analyzer.cargo.target` [setting](https://code.visualstudio.com/docs/getstarted/settings#_workspace-settings) to `wasm32-unknown-unknown`
+
+  - Install wasm-pack
+
+    ```bash
+    cargo install wasm-pack
+    ```
+
+  </details>
+
+- **wnfs** script
+
+  If you are on a Unix platform, you can optionally install the `wnfs` script.
+
+  ```bash
+  sh script/wnfs.sh setup
+  ```
+
+  And you can use it like this afterwards
+
+  ```bash
+  wnfs help
+  ```
+
+#### STEPS
+
+- Clone the repository.
+
+  ```bash
+  git https://github.com/fission-suite/rs-wnfs.git
+  ```
+
+- Change directory
+
+  ```bash
+  cd rs-wnfs
+  ```
+
+- Build the project
+
+  ```bash
+  sh scripts/wnfs.sh build
+  ```
+
+## Testing the Project
+
+- Run all tests
+
+  ```bash
+  sh scripts/wnfs.sh test
+  ```
+
+- Show code coverage
+
+  ```bash
+  sh scripts/wnfs.sh coverage
+  ```

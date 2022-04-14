@@ -479,14 +479,14 @@ mod public_directory_tests {
     async fn files_added_to_directory_looked_up_unsuccessful() {
         let root = PublicDirectory::new(Utc::now());
 
-        let mut store = MemoryBlockStore::default();
+        let store = MemoryBlockStore::default();
 
         let content_cid = Cid::default();
 
         let time = Utc::now();
 
         let root = root
-            .write(&[String::from("text.txt")], content_cid, time, &mut store)
+            .write(&[String::from("text.txt")], content_cid, time, &store)
             .await
             .unwrap();
 

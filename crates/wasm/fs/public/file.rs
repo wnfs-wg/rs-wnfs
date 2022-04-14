@@ -12,7 +12,6 @@ use crate::fs::JsResult;
 #[wasm_bindgen]
 pub struct PublicFile(WnfsPublicFile);
 
-#[cfg(target_arch = "wasm32")]
 #[wasm_bindgen]
 impl PublicFile {
     /// Creates a new file in a WNFS public file system.
@@ -24,7 +23,6 @@ impl PublicFile {
     }
 }
 
-#[cfg(target_arch = "wasm32")]
 #[cfg(test)]
 mod public_file_tests {
     use super::*;
