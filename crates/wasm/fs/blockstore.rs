@@ -130,16 +130,3 @@ impl WnfsBlockStoreCidLoad for MemoryBlockStore {
         store.load(cid, decoder).await
     }
 }
-
-#[cfg(test)]
-mod blockstore_tests {
-    use super::*;
-    use wasm_bindgen_test::*;
-
-    wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
-
-    #[wasm_bindgen_test]
-    fn it_can_create_memory_block_store() {
-        MemoryBlockStore::default();
-    }
-}

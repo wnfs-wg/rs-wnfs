@@ -8,7 +8,7 @@ use wasm_bindgen::{prelude::wasm_bindgen, JsValue};
 use wasm_bindgen_futures::future_to_promise;
 use wnfs::{
     public::{
-        OpResult as WnfsOpResult, PublicDirectory as WnfsPublicDirectory,
+        Id, OpResult as WnfsOpResult, PublicDirectory as WnfsPublicDirectory,
         PublicNode as WnfsPublicNode,
     },
     shared, Cid, Shared,
@@ -19,7 +19,7 @@ use crate::value;
 
 /// A directory in a WNFS public file system.
 #[wasm_bindgen]
-pub struct PublicDirectory(Shared<WnfsPublicDirectory>);
+pub struct PublicDirectory(WnfsPublicDirectory);
 
 /// Wraps a shared<PublicNode>
 #[wasm_bindgen]
@@ -35,7 +35,7 @@ impl PublicDirectory {
     #[wasm_bindgen(constructor)]
     pub fn new(time: &js_sys::Date) -> PublicDirectory {
         let time = DateTime::<Utc>::from(time);
-        PublicDirectory(shared(WnfsPublicDirectory::new(time)))
+        PublicDirectory(WnfsPublicDirectory::new(time))
     }
 
     /// Follows a path and fetches the node at the end of the path.
@@ -50,12 +50,11 @@ impl PublicDirectory {
         store: &MemoryBlockStore,
         diverge: bool,
     ) -> JsResult<Promise> {
-        let directory = Rc::clone(&self.0);
+        let directory = self.0.clone();
         let store = Rc::clone(&store.0);
         let path_segments = utils::convert_path_segments(path_segments)?;
 
         Ok(future_to_promise(async move {
-            let directory = directory.borrow();
             let store = store.borrow();
 
             let WnfsOpResult {
@@ -88,12 +87,11 @@ impl PublicDirectory {
         path_segment: &str,
         store: &MemoryBlockStore,
     ) -> JsResult<Promise> {
-        let directory = Rc::clone(&self.0);
+        let directory = self.0.clone();
         let store = Rc::clone(&store.0);
         let path_segment = path_segment.to_string();
 
         Ok(future_to_promise(async move {
-            let directory = directory.borrow();
             let store = store.borrow();
 
             let found_node = directory
@@ -107,11 +105,10 @@ impl PublicDirectory {
 
     /// Stores a directory as block(s) in provided block store.
     pub fn store(&self, store: &mut MemoryBlockStore) -> JsResult<Promise> {
-        let directory = Rc::clone(&self.0);
+        let directory = self.0.clone();
         let store = Rc::clone(&store.0);
 
         Ok(future_to_promise(async move {
-            let directory = directory.borrow();
             let mut store = store.borrow_mut();
 
             let cid = directory
@@ -125,12 +122,11 @@ impl PublicDirectory {
 
     /// Reads specified file content from the directory.
     pub fn read(&self, path_segments: &Array, store: &MemoryBlockStore) -> JsResult<Promise> {
-        let directory = Rc::clone(&self.0);
+        let directory = self.0.clone();
         let store = Rc::clone(&store.0);
         let path_segments = utils::convert_path_segments(path_segments)?;
 
         Ok(future_to_promise(async move {
-            let directory = directory.borrow();
             let mut store = store.borrow_mut();
 
             let WnfsOpResult {
@@ -154,12 +150,11 @@ impl PublicDirectory {
 
     /// Returns the name and metadata of the direct children of a directory.
     pub fn ls(&self, path_segments: &Array, store: &MemoryBlockStore) -> JsResult<Promise> {
-        let directory = Rc::clone(&self.0);
+        let directory = self.0.clone();
         let store = Rc::clone(&store.0);
         let path_segments = utils::convert_path_segments(path_segments)?;
 
         Ok(future_to_promise(async move {
-            let directory = directory.borrow();
             let store = store.borrow();
 
             let WnfsOpResult {
@@ -190,12 +185,11 @@ impl PublicDirectory {
     ///
     /// Rather than mutate the directory directly, we create a new directory and return it.
     pub fn rm(&self, path_segments: &Array, store: &MemoryBlockStore) -> JsResult<Promise> {
-        let directory = Rc::clone(&self.0);
+        let directory = self.0.clone();
         let store = Rc::clone(&store.0);
         let path_segments = utils::convert_path_segments(path_segments)?;
 
         Ok(future_to_promise(async move {
-            let directory = directory.borrow();
             let store = store.borrow();
 
             let WnfsOpResult {
@@ -227,14 +221,13 @@ impl PublicDirectory {
         time: &js_sys::Date,
         store: &MemoryBlockStore,
     ) -> JsResult<Promise> {
-        let directory = Rc::clone(&self.0);
+        let directory = self.0.clone();
         let store = Rc::clone(&store.0);
         let cid = Cid::from_str(content_cid).map_err(|_| Error::new("Invalid CID"))?;
         let time = DateTime::<Utc>::from(time);
         let path_segments = utils::convert_path_segments(path_segments)?;
 
         Ok(future_to_promise(async move {
-            let directory = directory.borrow();
             let store = store.borrow();
 
             let WnfsOpResult {
@@ -267,13 +260,12 @@ impl PublicDirectory {
         time: &js_sys::Date,
         store: &MemoryBlockStore,
     ) -> JsResult<Promise> {
-        let directory = Rc::clone(&self.0);
+        let directory = self.0.clone();
         let store = Rc::clone(&store.0);
         let time = DateTime::<Utc>::from(time);
         let path_segments = utils::convert_path_segments(path_segments)?;
 
         Ok(future_to_promise(async move {
-            let directory = directory.borrow();
             let store = store.borrow();
 
             let WnfsOpResult {
@@ -295,12 +287,17 @@ impl PublicDirectory {
         }))
     }
 
+    /// Gets a unique id for node.
+    #[wasm_bindgen(js_name = "getId")]
+    pub fn get_id(&self) -> String {
+        self.0.get_id()
+    }
+
     /// Converts directory to a shared node.
-    /// TODO(appcypher): This will be unnecessary once we support `Shared<PublicDirectory>`.
     #[wasm_bindgen(js_name = "toNode")]
     pub fn to_node(&self) -> SharedNode {
-        let dir = &*self.0.borrow();
-        SharedNode(shared(WnfsPublicNode::Dir(dir.clone())))
+        let dir = self.0.clone();
+        SharedNode(shared(WnfsPublicNode::Dir(dir)))
     }
 }
 
@@ -310,8 +307,7 @@ impl SharedNode {
     pub fn as_dir(&self) -> PublicDirectory {
         let node = self.0.borrow();
         let dir = node.as_dir();
-        // TODO(appcypher): The clone here is not ideal but it means WnfsPublicNode::Dir might have to hold `Shared<PublicDirectory>` instead which will complicate the structure.
-        PublicDirectory(shared(dir.clone()))
+        PublicDirectory(dir.clone())
     }
 }
 
@@ -341,24 +337,5 @@ mod utils {
             v.as_string()
                 .ok_or_else(|| Error::new("Invalid path segments: Expected an array of strings"))
         })
-    }
-}
-
-//--------------------------------------------------------------------------------------------------
-// Tests
-//--------------------------------------------------------------------------------------------------
-
-#[cfg(test)]
-mod public_directory_tests {
-    use super::*;
-    use wasm_bindgen_test::*;
-
-    wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
-
-    #[wasm_bindgen_test]
-    fn it_can_create_directory() {
-        let time = &js_sys::Date::new_0();
-
-        PublicDirectory::new(time);
     }
 }

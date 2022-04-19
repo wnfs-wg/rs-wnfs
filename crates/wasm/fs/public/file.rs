@@ -5,7 +5,7 @@ use std::str::FromStr;
 use chrono::{DateTime, Utc};
 use js_sys::Error;
 use wasm_bindgen::prelude::wasm_bindgen;
-use wnfs::{public::PublicFile as WnfsPublicFile, Cid};
+use wnfs::{public::{PublicFile as WnfsPublicFile, Id}, Cid};
 
 use crate::fs::JsResult;
 
@@ -22,23 +22,10 @@ impl PublicFile {
         let cid = Cid::from_str(cid).map_err(|_| Error::new("Invalid CID"))?;
         Ok(PublicFile(WnfsPublicFile::new(time, cid)))
     }
-}
 
-#[cfg(test)]
-mod public_file_tests {
-    use super::*;
-    use wasm_bindgen_test::*;
-
-    wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
-
-    #[wasm_bindgen_test]
-    fn it_can_create_file() {
-        let time = &js_sys::Date::new_0();
-
-        let cid = Cid::default();
-
-        let file = PublicFile::new(time, &cid.to_string());
-
-        assert!(file.is_ok());
+    /// Gets a unique id for node.
+    #[wasm_bindgen(js_name = "getId")]
+    pub fn get_id(&self) -> String {
+        self.0.get_id()
     }
 }
