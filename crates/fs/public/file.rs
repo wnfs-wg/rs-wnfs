@@ -6,6 +6,8 @@ use libipld::{cbor::DagCborCodec, prelude::Encode, Cid, DagCbor, IpldCodec};
 
 use crate::{BlockStore, Metadata, UnixFsNodeKind};
 
+use super::Id;
+
 /// A file in a WNFS public file system.
 #[derive(Debug, Clone, PartialEq, Eq, DagCbor)]
 pub struct PublicFile {
@@ -13,6 +15,10 @@ pub struct PublicFile {
     pub(crate) userland: Cid,
     pub(crate) previous: Option<Cid>,
 }
+
+//--------------------------------------------------------------------------------------------------
+// Implementations
+//--------------------------------------------------------------------------------------------------
 
 impl PublicFile {
     /// Creates a new file using the given metadata and CID.
@@ -34,6 +40,16 @@ impl PublicFile {
         store.put_block(bytes, IpldCodec::DagCbor).await
     }
 }
+
+impl Id for PublicFile {
+    fn get_id(&self) -> String {
+        format!("{:p}", &self.metadata)
+    }
+}
+
+//--------------------------------------------------------------------------------------------------
+// Tests
+//--------------------------------------------------------------------------------------------------
 
 #[cfg(test)]
 mod public_file_tests {

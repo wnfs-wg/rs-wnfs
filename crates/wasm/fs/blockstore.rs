@@ -62,7 +62,8 @@ impl MemoryBlockStore {
         let store = Rc::clone(&self.0);
 
         future_to_promise(async move {
-            let codec = IpldCodec::try_from(codec).map_err(|e| Error::new(&format!("Invalid codec: {e}")))?;
+            let codec = IpldCodec::try_from(codec)
+                .map_err(|e| Error::new(&format!("Invalid codec: {e}")))?;
 
             let cid = store
                 .borrow_mut()
@@ -142,4 +143,3 @@ mod blockstore_tests {
         MemoryBlockStore::default();
     }
 }
-

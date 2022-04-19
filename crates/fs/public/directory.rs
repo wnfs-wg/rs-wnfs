@@ -19,18 +19,21 @@ use libipld::{
     Cid, IpldCodec,
 };
 
-use super::{Link, PublicFile, PublicNode};
+use super::{Id, Link, PublicFile, PublicNode};
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
 //--------------------------------------------------------------------------------------------------
 
 /// A directory in a WNFS public file system.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PublicDirectory(Shared<PublicDirectoryInner>);
+
 #[derive(Debug, Clone, PartialEq, Eq, FieldNames)]
-pub struct PublicDirectory {
-    pub(crate) metadata: Metadata,
-    pub(crate) userland: BTreeMap<String, Link>,
-    pub(crate) previous: Option<Cid>,
+struct PublicDirectoryInner {
+    metadata: Metadata,
+    userland: BTreeMap<String, Link>,
+    previous: Option<Cid>,
 }
 
 /// Represents a directory that has possibly diverged. It is the result of operating on a directory.
@@ -51,11 +54,11 @@ pub struct OpResult<T> {
 impl PublicDirectory {
     /// Creates a new directory using the given metadata.
     pub fn new(time: DateTime<Utc>) -> Self {
-        Self {
+        Self(shared(PublicDirectoryInner {
             metadata: Metadata::new(time, UnixFsNodeKind::Dir),
             userland: BTreeMap::new(),
             previous: None,
-        }
+        }))
     }
 
     /// Follows a path and fetches the node at the end of the path.
@@ -70,7 +73,6 @@ impl PublicDirectory {
         diverge: bool,
     ) -> Result<OpResult<Option<Shared<PublicNode>>>> {
         // Set working node to current directory.
-        // TODO(appcypher): The clone here is not ideal but it means self might need to become `Shared<PublicDirectory>` which will complicate the structure.
         let root_node = shared(PublicNode::Dir(self.clone()));
         let mut working_node = Some(Rc::clone(&root_node));
 
@@ -149,7 +151,7 @@ impl PublicDirectory {
         path_segment: &str,
         store: &B,
     ) -> Result<Option<Shared<PublicNode>>> {
-        Ok(match self.userland.get(path_segment) {
+        Ok(match self.0.borrow().userland.get(path_segment) {
             Some(link) => Some(link.resolve(store).await?),
             None => None,
         })
@@ -177,17 +179,21 @@ impl PublicDirectory {
         Fut: Future<Output = Result<Option<Link>>>,
     {
         let mut working_node = None;
-        match update_fn(self.userland.get(path_segment).cloned()).await? {
+        let link = self.0.borrow().userland.get(path_segment).cloned();
+        match update_fn(link).await? {
             // If the link is none, we remove the node from the userland.
             None => {
-                self.userland.remove(path_segment);
+                self.0.borrow_mut().userland.remove(path_segment);
             }
             // If the link is some, we insert the node into the userland.
             Some(link) => {
                 if let Link::Node(node) = &link {
                     working_node = Some(Rc::clone(node));
                 }
-                self.userland.insert(path_segment.to_string(), link);
+                self.0
+                    .borrow_mut()
+                    .userland
+                    .insert(path_segment.to_string(), link);
             }
         }
 
@@ -286,7 +292,6 @@ impl PublicDirectory {
         store: &B,
     ) -> Result<OpResult<Shared<PublicNode>>> {
         // Clone the directory to prevent mutation of the original directory.
-        // TODO(appcypher): The clone here is not ideal but it means self might need to become `Shared<PublicDirectory>` which will complicate the structure.
         let root_node = shared(PublicNode::Dir(self.clone()));
         let mut working_node = Rc::clone(&root_node);
 
@@ -336,6 +341,8 @@ impl PublicDirectory {
                     // Insert the new node into the working directory.
                     working_node_mut
                         .as_mut_dir()
+                        .0
+                        .borrow_mut()
                         .userland
                         .insert(segment.to_string(), Link::Node(Rc::clone(&new_node_rc)));
 
@@ -387,13 +394,13 @@ impl PublicDirectory {
             PublicNode::Dir(dir) => {
                 // Save the directory's children info in a vector.
                 let mut result = vec![];
-                for (name, link) in dir.userland.iter() {
+                for (name, link) in dir.0.borrow().userland.iter() {
                     match &*link.resolve(store).await?.borrow() {
                         PublicNode::File(file) => {
                             result.push((name.clone(), file.metadata.clone()));
                         }
                         PublicNode::Dir(dir) => {
-                            result.push((name.clone(), dir.metadata.clone()));
+                            result.push((name.clone(), dir.0.borrow().metadata.clone()));
                         }
                     }
                 }
@@ -463,11 +470,11 @@ impl PublicDirectory {
         encode::write_u64(
             &mut bytes,
             MajorKind::Map,
-            PublicDirectory::FIELDS.len() as u64,
+            PublicDirectoryInner::FIELDS.len() as u64,
         )?;
 
         // Ordering the fields by name based on RFC-7049 which is also what libipld uses.
-        let mut cbor_order: Vec<&'static str> = Vec::from_iter(PublicDirectory::FIELDS);
+        let mut cbor_order: Vec<&'static str> = Vec::from_iter(PublicDirectoryInner::FIELDS);
         cbor_order.sort_unstable_by(|&a, &b| match a.len().cmp(&b.len()) {
             Ordering::Greater => Ordering::Greater,
             Ordering::Less => Ordering::Less,
@@ -481,12 +488,12 @@ impl PublicDirectory {
             // Encode field value.
             match *field {
                 "metadata" => {
-                    self.metadata.encode(DagCborCodec, &mut bytes)?;
+                    self.0.borrow().metadata.encode(DagCborCodec, &mut bytes)?;
                 }
                 "userland" => {
                     let new_userland = {
                         let mut tmp = BTreeMap::new();
-                        for (k, link) in self.userland.iter() {
+                        for (k, link) in self.0.borrow().userland.iter() {
                             let cid = link.seal(store).await?;
                             tmp.insert(k.clone(), cid);
                         }
@@ -496,7 +503,7 @@ impl PublicDirectory {
                     new_userland.encode(DagCborCodec, &mut bytes)?;
                 }
                 "previous" => {
-                    self.previous.encode(DagCborCodec, &mut bytes)?;
+                    self.0.borrow().previous.encode(DagCborCodec, &mut bytes)?;
                 }
                 _ => unreachable!(),
             }
@@ -506,13 +513,19 @@ impl PublicDirectory {
     }
 }
 
+impl Id for PublicDirectory {
+    fn get_id(&self) -> String {
+        format!("{:p}", &self.0.borrow().metadata)
+    }
+}
+
 // Decoding CBOR-encoded PublicDirectory from bytes.
 impl Decode<DagCborCodec> for PublicDirectory {
     fn decode<R: Read + Seek>(c: DagCborCodec, r: &mut R) -> Result<Self> {
         // Ensure the major kind is a map.
         let major = decode::read_major(r)?;
         ensure!(
-            major.kind() != MajorKind::Map,
+            major.kind() == MajorKind::Map,
             FsError::UndecodableCborData("Unsupported major".into())
         );
 
@@ -520,7 +533,7 @@ impl Decode<DagCborCodec> for PublicDirectory {
         let _ = decode::read_uint(r, major)?;
 
         // Ordering the fields by name based on RFC-7049 which is also what libipld uses.
-        let mut cbor_order: Vec<&'static str> = Vec::from_iter(PublicDirectory::FIELDS);
+        let mut cbor_order: Vec<&'static str> = Vec::from_iter(PublicDirectoryInner::FIELDS);
         cbor_order.sort_unstable_by(|&a, &b| match a.len().cmp(&b.len()) {
             Ordering::Greater => Ordering::Greater,
             Ordering::Less => Ordering::Less,
@@ -555,12 +568,12 @@ impl Decode<DagCborCodec> for PublicDirectory {
             }
         }
 
-        Ok(Self {
+        Ok(Self(shared(PublicDirectoryInner {
             metadata: metadata
                 .ok_or_else(|| FsError::UndecodableCborData("Missing unix_fs".into()))?,
             userland,
             previous,
-        })
+        })))
     }
 }
 
@@ -598,6 +611,8 @@ mod utils {
                 parent_node
                     .borrow_mut()
                     .as_mut_dir()
+                    .0
+                    .borrow_mut()
                     .userland
                     .insert(child_name.clone(), Link::Node(Rc::clone(child_node)));
             }

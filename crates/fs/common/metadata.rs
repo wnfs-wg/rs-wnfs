@@ -108,7 +108,7 @@ impl Decode<DagCborCodec> for Metadata {
         // Ensure the major kind is a map.
         let major = decode::read_major(r)?;
         ensure!(
-            major.kind() != MajorKind::Map,
+            major.kind() == MajorKind::Map,
             FsError::UndecodableCborData("Unsupported major".into())
         );
 
