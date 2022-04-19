@@ -6,21 +6,21 @@
   <h1 align="center">WebNative FileSystem (WNFS)</h1>
 
   <p>
-    <!-- <a href="https://crates.io/crates/rs-wnfs">
-      <img src="https://img.shields.io/crates/v/rs-wnfs?label=crates" alt="Concurrency Docs">
-    </a> -->
-    <!-- <a href="https://codecov.io/gh/fission-suite/rs-wnfs">
+    <a href="https://crates.io/crates/wnfs">
+      <img src="https://img.shields.io/crates/v/wnfs?label=crates" alt="Concurrency Docs">
+    </a>
+    <a href="https://codecov.io/gh/fission-suite/rs-wnfs">
       <img src="https://codecov.io/gh/fission-suite/rs-wnfs/branch/main/graph/badge.svg?token=95YHXFMFF4" alt="Code Coverage"/>
-    </a> -->
+    </a>
     <a href="https://github.com/fission-suite/rs-wnfs/actions?query=">
       <img src="https://github.com/fission-suite/rs-wnfs/actions/workflows/checks.yaml/badge.svg" alt="Build Status">
     </a>
     <a href="https://github.com/fission-suite/rs-wnfs/blob/main/LICENSE">
       <img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg" alt="License">
     </a>
-    <!-- <a href="https://docs.rs/fission-suite/rs-wnfs">
+    <a href="https://docs.rs/wnfs">
       <img src="https://img.shields.io/static/v1?label=Docs&message=docs.rs&color=blue" alt="Concurrency Docs">
-    </a> -->
+    </a>
     <a href="https://discord.gg/zAQBDEq">
       <img src="https://img.shields.io/static/v1?label=Discord&message=join%20us!&color=mediumslateblue" alt="Discord">
     </a>
@@ -32,8 +32,7 @@
 ##
 
 This project will implement a pure rust crate for creating and manipulating IPLD graphs that encode WNFS.
-Its goal is to be as dependency-less as possible in order to be easily compiled to WASM and used in browsers or other environments.
-
+Its goal is to be as dependency-less as possible in order to be easily compiled to WebAssembly to be used in the browsers or other environments.
 
 ## Building the Project
 
@@ -70,15 +69,22 @@ Its goal is to be as dependency-less as possible in order to be easily compiled 
 
   If you are on a Unix platform, you can optionally install the `wnfs` script.
 
-  ```bash
-  sh script/wnfs.sh setup
-  ```
+  <details>
+    <summary>Read more</summary>
 
-  And you can use it like this afterwards
+  - Install it using the following command:
 
-  ```bash
-  wnfs help
-  ```
+    ```bash
+    sh script/wnfs.sh setup
+    ```
+
+  - This lets you run the `wnfs.sh` script with just the `wnfs` command.
+
+    ```bash
+    wnfs help
+    ```
+
+  </details>
 
 #### STEPS
 

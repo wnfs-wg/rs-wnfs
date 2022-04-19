@@ -6,7 +6,7 @@ use std::{
     str::FromStr,
 };
 
-use anyhow::Result;
+use anyhow::{ensure, Result};
 use chrono::{DateTime, Utc};
 use field_names::FieldNames;
 use libipld::{
@@ -17,8 +17,6 @@ use libipld::{
 use semver::Version;
 
 use crate::FsError;
-
-use super::error;
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
@@ -109,9 +107,10 @@ impl Decode<DagCborCodec> for Metadata {
     fn decode<R: Read + Seek>(c: DagCborCodec, r: &mut R) -> Result<Self> {
         // Ensure the major kind is a map.
         let major = decode::read_major(r)?;
-        if major.kind() != MajorKind::Map {
-            return error(FsError::UndecodableCborData("Unsupported major".into()));
-        }
+        ensure!(
+            major.kind() != MajorKind::Map,
+            FsError::UndecodableCborData("Unsupported major".into())
+        );
 
         let _ = decode::read_uint(r, major)?;
 
@@ -183,6 +182,10 @@ impl Encode<DagCborCodec> for Metadata {
     }
 }
 
+//--------------------------------------------------------------------------------------------------
+// Tests
+//--------------------------------------------------------------------------------------------------
+
 #[cfg(test)]
 mod metadata_tests {
     use std::io::Cursor;
@@ -196,7 +199,7 @@ mod metadata_tests {
     use crate::{Metadata, UnixFsNodeKind};
 
     #[async_std::test]
-    async fn metadata_encode_decode_successful() {
+    async fn metadata_can_encode_decode_as_cbor() {
         let metadata = Metadata::new(Utc::now(), UnixFsNodeKind::File);
 
         let mut encoded_bytes = vec![];

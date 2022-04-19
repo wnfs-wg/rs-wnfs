@@ -97,7 +97,7 @@ mod blockstore_tests {
     use super::*;
 
     #[async_std::test]
-    async fn items_inserted_fetched_successfully() {
+    async fn inserted_items_can_be_fetched() {
         let mut store = MemoryBlockStore::new();
 
         let first_bytes = {

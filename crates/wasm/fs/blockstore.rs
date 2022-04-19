@@ -1,16 +1,16 @@
 //! The bindgen API for WNFS block store.
 
 use std::str::FromStr;
-use std::{borrow::Cow, cell::RefCell, rc::Rc};
+use std::{borrow::Cow, rc::Rc};
 
 use async_trait::async_trait;
-use js_sys::Promise;
+use js_sys::{Error, Promise, Uint8Array};
 use wasm_bindgen::{prelude::wasm_bindgen, JsValue};
 use wasm_bindgen_futures::future_to_promise;
 use wnfs::{
     BlockStore as WnfsBlockStore, BlockStoreCidLoad as WnfsBlockStoreCidLoad,
     BlockStoreLookup as WnfsBlockStoreLookup, Cid, Codec, Decode, IpldCodec,
-    MemoryBlockStore as WnfsMemoryBlockStore,
+    MemoryBlockStore as WnfsMemoryBlockStore, Shared,
 };
 
 //--------------------------------------------------------------------------------------------------
@@ -38,7 +38,7 @@ extern "C" {
 /// An in-memory block store to simulate IPFS.
 #[wasm_bindgen]
 #[derive(Default)]
-pub struct MemoryBlockStore(Rc<RefCell<WnfsMemoryBlockStore>>);
+pub struct MemoryBlockStore(pub(crate) Shared<WnfsMemoryBlockStore>);
 
 /// A block store provided by the host (JavaScript) for csutom implementation like connection to the IPFS network.
 #[wasm_bindgen]
@@ -62,14 +62,13 @@ impl MemoryBlockStore {
         let store = Rc::clone(&self.0);
 
         future_to_promise(async move {
-            let codec =
-                IpldCodec::try_from(codec).map_err(|_| js_sys::Error::new("Invalid codec"))?;
+            let codec = IpldCodec::try_from(codec).map_err(|e| Error::new(&format!("Invalid codec: {e}")))?;
 
             let cid = store
                 .borrow_mut()
                 .put_block(bytes, codec)
                 .await
-                .map_err(|_| js_sys::Error::new("Failed to put block"))?;
+                .map_err(|_| Error::new("Failed to put block"))?;
 
             let value = JsValue::from(cid.to_string());
 
@@ -83,16 +82,16 @@ impl MemoryBlockStore {
         let store = Rc::clone(&self.0);
 
         future_to_promise(async move {
-            let cid = Cid::from_str(&cid).map_err(|_| js_sys::Error::new("Invalid CID"))?;
+            let cid = Cid::from_str(&cid).map_err(|e| Error::new(&format!("Invalid CID: {e}")))?;
 
             let store_ref = store.borrow();
 
             let bytes = store_ref
                 .get_block(&cid)
                 .await
-                .map_err(|_| js_sys::Error::new("Failed to get block"))?;
+                .map_err(|e| Error::new(&format!("Failed to get block: {e}")))?;
 
-            let value = JsValue::from(js_sys::Uint8Array::from(&bytes[..]));
+            let value = JsValue::from(Uint8Array::from(&bytes[..]));
 
             Ok(value)
         })
@@ -132,9 +131,15 @@ impl WnfsBlockStoreCidLoad for MemoryBlockStore {
 }
 
 #[cfg(test)]
-mod public_file_tests {
+mod blockstore_tests {
     use super::*;
     use wasm_bindgen_test::*;
 
     wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
+
+    #[wasm_bindgen_test]
+    fn it_can_create_memory_block_store() {
+        MemoryBlockStore::default();
+    }
 }
+

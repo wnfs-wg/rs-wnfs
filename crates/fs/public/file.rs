@@ -45,7 +45,7 @@ mod public_file_tests {
     use super::*;
 
     #[async_std::test]
-    async fn directory_encode_decode_successful() {
+    async fn file_can_encode_decode_as_cbor() {
         let file = PublicFile::new(Utc::now(), Cid::default());
 
         let mut encoded_bytes = vec![];

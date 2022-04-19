@@ -102,7 +102,7 @@ mod public_node_tests {
     };
 
     #[async_std::test]
-    async fn encoded_public_file_decoded_successfully() {
+    async fn encoded_public_file_can_be_decoded() {
         let file = PublicFile::new(Utc::now(), Cid::default());
 
         let mut encoded_bytes = vec![];
@@ -117,7 +117,7 @@ mod public_node_tests {
     }
 
     #[async_std::test]
-    async fn encoded_public_directory_decoded_successfully() {
+    async fn encoded_public_directory_can_be_decoded() {
         let directory = PublicDirectory::new(Utc::now());
 
         let mut store = MemoryBlockStore::default();
@@ -132,7 +132,7 @@ mod public_node_tests {
     }
 
     #[async_std::test]
-    async fn public_directory_casted_successfully() {
+    async fn public_node_can_be_casted_to_public_directory() {
         let directory = PublicDirectory::new(Utc::now());
 
         let node = PublicNode::Dir(directory.clone());

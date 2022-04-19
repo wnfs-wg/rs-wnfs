@@ -1,12 +1,13 @@
 [package]
 name = "wnfs"
-version = "0.1.0"
+version = "0.1.1"
 description = "WebNative filesystem core implementation"
 keywords = ["wnfs", "webnative", "ipfs", "decentralisation"]
 categories = [
   "filesystem",
   "cryptography",
-  "web programming",
+  "web-programming",
+  "wasm",
 ]
 license-file = "../../LICENSE"
 readme = "README.md"
@@ -16,7 +17,7 @@ homepage = "https://fission.codes"
 authors = ["The Fission Authors"]
 
 [dependencies]
-libipld = "0.13.1"
+libipld = { version = "0.13.1", features = ["dag-cbor", "derive"] }
 multihash = "0.16.2"
 semver = "1.0.7"
 chrono = "0.4.19"

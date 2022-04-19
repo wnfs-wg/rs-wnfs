@@ -3,6 +3,7 @@
 use std::str::FromStr;
 
 use chrono::{DateTime, Utc};
+use js_sys::Error;
 use wasm_bindgen::prelude::wasm_bindgen;
 use wnfs::{public::PublicFile as WnfsPublicFile, Cid};
 
@@ -18,7 +19,7 @@ impl PublicFile {
     #[wasm_bindgen(constructor)]
     pub fn new(time: &js_sys::Date, cid: &str) -> JsResult<PublicFile> {
         let time = DateTime::<Utc>::from(time);
-        let cid = Cid::from_str(cid).map_err(|_| js_sys::Error::new("Invalid CID"))?;
+        let cid = Cid::from_str(cid).map_err(|_| Error::new("Invalid CID"))?;
         Ok(PublicFile(WnfsPublicFile::new(time, cid)))
     }
 }
@@ -31,9 +32,13 @@ mod public_file_tests {
     wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
 
     #[wasm_bindgen_test]
-    fn create_file_successfully() {
+    fn it_can_create_file() {
         let time = &js_sys::Date::new_0();
+
         let cid = Cid::default();
-        let _public_directory = PublicFile::new(time, &cid.to_string());
+
+        let file = PublicFile::new(time, &cid.to_string());
+
+        assert!(file.is_ok());
     }
 }

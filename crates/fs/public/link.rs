@@ -63,7 +63,7 @@ mod public_link_tests {
     use super::Link;
 
     #[async_std::test]
-    async fn node_link_sealed_successfully() {
+    async fn node_link_can_be_sealed() {
         let time = Utc::now();
 
         let userland = Cid::default();
@@ -82,7 +82,7 @@ mod public_link_tests {
     }
 
     #[async_std::test]
-    async fn cid_link_resolved_successfully() {
+    async fn cid_link_can_be_resolved() {
         let time = Utc::now();
 
         let dir = PublicDirectory::new(time);

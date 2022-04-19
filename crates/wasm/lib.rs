@@ -1,6 +1,11 @@
 #![allow(clippy::unused_unit)] // To prevent clippy screaming about wasm_bindgen macros.
+#![cfg(target_arch = "wasm32")]
 
 pub mod fs;
+
+//--------------------------------------------------------------------------------------------------
+// Utilities
+//--------------------------------------------------------------------------------------------------
 
 /// Panic hook lets us get better error messages if our Rust code ever panics.
 ///
@@ -19,4 +24,15 @@ cfg_if::cfg_if! {
         #[global_allocator]
         static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
     }
+}
+
+//--------------------------------------------------------------------------------------------------
+// Macros
+//--------------------------------------------------------------------------------------------------
+
+#[macro_export]
+macro_rules! value {
+    ($value:expr) => {
+        JsValue::from($value)
+    };
 }
