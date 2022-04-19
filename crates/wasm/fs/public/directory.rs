@@ -11,19 +11,15 @@ use wnfs::{
         Id, OpResult as WnfsOpResult, PublicDirectory as WnfsPublicDirectory,
         PublicNode as WnfsPublicNode,
     },
-    shared, Cid, Shared,
+    shared, Cid,
 };
 
-use crate::fs::{JsResult, MemoryBlockStore};
+use crate::fs::{JsResult, MemoryBlockStore, SharedNode};
 use crate::value;
 
 /// A directory in a WNFS public file system.
 #[wasm_bindgen]
-pub struct PublicDirectory(WnfsPublicDirectory);
-
-/// Wraps a shared<PublicNode>
-#[wasm_bindgen]
-pub struct SharedNode(Shared<WnfsPublicNode>);
+pub struct PublicDirectory(pub(super) WnfsPublicDirectory);
 
 //--------------------------------------------------------------------------------------------------
 // Implementations
@@ -298,16 +294,6 @@ impl PublicDirectory {
     pub fn to_node(&self) -> SharedNode {
         let dir = self.0.clone();
         SharedNode(shared(WnfsPublicNode::Dir(dir)))
-    }
-}
-
-#[wasm_bindgen]
-impl SharedNode {
-    #[wasm_bindgen(js_name = "asDir")]
-    pub fn as_dir(&self) -> PublicDirectory {
-        let node = self.0.borrow();
-        let dir = node.as_dir();
-        PublicDirectory(dir.clone())
     }
 }
 

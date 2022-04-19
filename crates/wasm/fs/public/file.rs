@@ -5,7 +5,10 @@ use std::str::FromStr;
 use chrono::{DateTime, Utc};
 use js_sys::Error;
 use wasm_bindgen::prelude::wasm_bindgen;
-use wnfs::{public::{PublicFile as WnfsPublicFile, Id}, Cid};
+use wnfs::{
+    public::{Id, PublicFile as WnfsPublicFile},
+    Cid,
+};
 
 use crate::fs::JsResult;
 

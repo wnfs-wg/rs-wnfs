@@ -8,7 +8,7 @@ use std::{
 use anyhow::Result;
 use libipld::{cbor::DagCborCodec, codec::Decode, Cid};
 
-use super::{PublicDirectory, PublicFile};
+use super::{Id, PublicDirectory, PublicFile};
 use crate::common::BlockStore;
 
 /// A node in a WNFS public file system. This can either be a file or a directory.
@@ -60,6 +60,15 @@ impl PublicNode {
         match self {
             PublicNode::Dir(dir) => dir,
             _ => unreachable!(),
+        }
+    }
+}
+
+impl Id for PublicNode {
+    fn get_id(&self) -> String {
+        match self {
+            PublicNode::File(file) => file.get_id(),
+            PublicNode::Dir(dir) => dir.get_id(),
         }
     }
 }

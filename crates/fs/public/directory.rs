@@ -511,6 +511,12 @@ impl PublicDirectory {
 
         Ok(bytes)
     }
+
+    /// Deep clone the directory.
+    pub fn deep_clone(&self) -> Self {
+        let inner_clone = shared(self.0.borrow().clone());
+        Self(inner_clone)
+    }
 }
 
 impl Id for PublicDirectory {
@@ -600,7 +606,13 @@ mod utils {
         // Create divergent nodes.
         let divergent_nodes = path_nodes
             .into_iter()
-            .map(|(name, node)| (name, shared(node.borrow().clone())))
+            .map(|(name, node)| {
+                let deep_clone = shared(match &*node.borrow() {
+                    PublicNode::Dir(dir) => PublicNode::Dir(dir.deep_clone()),
+                    PublicNode::File(file) => PublicNode::File(file.clone()),
+                });
+                (name, deep_clone)
+            })
             .collect::<Vec<_>>();
 
         // Fix up the divergent nodes so that they are referencing the right children.
