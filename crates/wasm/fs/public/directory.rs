@@ -44,7 +44,6 @@ impl PublicDirectory {
         &mut self,
         path_segments: &Array,
         store: &MemoryBlockStore,
-        diverge: bool,
     ) -> JsResult<Promise> {
         let directory = self.0.clone();
         let store = Rc::clone(&store.0);
@@ -56,7 +55,7 @@ impl PublicDirectory {
             let WnfsOpResult {
                 root_node, result, ..
             } = directory
-                .get_node(&path_segments, &*store, diverge)
+                .get_node(&path_segments, &*store, false)
                 .await
                 .map_err(|e| Error::new(&format!("Cannot create directory: {e}")))?;
 
@@ -267,7 +266,7 @@ impl PublicDirectory {
             let WnfsOpResult {
                 root_node, result, ..
             } = directory
-                .mkdir(&path_segments, time, &*store)
+                .mkdir(&path_segments, time, &*store, false)
                 .await
                 .map_err(|e| Error::new(&format!("Cannot create directory: {e}")))?;
 

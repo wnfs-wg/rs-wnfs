@@ -19,6 +19,11 @@ impl SharedNode {
         PublicDirectory(dir.clone())
     }
 
+    #[wasm_bindgen(js_name = "isDir")]
+    pub fn is_dir(&self) -> bool {
+        self.0.borrow().is_dir()
+    }
+
     #[wasm_bindgen(js_name = "getId")]
     pub fn get_id(&self) -> String {
         let node = self.0.borrow();

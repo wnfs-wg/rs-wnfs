@@ -24,6 +24,7 @@ mod utils {
 
     pub type Shared<T> = Rc<RefCell<T>>;
 
+    #[inline]
     pub fn shared<T>(t: T) -> Shared<T> {
         Rc::new(RefCell::new(t))
     }

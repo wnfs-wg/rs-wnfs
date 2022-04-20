@@ -65,7 +65,7 @@ impl PublicDirectory {
     ///
     /// If path is empty, this returns a cloned directory based on `self`.
     ///
-    /// If `diverge` is true, this will clone the spine of the path.
+    /// If `diverge` is true, the path diverges. This is only used internally.
     pub async fn get_node<B: BlockStore>(
         &self,
         path_segments: &[String],
@@ -243,12 +243,13 @@ impl PublicDirectory {
             tail,
         ) = match path_segments.split_last() {
             None => bail!(FsError::InvalidPath),
-            Some((tail, parent_path_segments)) => {
-                (self.mkdir(parent_path_segments, time, store).await?, tail)
-            }
+            Some((tail, parent_path_segments)) => (
+                self.mkdir(parent_path_segments, time, store, true).await?,
+                tail,
+            ),
         };
 
-        // Insert or create file in parent directory.
+        // Insert or update file in parent directory.
         let working_node = parent_directory
             .borrow_mut()
             .as_mut_dir()
@@ -282,28 +283,30 @@ impl PublicDirectory {
 
     /// Creates a new directory at the specified path.
     ///
-    /// If path is empty, this returns a cloned directory based on `self`.
+    /// If path is empty, this returns the root node.
     ///
     /// This method acts like `mkdir -p` in Unix because it creates intermediate directories if they do not exist.
+    ///
+    /// If `diverge_anyway` is set to true, the path diverges even if directory exists. This is only used internally.
     pub async fn mkdir<B: BlockStore>(
         &self,
         path_segments: &[String],
         time: DateTime<Utc>,
         store: &B,
+        diverge_anyway: bool,
     ) -> Result<OpResult<Shared<PublicNode>>> {
         // Clone the directory to prevent mutation of the original directory.
+        // TODO(appcypher): What does self.clone do here?
         let root_node = shared(PublicNode::Dir(self.clone()));
         let mut working_node = Rc::clone(&root_node);
 
         // The nodes along the path specified.
-        let mut path_nodes: Vec<(String, Shared<PublicNode>)> = if !path_segments.is_empty() {
-            vec![(String::new(), Rc::clone(&root_node))]
-        } else {
-            vec![]
-        };
+        let mut path_nodes: Vec<(String, Shared<PublicNode>)> =
+            vec![(String::new(), Rc::clone(&root_node))];
 
-        // Set when directory exists.
-        let mut dir_exists = false;
+        // Represents when the directory we are trying to create already exists.
+        // It is set true because we know the root node exists. Just in case the path_segments is empty and we return early.
+        let mut dir_exists = true;
 
         // Iterate over path segments.
         for (index, segment) in path_segments.iter().enumerate() {
@@ -318,10 +321,6 @@ impl PublicDirectory {
                 Some(found_node) => match &*found_node.borrow() {
                     // If the node is a directory, set it as the next working node.
                     PublicNode::Dir(_) => {
-                        if index == path_segments.len() - 1 {
-                            dir_exists = true;
-                        }
-
                         path_nodes.push((segment.to_string(), Rc::clone(&found_node)));
                         Rc::clone(&found_node)
                     }
@@ -335,7 +334,12 @@ impl PublicDirectory {
                     }
                 },
                 _ => {
-                    // If the node is not found, we create it.
+                    // At the final segment, we know for sure the directory does not exist if we have to create it.
+                    if index == path_segments.len() - 1 {
+                        dir_exists = false;
+                    }
+
+                    // Node is not found so we create it.
                     let new_node_rc = shared(PublicNode::Dir(PublicDirectory::new(time)));
 
                     // Insert the new node into the working directory.
@@ -355,8 +359,8 @@ impl PublicDirectory {
             working_node = next_node;
         }
 
-        // Get nodes which may have diverged.
-        let (root_node, working_node) = if !dir_exists {
+        // If directory does not already exist or `diverge_anyway` is set, we create a divergent path.
+        let (root_node, working_node) = if !dir_exists || diverge_anyway {
             let diverged_nodes = utils::diverge_and_patch(path_nodes);
             if !diverged_nodes.is_empty() {
                 (
@@ -373,7 +377,7 @@ impl PublicDirectory {
         Ok(OpResult {
             root_node,
             result: working_node,
-            diverged: true,
+            diverged: true, // Wrong!
         })
     }
 
@@ -514,8 +518,7 @@ impl PublicDirectory {
 
     /// Deep clone the directory.
     pub fn deep_clone(&self) -> Self {
-        let inner_clone = shared(self.0.borrow().clone());
-        Self(inner_clone)
+        Self(shared(self.0.borrow().clone()))
     }
 }
 
@@ -591,7 +594,7 @@ mod utils {
     use std::rc::Rc;
 
     use crate::{
-        public::{Link, PublicNode},
+        public::{Id, Link, PublicNode},
         shared, Shared,
     };
 
@@ -730,7 +733,7 @@ mod public_directory_tests {
         let root_dir = PublicDirectory::new(time);
 
         let OpResult { root_node, .. } = root_dir
-            .mkdir(&["tamedun".into(), "pictures".into()], time, &store)
+            .mkdir(&["tamedun".into(), "pictures".into()], time, &store, false)
             .await
             .unwrap();
 
@@ -769,7 +772,7 @@ mod public_directory_tests {
         let root_dir = PublicDirectory::new(time);
 
         let OpResult { root_node, .. } = root_dir
-            .mkdir(&["tamedun".into(), "pictures".into()], time, &store)
+            .mkdir(&["tamedun".into(), "pictures".into()], time, &store, false)
             .await
             .unwrap();
 
@@ -792,6 +795,7 @@ mod public_directory_tests {
                 &["tamedun".into(), "pictures".into(), "cats".into()],
                 time,
                 &store,
+                false,
             )
             .await
             .unwrap();
@@ -823,7 +827,7 @@ mod public_directory_tests {
         let root_dir = PublicDirectory::new(time);
 
         let OpResult { root_node, .. } = root_dir
-            .mkdir(&["tamedun".into(), "pictures".into()], time, &store)
+            .mkdir(&["tamedun".into(), "pictures".into()], time, &store, false)
             .await
             .unwrap();
 
@@ -846,6 +850,7 @@ mod public_directory_tests {
                 &["tamedun".into(), "pictures".into(), "cats".into()],
                 time,
                 &store,
+                false,
             )
             .await
             .unwrap();

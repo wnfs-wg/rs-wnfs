@@ -47,17 +47,19 @@ export class Tree {
   }
 
   async getChildrenForVertex(vertex) {
-    const dir = vertex.node.asDir();
-    const { result } = await dir.ls([], this.store);
+    if (vertex.node.isDir()) {
+      const dir = vertex.node.asDir();
+      const { result } = await dir.ls([], this.store);
 
-    if (result.length > 0) {
-      let children = [];
-      for (let name of result) {
-        const node = await dir.lookupNode(name, this.store);
-        children.push(new Vertex(name, node, vertex));
+      if (result.length > 0) {
+        let children = [];
+        for (let name of result) {
+          const node = await dir.lookupNode(name, this.store);
+          children.push(new Vertex(name, node, vertex));
+        }
+
+        return children;
       }
-
-      return children;
     }
 
     return [];
@@ -69,14 +71,17 @@ export class Tree {
 }
 
 export class Render {
-  constructor(tree) {
+  constructor(tree, rootElement) {
     this.tree = tree;
+    this.rootElement = rootElement;
+    this.rootElement.addEventListener("click", this.handleRootClick);
   }
 
   render() {
     const graphTree = document.createElement("div");
     graphTree.className = "graph-tree";
 
+    let connections = [];
     for (let level of this.tree.levels) {
       const levelDiv = document.createElement("div");
       levelDiv.className = "level";
@@ -89,8 +94,21 @@ export class Render {
           const vertexDiv = document.createElement("div");
           vertexDiv.className = "vertex";
           vertexDiv.id = `_${vertex.id}`;
-          vertexDiv.innerText = `${vertex.name} (${vertex.id})`;
-          vertexDiv.addEventListener("mouseover", this.handleVertexHover);
+
+          const vertexNameDiv = document.createElement("div");
+          vertexNameDiv.className = "vertex-name";
+          vertexNameDiv.innerText = `${vertex.name} #${vertex.id}`;
+          vertexDiv.appendChild(vertexNameDiv);
+
+          // Add connection to parent.
+          if (vertex.parent) {
+            connections.push([`#_${vertex.parent.id}`, `#_${vertex.id}`]);
+          }
+
+          // Events
+          vertexDiv.addEventListener("contextmenu", this.handleContextMenu);
+
+          // Add vertex to sibling div
           siblingDiv.appendChild(vertexDiv);
         }
 
@@ -100,14 +118,56 @@ export class Render {
       graphTree.appendChild(levelDiv);
     }
 
-    this.connectVertices();
+    this.rootElement.appendChild(graphTree);
+    this.connectVertices(connections);
 
     return graphTree;
   }
 
-  connectVertices() {
-    // arrowLine("#_0x13ba88", "#_0x13a1d0");
+  connectVertices(connections) {
+    connections.forEach(([parentId, childId]) => {
+      arrowLine(parentId, childId, { thickness: 1, color: "#C39BD3" });
+    });
   }
 
-  handleVertexHover() {}
+  handleContextMenu(event) {
+    event.preventDefault();
+    const menuElement = document.getElementById("menu");
+    menuElement.classList.remove("hide");
+    menuElement.style.left = event.clientX + "px";
+    menuElement.style.top = event.clientY + "px";
+
+    const addNodeElement = document.getElementById("add-node");
+    const deleteNodeElement = document.getElementById("delete-node");
+
+    // function addNodeHandler() {
+    //   console.log("Add node clicked from: ", this);
+    // }
+
+    // function deleteNodeHandler() {
+    //   console.log("Delete node clicked from: ", this);
+    // }
+
+    // addNodeElement.removeEventListener("click", addNodeHandler);
+    // deleteNodeElement.removeEventListener("click", deleteNodeHandler);
+    // addNodeElement.addEventListener("click", addNodeHandler, { once: true });
+    // deleteNodeElement.addEventListener("click", deleteNodeHandler, {
+    //   once: true,
+    // });
+  }
+
+  handleRootClick() {
+    let menuElement = document.getElementById("menu");
+    menuElement.classList.add("hide");
+  }
 }
+
+export const draw = async(rootNode, store, rootElement) => {
+  let tree = new Tree(rootNode, store);
+
+  await tree.traverse();
+
+  console.log("tree levels", tree.levels);
+
+  new Render(tree, rootElement).render();
+};

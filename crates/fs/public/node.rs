@@ -62,6 +62,11 @@ impl PublicNode {
             _ => unreachable!(),
         }
     }
+
+    /// Returns true if underlying node is a directory.
+    pub fn is_dir(&self) -> bool {
+        matches!(self, PublicNode::Dir(_))
+    }
 }
 
 impl Id for PublicNode {
