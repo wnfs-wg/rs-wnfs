@@ -27,7 +27,7 @@
   </p>
 </div>
 
-<div align="center"><sub>:warning: Work in progress. Do not use :warning:</sub></div>
+<div align="center"><sub>:warning: Work in progress :warning:</sub></div>
 
 ##
 
