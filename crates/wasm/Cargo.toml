@@ -1,0 +1,56 @@
+[package]
+name = "wasm-wnfs"
+version = "0.1.1"
+description = "WebNative filesystem WebAssembly API"
+keywords = ["wnfs", "webnative", "ipfs", "decentralisation"]
+categories = [
+  "filesystem",
+  "cryptography",
+  "web-programming",
+  "wasm",
+]
+license-file = "../../LICENSE"
+readme = "README.md"
+edition = "2021"
+repository = "https://github.com/fission-suite/rs-wnfs"
+homepage = "https://fission.codes"
+authors = ["The Fission Authors"]
+
+[dependencies]
+wnfs = { path = "../fs", version = "0.1.0" }
+# serde_json = "1.0"
+# serde = { version = "1.0", features = ["derive"] }
+wasm-bindgen = { version = "0.2", optional = true, features = ["serde-serialize"] }
+wasm-bindgen-futures = { version = "0.4", optional = true }
+js-sys = { version = "0.3", optional = true }
+web-sys = { version = "0.3", optional = true }
+chrono = { version = "0.4", features = ["wasmbind"] }
+anyhow = "1.0"
+async-trait = "0.1"
+console_error_panic_hook = { version = "0.1", optional = true }
+wee_alloc = { version = "0.4", optional = true }
+cfg-if = "1.0.0"
+
+[dev-dependencies]
+wasm-bindgen-test = "0.3"
+
+[lib]
+path = "lib.rs"
+crate-type = ["cdylib" , "rlib"]
+
+[features]
+default = ["js"]
+wasm = ["wnfs/wasm"]
+js = [
+  "wasm",
+  "wasm-bindgen",
+  "wasm-bindgen-futures",
+  "js-sys",
+  "chrono/wasmbind",
+  "wee_alloc",
+  "console_error_panic_hook",
+]
+web = ["wasm", "web-sys"]
+
+[build]
+target = "wasm32-unknown-unknown"

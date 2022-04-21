@@ -1,0 +1,37 @@
+[package]
+name = "wnfs"
+version = "0.1.1"
+description = "WebNative filesystem core implementation"
+keywords = ["wnfs", "webnative", "ipfs", "decentralisation"]
+categories = [
+  "filesystem",
+  "cryptography",
+  "web-programming",
+  "wasm",
+]
+license-file = "../../LICENSE"
+readme = "README.md"
+edition = "2021"
+repository = "https://github.com/fission-suite/rs-wnfs"
+homepage = "https://fission.codes"
+authors = ["The Fission Authors"]
+
+[dependencies]
+libipld = { version = "0.13.1", features = ["dag-cbor", "derive"] }
+multihash = "0.16.2"
+semver = "1.0.7"
+chrono = "0.4.19"
+anyhow = "1.0.56"
+hashbrown = "0.12.0"
+async-trait = "0.1.53"
+async-std = { version = "1.11.0", features = ["attributes"] }
+async-recursion = "1.0.0"
+field_names = "0.2.0"
+
+[lib]
+path = "lib.rs"
+crate-type = ["cdylib" , "rlib"]
+
+[features]
+default = []
+wasm = []
