@@ -1,6 +1,6 @@
 <div align="center">
-  <a href="https://github.com/fission-suite" target="_blank">
-    <img src="https://raw.githubusercontent.com/fission-suite/rs-wnfs/main/assets/logo.svg" alt="Fission Logo" width="100" height="100"></img>
+  <a href="https://github.com/WebNativeFileSystem" target="_blank">
+    <img src="https://raw.githubusercontent.com/WebNativeFileSystem/rs-wnfs/main/assets/logo.svg" alt="Fission Logo" width="100" height="100"></img>
   </a>
 
   <h1 align="center">WebNative FileSystem (WNFS)</h1>
@@ -9,13 +9,13 @@
     <a href="https://crates.io/crates/wnfs">
       <img src="https://img.shields.io/crates/v/wnfs?label=crates" alt="Concurrency Docs">
     </a>
-    <a href="https://codecov.io/gh/fission-suite/rs-wnfs">
-      <img src="https://codecov.io/gh/fission-suite/rs-wnfs/branch/main/graph/badge.svg?token=95YHXFMFF4" alt="Code Coverage"/>
+    <a href="https://codecov.io/gh/WebNativeFileSystem/rs-wnfs">
+      <img src="https://codecov.io/gh/WebNativeFileSystem/rs-wnfs/branch/main/graph/badge.svg?token=95YHXFMFF4" alt="Code Coverage"/>
     </a>
-    <a href="https://github.com/fission-suite/rs-wnfs/actions?query=">
-      <img src="https://github.com/fission-suite/rs-wnfs/actions/workflows/checks.yaml/badge.svg" alt="Build Status">
+    <a href="https://github.com/WebNativeFileSystem/rs-wnfs/actions?query=">
+      <img src="https://github.com/WebNativeFileSystem/rs-wnfs/actions/workflows/checks.yaml/badge.svg" alt="Build Status">
     </a>
-    <a href="https://github.com/fission-suite/rs-wnfs/blob/main/LICENSE">
+    <a href="https://github.com/WebNativeFileSystem/rs-wnfs/blob/main/LICENSE">
       <img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg" alt="License">
     </a>
     <a href="https://docs.rs/wnfs">
@@ -91,7 +91,7 @@ Its goal is to be as dependency-less as possible in order to be easily compiled 
 - Clone the repository.
 
   ```bash
-  git https://github.com/fission-suite/rs-wnfs.git
+  git https://github.com/WebNativeFileSystem/rs-wnfs.git
   ```
 
 - Change directory
