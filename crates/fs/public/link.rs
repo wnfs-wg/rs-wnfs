@@ -6,7 +6,7 @@ use anyhow::Result;
 use libipld::{cbor::DagCborCodec, Cid};
 
 use super::{PublicDirectory, PublicFile, PublicNode};
-use crate::{shared, BlockStore, Shared};
+use crate::{blockstore, shared, BlockStore, Shared};
 
 /// A link to another node in the WNFS public file system. It can be held as a simple serialised CID or as a reference to the node itself.
 ///
@@ -32,7 +32,7 @@ impl Link {
     pub async fn resolve<B: BlockStore>(&self, store: &B) -> Result<Shared<PublicNode>> {
         Ok(match self {
             Link::Cid(cid) => {
-                let node = store.load(cid, DagCborCodec).await?;
+                let node = blockstore::load(store, cid, DagCborCodec).await?;
                 shared(node)
             }
             Link::Node(node) => Rc::clone(node),

@@ -24,16 +24,16 @@ pub trait BlockStoreLookup {
     async fn get_block<'a>(&'a self, cid: &Cid) -> Result<Cow<'a, Vec<u8>>>;
 }
 
-/// For types that implement loading decodable object from a blockstore using a CID.
-#[async_trait(?Send)]
-pub trait BlockStoreCidLoad {
-    /// Loads a decodable object from the store with provided CID.
-    async fn load<T: Decode<C>, C: Codec>(&self, cid: &Cid, decoder: C) -> Result<T>;
-}
+// /// For types that implement loading decodable object from a blockstore using a CID.
+// #[async_trait(?Send)]
+// pub trait BlockStoreCidLoad {
+//     /// Loads a decodable object from the store with provided CID.
+//     async fn load<T: Decode<C>, C: Codec>(&self, cid: &Cid, decoder: C) -> Result<T>;
+// }
 
 /// For types that implement block store operations like adding, getting content from the store.
 #[async_trait(?Send)]
-pub trait BlockStore: BlockStoreLookup + BlockStoreCidLoad {
+pub trait BlockStore: BlockStoreLookup {
     async fn put_block(&mut self, bytes: Vec<u8>, codec: IpldCodec) -> Result<Cid>;
 }
 
@@ -80,14 +80,19 @@ impl BlockStoreLookup for MemoryBlockStore {
     }
 }
 
-#[async_trait(?Send)]
-impl BlockStoreCidLoad for MemoryBlockStore {
-    /// Loads a CBOR-encoded data from the store with provided CID.
-    async fn load<T: Decode<C>, C: Codec>(&self, cid: &Cid, decoder: C) -> Result<T> {
-        let bytes = self.get_block(cid).await?;
-        let decoded = decoder.decode(bytes.as_ref())?;
-        Ok(decoded)
-    }
+//--------------------------------------------------------------------------------------------------
+// Functions
+//--------------------------------------------------------------------------------------------------
+
+/// Loads a CBOR-encoded data from the store with provided CID.
+pub async fn load<B: BlockStore, T: Decode<C>, C: Codec>(
+    store: &B,
+    cid: &Cid,
+    decoder: C,
+) -> Result<T> {
+    let bytes = store.get_block(cid).await?;
+    let decoded = decoder.decode(bytes.as_ref())?;
+    Ok(decoded)
 }
 
 #[cfg(test)]
@@ -128,8 +133,8 @@ mod blockstore_tests {
             .await
             .unwrap();
 
-        let first_loaded: Vec<u8> = store.load(first_cid, DagCborCodec).await.unwrap();
-        let second_loaded: Vec<u8> = store.load(second_cid, DagCborCodec).await.unwrap();
+        let first_loaded: Vec<u8> = super::load(&store, first_cid, DagCborCodec).await.unwrap();
+        let second_loaded: Vec<u8> = super::load(&store, second_cid, DagCborCodec).await.unwrap();
 
         assert_eq!(first_loaded, vec![1, 2, 3, 4, 5]);
         assert_eq!(second_loaded, b"hello world".to_vec());

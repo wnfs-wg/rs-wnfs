@@ -4,18 +4,37 @@ class Vertex {
   constructor(name, node, parent) {
     this.name = name;
     this.node = node;
+    this.isDir = node.isDir();
     this.parent = parent;
+    this.noRender = false;
     this.id = this.node.getId();
+  }
+
+  getRootVertexPath() {
+    let path = [];
+    let vertex = this;
+
+    while (vertex.parent) {
+      path.push(vertex.name);
+      vertex = vertex.parent;
+    }
+
+    return {
+      path: path.reverse(),
+      rootVertex: vertex,
+    };
   }
 }
 
 export class Tree {
-  constructor(rootNode, store) {
+  constructor(rootNode, store, levels = []) {
     this.rootNode = rootNode;
     this.store = store;
-    this.levels = [[[new Vertex("root", rootNode, null)]]];
+    this.levels =
+      levels.length > 0 ? levels : [[[new Vertex("root", rootNode, null)]]];
   }
 
+  // Breadth-first traversal.
   async traverse() {
     const levels = this.levels;
 
@@ -65,109 +84,54 @@ export class Tree {
     return [];
   }
 
-  diff() {
-    // TODO(appcypher): Implement diffing
-  }
-}
+  diff(previousTree) {
+    const levels = [];
+    const previousLevels = previousTree.levels.flat(3);
 
-export class Render {
-  constructor(tree, rootElement) {
-    this.tree = tree;
-    this.rootElement = rootElement;
-    this.rootElement.addEventListener("click", this.handleRootClick);
-  }
-
-  render() {
-    const graphTree = document.createElement("div");
-    graphTree.className = "graph-tree";
-
-    let connections = [];
-    for (let level of this.tree.levels) {
-      const levelDiv = document.createElement("div");
-      levelDiv.className = "level";
-
-      for (let siblings of level) {
-        const siblingDiv = document.createElement("div");
-        siblingDiv.className = "sibling";
-
-        for (let vertex of siblings) {
-          const vertexDiv = document.createElement("div");
-          vertexDiv.className = "vertex";
-          vertexDiv.id = `_${vertex.id}`;
-
-          const vertexNameDiv = document.createElement("div");
-          vertexNameDiv.className = "vertex-name";
-          vertexNameDiv.innerText = `${vertex.name} #${vertex.id}`;
-          vertexDiv.appendChild(vertexNameDiv);
-
-          // Add connection to parent.
-          if (vertex.parent) {
-            connections.push([`#_${vertex.parent.id}`, `#_${vertex.id}`]);
-          }
-
-          // Events
-          vertexDiv.addEventListener("contextmenu", this.handleContextMenu);
-
-          // Add vertex to sibling div
-          siblingDiv.appendChild(vertexDiv);
-        }
-
-        levelDiv.appendChild(siblingDiv);
+    for (let level of this.levels) {
+      const newLevel = this.diffLevel(level, previousLevels);
+      if (newLevel.length > 0) {
+        levels.push(newLevel);
       }
-
-      graphTree.appendChild(levelDiv);
     }
 
-    this.rootElement.appendChild(graphTree);
-    this.connectVertices(connections);
-
-    return graphTree;
+    return new Tree(this.rootNode, this.store, levels);
   }
 
-  connectVertices(connections) {
-    connections.forEach(([parentId, childId]) => {
-      arrowLine(parentId, childId, { thickness: 1, color: "#C39BD3" });
-    });
+  diffLevel(level, previousLevels) {
+    const newLevel = [];
+    for (let siblings of level) {
+      const newSiblings = this.diffSiblings(siblings, previousLevels);
+      if (newSiblings.length > 0) {
+        newLevel.push(newSiblings);
+      }
+    }
+
+    return newLevel;
   }
 
-  handleContextMenu(event) {
-    event.preventDefault();
-    const menuElement = document.getElementById("menu");
-    menuElement.classList.remove("hide");
-    menuElement.style.left = event.clientX + "px";
-    menuElement.style.top = event.clientY + "px";
+  diffSiblings(siblings, previousLevels) {
+    const newSiblings = [];
+    for (let vertex of siblings) {
+      // We look for a vertex with similar id in previous tree.
+      const previousVertex = previousLevels.find(
+        (prevVertex) => prevVertex.id === vertex.id
+      );
 
-    const addNodeElement = document.getElementById("add-node");
-    const deleteNodeElement = document.getElementById("delete-node");
-
-    // function addNodeHandler() {
-    //   console.log("Add node clicked from: ", this);
-    // }
-
-    // function deleteNodeHandler() {
-    //   console.log("Delete node clicked from: ", this);
-    // }
-
-    // addNodeElement.removeEventListener("click", addNodeHandler);
-    // deleteNodeElement.removeEventListener("click", deleteNodeHandler);
-    // addNodeElement.addEventListener("click", addNodeHandler, { once: true });
-    // deleteNodeElement.addEventListener("click", deleteNodeHandler, {
-    //   once: true,
-    // });
-  }
-
-  handleRootClick() {
-    let menuElement = document.getElementById("menu");
-    menuElement.classList.add("hide");
+      if (previousVertex) {
+        // If vertex is found, we check if they don't share a common parent.
+        // This means they are divergent. We skip non-divergent vertices.
+        if (previousVertex.parent?.id != vertex.parent?.id) {
+          let newVertex = new Vertex(vertex.name, vertex.node, vertex.parent);
+          // We don't want to render duplicate vertices.
+          newVertex.noRender = true;
+          newSiblings.push(newVertex);
+        }
+      } else {
+        // If vertex is not found, it also means they are divergent.
+        newSiblings.push(vertex);
+      }
+    }
+    return newSiblings;
   }
 }
-
-export const draw = async(rootNode, store, rootElement) => {
-  let tree = new Tree(rootNode, store);
-
-  await tree.traverse();
-
-  console.log("tree levels", tree.levels);
-
-  new Render(tree, rootElement).render();
-};

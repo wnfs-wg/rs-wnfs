@@ -8,9 +8,8 @@ use js_sys::{Error, Promise, Uint8Array};
 use wasm_bindgen::{prelude::wasm_bindgen, JsValue};
 use wasm_bindgen_futures::future_to_promise;
 use wnfs::{
-    BlockStore as WnfsBlockStore, BlockStoreCidLoad as WnfsBlockStoreCidLoad,
-    BlockStoreLookup as WnfsBlockStoreLookup, Cid, Codec, Decode, IpldCodec,
-    MemoryBlockStore as WnfsMemoryBlockStore, Shared,
+    BlockStore as WnfsBlockStore, BlockStoreLookup as WnfsBlockStoreLookup, Cid, Codec, Decode,
+    IpldCodec, MemoryBlockStore as WnfsMemoryBlockStore, Shared,
 };
 
 //--------------------------------------------------------------------------------------------------
@@ -116,17 +115,5 @@ impl WnfsBlockStoreLookup for MemoryBlockStore {
     async fn get_block<'a>(&'a self, cid: &wnfs::Cid) -> Result<Cow<'a, Vec<u8>>, anyhow::Error> {
         let store = self.0.borrow();
         store.get_block(cid).await.map(|x| Cow::Owned(x.to_vec()))
-    }
-}
-
-#[async_trait(?Send)]
-impl WnfsBlockStoreCidLoad for MemoryBlockStore {
-    async fn load<T: Decode<C>, C: Codec>(
-        &self,
-        cid: &Cid,
-        decoder: C,
-    ) -> Result<T, anyhow::Error> {
-        let store = self.0.borrow();
-        store.load(cid, decoder).await
     }
 }

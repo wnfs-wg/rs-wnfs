@@ -5,4 +5,3 @@ crates/wasm/pkg
 crates/wasm/index.*
 **/yarn-error.log
 crates/wasm/dist
-crates/wasm/examples/graph

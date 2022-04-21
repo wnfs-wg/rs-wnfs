@@ -1,4 +1,4 @@
-mod blockstore;
+pub mod blockstore;
 mod error;
 mod metadata;
 
