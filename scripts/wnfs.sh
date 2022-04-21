@@ -78,7 +78,14 @@ help() {
 #	wnfs build
 #
 build() {
-    displayln "build command not implemented yet"
+    display_header "💿 BUILDING WNFS PROJECT"
+    cargo build --release
+
+    display_header "💿 BUILDING WASM-WNFS PROJECT"
+    $(
+        cd $script_dir/../crates/wasm && \
+        wasm-pack build --target web --release
+    )
 }
 
 
@@ -89,7 +96,8 @@ build() {
 #	wnfs test
 #
 test() {
-    displayln "test command not implemented yet"
+    display_header "🧪 RUNNING WNFS TESTS"
+    cargo test -p wnfs -- --nocapture
 }
 
 
@@ -168,6 +176,13 @@ display() {
 #
 displayln() {
     printf "\n::: $1 :::\n"
+}
+
+# DESCRIPTION:
+#	A custom print function for headers.
+#
+display_header() {
+    printf "\n${green}$1${none}\n\n"
 }
 
 
