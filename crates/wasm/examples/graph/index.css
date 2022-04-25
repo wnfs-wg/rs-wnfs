@@ -17,6 +17,11 @@ button, input[type="submit"], input[type="reset"] {
 	outline: inherit;
 }
 
+input:focus, textarea:focus {
+    outline: none;
+    -webkit-appearance: none;
+}
+
 body {
     display: flex;
     margin: 0;
@@ -46,12 +51,45 @@ body > #activity-panel {
     height: 95%;
     display: flex;
     border-radius: 0.25rem;
-    justify-content: center;
+    flex-direction: column;
+    align-items: center;
     width: 25rem;
+    min-width: 25rem;
+    overflow-y: scroll;
+    padding-bottom: 1.5rem;
 }
 
 #activity-panel > .head {
     margin: 1.25rem 0;
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+#activity-panel > .body {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
+    gap: 1rem;
+}
+
+#activity-panel > .body > .item {
+    background-color: #D1F2EB;
+    border: 0.0625rem solid #58D68D;
+    border-radius: 0.0625rem;
+    height: 1.625rem;
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.25rem;
+    width: 90%;
+    font-family: monospace;
+    font-size: 0.75rem;
+    text-align: left;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    height: 1.5rem;
 }
 
 .graph-tree {
@@ -59,8 +97,9 @@ body > #activity-panel {
     flex-direction: column;
     background-color: #F7F7F7;
     border-radius: 0.25rem;
-    height: 98%;
+    min-height: 98%;
 }
+
 
 .level {
     display: flex;
@@ -87,6 +126,9 @@ body > #activity-panel {
     align-items: center;
     text-align: center;
     font-family:  monospace;
+    user-select: none;
+    flex-direction: column;
+    gap: 0.5rem;
 }
 
 .vertex.file {
@@ -105,11 +147,17 @@ body > #activity-panel {
 }
 
 .vertex-name {
+    max-width: 5rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.vertex-id {
     display: flex;
     justify-content: center;
     align-items: center;
     width: 2rem;
-    user-select: none;
 }
 
 #menu {
@@ -121,13 +169,14 @@ body > #activity-panel {
     flex-direction: column;
     border-radius: 0.25rem;
     margin: 0.025rem;
-    width: 7rem;
+    min-width: 7rem;
     z-index: 2;
 }
 
 #menu > button {
     text-align: left;
-    padding: 0.5rem 1rem;
+    height: 2rem;
+    padding: 0 0.85rem;
 }
 
 #menu > button:hover {
@@ -142,6 +191,47 @@ body > #activity-panel {
 #menu > button:last-of-type {
     border-bottom-left-radius: 0.25rem;
     border-bottom-right-radius: 0.25rem;
+}
+
+#menu > button.delete:hover {
+    background-color: #FDEDEC;
+}
+
+#input {
+    padding: 0.825rem;
+    font-size: 0.825rem;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+#input.hide {
+    display: none;
+}
+
+#input input {
+    border: 0.0625rem solid #58D68D;
+    border-radius: 0.0625rem;
+    height: 1.625rem;
+    padding: 0 1rem;
+    border-radius: 0.25rem;
+}
+
+#input button {
+    background-color: #F5EEF8;
+    border: 0.0625rem solid #C39BD3;
+    margin-left: 0.625rem;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 1.625rem;
+    width: 5rem;
+    border-radius: 0.25rem;
+}
+
+#input button:hover {
+    background-color: #EBDEF0;
+    border-color: #C39BD3;
 }
 
 .veil {

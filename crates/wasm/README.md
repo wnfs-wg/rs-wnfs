@@ -14,16 +14,18 @@
   wasm-pack build --target web
   ```
 
-## Testing the Project
+## Trying the Examples
 
-- Start the test
-
-  ```bash
-  wasm-pack test --chrome
-  ```
-
-- Run tests in the browser
+- Run server
 
   ```bash
-  open http://127.0.0.1:8000
+  npx http-server -p 8080
   ```
+
+- Visit the following pages:
+
+  ```bash
+  open http://localhost:8080/examples/graph/
+  ```
+
+NOTE: Examples will be moved into separate projects in the future.

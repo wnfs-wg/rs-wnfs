@@ -77,11 +77,8 @@ impl PublicDirectory {
         let mut working_node = Some(Rc::clone(&root_node));
 
         // The nodes along the path specified.
-        let mut path_nodes: Vec<(String, Shared<PublicNode>)> = if !path_segments.is_empty() {
-            vec![(String::new(), Rc::clone(&root_node))]
-        } else {
-            vec![]
-        };
+        let mut path_nodes: Vec<(String, Shared<PublicNode>)> =
+            vec![(String::new(), Rc::clone(&root_node))];
 
         // Iterate over the path segments.
         for (index, segment) in path_segments.iter().enumerate() {
@@ -360,7 +357,7 @@ impl PublicDirectory {
         }
 
         // If directory does not already exist or `diverge_anyway` is set, we create a divergent path.
-        let (root_node, working_node) = if !dir_exists || diverge_anyway {
+        let (root_node, working_node) = if diverge_anyway || !dir_exists {
             let diverged_nodes = utils::diverge_and_patch(path_nodes);
             if !diverged_nodes.is_empty() {
                 (
@@ -594,7 +591,7 @@ mod utils {
     use std::rc::Rc;
 
     use crate::{
-        public::{Id, Link, PublicNode},
+        public::{Link, PublicNode},
         shared, Shared,
     };
 
@@ -872,30 +869,5 @@ mod public_directory_tests {
             .await;
 
         assert!(result.is_err());
-    }
-
-    #[async_std::test]
-    async fn read_can_fetch_userland_of_file_added_to_directory() {
-        let root_dir = PublicDirectory::new(Utc::now());
-
-        let mut store = MemoryBlockStore::default();
-
-        let content_cid = Cid::default();
-
-        let time = Utc::now();
-
-        let OpResult { root_node, .. } = root_dir
-            .write(&["text.txt".into()], content_cid, time, &store)
-            .await
-            .unwrap();
-
-        let OpResult { result, .. } = root_node
-            .borrow()
-            .as_dir()
-            .read(&["text.txt".into()], &mut store)
-            .await
-            .unwrap();
-
-        assert_eq!(result, content_cid);
     }
 }
