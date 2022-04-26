@@ -1,7 +1,4 @@
-import init, {
-  MemoryBlockStore,
-  PublicDirectory,
-} from "./wasm_wnfs.js";
+import init, { MemoryBlockStore, PublicDirectory } from "./wasm_wnfs.js";
 
 import { draw } from "./render.js";
 
@@ -14,7 +11,6 @@ await init();
 const time = new Date();
 const store = new MemoryBlockStore();
 const rootDir = new PublicDirectory(time);
-const graphRootElement = document.getElementById("graph-canvas");
 
 console.log(`root id at creation: ${rootDir.getId()}`);
 
@@ -22,10 +18,7 @@ console.log(`root id at creation: ${rootDir.getId()}`);
 // Globals
 //------------------------------------------------------------------------------
 
-globalThis.graph = {
-  store,
-  graphRootElement,
-};
+globalThis.store = store;
 
 //------------------------------------------------------------------------------
 // mkdir -p /pictures/cats
@@ -34,7 +27,7 @@ globalThis.graph = {
 var { rootNode } = await rootDir.mkdir(["pictures", "cats"], time, store);
 console.log(`root id after "mkdir -p /pictures/cats": ${rootNode.getId()}`);
 
-var tree = await draw(rootNode, store, graphRootElement);
+var tree = await draw(rootNode, store);
 
 // //------------------------------------------------------------------------------
 // // mkdir -p /pictures/dogs
@@ -46,7 +39,7 @@ var tree = await draw(rootNode, store, graphRootElement);
 
 // console.log(`root id after "mkdir -p /pictures/dogs": ${rootNode.getId()}`);
 
-// var tree = await draw(rootNode, store, graphRootElement, tree);
+// var tree = await draw(rootNode, store, tree);
 
 // //------------------------------------------------------------------------------
 // // mkdir -p /videos/dogs
@@ -58,7 +51,7 @@ var tree = await draw(rootNode, store, graphRootElement);
 
 // console.log(`root id after "mkdir -p /videos/dogs": ${rootNode.getId()}`);
 
-// var tree = await draw(rootNode, store, graphRootElement, tree);
+// var tree = await draw(rootNode, store, tree);
 
 // //------------------------------------------------------------------------------
 // // echo '...' >> /videos/dogs/puppy.mp4
@@ -77,7 +70,7 @@ var tree = await draw(rootNode, store, graphRootElement);
 //   `root id after "echo '...' >> /videos/dogs/puppy.mp4": ${rootNode.getId()}`
 // );
 
-// var tree = await draw(rootNode, store, graphRootElement, tree);
+// var tree = await draw(rootNode, store, tree);
 
 // //------------------------------------------------------------------------------
 // // echo '...' >> /pictures/cats/kitten.png
@@ -96,7 +89,7 @@ var tree = await draw(rootNode, store, graphRootElement);
 //   `root id after "echo '...' >> /pictures/cats/kitten.png": ${rootNode.getId()}`
 // );
 
-// var tree = await draw(rootNode, store, graphRootElement, tree);
+// var tree = await draw(rootNode, store, tree);
 
 // //------------------------------------------------------------------------------
 // // mkdir -p /music/rock
@@ -106,7 +99,7 @@ var tree = await draw(rootNode, store, graphRootElement);
 
 // console.log(`root id after "mkdir -p /music/rock": ${rootNode.getId()}`);
 
-// var tree = await draw(rootNode, store, graphRootElement, tree);
+// var tree = await draw(rootNode, store, tree);
 
 // //------------------------------------------------------------------------------
 // // echo '...' >>  /music/rock/toxicity.mp3
@@ -125,7 +118,7 @@ var tree = await draw(rootNode, store, graphRootElement);
 //   `root id after "echo '...' >> /music/rock/toxicity.mp3": ${rootNode.getId()}`
 // );
 
-// var tree = await draw(rootNode, store, graphRootElement, tree);
+// var tree = await draw(rootNode, store, tree);
 
 // //------------------------------------------------------------------------------
 // // rm  /pictures/cats/kitten.png
@@ -139,7 +132,7 @@ var tree = await draw(rootNode, store, graphRootElement);
 //   `root id after "rm /pictures/cats/kitten.png": ${rootNode.getId()}`
 // );
 
-// var tree = await draw(rootNode, store, graphRootElement, tree);
+// var tree = await draw(rootNode, store, tree);
 
 // //------------------------------------------------------------------------------
 // // echo '...' >>  /movies/anime/ghibli/ponyo.mov
@@ -158,5 +151,4 @@ var tree = await draw(rootNode, store, graphRootElement);
 //   `root id after "echo '...' >> /movies/anime/ghibli/ponyo.mov": ${rootNode.getId()}`
 // );
 
-// var tree = await draw(rootNode, store, graphRootElement, tree);
-
+// var tree = await draw(rootNode, store, tree);

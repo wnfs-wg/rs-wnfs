@@ -1,5 +1,35 @@
 import { Tree } from "./tree.js";
 
+//------------------------------------------------------------------------------
+// Handlers
+//------------------------------------------------------------------------------
+
+const handleRootClick = () => {
+  const menuElement = document.getElementById("menu");
+  const inputElement = document.getElementById("input");
+  inputElement.classList.add("hide");
+  menuElement.classList.add("veil");
+};
+
+const handleActivityHeadClick = () => {
+ const activityBodyElement = document.getElementById("activity-panel-body");
+  activityBodyElement.classList.toggle("hide-sm");
+};
+
+//------------------------------------------------------------------------------
+// Init
+//------------------------------------------------------------------------------
+
+const graphRootElement = document.getElementById("graph-canvas");
+const activityHeadElement = document.getElementById("activity-panel-head");
+
+graphRootElement.addEventListener("click", handleRootClick);
+activityHeadElement.addEventListener("click", handleActivityHeadClick);
+
+//------------------------------------------------------------------------------
+// Render Class
+//------------------------------------------------------------------------------
+
 export class Render {
   static activeHandlers = new Map();
   static addFileElement = document.getElementById("add-file");
@@ -251,7 +281,7 @@ export class Render {
   };
 
   static async handleAddFolder(vertex, path_segments) {
-    const { graphRootElement, store } = globalThis.graph;
+    const { store } = globalThis;
     let { rootNode, tree } = vertex;
     let full_path_segments = [
       ...vertex.getRootVertexPath().path,
@@ -272,11 +302,11 @@ export class Render {
     Render.activityBodyElement.appendChild(item);
 
     // Draw new tree.
-    await draw(rootNode, store, graphRootElement, tree);
+    await draw(rootNode, store, tree);
   }
 
   static async handleAddFile(vertex, path_segments) {
-    const { graphRootElement, store } = globalThis.graph;
+    const { store } = globalThis;
     let { rootNode, tree } = vertex;
     let full_path_segments = [
       ...vertex.getRootVertexPath().path,
@@ -302,11 +332,11 @@ export class Render {
     Render.activityBodyElement.appendChild(item);
 
     // Draw new tree.
-    await draw(rootNode, store, graphRootElement, tree);
+    await draw(rootNode, store, tree);
   }
 
   static async handleDeleteNode(vertex) {
-    const { graphRootElement, store } = globalThis.graph;
+    const { store } = globalThis;
     let { rootNode, tree } = vertex;
     let { path } = vertex.getRootVertexPath();
 
@@ -320,7 +350,7 @@ export class Render {
     Render.activityBodyElement.appendChild(item);
 
     // Draw new tree.
-    await draw(rootNode, store, graphRootElement, tree);
+    await draw(rootNode, store, tree);
   }
 
   static attachHandler(element, eventName, handler) {
@@ -338,20 +368,11 @@ export class Render {
   }
 }
 
-// Handles click on root element.
-const handleRootClick = () => {
-  const menuElement = document.getElementById("menu");
-  const inputElement = document.getElementById("input");
-  inputElement.classList.add("hide");
-  menuElement.classList.add("veil");
-};
+//------------------------------------------------------------------------------
+// Draw
+//------------------------------------------------------------------------------
 
-export const draw = async (
-  rootNode,
-  store,
-  rootElement,
-  previousTree = null
-) => {
+export const draw = async (rootNode, store, previousTree = null) => {
   // Create tree based on rootNode.
   let tree = new Tree(rootNode, store);
   await tree.traverse();
@@ -365,10 +386,7 @@ export const draw = async (
   }
 
   // Render tree.
-  new Render(tree, rootElement).render();
-
-  // Add click listener to root element.
-  rootElement.addEventListener("click", handleRootClick);
+  new Render(tree, graphRootElement).render();
 
   return fullTree;
 };
