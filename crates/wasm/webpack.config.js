@@ -9,10 +9,18 @@ module.exports = {
     path: path.resolve(__dirname, "dist"),
     filename: "index.js",
   },
+  module: {
+    rules: [
+      {
+        test: /\.wasm$/,
+        type: "asset/inline",
+      },
+    ],
+  },
   plugins: [
     new HtmlWebpackPlugin(),
     new WasmPackPlugin({
-      crateDirectory: path.resolve(__dirname, "."),
+      crateDirectory: __dirname,
     }),
     // Have this example work in Edge which doesn't ship `TextEncoder` or
     // `TextDecoder` at this time.
