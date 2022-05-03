@@ -2,7 +2,7 @@
 
 use std::{
     io::{Cursor, Read, Seek},
-    result,
+    result, rc::Rc,
 };
 
 use anyhow::Result;
@@ -14,8 +14,8 @@ use crate::{common::BlockStore, UnixFsNodeKind};
 /// A node in a WNFS public file system. This can either be a file or a directory.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PublicNode {
-    File(PublicFile),
-    Dir(PublicDirectory),
+    File(Rc<PublicFile>),
+    Dir(Rc<PublicDirectory>),
 }
 
 impl PublicNode {
@@ -45,7 +45,7 @@ impl PublicNode {
     /// Panics if the node is not a directory.
     pub fn into_dir(self) -> PublicDirectory {
         match self {
-            PublicNode::Dir(dir) => dir,
+            PublicNode::Dir(dir) => (*dir).clone(),
             _ => unreachable!(),
         }
     }
@@ -56,18 +56,6 @@ impl PublicNode {
     ///
     /// Panics if the node is not a directory.
     pub fn as_dir(&self) -> &PublicDirectory {
-        match self {
-            PublicNode::Dir(dir) => dir,
-            _ => unreachable!(),
-        }
-    }
-
-    /// Casts a node to a mutable directory.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the node is not a directory.
-    pub fn as_mut_dir(&mut self) -> &mut PublicDirectory {
         match self {
             PublicNode::Dir(dir) => dir,
             _ => unreachable!(),
@@ -130,12 +118,12 @@ impl Decode<DagCborCodec> for PublicNode {
         let try_file_decode = PublicFile::decode(c, &mut try_file_cursor);
 
         let node = match try_file_decode {
-            Ok(file) => PublicNode::File(file),
+            Ok(file) => PublicNode::File(Rc::new(file)),
             _ => {
                 // If the file decode failed, we try to decode as a directory.
                 let mut cursor = Cursor::new(try_file_cursor.into_inner());
                 let dir = PublicDirectory::decode(c, &mut cursor)?;
-                PublicNode::Dir(dir)
+                PublicNode::Dir(Rc::new(dir))
             }
         };
 
@@ -145,7 +133,7 @@ impl Decode<DagCborCodec> for PublicNode {
 
 #[cfg(test)]
 mod public_node_tests {
-    use std::io::Cursor;
+    use std::{io::Cursor, rc::Rc};
 
     use chrono::Utc;
     use libipld::{cbor::DagCborCodec, codec::Decode, prelude::Encode, Cid};
@@ -167,7 +155,7 @@ mod public_node_tests {
 
         let decoded_file = PublicNode::decode(DagCborCodec, &mut cursor).unwrap();
 
-        assert_eq!(PublicNode::File(file), decoded_file);
+        assert_eq!(PublicNode::File(Rc::new(file)), decoded_file);
     }
 
     #[async_std::test]
@@ -182,14 +170,14 @@ mod public_node_tests {
 
         let decoded_directory = PublicNode::decode(DagCborCodec, &mut cursor).unwrap();
 
-        assert_eq!(PublicNode::Dir(directory), decoded_directory);
+        assert_eq!(PublicNode::Dir(Rc::new(directory)), decoded_directory);
     }
 
     #[async_std::test]
     async fn public_node_can_be_casted_to_public_directory() {
         let directory = PublicDirectory::new(Utc::now());
 
-        let node = PublicNode::Dir(directory.clone());
+        let node = PublicNode::Dir(Rc::new(directory.clone()));
 
         assert_eq!(node.as_dir(), &directory);
     }
