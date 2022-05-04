@@ -98,6 +98,12 @@ build() {
 test() {
     display_header "🧪 RUNNING WNFS TESTS"
     cargo test -p wnfs -- --nocapture
+
+    display_header "🧪 RUNNING WASM-WNFS TESTS"
+    $(
+        cd crates/wasm && \
+        yarn playwright test
+    )
 }
 
 

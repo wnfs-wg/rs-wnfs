@@ -1,11 +1,12 @@
 //! Block store traits.
 
-use std::borrow::Cow;
+use std::{borrow::Cow, io::Cursor};
 
 use anyhow::Result;
 use async_trait::async_trait;
 use hashbrown::HashMap;
 use libipld::{
+    cbor::DagCborCodec,
     cid::Version,
     codec::{Codec, Decode},
     Cid, IpldCodec,
@@ -85,13 +86,9 @@ impl BlockStoreLookup for MemoryBlockStore {
 //--------------------------------------------------------------------------------------------------
 
 /// Loads a CBOR-encoded data from the store with provided CID.
-pub async fn load<B: BlockStore, T: Decode<C>, C: Codec>(
-    store: &B,
-    cid: &Cid,
-    decoder: C,
-) -> Result<T> {
+pub async fn load<B: BlockStore, T: Decode<DagCborCodec>>(store: &B, cid: &Cid) -> Result<T> {
     let bytes = store.get_block(cid).await?;
-    let decoded = decoder.decode(bytes.as_ref())?;
+    let decoded = T::decode(DagCborCodec, &mut Cursor::new(bytes.as_ref()))?;
     Ok(decoded)
 }
 
@@ -133,8 +130,8 @@ mod blockstore_tests {
             .await
             .unwrap();
 
-        let first_loaded: Vec<u8> = super::load(&store, first_cid, DagCborCodec).await.unwrap();
-        let second_loaded: Vec<u8> = super::load(&store, second_cid, DagCborCodec).await.unwrap();
+        let first_loaded: Vec<u8> = super::load(&store, first_cid).await.unwrap();
+        let second_loaded: Vec<u8> = super::load(&store, second_cid).await.unwrap();
 
         assert_eq!(first_loaded, vec![1, 2, 3, 4, 5]);
         assert_eq!(second_loaded, b"hello world".to_vec());

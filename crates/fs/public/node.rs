@@ -8,8 +8,8 @@ use std::{
 use anyhow::Result;
 use libipld::{cbor::DagCborCodec, codec::Decode, Cid};
 
-use super::{Id, PublicDirectory, PublicFile};
-use crate::common::BlockStore;
+use super::{DeepClone, Id, PublicDirectory, PublicFile};
+use crate::{common::BlockStore, UnixFsNodeKind};
 
 /// A node in a WNFS public file system. This can either be a file or a directory.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -19,6 +19,17 @@ pub enum PublicNode {
 }
 
 impl PublicNode {
+    /// Updates the node previous pointer value.
+    pub(crate) fn update_previous(&mut self, cid: Option<Cid>) {
+        match self {
+            PublicNode::File(file) => {
+                file.previous = cid;
+            }
+            PublicNode::Dir(dir) => {
+                dir.update_previous(cid);
+            }
+        }
+    }
     /// Stores a WNFS node as block(s) in chosen block store.
     pub async fn store<B: BlockStore>(&self, store: &mut B) -> Result<Cid> {
         Ok(match self {
@@ -67,6 +78,26 @@ impl PublicNode {
     pub fn is_dir(&self) -> bool {
         matches!(self, PublicNode::Dir(_))
     }
+
+    /// Casts a node to a file.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the node is not a file.
+    pub fn as_file(&self) -> &PublicFile {
+        match self {
+            PublicNode::File(file) => file,
+            _ => unreachable!(),
+        }
+    }
+
+    /// Gets the node kind.
+    pub fn kind(&self) -> UnixFsNodeKind {
+        match self {
+            PublicNode::File(_) => UnixFsNodeKind::File,
+            PublicNode::Dir(_) => UnixFsNodeKind::Dir,
+        }
+    }
 }
 
 impl Id for PublicNode {
@@ -74,6 +105,15 @@ impl Id for PublicNode {
         match self {
             PublicNode::File(file) => file.get_id(),
             PublicNode::Dir(dir) => dir.get_id(),
+        }
+    }
+}
+
+impl DeepClone for PublicNode {
+    fn deep_clone(&self) -> Self {
+        match self {
+            PublicNode::File(file) => PublicNode::File(file.deep_clone()),
+            PublicNode::Dir(dir) => PublicNode::Dir(dir.deep_clone()),
         }
     }
 }

@@ -52,26 +52,12 @@ impl PublicDirectory {
         Ok(future_to_promise(async move {
             let store = store.borrow();
 
-            let WnfsOpResult {
-                root_node, result, ..
-            } = directory
+            let WnfsOpResult { root_node, result } = directory
                 .get_node(&path_segments, &*store, false)
                 .await
                 .map_err(|e| Error::new(&format!("Cannot get node: {e}")))?;
 
-            let op_result = Object::new();
-            Reflect::set(
-                &op_result,
-                &value!("rootNode"),
-                &value!(SharedNode(root_node)),
-            )?;
-            Reflect::set(
-                &op_result,
-                &value!("result"),
-                &value!(result.map(SharedNode)),
-            )?;
-
-            Ok(value!(op_result))
+            Ok(utils::create_op_result(root_node, result.map(SharedNode))?)
         }))
     }
 
@@ -98,7 +84,7 @@ impl PublicDirectory {
         }))
     }
 
-    /// Stores a directory as block(s) in provided block store.
+    /// Stores directory in provided block store.
     pub fn store(&self, store: &mut MemoryBlockStore) -> JsResult<Promise> {
         let directory = self.0.clone();
         let store = Rc::clone(&store.0);
@@ -124,22 +110,12 @@ impl PublicDirectory {
         Ok(future_to_promise(async move {
             let mut store = store.borrow_mut();
 
-            let WnfsOpResult {
-                root_node, result, ..
-            } = directory
+            let WnfsOpResult { root_node, result } = directory
                 .read(&path_segments, &mut *store)
                 .await
                 .map_err(|e| Error::new(&format!("Cannot read from directory: {e}")))?;
 
-            let op_result = Object::new();
-            Reflect::set(
-                &op_result,
-                &value!("rootNode"),
-                &value!(SharedNode(root_node)),
-            )?;
-            Reflect::set(&op_result, &value!("result"), &value!(result.to_string()))?;
-
-            Ok(value!(op_result))
+            Ok(utils::create_op_result(root_node, result.to_string())?)
         }))
     }
 
@@ -152,9 +128,7 @@ impl PublicDirectory {
         Ok(future_to_promise(async move {
             let store = store.borrow();
 
-            let WnfsOpResult {
-                root_node, result, ..
-            } = directory
+            let WnfsOpResult { root_node, result } = directory
                 .ls(&path_segments, &*store)
                 .await
                 .map_err(|e| Error::new(&format!("Cannot list directory children: {e}")))?;
@@ -164,15 +138,7 @@ impl PublicDirectory {
                 .map(|(name, _)| value!(name))
                 .collect::<Array>();
 
-            let op_result = Object::new();
-            Reflect::set(
-                &op_result,
-                &value!("rootNode"),
-                &value!(SharedNode(root_node)),
-            )?;
-            Reflect::set(&op_result, &value!("result"), &value!(result))?;
-
-            Ok(value!(op_result))
+            Ok(utils::create_op_result(root_node, result)?)
         }))
     }
 
@@ -188,21 +154,21 @@ impl PublicDirectory {
             let store = store.borrow();
 
             let WnfsOpResult {
-                root_node, result, ..
+                root_node,
+                result: (name, node),
             } = directory
                 .rm(&path_segments, &*store)
                 .await
                 .map_err(|e| Error::new(&format!("Cannot remove from directory: {e}")))?;
 
-            let op_result = Object::new();
-            Reflect::set(
-                &op_result,
-                &value!("rootNode"),
-                &value!(SharedNode(root_node)),
-            )?;
-            Reflect::set(&op_result, &value!("result"), &value!(SharedNode(result)))?;
+            let result = {
+                let tmp = Object::new();
+                Reflect::set(&tmp, &value!("name"), &value!(name))?;
+                Reflect::set(&tmp, &value!("node"), &value!(SharedNode(node)))?;
+                tmp
+            };
 
-            Ok(value!(op_result))
+            Ok(utils::create_op_result(root_node, result)?)
         }))
     }
 
@@ -232,15 +198,33 @@ impl PublicDirectory {
                 .await
                 .map_err(|e| Error::new(&format!("Cannot write to directory: {e}")))?;
 
-            let op_result = Object::new();
-            Reflect::set(
-                &op_result,
-                &value!("rootNode"),
-                &value!(SharedNode(root_node)),
-            )?;
-            Reflect::set(&op_result, &value!("result"), &value!(SharedNode(result)))?;
+            Ok(utils::create_op_result(root_node, SharedNode(result))?)
+        }))
+    }
 
-            Ok(value!(op_result))
+    /// Moves a specified path to a new location.
+    pub fn mv(
+        &mut self,
+        path_segments_from: &Array,
+        path_segments_to: &Array,
+        time: &js_sys::Date,
+        store: &MemoryBlockStore,
+    ) -> JsResult<Promise> {
+        let directory = self.0.clone();
+        let store = Rc::clone(&store.0);
+        let time = DateTime::<Utc>::from(time);
+        let path_segments_from = utils::convert_path_segments(path_segments_from)?;
+        let path_segments_to = utils::convert_path_segments(path_segments_to)?;
+
+        Ok(future_to_promise(async move {
+            let store = store.borrow();
+
+            let WnfsOpResult { root_node, .. } = directory
+                .mv(&path_segments_from, &path_segments_to, time, &*store)
+                .await
+                .map_err(|e| Error::new(&format!("Cannot create directory: {e}")))?;
+
+            Ok(utils::create_op_result(root_node, JsValue::NULL)?)
         }))
     }
 
@@ -270,15 +254,7 @@ impl PublicDirectory {
                 .await
                 .map_err(|e| Error::new(&format!("Cannot create directory: {e}")))?;
 
-            let op_result = Object::new();
-            Reflect::set(
-                &op_result,
-                &value!("rootNode"),
-                &value!(SharedNode(root_node)),
-            )?;
-            Reflect::set(&op_result, &value!("result"), &value!(SharedNode(result)))?;
-
-            Ok(value!(op_result))
+            Ok(utils::create_op_result(root_node, SharedNode(result))?)
         }))
     }
 
@@ -287,13 +263,6 @@ impl PublicDirectory {
     pub fn get_id(&self) -> String {
         self.0.get_id()
     }
-
-    /// Converts directory to a shared node.
-    #[wasm_bindgen(js_name = "toNode")]
-    pub fn to_node(&self) -> SharedNode {
-        let dir = self.0.clone();
-        SharedNode(shared(WnfsPublicNode::Dir(dir)))
-    }
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -301,10 +270,14 @@ impl PublicDirectory {
 //--------------------------------------------------------------------------------------------------
 
 mod utils {
-    use js_sys::{Array, Error};
+    use crate::{
+        fs::{JsResult, SharedNode},
+        value,
+    };
+    use js_sys::{Array, Error, Object, Reflect};
     use wasm_bindgen::JsValue;
-
-    use crate::fs::JsResult;
+    use wnfs::public::PublicNode as WnfsPublicNode;
+    use wnfs::Shared;
 
     pub(crate) fn map_to_rust_vec<T, F: FnMut(JsValue) -> JsResult<T>>(
         array: &Array,
@@ -322,5 +295,18 @@ mod utils {
             v.as_string()
                 .ok_or_else(|| Error::new("Invalid path segments: Expected an array of strings"))
         })
+    }
+
+    pub(crate) fn create_op_result<T: Into<JsValue>>(
+        root_node: Shared<WnfsPublicNode>,
+        result: T,
+    ) -> JsResult<JsValue> {
+        let op_result = Object::new();
+        let node = SharedNode(root_node);
+
+        Reflect::set(&op_result, &value!("rootNode"), &value!(node))?;
+        Reflect::set(&op_result, &value!("result"), &result.into())?;
+
+        Ok(value!(op_result))
     }
 }

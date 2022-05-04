@@ -14,6 +14,12 @@
   wasm-pack build --target web
   ```
 
+- Run tests
+
+  ```bash
+  yarn playwright test
+  ```
+
 ## Trying the Examples
 
 - Run server

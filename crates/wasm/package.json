@@ -1,9 +1,9 @@
 {
   "scripts": {
-    "build": "webpack",
-    "serve": "webpack serve"
+    "build": "webpack"
   },
   "devDependencies": {
+    "@playwright/test": "^1.21.1",
     "@wasm-tool/wasm-pack-plugin": "^1.6.0",
     "html-webpack-plugin": "^5.5.0",
     "text-encoding": "^0.7.0",
