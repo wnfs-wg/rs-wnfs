@@ -9,7 +9,7 @@ categories = [
   "web-programming",
   "wasm",
 ]
-license-file = "../../LICENSE"
+license-file = "LICENSE"
 readme = "README.md"
 edition = "2021"
 repository = "https://github.com/fission-suite/rs-wnfs"
