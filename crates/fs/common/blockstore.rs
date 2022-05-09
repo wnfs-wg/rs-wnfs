@@ -28,7 +28,7 @@ pub trait BlockStore: BlockStoreLookup {
 
 /// An in-memory block store to simulate IPFS.
 ///
-/// IPFS is basically an glorified HashMap.
+/// IPFS is basically a glorified HashMap.
 #[derive(Debug, Default)]
 pub struct MemoryBlockStore(HashMap<String, Vec<u8>>);
 

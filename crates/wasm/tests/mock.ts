@@ -9,7 +9,7 @@ const sampleCID = CID.parse(
 /**
  * An in-memory block store to simulate IPFS.
  *
- * IPFS is basically an glorified HashMap.
+ * IPFS is basically a glorified HashMap.
  */
 class MemoryBlockStore {
   private store: Map<CID, Uint8Array>;
@@ -21,16 +21,12 @@ class MemoryBlockStore {
 
   /** Stores an array of bytes in the block store. */
   async getBlock(cid: Uint8Array): Promise<Uint8Array | undefined> {
-    console.log("getBlock cid:", cid);
     const decoded_cid = CID.decode(cid);
     return this.store.get(decoded_cid);
   }
 
   /** Retrieves an array of bytes from the block store with given CID. */
   async putBlock(bytes: Uint8Array, code: number): Promise<void> {
-    console.log("putBlock bytes:", bytes);
-    console.log("putBlock code:", code);
-
     const hash = await sha256.digest(bytes);
     const cid = CID.create(1, code, hash);
     this.store.set(cid, bytes);
