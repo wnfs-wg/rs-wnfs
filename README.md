@@ -38,13 +38,13 @@ Its goal is to be as dependency-less as possible in order to be easily compiled 
 
 #### REQUIREMENTS
 
-- Rust toolchain
+- **The Rust Toolchain**
 
-  Rust toolchain can be installed by following the instructions [here](https://doc.rust-lang.org/cargo/getting-started/installation.html)
+  Follow the instructions [here](https://doc.rust-lang.org/cargo/getting-started/installation.html) to install the official Rust toolchain.
 
-- WebAssembly toolchain
+- **The WebAssembly Toolchain**
 
-  We need to build the project in WebAssembly. To do so, we need to install `wasm-pack` and tweak Rust toolchain context.
+  If yous are interested in compiling the project for WebAssembly, you can follow the instructions below.
 
   <details>
     <summary>Read more</summary>
@@ -65,7 +65,7 @@ Its goal is to be as dependency-less as possible in order to be easily compiled 
 
   </details>
 
-- **wnfs** script
+- **The _wnfs_ Helper Script**
 
   If you are on a Unix platform, you can optionally install the `wnfs` script.
 

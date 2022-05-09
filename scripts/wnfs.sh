@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/bash:
 
 # PATHS
 # Get current working directory
@@ -83,7 +83,7 @@ build() {
 
     display_header "💿 BUILDING WASM-WNFS PROJECT"
     $(
-        cd $script_dir/../crates/wasm && \
+        cd crates/wasm && \
         wasm-pack build --target web --release
     )
 }

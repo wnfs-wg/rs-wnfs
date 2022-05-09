@@ -57,7 +57,7 @@ impl PublicDirectory {
             } = directory
                 .get_node(&path_segments, &*store, false)
                 .await
-                .map_err(|e| Error::new(&format!("Cannot create directory: {e}")))?;
+                .map_err(|e| Error::new(&format!("Cannot get node: {e}")))?;
 
             let op_result = Object::new();
             Reflect::set(
@@ -92,7 +92,7 @@ impl PublicDirectory {
             let found_node = directory
                 .lookup_node(&path_segment, &*store)
                 .await
-                .map_err(|e| Error::new(&format!("Cannot create directory: {e}")))?;
+                .map_err(|e| Error::new(&format!("Cannot lookup node: {e}")))?;
 
             Ok(value!(found_node.map(SharedNode)))
         }))
@@ -109,7 +109,7 @@ impl PublicDirectory {
             let cid = directory
                 .store(&mut *store)
                 .await
-                .map_err(|e| Error::new(&format!("Cannot create directory: {e}")))?;
+                .map_err(|e| Error::new(&format!("Cannot add to store: {e}")))?;
 
             Ok(value!(cid.to_string()))
         }))
@@ -129,7 +129,7 @@ impl PublicDirectory {
             } = directory
                 .read(&path_segments, &mut *store)
                 .await
-                .map_err(|e| Error::new(&format!("Cannot create directory: {e}")))?;
+                .map_err(|e| Error::new(&format!("Cannot read from directory: {e}")))?;
 
             let op_result = Object::new();
             Reflect::set(
@@ -157,12 +157,12 @@ impl PublicDirectory {
             } = directory
                 .ls(&path_segments, &*store)
                 .await
-                .map_err(|e| Error::new(&format!("Cannot create directory: {e}")))?;
+                .map_err(|e| Error::new(&format!("Cannot list directory children: {e}")))?;
 
             let result = result
                 .iter()
                 .map(|(name, _)| value!(name))
-                .collect::<Array>(); //  result.iter().map(|x| x);
+                .collect::<Array>();
 
             let op_result = Object::new();
             Reflect::set(
@@ -192,7 +192,7 @@ impl PublicDirectory {
             } = directory
                 .rm(&path_segments, &*store)
                 .await
-                .map_err(|e| Error::new(&format!("Cannot create directory: {e}")))?;
+                .map_err(|e| Error::new(&format!("Cannot remove from directory: {e}")))?;
 
             let op_result = Object::new();
             Reflect::set(
@@ -230,7 +230,7 @@ impl PublicDirectory {
             } = directory
                 .write(&path_segments, cid, time, &*store)
                 .await
-                .map_err(|e| Error::new(&format!("Cannot create directory: {e}")))?;
+                .map_err(|e| Error::new(&format!("Cannot write to directory: {e}")))?;
 
             let op_result = Object::new();
             Reflect::set(

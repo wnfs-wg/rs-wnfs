@@ -1,5 +1,6 @@
 #![allow(clippy::unused_unit)] // To prevent clippy screaming about wasm_bindgen macros.
 #![cfg(target_arch = "wasm32")]
+use wasm_bindgen::prelude::wasm_bindgen;
 
 pub mod fs;
 
@@ -26,6 +27,13 @@ cfg_if::cfg_if! {
     }
 }
 
+// For logging in the console.
+#[wasm_bindgen]
+extern "C" {
+    #[wasm_bindgen(js_namespace = console)]
+    pub(crate) fn log(s: &str);
+}
+
 //--------------------------------------------------------------------------------------------------
 // Macros
 //--------------------------------------------------------------------------------------------------
@@ -35,4 +43,9 @@ macro_rules! value {
     ($value:expr) => {
         JsValue::from($value)
     };
+}
+
+#[macro_export]
+macro_rules! console_log {
+    ($($t:tt)*) => (crate::log(&format_args!($($t)*).to_string()))
 }
