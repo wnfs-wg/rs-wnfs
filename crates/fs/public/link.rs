@@ -3,7 +3,7 @@
 use std::rc::Rc;
 
 use anyhow::Result;
-use libipld::{cbor::DagCborCodec, Cid};
+use libipld::Cid;
 
 use super::{PublicDirectory, PublicFile, PublicNode};
 use crate::{blockstore, shared, BlockStore, Shared};

@@ -7,11 +7,8 @@ use js_sys::{Array, Error, Object, Promise, Reflect};
 use wasm_bindgen::{prelude::wasm_bindgen, JsValue};
 use wasm_bindgen_futures::future_to_promise;
 use wnfs::{
-    public::{
-        Id, OpResult as WnfsOpResult, PublicDirectory as WnfsPublicDirectory,
-        PublicNode as WnfsPublicNode,
-    },
-    shared, Cid,
+    public::{Id, OpResult as WnfsOpResult, PublicDirectory as WnfsPublicDirectory},
+    Cid,
 };
 
 use crate::fs::{JsResult, MemoryBlockStore, SharedNode};

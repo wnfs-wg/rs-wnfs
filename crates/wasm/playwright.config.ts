@@ -13,7 +13,7 @@ import { devices } from '@playwright/test';
 const config: PlaywrightTestConfig = {
   testDir: './tests',
   /* Maximum time one test can run for. */
-  timeout: 10 * 60 * 1000,
+  timeout: 10 * 60 * 1000, // 10 minutes
   expect: {
     /**
      * Maximum time expect() should wait for the condition to be met.
@@ -64,6 +64,7 @@ const config: PlaywrightTestConfig = {
   webServer: {
     command: 'wasm-pack build --target web --release && npx http-server -p 8085',
     port: 8085,
+    timeout: 10 * 60 * 1000, // 10 minutes
   },
 };
 

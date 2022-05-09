@@ -5,12 +5,7 @@ use std::{borrow::Cow, io::Cursor};
 use anyhow::Result;
 use async_trait::async_trait;
 use hashbrown::HashMap;
-use libipld::{
-    cbor::DagCborCodec,
-    cid::Version,
-    codec::{Codec, Decode},
-    Cid, IpldCodec,
-};
+use libipld::{cbor::DagCborCodec, cid::Version, codec::Decode, Cid, IpldCodec};
 use multihash::{Code, MultihashDigest};
 
 use super::FsError;
