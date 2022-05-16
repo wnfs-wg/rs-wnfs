@@ -7,7 +7,10 @@
     "jsx": "react",
     "allowJs": true,
     "moduleResolution": "node",
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
     "strict": true
   },
-  "include": ["*.ts", "tests/*.ts"]
+  "include": ["**/*.ts", "tests/*.ts"],
+  "exclude": ["node_modules", "dist"]
 }

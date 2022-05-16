@@ -1,22 +1,38 @@
-// import * as arrowLine from '/arrow-line.min.js';
+import { SharedNode } from "../../../pkg";
+import { Nullable, BlockStore } from "./types";
 
-class Vertex {
-  constructor(name, node, parentVertex, tree, rootNode = null) {
+export class Vertex {
+  name: string;
+  node: Nullable<SharedNode>;
+  isDir: boolean;
+  tree: Tree;
+  parentVertex: Nullable<Vertex>;
+  rootNode: Nullable<SharedNode>;
+  noRender: boolean;
+  id: string;
+
+  constructor(
+    name: string,
+    node: Nullable<SharedNode>,
+    parentVertex: Nullable<Vertex>,
+    tree: Tree,
+    rootNode: Nullable<SharedNode> = null
+  ) {
     // Information about the vertex itself.
     this.name = name;
     this.node = node;
-    this.isDir = node.isDir();
+    this.isDir = node ? node.isDir() : false;
     this.tree = tree;
     this.parentVertex = parentVertex;
     this.rootNode = rootNode;
     this.noRender = false;
-    this.id = this.node.getId();
+    this.id = node ? node.getId() : "";
   }
 
-  getRootVertexPath() {
-    let path = [];
-    let vertex = this;
+  getRootVertexPath(): { path: string[]; rootVertex: Vertex } {
+    const path: string[] = [];
 
+    let vertex: Vertex = this;
     while (vertex.parentVertex) {
       path.push(vertex.name);
       vertex = vertex.parentVertex;
@@ -30,7 +46,15 @@ class Vertex {
 }
 
 export class Tree {
-  constructor(rootNode, store, levels = []) {
+  rootNode: Nullable<SharedNode>;
+  store: BlockStore;
+  levels: Vertex[][][];
+
+  constructor(
+    rootNode: Nullable<SharedNode>,
+    store: BlockStore,
+    levels: Vertex[][][] = []
+  ) {
     this.rootNode = rootNode;
     this.store = store;
     this.levels =
@@ -54,8 +78,8 @@ export class Tree {
     }
   }
 
-  async getChildren(level) {
-    const newLevel = [];
+  async getChildren(level: Vertex[][]): Promise<Vertex[][]> {
+    const newLevel: Vertex[][] = [];
 
     // Iterate vertex in each sibling list
     for (let siblings of level) {
@@ -70,15 +94,15 @@ export class Tree {
     return newLevel;
   }
 
-  async getChildrenForVertex(vertex) {
-    if (vertex.node.isDir()) {
+  async getChildrenForVertex(vertex: Vertex): Promise<Vertex[]> {
+    if (vertex.node && vertex.node.isDir()) {
       const dir = vertex.node.asDir();
-      const { result } = await dir.ls([], this.store);
+      const { result }: { result: string[] } = await dir.ls([], this.store);
 
       if (result.length > 0) {
-        let children = [];
+        const children: Vertex[] = [];
         for (let name of result) {
-          const node = await dir.lookupNode(name, this.store);
+          const node: SharedNode = await dir.lookupNode(name, this.store);
           children.push(new Vertex(name, node, vertex, this, vertex.rootNode));
         }
 
@@ -89,11 +113,15 @@ export class Tree {
     return [];
   }
 
-  diff(previousTree) {
-    const levels = [];
+  diff(previousTree: Tree): Nullable<Tree> {
+    const levels: Vertex[][][] = [];
 
     // If previous tree has the same root node, we return null.
-    if (previousTree.rootNode.getId() === this.rootNode.getId()) {
+    if (
+      this.rootNode &&
+      previousTree.rootNode &&
+      previousTree.rootNode.getId() === this.rootNode.getId()
+    ) {
       return null;
     }
 
@@ -109,8 +137,8 @@ export class Tree {
     return new Tree(this.rootNode, this.store, levels);
   }
 
-  diffLevel(level, previousLevels) {
-    const newLevel = [];
+  diffLevel(level: Vertex[][], previousLevels: Vertex[]) {
+    const newLevel: Vertex[][] = [];
     for (let siblings of level) {
       const newSiblings = this.diffSiblings(siblings, previousLevels);
       if (newSiblings.length > 0) {
@@ -121,18 +149,16 @@ export class Tree {
     return newLevel;
   }
 
-  diffSiblings(siblings, previousLevels) {
-    const newSiblings = [];
+  diffSiblings(siblings: Vertex[], previousLevels: Vertex[]) {
+    const newSiblings: Vertex[] = [];
     for (let vertex of siblings) {
       // We look for a vertex with similar id in previous tree.
-      const previousVertex = previousLevels.find(
-        (prevVertex) => prevVertex.id === vertex.id
-      );
+      const prevVertex = previousLevels.find((prev) => prev.id === vertex.id);
 
-      if (previousVertex) {
+      if (prevVertex) {
         // If vertex is found, we check if they don't share a common parent.
         // This means they are divergent. We skip non-divergent vertices.
-        if (previousVertex.parentVertex?.id != vertex.parentVertex?.id) {
+        if (prevVertex.parentVertex?.id != vertex.parentVertex?.id) {
           let newVertex = new Vertex(
             vertex.name,
             vertex.node,
@@ -149,6 +175,7 @@ export class Tree {
         newSiblings.push(vertex);
       }
     }
+
     return newSiblings;
   }
 }
