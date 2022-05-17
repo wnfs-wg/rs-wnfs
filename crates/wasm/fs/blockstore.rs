@@ -9,7 +9,7 @@ use wasm_bindgen::prelude::wasm_bindgen;
 use wasm_bindgen_futures::JsFuture;
 use wnfs::{
     ipld::{Cid, IpldCodec},
-    BlockStore as WnfsBlockStore, BlockStoreLookup as WnfsBlockStoreLookup,
+    BlockStore as WnfsBlockStore,
 };
 
 //--------------------------------------------------------------------------------------------------
@@ -67,10 +67,7 @@ impl WnfsBlockStore for ForeignBlockStore {
         // Construct CID from the bytes.
         Ok(Cid::try_from(&bytes[..])?)
     }
-}
 
-#[async_trait(?Send)]
-impl WnfsBlockStoreLookup for ForeignBlockStore {
     /// Retrieves an array of bytes from the block store with given CID.
     async fn get_block<'a>(&'a self, cid: &Cid) -> Result<Cow<'a, Vec<u8>>> {
         let value = JsFuture::from(self.0.get_block(cid.to_bytes()))

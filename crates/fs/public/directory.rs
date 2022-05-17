@@ -761,7 +761,7 @@ mod public_directory_tests {
     use std::io::Cursor;
 
     use super::*;
-    use crate::{public::PublicFile, BlockStoreLookup, MemoryBlockStore};
+    use crate::{public::PublicFile, MemoryBlockStore};
     use chrono::Utc;
 
     #[async_std::test]

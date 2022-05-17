@@ -14,15 +14,10 @@ use super::FsError;
 // Type Definitions
 //--------------------------------------------------------------------------------------------------
 
-/// For types that implement getting a block from a CID.
-#[async_trait(?Send)]
-pub trait BlockStoreLookup {
-    async fn get_block<'a>(&'a self, cid: &Cid) -> Result<Cow<'a, Vec<u8>>>;
-}
-
 /// For types that implement block store operations like adding, getting content from the store.
 #[async_trait(?Send)]
-pub trait BlockStore: BlockStoreLookup {
+pub trait BlockStore {
+    async fn get_block<'a>(&'a self, cid: &Cid) -> Result<Cow<'a, Vec<u8>>>;
     async fn put_block(&mut self, bytes: Vec<u8>, codec: IpldCodec) -> Result<Cid>;
 }
 
@@ -54,10 +49,7 @@ impl BlockStore for MemoryBlockStore {
 
         Ok(cid)
     }
-}
 
-#[async_trait(?Send)]
-impl BlockStoreLookup for MemoryBlockStore {
     /// Retrieves an array of bytes from the block store with given CID.
     async fn get_block<'a>(&'a self, cid: &Cid) -> Result<Cow<'a, Vec<u8>>> {
         let bytes = self
