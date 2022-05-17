@@ -1,17 +1,15 @@
 //! The bindgen API for PublicDirectory.
 
-use std::{rc::Rc, str::FromStr};
-
 use chrono::{DateTime, Utc};
-use js_sys::{Array, Error, Object, Promise, Reflect};
+use js_sys::{Array, Date, Error, Object, Promise, Reflect, Uint8Array};
 use wasm_bindgen::{prelude::wasm_bindgen, JsValue};
 use wasm_bindgen_futures::future_to_promise;
 use wnfs::{
+    ipld::Cid,
     public::{Id, OpResult as WnfsOpResult, PublicDirectory as WnfsPublicDirectory},
-    Cid,
 };
 
-use crate::fs::{JsResult, MemoryBlockStore, SharedNode};
+use crate::fs::{BlockStore, ForeignBlockStore, JsResult, SharedNode};
 use crate::value;
 
 /// A directory in a WNFS public file system.
@@ -26,7 +24,7 @@ pub struct PublicDirectory(pub(super) WnfsPublicDirectory);
 impl PublicDirectory {
     /// Creates a new directory using the given metadata.
     #[wasm_bindgen(constructor)]
-    pub fn new(time: &js_sys::Date) -> PublicDirectory {
+    pub fn new(time: &Date) -> PublicDirectory {
         let time = DateTime::<Utc>::from(time);
         PublicDirectory(WnfsPublicDirectory::new(time))
     }
@@ -37,20 +35,14 @@ impl PublicDirectory {
     ///
     /// If `diverge` is true, this will clone the spine of the path.
     #[wasm_bindgen(js_name = "getNode")]
-    pub fn get_node(
-        &mut self,
-        path_segments: &Array,
-        store: &MemoryBlockStore,
-    ) -> JsResult<Promise> {
+    pub fn get_node(&mut self, path_segments: &Array, store: BlockStore) -> JsResult<Promise> {
         let directory = self.0.clone();
-        let store = Rc::clone(&store.0);
+        let store = ForeignBlockStore(store);
         let path_segments = utils::convert_path_segments(path_segments)?;
 
         Ok(future_to_promise(async move {
-            let store = store.borrow();
-
             let WnfsOpResult { root_node, result } = directory
-                .get_node(&path_segments, &*store, false)
+                .get_node(&path_segments, &store, false)
                 .await
                 .map_err(|e| Error::new(&format!("Cannot get node: {e}")))?;
 
@@ -60,20 +52,14 @@ impl PublicDirectory {
 
     /// Looks up a node by its path name in the current directory.
     #[wasm_bindgen(js_name = "lookupNode")]
-    pub fn lookup_node(
-        &mut self,
-        path_segment: &str,
-        store: &MemoryBlockStore,
-    ) -> JsResult<Promise> {
+    pub fn lookup_node(&mut self, path_segment: &str, store: BlockStore) -> JsResult<Promise> {
         let directory = self.0.clone();
-        let store = Rc::clone(&store.0);
+        let store = ForeignBlockStore(store);
         let path_segment = path_segment.to_string();
 
         Ok(future_to_promise(async move {
-            let store = store.borrow();
-
             let found_node = directory
-                .lookup_node(&path_segment, &*store)
+                .lookup_node(&path_segment, &store)
                 .await
                 .map_err(|e| Error::new(&format!("Cannot lookup node: {e}")))?;
 
@@ -82,33 +68,31 @@ impl PublicDirectory {
     }
 
     /// Stores directory in provided block store.
-    pub fn store(&self, store: &mut MemoryBlockStore) -> JsResult<Promise> {
+    pub fn store(&self, store: BlockStore) -> JsResult<Promise> {
         let directory = self.0.clone();
-        let store = Rc::clone(&store.0);
+        let mut store = ForeignBlockStore(store);
 
         Ok(future_to_promise(async move {
-            let mut store = store.borrow_mut();
-
             let cid = directory
-                .store(&mut *store)
+                .store(&mut store)
                 .await
                 .map_err(|e| Error::new(&format!("Cannot add to store: {e}")))?;
 
-            Ok(value!(cid.to_string()))
+            let cid_u8array = Uint8Array::from(&cid.to_bytes()[..]);
+
+            Ok(value!(cid_u8array))
         }))
     }
 
     /// Reads specified file content from the directory.
-    pub fn read(&self, path_segments: &Array, store: &MemoryBlockStore) -> JsResult<Promise> {
+    pub fn read(&self, path_segments: &Array, store: BlockStore) -> JsResult<Promise> {
         let directory = self.0.clone();
-        let store = Rc::clone(&store.0);
+        let mut store = ForeignBlockStore(store);
         let path_segments = utils::convert_path_segments(path_segments)?;
 
         Ok(future_to_promise(async move {
-            let mut store = store.borrow_mut();
-
             let WnfsOpResult { root_node, result } = directory
-                .read(&path_segments, &mut *store)
+                .read(&path_segments, &mut store)
                 .await
                 .map_err(|e| Error::new(&format!("Cannot read from directory: {e}")))?;
 
@@ -117,16 +101,14 @@ impl PublicDirectory {
     }
 
     /// Returns the name and metadata of the direct children of a directory.
-    pub fn ls(&self, path_segments: &Array, store: &MemoryBlockStore) -> JsResult<Promise> {
+    pub fn ls(&self, path_segments: &Array, store: BlockStore) -> JsResult<Promise> {
         let directory = self.0.clone();
-        let store = Rc::clone(&store.0);
+        let store = ForeignBlockStore(store);
         let path_segments = utils::convert_path_segments(path_segments)?;
 
         Ok(future_to_promise(async move {
-            let store = store.borrow();
-
             let WnfsOpResult { root_node, result } = directory
-                .ls(&path_segments, &*store)
+                .ls(&path_segments, &store)
                 .await
                 .map_err(|e| Error::new(&format!("Cannot list directory children: {e}")))?;
 
@@ -142,19 +124,17 @@ impl PublicDirectory {
     /// Removes a file or directory from the directory.
     ///
     /// Rather than mutate the directory directly, we create a new directory and return it.
-    pub fn rm(&self, path_segments: &Array, store: &MemoryBlockStore) -> JsResult<Promise> {
+    pub fn rm(&self, path_segments: &Array, store: BlockStore) -> JsResult<Promise> {
         let directory = self.0.clone();
-        let store = Rc::clone(&store.0);
+        let store = ForeignBlockStore(store);
         let path_segments = utils::convert_path_segments(path_segments)?;
 
         Ok(future_to_promise(async move {
-            let store = store.borrow();
-
             let WnfsOpResult {
                 root_node,
                 result: (name, node),
             } = directory
-                .rm(&path_segments, &*store)
+                .rm(&path_segments, &store)
                 .await
                 .map_err(|e| Error::new(&format!("Cannot remove from directory: {e}")))?;
 
@@ -175,23 +155,23 @@ impl PublicDirectory {
     pub fn write(
         &mut self,
         path_segments: &Array,
-        content_cid: &str,
+        content_cid: Vec<u8>,
         time: &js_sys::Date,
-        store: &MemoryBlockStore,
+        store: BlockStore,
     ) -> JsResult<Promise> {
         let directory = self.0.clone();
-        let store = Rc::clone(&store.0);
-        let cid = Cid::from_str(content_cid).map_err(|_| Error::new("Invalid CID"))?;
+        let store = ForeignBlockStore(store);
+
+        let cid =
+            Cid::try_from(content_cid).map_err(|e| Error::new(&format!("Invalid CID: {e}")))?;
         let time = DateTime::<Utc>::from(time);
         let path_segments = utils::convert_path_segments(path_segments)?;
 
         Ok(future_to_promise(async move {
-            let store = store.borrow();
-
             let WnfsOpResult {
                 root_node, result, ..
             } = directory
-                .write(&path_segments, cid, time, &*store)
+                .write(&path_segments, cid, time, &store)
                 .await
                 .map_err(|e| Error::new(&format!("Cannot write to directory: {e}")))?;
 
@@ -205,19 +185,17 @@ impl PublicDirectory {
         path_segments_from: &Array,
         path_segments_to: &Array,
         time: &js_sys::Date,
-        store: &MemoryBlockStore,
+        store: BlockStore,
     ) -> JsResult<Promise> {
         let directory = self.0.clone();
-        let store = Rc::clone(&store.0);
+        let store = ForeignBlockStore(store);
         let time = DateTime::<Utc>::from(time);
         let path_segments_from = utils::convert_path_segments(path_segments_from)?;
         let path_segments_to = utils::convert_path_segments(path_segments_to)?;
 
         Ok(future_to_promise(async move {
-            let store = store.borrow();
-
             let WnfsOpResult { root_node, .. } = directory
-                .mv(&path_segments_from, &path_segments_to, time, &*store)
+                .mv(&path_segments_from, &path_segments_to, time, &store)
                 .await
                 .map_err(|e| Error::new(&format!("Cannot create directory: {e}")))?;
 
@@ -234,20 +212,18 @@ impl PublicDirectory {
         &mut self,
         path_segments: &Array,
         time: &js_sys::Date,
-        store: &MemoryBlockStore,
+        store: BlockStore,
     ) -> JsResult<Promise> {
         let directory = self.0.clone();
-        let store = Rc::clone(&store.0);
+        let store = ForeignBlockStore(store);
         let time = DateTime::<Utc>::from(time);
         let path_segments = utils::convert_path_segments(path_segments)?;
 
         Ok(future_to_promise(async move {
-            let store = store.borrow();
-
             let WnfsOpResult {
                 root_node, result, ..
             } = directory
-                .mkdir(&path_segments, time, &*store, false)
+                .mkdir(&path_segments, time, &store, false)
                 .await
                 .map_err(|e| Error::new(&format!("Cannot create directory: {e}")))?;
 

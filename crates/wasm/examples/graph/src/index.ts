@@ -1,12 +1,13 @@
-import init, { MemoryBlockStore, PublicDirectory } from "./wasm_wnfs.js";
+import "./styles/index.css";
 
-import { draw } from "./render.js";
+import { MemoryBlockStore } from "./blockstore";
+import { draw } from "./render";
 
 //------------------------------------------------------------------------------
 // Init
 //------------------------------------------------------------------------------
 
-await init();
+const { PublicDirectory } = await import("../../../pkg/index");
 
 const time = new Date();
 const store = new MemoryBlockStore();
