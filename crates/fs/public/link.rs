@@ -6,7 +6,7 @@ use anyhow::Result;
 use libipld::Cid;
 
 use super::{PublicDirectory, PublicFile, PublicNode};
-use crate::{blockstore, shared, BlockStore, Shared};
+use crate::{blockstore, BlockStore};
 
 /// A link to another node in the WNFS public file system. It can be held as a simple serialised CID or as a reference to the node itself.
 ///
@@ -50,14 +50,14 @@ impl Link {
 
 #[cfg(test)]
 mod public_link_tests {
-    use std::{mem, rc::Rc};
+    use std::{rc::Rc};
 
     use chrono::Utc;
     use libipld::Cid;
 
     use crate::{
         public::{PublicDirectory, PublicFile, PublicNode},
-        shared, MemoryBlockStore,
+        MemoryBlockStore,
     };
 
     use super::Link;
@@ -81,26 +81,20 @@ mod public_link_tests {
         assert_eq!(file_cid, sealed_cid);
     }
 
-    // TODO
-    // #[async_std::test]
-    // async fn cid_link_can_be_resolved() {
-    //     let time = Utc::now();
+    #[async_std::test]
+    async fn cid_link_can_be_resolved() {
+        let time = Utc::now();
 
-    //     let dir = PublicDirectory::new(time);
+        let dir = Rc::new(PublicDirectory::new(time));
 
-    //     let mut store = MemoryBlockStore::default();
+        let mut store = MemoryBlockStore::default();
 
-    //     let dir_cid = dir.store(&mut store).await.unwrap();
+        let dir_cid = dir.store(&mut store).await.unwrap();
 
-    //     let unresolved_link = Link::Cid(dir_cid);
+        let unresolved_link = Link::Cid(dir_cid);
 
-    //     let resolved_node = unresolved_link.resolve(&store).await.unwrap();
+        let resolved_node = unresolved_link.resolve(&store).await.unwrap();
 
-    //     let node = mem::replace(
-    //         &mut *resolved_node.borrow_mut(),
-    //         PublicNode::Dir(PublicDirectory::new(time)),
-    //     );
-
-    //     assert_eq!(dir, node.into_dir())
-    // }
+        assert_eq!(Rc::new(PublicNode::Dir(dir)), resolved_node);
+    }
 }
