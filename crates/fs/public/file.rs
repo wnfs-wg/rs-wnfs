@@ -6,7 +6,7 @@ use libipld::{cbor::DagCborCodec, prelude::Encode, Cid, DagCbor, IpldCodec};
 
 use crate::{BlockStore, Metadata, UnixFsNodeKind};
 
-use super::Id;
+use super::{DeepClone, Id};
 
 /// A file in a WNFS public file system.
 #[derive(Debug, Clone, PartialEq, Eq, DagCbor)]
@@ -30,7 +30,12 @@ impl PublicFile {
         }
     }
 
-    /// Stores a file as block(s) in provided block store.
+    // Gets the previous value of the file.
+    pub fn get_previous(&self) -> Option<Cid> {
+        self.previous
+    }
+
+    /// Stores file in provided block store.
     pub async fn store<B: BlockStore>(&self, store: &mut B) -> Result<Cid> {
         let bytes = {
             let mut tmp = vec![];
@@ -44,6 +49,12 @@ impl PublicFile {
 impl Id for PublicFile {
     fn get_id(&self) -> String {
         format!("{:p}", &self.metadata)
+    }
+}
+
+impl DeepClone for PublicFile {
+    fn deep_clone(&self) -> Self {
+        self.clone()
     }
 }
 

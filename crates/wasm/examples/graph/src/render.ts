@@ -1,18 +1,26 @@
-import { Tree } from "./tree.js";
+///<reference path="index.d.ts"/>
+
+import { CID } from "multiformats/cid";
+import { SharedNode } from "../../../pkg/index";
+import { Tree, Vertex } from "./tree";
+import { Nullable, BlockStore, EventMap, Connection, Handler } from "./types";
 
 //------------------------------------------------------------------------------
 // Handlers
 //------------------------------------------------------------------------------
 
 const handleRootClick = () => {
-  const menuElement = document.getElementById("menu");
-  const inputElement = document.getElementById("input");
+  const menuElement = document.getElementById("menu") as HTMLElement;
+  const inputElement = document.getElementById("input") as HTMLInputElement;
+
   inputElement.classList.add("hide");
   menuElement.classList.add("veil");
 };
 
 const handleActivityHeadClick = () => {
- const activityBodyElement = document.getElementById("activity-panel-body");
+  const activityBodyElement = document.getElementById(
+    "activity-panel-body"
+  ) as HTMLElement;
   activityBodyElement.classList.toggle("hide-sm");
 };
 
@@ -20,8 +28,10 @@ const handleActivityHeadClick = () => {
 // Init
 //------------------------------------------------------------------------------
 
-const graphRootElement = document.getElementById("graph-canvas");
-const activityHeadElement = document.getElementById("activity-panel-head");
+const graphRootElement = document.getElementById("graph-canvas") as HTMLElement;
+const activityHeadElement = document.getElementById(
+  "activity-panel-head"
+) as HTMLElement;
 
 graphRootElement.addEventListener("click", handleRootClick);
 activityHeadElement.addEventListener("click", handleActivityHeadClick);
@@ -31,35 +41,50 @@ activityHeadElement.addEventListener("click", handleActivityHeadClick);
 //------------------------------------------------------------------------------
 
 export class Render {
-  static activeHandlers = new Map();
-  static addFileElement = document.getElementById("add-file");
-  static addFolderElement = document.getElementById("add-folder");
-  static deleteNodeElement = document.getElementById("delete-node");
-  static menuElement = document.getElementById("menu");
-  static inputElement = document.getElementById("input");
-  static inputBoxElement = document.getElementById("input-box");
-  static inputButtonElement = document.getElementById("input-button");
-  static activityBodyElement = document.getElementById("activity-panel-body");
+  tree: Nullable<Tree>;
+  rootElement: HTMLElement;
+  rootElementBounds: DOMRect;
 
-  constructor(tree, rootElement) {
+  static activeHandlers: EventMap = new Map();
+  static addFileElement = document.getElementById("add-file") as HTMLElement;
+  static addFolderElement = document.getElementById(
+    "add-folder"
+  ) as HTMLElement;
+  static deleteNodeElement = document.getElementById(
+    "delete-node"
+  ) as HTMLElement;
+  static menuElement = document.getElementById("menu") as HTMLElement;
+  static inputElement = document.getElementById("input") as HTMLElement;
+  static inputBoxElement = document.getElementById(
+    "input-box"
+  ) as HTMLInputElement;
+  static inputButtonElement = document.getElementById(
+    "input-button"
+  ) as HTMLElement;
+  static activityBodyElement = document.getElementById(
+    "activity-panel-body"
+  ) as HTMLElement;
+
+  constructor(tree: Nullable<Tree>, rootElement: HTMLElement) {
     this.tree = tree;
     this.rootElement = rootElement;
     this.rootElementBounds = rootElement.getBoundingClientRect();
   }
 
-  render() {
+  render(): Nullable<HTMLElement> {
     // We don't render tree if tree is null.
     if (!this.tree) {
       console.log("No change to tree");
-      return;
+      return null;
     }
 
     const graphTree = document.createElement("div");
     graphTree.className = "graph-tree";
 
-    const connections = [];
+    const connections: Connection[] = [];
     for (let level of this.tree.levels) {
       const [levelDiv, newConnections] = this.addLevelSiblings(level);
+
       graphTree.appendChild(levelDiv);
       connections.push(...newConnections);
     }
@@ -70,13 +95,14 @@ export class Render {
     return graphTree;
   }
 
-  addLevelSiblings(level) {
+  addLevelSiblings(level: Vertex[][]): [HTMLElement, Connection[]] {
     const levelDiv = document.createElement("div");
     levelDiv.className = "level";
 
-    const connections = [];
+    const connections: Connection[] = [];
     for (let siblings of level) {
       const [siblingDiv, newConnections] = this.addSiblingVertices(siblings);
+
       levelDiv.appendChild(siblingDiv);
       connections.push(...newConnections);
     }
@@ -84,12 +110,11 @@ export class Render {
     return [levelDiv, connections];
   }
 
-  addSiblingVertices(siblings) {
+  addSiblingVertices(siblings: Vertex[]): [HTMLElement, Connection[]] {
     const siblingDiv = document.createElement("div");
     siblingDiv.className = "sibling";
 
-    const connections = [];
-
+    const connections: Connection[] = [];
     for (let vertex of siblings) {
       const vertexDiv = document.createElement("div");
       vertexDiv.className = "vertex" + (!vertex.isDir ? " file" : "");
@@ -106,7 +131,7 @@ export class Render {
       vertexDiv.appendChild(vertexIdDiv);
 
       // Add context menu handler.
-      vertexDiv.addEventListener("contextmenu", (event) =>
+      vertexDiv.addEventListener("contextmenu", (event: MouseEvent) =>
         this.handleContextMenu(event, vertex)
       );
 
@@ -130,7 +155,7 @@ export class Render {
     return [siblingDiv, connections];
   }
 
-  connectVertices(connections) {
+  connectVertices(connections: Connection[]) {
     connections.forEach(([parentId, childId, longConnection]) => {
       new LeaderLine(
         document.getElementById(parentId),
@@ -143,7 +168,9 @@ export class Render {
       );
 
       // Move line element from body to rootElment.
-      const leaderLine = document.querySelector("body > .leader-line");
+      const leaderLine = document.querySelector(
+        "body > .leader-line"
+      ) as HTMLElement;
       this.rootElement.appendChild(leaderLine);
 
       // Factor in rootElement scroll position.
@@ -167,7 +194,7 @@ export class Render {
     });
   }
 
-  handleContextMenu = (event, vertex) => {
+  handleContextMenu = (event: MouseEvent, vertex: Vertex) => {
     // Show input and hide all menu action items.
     Render.inputElement.classList.add("hide");
     Render.addFileElement.classList.remove("hide");
@@ -196,7 +223,7 @@ export class Render {
     }
 
     // Set handlers on menu action items.
-    const handler = async (event) => {
+    const handler = async (event: Event): Promise<void> => {
       await this.handleContextMenuItemClick(event, vertex);
     };
 
@@ -205,8 +232,8 @@ export class Render {
     Render.attachHandler(Render.deleteNodeElement, "click", handler);
   };
 
-  handleContextMenuItemClick = async (event, vertex) => {
-    const eventName = event.target.id;
+  handleContextMenuItemClick = async (event: Event, vertex: Vertex) => {
+    const eventName = (event.target as HTMLElement).id;
     if (eventName !== "delete-node") {
       // Show input and hide all menu action items.
       Render.inputElement.classList.remove("hide");
@@ -225,26 +252,30 @@ export class Render {
       );
 
       // Detect enter key press in input box.
-      Render.attachHandler(Render.inputBoxElement, "keypress", (event) => {
-        switch (event.key) {
-          case "Enter":
-            this.handleInputButtonClick(vertex, eventName)(event);
-            break;
-          case " ":
-            event.preventDefault();
-            return;
+      Render.attachHandler(
+        Render.inputBoxElement,
+        "keypress",
+        (event: Event) => {
+          switch ((event as KeyboardEvent).key) {
+            case "Enter":
+              this.handleInputButtonClick(vertex, eventName)();
+              break;
+            case " ":
+              event.preventDefault();
+              return;
+          }
         }
-      });
+      );
     } else {
-      await this.handleInputButtonClick(vertex, eventName)(event);
+      await this.handleInputButtonClick(vertex, eventName)();
     }
   };
 
-  handleInputButtonClick = (vertex, eventName) => {
-    const inner = async (event) => {
+  handleInputButtonClick = (vertex: Vertex, eventName: string) => {
+    const inner = async () => {
       const path_segments = Render.inputBoxElement.value
         .split("/")
-        .filter((v) => v !== "");
+        .filter((v: string) => v !== "");
 
       try {
         // Dispatch action.
@@ -280,7 +311,7 @@ export class Render {
     return inner;
   };
 
-  static async handleAddFolder(vertex, path_segments) {
+  static async handleAddFolder(vertex: Vertex, path_segments: string[]) {
     const { store } = globalThis;
     let { rootNode, tree } = vertex;
     let full_path_segments = [
@@ -289,7 +320,7 @@ export class Render {
     ];
 
     // Create new directory.
-    ({ rootNode } = await rootNode
+    ({ rootNode } = await (rootNode as SharedNode)
       .asDir()
       .mkdir(full_path_segments, new Date(), store));
 
@@ -305,7 +336,7 @@ export class Render {
     await draw(rootNode, store, tree);
   }
 
-  static async handleAddFile(vertex, path_segments) {
+  static async handleAddFile(vertex: Vertex, path_segments: string[]) {
     const { store } = globalThis;
     let { rootNode, tree } = vertex;
     let full_path_segments = [
@@ -313,15 +344,17 @@ export class Render {
       ...path_segments,
     ];
 
+    // Create mock cid
+
+    /** A mock CID. */
+    const cid = CID.parse(
+      "bagaaierasords4njcts6vs7qvdjfcvgnume4hqohf65zsfguprqphs3icwea"
+    ).bytes;
+
     // Create new file.
-    ({ rootNode } = await rootNode
+    ({ rootNode } = await (rootNode as SharedNode)
       .asDir()
-      .write(
-        full_path_segments,
-        "bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi",
-        new Date(),
-        store
-      ));
+      .write(full_path_segments, cid, new Date(), store));
 
     const path_string = `/${full_path_segments.join("/")}`;
     console.log(`echo "" >> ${path_string}`);
@@ -335,12 +368,12 @@ export class Render {
     await draw(rootNode, store, tree);
   }
 
-  static async handleDeleteNode(vertex) {
+  static async handleDeleteNode(vertex: Vertex) {
     const { store } = globalThis;
     let { rootNode, tree } = vertex;
     let { path } = vertex.getRootVertexPath();
 
-    ({ rootNode } = await rootNode.asDir().rm(path, store));
+    ({ rootNode } = await (rootNode as SharedNode).asDir().rm(path, store));
 
     console.log(`rm /${path.join("/")}`);
 
@@ -353,7 +386,11 @@ export class Render {
     await draw(rootNode, store, tree);
   }
 
-  static attachHandler(element, eventName, handler) {
+  static attachHandler(
+    element: HTMLElement,
+    eventName: string,
+    handler: Handler
+  ) {
     element.addEventListener(eventName, handler);
     Render.activeHandlers.set(element, [eventName, handler]);
   }
@@ -372,9 +409,13 @@ export class Render {
 // Draw
 //------------------------------------------------------------------------------
 
-export const draw = async (rootNode, store, previousTree = null) => {
+export const draw = async (
+  rootNode: Nullable<SharedNode>,
+  store: BlockStore,
+  previousTree: Nullable<Tree> = null
+): Promise<Tree> => {
   // Create tree based on rootNode.
-  let tree = new Tree(rootNode, store);
+  let tree: Nullable<Tree> = new Tree(rootNode, store);
   await tree.traverse();
 
   // Keep track of the tree.

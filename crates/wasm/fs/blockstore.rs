@@ -1,15 +1,15 @@
 //! The bindgen API for WNFS block store.
 
-use std::str::FromStr;
-use std::{borrow::Cow, rc::Rc};
+use std::borrow::Cow;
 
+use anyhow::{Error, Result};
 use async_trait::async_trait;
-use js_sys::{Error, Promise, Uint8Array};
-use wasm_bindgen::{prelude::wasm_bindgen, JsValue};
-use wasm_bindgen_futures::future_to_promise;
+use js_sys::{Promise, Uint8Array};
+use wasm_bindgen::prelude::wasm_bindgen;
+use wasm_bindgen_futures::JsFuture;
 use wnfs::{
-    BlockStore as WnfsBlockStore, BlockStoreLookup as WnfsBlockStoreLookup, Cid, IpldCodec,
-    MemoryBlockStore as WnfsMemoryBlockStore, Shared,
+    ipld::{Cid, IpldCodec},
+    BlockStore as WnfsBlockStore,
 };
 
 //--------------------------------------------------------------------------------------------------
@@ -18,102 +18,75 @@ use wnfs::{
 
 #[wasm_bindgen]
 extern "C" {
-    pub type ExternBlockStore;
+    pub type BlockStore;
 
-    #[wasm_bindgen(js_name = "getBlock")]
-    fn get_block(this: ExternBlockStore, cid: String) -> Promise;
+    #[wasm_bindgen(method, js_name = "putBlock")]
+    pub(crate) fn put_block(store: &BlockStore, bytes: Vec<u8>, code: Code) -> Promise;
 
-    #[wasm_bindgen(js_name = "putBlock")]
-    fn put_block(this: ExternBlockStore, cid: String) -> Promise;
-
-    #[wasm_bindgen(js_name = "putBlock")]
-    fn load(this: ExternBlockStore, cid: String) -> Promise;
+    #[wasm_bindgen(method, js_name = "getBlock")]
+    pub(crate) fn get_block(store: &BlockStore, cid: Vec<u8>) -> Promise;
 }
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
 //--------------------------------------------------------------------------------------------------
 
-/// An in-memory block store to simulate IPFS.
+/// Represents the format the content a CID points to.
+///
+/// The variants are based on the ipld and multiformats specification.
+///
+/// - https://ipld.io/docs/codecs/#known-codecs
+/// - https://github.com/multiformats/multicodec/blob/master/table.csv
 #[wasm_bindgen]
-#[derive(Default)]
-pub struct MemoryBlockStore(pub(crate) Shared<WnfsMemoryBlockStore>);
+pub enum Code {
+    DagProtobuf = 0x70,
+    DagCbor = 0x71,
+    DagJson = 0x0129,
+    Raw = 0x55,
+}
 
-/// A block store provided by the host (JavaScript) for csutom implementation like connection to the IPFS network.
+/// A block store provided by the host (JavaScript) for custom implementation like connection to the IPFS network.
 #[wasm_bindgen]
-pub struct ForeignBlockStore(ExternBlockStore);
+pub struct ForeignBlockStore(pub(crate) BlockStore);
 
 //--------------------------------------------------------------------------------------------------
 // Implementations
 //--------------------------------------------------------------------------------------------------
 
-#[wasm_bindgen]
-impl MemoryBlockStore {
-    /// Creates a new in-memory block store.
-    #[wasm_bindgen(constructor)]
-    pub fn new() -> Self {
-        Self::default()
-    }
-
+#[async_trait(?Send)]
+impl WnfsBlockStore for ForeignBlockStore {
     /// Stores an array of bytes in the block store.
-    #[wasm_bindgen(js_name = "putBlock")]
-    pub fn put_block(&self, bytes: Vec<u8>, codec: u64) -> Promise {
-        let store = Rc::clone(&self.0);
+    async fn put_block(&mut self, bytes: Vec<u8>, codec: IpldCodec) -> Result<Cid> {
+        let value = JsFuture::from(self.0.put_block(bytes, codec.into()))
+            .await
+            .map_err(|e| Error::msg(format!("Cannot get block: {:?}", e)))?;
 
-        future_to_promise(async move {
-            let codec = IpldCodec::try_from(codec)
-                .map_err(|e| Error::new(&format!("Invalid codec: {e}")))?;
+        // Convert the value to a vector of bytes.
+        let bytes = Uint8Array::new(&value).to_vec();
 
-            let cid = store
-                .borrow_mut()
-                .put_block(bytes, codec)
-                .await
-                .map_err(|_| Error::new("Failed to put block"))?;
-
-            let value = JsValue::from(cid.to_string());
-
-            Ok(value)
-        })
+        // Construct CID from the bytes.
+        Ok(Cid::try_from(&bytes[..])?)
     }
 
-    /// Gets a block of bytes from the store with provided CID.
-    #[wasm_bindgen(js_name = "getBlock")]
-    pub fn get_block(&self, cid: String) -> Promise {
-        let store = Rc::clone(&self.0);
+    /// Retrieves an array of bytes from the block store with given CID.
+    async fn get_block<'a>(&'a self, cid: &Cid) -> Result<Cow<'a, Vec<u8>>> {
+        let value = JsFuture::from(self.0.get_block(cid.to_bytes()))
+            .await
+            .map_err(|e| Error::msg(format!("Cannot get block: {:?}", e)))?;
 
-        future_to_promise(async move {
-            let cid = Cid::from_str(&cid).map_err(|e| Error::new(&format!("Invalid CID: {e}")))?;
-
-            let store_ref = store.borrow();
-
-            let bytes = store_ref
-                .get_block(&cid)
-                .await
-                .map_err(|e| Error::new(&format!("Failed to get block: {e}")))?;
-
-            let value = JsValue::from(Uint8Array::from(&bytes[..]));
-
-            Ok(value)
-        })
+        // Convert the value to a vector of bytes.
+        let bytes = Uint8Array::new(&value).to_vec();
+        Ok(Cow::Owned(bytes))
     }
 }
 
-#[async_trait(?Send)]
-impl WnfsBlockStore for MemoryBlockStore {
-    async fn put_block(
-        &mut self,
-        bytes: Vec<u8>,
-        codec: wnfs::IpldCodec,
-    ) -> Result<wnfs::Cid, anyhow::Error> {
-        let mut store = self.0.borrow_mut();
-        store.put_block(bytes, codec).await
-    }
-}
-
-#[async_trait(?Send)]
-impl WnfsBlockStoreLookup for MemoryBlockStore {
-    async fn get_block<'a>(&'a self, cid: &wnfs::Cid) -> Result<Cow<'a, Vec<u8>>, anyhow::Error> {
-        let store = self.0.borrow();
-        store.get_block(cid).await.map(|x| Cow::Owned(x.to_vec()))
+impl From<IpldCodec> for Code {
+    fn from(codec: IpldCodec) -> Self {
+        match codec {
+            IpldCodec::DagPb => Code::DagProtobuf,
+            IpldCodec::DagCbor => Code::DagCbor,
+            IpldCodec::DagJson => Code::DagJson,
+            IpldCodec::Raw => Code::Raw,
+        }
     }
 }

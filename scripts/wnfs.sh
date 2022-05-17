@@ -1,4 +1,4 @@
-#!/bin/bash:
+#!/bin/bash
 
 # PATHS
 # Get current working directory
@@ -82,12 +82,8 @@ build() {
     cargo build --release
 
     display_header "💿 BUILDING WASM-WNFS PROJECT"
-    $(
-        cd crates/wasm && \
-        wasm-pack build --target web --release
-    )
+    cd crates/wasm && wasm-pack build --target web --release
 }
-
 
 # DESCRIPTION:
 #   Runs tests.
@@ -97,9 +93,11 @@ build() {
 #
 test() {
     display_header "🧪 RUNNING WNFS TESTS"
-    cargo test -p wnfs -- --nocapture
-}
+    cargo test -p wnfs --release -- --nocapture
 
+    display_header "🧪 RUNNING WASM-WNFS TESTS"
+    cd crates/wasm && yarn playwright test
+}
 
 # DESCRIPTION:
 #    Shows the code coverage of the project
@@ -170,7 +168,6 @@ display() {
     printf "::: $1 :::\n"
 }
 
-
 # DESCRIPTION:
 #	A custom print function that starts its output with a newline
 #
@@ -184,6 +181,5 @@ displayln() {
 display_header() {
     printf "\n${green}$1${none}\n\n"
 }
-
 
 main $@

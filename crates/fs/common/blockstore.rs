@@ -1,15 +1,11 @@
 //! Block store traits.
 
-use std::borrow::Cow;
+use std::{borrow::Cow, io::Cursor};
 
 use anyhow::Result;
 use async_trait::async_trait;
 use hashbrown::HashMap;
-use libipld::{
-    cid::Version,
-    codec::{Codec, Decode},
-    Cid, IpldCodec,
-};
+use libipld::{cbor::DagCborCodec, cid::Version, codec::Decode, Cid, IpldCodec};
 use multihash::{Code, MultihashDigest};
 
 use super::FsError;
@@ -18,28 +14,16 @@ use super::FsError;
 // Type Definitions
 //--------------------------------------------------------------------------------------------------
 
-/// For types that implement getting a block from a CID.
-#[async_trait(?Send)]
-pub trait BlockStoreLookup {
-    async fn get_block<'a>(&'a self, cid: &Cid) -> Result<Cow<'a, Vec<u8>>>;
-}
-
-// /// For types that implement loading decodable object from a blockstore using a CID.
-// #[async_trait(?Send)]
-// pub trait BlockStoreCidLoad {
-//     /// Loads a decodable object from the store with provided CID.
-//     async fn load<T: Decode<C>, C: Codec>(&self, cid: &Cid, decoder: C) -> Result<T>;
-// }
-
 /// For types that implement block store operations like adding, getting content from the store.
 #[async_trait(?Send)]
-pub trait BlockStore: BlockStoreLookup {
+pub trait BlockStore {
+    async fn get_block<'a>(&'a self, cid: &Cid) -> Result<Cow<'a, Vec<u8>>>;
     async fn put_block(&mut self, bytes: Vec<u8>, codec: IpldCodec) -> Result<Cid>;
 }
 
 /// An in-memory block store to simulate IPFS.
 ///
-/// IPFS is basically an glorified HashMap.
+/// IPFS is basically a glorified HashMap.
 #[derive(Debug, Default)]
 pub struct MemoryBlockStore(HashMap<String, Vec<u8>>);
 
@@ -65,10 +49,7 @@ impl BlockStore for MemoryBlockStore {
 
         Ok(cid)
     }
-}
 
-#[async_trait(?Send)]
-impl BlockStoreLookup for MemoryBlockStore {
     /// Retrieves an array of bytes from the block store with given CID.
     async fn get_block<'a>(&'a self, cid: &Cid) -> Result<Cow<'a, Vec<u8>>> {
         let bytes = self
@@ -85,13 +66,9 @@ impl BlockStoreLookup for MemoryBlockStore {
 //--------------------------------------------------------------------------------------------------
 
 /// Loads a CBOR-encoded data from the store with provided CID.
-pub async fn load<B: BlockStore, T: Decode<C>, C: Codec>(
-    store: &B,
-    cid: &Cid,
-    decoder: C,
-) -> Result<T> {
+pub async fn load<B: BlockStore, T: Decode<DagCborCodec>>(store: &B, cid: &Cid) -> Result<T> {
     let bytes = store.get_block(cid).await?;
-    let decoded = decoder.decode(bytes.as_ref())?;
+    let decoded = T::decode(DagCborCodec, &mut Cursor::new(bytes.as_ref()))?;
     Ok(decoded)
 }
 
@@ -133,8 +110,8 @@ mod blockstore_tests {
             .await
             .unwrap();
 
-        let first_loaded: Vec<u8> = super::load(&store, first_cid, DagCborCodec).await.unwrap();
-        let second_loaded: Vec<u8> = super::load(&store, second_cid, DagCborCodec).await.unwrap();
+        let first_loaded: Vec<u8> = super::load(&store, first_cid).await.unwrap();
+        let second_loaded: Vec<u8> = super::load(&store, second_cid).await.unwrap();
 
         assert_eq!(first_loaded, vec![1, 2, 3, 4, 5]);
         assert_eq!(second_loaded, b"hello world".to_vec());

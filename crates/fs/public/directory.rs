@@ -8,18 +8,20 @@ use std::{
     rc::Rc,
 };
 
-use crate::{error, shared, BlockStore, FsError, Metadata, Shared, UnixFsNodeKind};
+use crate::{blockstore, error, shared, BlockStore, FsError, Metadata, Shared, UnixFsNodeKind};
 use anyhow::{bail, ensure, Result};
 use async_recursion::async_recursion;
+use async_stream::try_stream;
 use chrono::{DateTime, Utc};
 use field_names::FieldNames;
+use futures::Stream;
 use libipld::{
     cbor::{cbor::MajorKind, decode, encode, DagCborCodec},
     codec::{Decode, Encode},
     Cid, IpldCodec,
 };
 
-use super::{Id, Link, PublicFile, PublicNode};
+use super::{DeepClone, Id, Link, PublicFile, PublicNode};
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
@@ -43,8 +45,6 @@ pub struct OpResult<T> {
     pub root_node: Shared<PublicNode>,
     // Implementation dependent but it usually the last leaf node operated on.
     pub result: T,
-    /// Whether this is a divergence or not.
-    pub diverged: bool,
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -59,6 +59,16 @@ impl PublicDirectory {
             userland: BTreeMap::new(),
             previous: None,
         }))
+    }
+
+    /// Updates the directory previous field
+    pub fn update_previous(&mut self, previous: Option<Cid>) {
+        self.0.borrow_mut().previous = previous;
+    }
+
+    // Gets the previous value of the directory.
+    pub fn get_previous(&self) -> Option<Cid> {
+        self.0.borrow().previous
     }
 
     /// Follows a path and fetches the node at the end of the path.
@@ -77,8 +87,11 @@ impl PublicDirectory {
         let mut working_node = Some(Rc::clone(&root_node));
 
         // The nodes along the path specified.
-        let mut path_nodes: Vec<(String, Shared<PublicNode>)> =
-            vec![(String::new(), Rc::clone(&root_node))];
+        let mut path_nodes = {
+            let mut tmp = Vec::with_capacity(path_segments.len());
+            tmp.push((String::new(), Rc::clone(&root_node)));
+            tmp
+        };
 
         // Iterate over the path segments.
         for (index, segment) in path_segments.iter().enumerate() {
@@ -136,7 +149,6 @@ impl PublicDirectory {
         Ok(OpResult {
             root_node,
             result: working_node,
-            diverged: diverge,
         })
     }
 
@@ -154,7 +166,7 @@ impl PublicDirectory {
         })
     }
 
-    /// Stores a directory as block(s) in provided block store.
+    /// Stores directory in provided block store.
     ///
     /// This function can be recursive if the directory contains other directories.
     #[async_recursion(?Send)]
@@ -171,30 +183,24 @@ impl PublicDirectory {
         &mut self,
         path_segment: &str,
         update_fn: impl FnOnce(Option<Link>) -> Fut,
-    ) -> Result<Option<Shared<PublicNode>>>
+    ) -> Result<Option<Link>>
     where
         Fut: Future<Output = Result<Option<Link>>>,
     {
-        let mut working_node = None;
         let link = self.0.borrow().userland.get(path_segment).cloned();
-        match update_fn(link).await? {
+        Ok(match update_fn(link).await? {
             // If the link is none, we remove the node from the userland.
-            None => {
-                self.0.borrow_mut().userland.remove(path_segment);
-            }
-            // If the link is some, we insert the node into the userland.
+            None => self.0.borrow_mut().userland.remove(path_segment),
+            // If the link is some, we insert/update the node into the userland.
             Some(link) => {
-                if let Link::Node(node) = &link {
-                    working_node = Some(Rc::clone(node));
-                }
                 self.0
                     .borrow_mut()
                     .userland
-                    .insert(path_segment.to_string(), link);
-            }
-        }
+                    .insert(path_segment.to_string(), link.clone());
 
-        Ok(working_node)
+                Some(link)
+            }
+        })
     }
 
     /// Reads specified file content from the directory.
@@ -212,7 +218,6 @@ impl PublicDirectory {
                 PublicNode::File(file) => Ok(OpResult {
                     root_node,
                     result: file.userland,
-                    diverged: false,
                 }),
                 _ => error(FsError::NotAFile),
             },
@@ -234,7 +239,7 @@ impl PublicDirectory {
         let (
             OpResult {
                 root_node,
-                result: parent_directory,
+                result: parent_node,
                 ..
             },
             tail,
@@ -247,7 +252,7 @@ impl PublicDirectory {
         };
 
         // Insert or update file in parent directory.
-        let working_node = parent_directory
+        let link = parent_node
             .borrow_mut()
             .as_mut_dir()
             .upsert(tail, move |link| async move {
@@ -273,8 +278,7 @@ impl PublicDirectory {
 
         Ok(OpResult {
             root_node,
-            result: working_node,
-            diverged: true,
+            result: link.resolve(store).await?,
         })
     }
 
@@ -293,13 +297,15 @@ impl PublicDirectory {
         diverge_anyway: bool,
     ) -> Result<OpResult<Shared<PublicNode>>> {
         // Clone the directory to prevent mutation of the original directory.
-        // TODO(appcypher): What does self.clone do here?
         let root_node = shared(PublicNode::Dir(self.clone()));
         let mut working_node = Rc::clone(&root_node);
 
         // The nodes along the path specified.
-        let mut path_nodes: Vec<(String, Shared<PublicNode>)> =
-            vec![(String::new(), Rc::clone(&root_node))];
+        let mut path_nodes = {
+            let mut tmp = Vec::with_capacity(path_segments.len());
+            tmp.push((String::new(), Rc::clone(&root_node)));
+            tmp
+        };
 
         // Represents when the directory we are trying to create already exists.
         // It is set true because we know the root node exists. Just in case the path_segments is empty and we return early.
@@ -374,7 +380,6 @@ impl PublicDirectory {
         Ok(OpResult {
             root_node,
             result: working_node,
-            diverged: true, // Wrong!
         })
     }
 
@@ -387,14 +392,13 @@ impl PublicDirectory {
         let OpResult {
             root_node,
             result: node,
-            ..
         } = self.get_node(path_segments, store, false).await?;
 
         let node = node.ok_or(FsError::NotFound)?;
         let result = match &*node.borrow() {
             PublicNode::Dir(dir) => {
                 // Save the directory's children info in a vector.
-                let mut result = vec![];
+                let mut result = Vec::with_capacity(dir.0.borrow().userland.len());
                 for (name, link) in dir.0.borrow().userland.iter() {
                     match &*link.resolve(store).await?.borrow() {
                         PublicNode::File(file) => {
@@ -410,11 +414,7 @@ impl PublicDirectory {
             _ => bail!(FsError::NotADirectory),
         };
 
-        Ok(OpResult {
-            root_node,
-            result,
-            diverged: false,
-        })
+        Ok(OpResult { root_node, result })
     }
 
     /// Removes a file or directory from the directory.
@@ -442,24 +442,75 @@ impl PublicDirectory {
         };
 
         let parent_node = parent_node.ok_or(FsError::NotFound)?;
-        match &mut *parent_node.borrow_mut() {
-            PublicNode::Dir(dir) => {
-                // Remove the file from the parent directory if present.
-                dir.upsert(tail, |link| async move {
-                    match link {
-                        Some(_) => Ok(None),
-                        _ => error(FsError::NotFound),
-                    }
-                })
-                .await?;
-            }
-            _ => bail!(FsError::NotADirectory),
-        };
+        let link = parent_node
+            .borrow_mut()
+            .as_mut_dir()
+            .upsert(tail, |link| async move {
+                match link {
+                    Some(_) => Ok(None),
+                    _ => error(FsError::NotFound),
+                }
+            })
+            .await?
+            .unwrap();
 
         Ok(OpResult {
             root_node,
+            result: link.resolve(store).await?,
+        })
+    }
+
+    /// Moves a specified path to a new location.
+    pub async fn basic_mv<B: BlockStore>(
+        &self,
+        path_segments_from: &[String],
+        path_segments_to: &[String],
+        time: DateTime<Utc>,
+        store: &B,
+    ) -> Result<OpResult<()>> {
+        // Check for some impossible cases like if `path_segments_from` is a subset of `path_segments_to`.
+        if path_segments_to.starts_with(path_segments_from) {
+            bail!(FsError::InvalidMoveLocation);
+        };
+
+        let (name, parent_path_to) = match path_segments_to.split_last() {
+            Some(last) => last,
+            None => bail!(FsError::InvalidMoveLocation),
+        };
+
+        // Remove node from the old location.
+        let OpResult {
+            result: removed_node,
+            root_node,
+        } = self.rm(path_segments_from, store).await?;
+
+        // Get the node of the destination location. Create intermediate path if it does not exist.
+        let OpResult {
             result: parent_node,
-            diverged: true,
+            root_node,
+        } = root_node
+            .borrow()
+            .as_dir()
+            .mkdir(parent_path_to, time, store, true)
+            .await?;
+
+        // Make new parent point to the new path.
+        let link = Link::Node(Rc::clone(&removed_node));
+        let mut node = parent_node.borrow_mut();
+        let mut dir_inner = node.as_mut_dir().0.borrow_mut();
+
+        if dir_inner.userland.contains_key(name) {
+            match &*removed_node.borrow() {
+                PublicNode::File(_) => bail!(FsError::FileAlreadyExists),
+                PublicNode::Dir(_) => bail!(FsError::DirectoryAlreadyExists),
+            }
+        }
+
+        dir_inner.userland.insert(name.to_string(), link);
+
+        Ok(OpResult {
+            root_node,
+            result: (),
         })
     }
 
@@ -513,15 +564,92 @@ impl PublicDirectory {
         Ok(bytes)
     }
 
-    /// Deep clone the directory.
-    pub fn deep_clone(&self) -> Self {
-        Self(shared(self.0.borrow().clone()))
+    /// Constructs a tree from directory with `base` as the historical ancestor.
+    pub async fn base_history_on<B: BlockStore>(
+        &self,
+        base: &PublicDirectory,
+        store: &mut B,
+    ) -> Result<OpResult<()>> {
+        let root_node = shared(PublicNode::Dir(self.deep_clone()));
+        let root_base_node = shared(PublicNode::Dir(base.clone()));
+
+        let mut stack = vec![(Rc::clone(&root_node), Some(root_base_node))];
+
+        // We use post-order depth-first traversal.
+        while let Some((node, base_node)) = stack.pop() {
+            // If base_node does not exist then there is nothing to do because it means node does not have an ancestor.
+            let base_node = match base_node {
+                Some(base_node) => base_node,
+                None => continue,
+            };
+
+            // If the cids of both are the same, then nothing changed.
+            let node_cid = node.borrow().store(store).await?;
+            let base_node_cid = base_node.borrow().store(store).await?;
+            if node_cid == base_node_cid {
+                continue;
+            }
+
+            // Fix up the directory's previous field.
+            node.borrow_mut().update_previous(Some(base_node_cid));
+
+            let pair = (&mut *node.borrow_mut(), &*base_node.borrow());
+            if let (PublicNode::Dir(dir), PublicNode::Dir(base_dir)) = pair {
+                // Iterate through the userland of the node.
+                let mut new_user_land = BTreeMap::new();
+                for (name, link) in dir.0.borrow().userland.iter() {
+                    // Deep clone child node.
+                    let child_node = link.resolve(store).await?;
+                    let child_base_node = match base_dir.0.borrow().userland.get(name) {
+                        Some(link) => Some(link.resolve(store).await?),
+                        None => None,
+                    };
+
+                    // Construct the new userland that the parent node will now point to.
+                    new_user_land.insert(name.clone(), Link::Node(Rc::clone(&child_node)));
+
+                    // Push child node onto the stack.
+                    stack.push((child_node, child_base_node));
+                }
+
+                // Mutate dir to point to the new userland.
+                dir.0.borrow_mut().userland = new_user_land;
+            }
+        }
+
+        Ok(OpResult {
+            root_node,
+            result: (),
+        })
+    }
+
+    /// Gets the iterator for walking the history of a directory node.
+    pub async fn get_history<'a, B: BlockStore>(
+        &self,
+        store: &'a B,
+    ) -> impl Stream<Item = Result<Cid>> + 'a {
+        let mut working_node = self.clone();
+        try_stream! {
+            while let Some(cid) = {
+                let tmp = working_node.0.borrow();
+                tmp.previous
+            } {
+                working_node = blockstore::load(store, &cid).await?;
+                yield cid;
+            }
+        }
     }
 }
 
 impl Id for PublicDirectory {
     fn get_id(&self) -> String {
         format!("{:p}", &self.0.borrow().metadata)
+    }
+}
+
+impl DeepClone for PublicDirectory {
+    fn deep_clone(&self) -> Self {
+        Self(shared(self.0.borrow().clone()))
     }
 }
 
@@ -591,7 +719,7 @@ mod utils {
     use std::rc::Rc;
 
     use crate::{
-        public::{Link, PublicNode},
+        public::{DeepClone, Link, PublicNode},
         shared, Shared,
     };
 
@@ -606,13 +734,7 @@ mod utils {
         // Create divergent nodes.
         let divergent_nodes = path_nodes
             .into_iter()
-            .map(|(name, node)| {
-                let deep_clone = shared(match &*node.borrow() {
-                    PublicNode::Dir(dir) => PublicNode::Dir(dir.deep_clone()),
-                    PublicNode::File(file) => PublicNode::File(file.clone()),
-                });
-                (name, deep_clone)
-            })
+            .map(|(name, node)| (name, shared(node.borrow().deep_clone())))
             .collect::<Vec<_>>();
 
         // Fix up the divergent nodes so that they are referencing the right children.
@@ -643,7 +765,7 @@ mod public_directory_tests {
     use std::io::Cursor;
 
     use super::*;
-    use crate::{public::PublicFile, BlockStoreLookup, MemoryBlockStore};
+    use crate::{public::PublicFile, MemoryBlockStore};
     use chrono::Utc;
 
     #[async_std::test]
@@ -722,7 +844,7 @@ mod public_directory_tests {
     }
 
     #[async_std::test]
-    async fn mkdir_can_create_new_directory_with_diverged_root() {
+    async fn mkdir_can_create_new_directory() {
         let time = Utc::now();
 
         let store = MemoryBlockStore::default();
@@ -735,8 +857,8 @@ mod public_directory_tests {
             .unwrap();
 
         let OpResult { root_node, .. } = root_node
-            .borrow_mut()
-            .as_mut_dir()
+            .borrow()
+            .as_dir()
             .write(
                 &["tamedun".into(), "pictures".into(), "puppy.jpg".into()],
                 Cid::default(),
@@ -866,6 +988,294 @@ mod public_directory_tests {
             .borrow()
             .as_dir()
             .rm(&["tamedun".into(), "pictures".into()], &store)
+            .await;
+
+        assert!(result.is_err());
+    }
+
+    #[async_std::test]
+    async fn read_can_fetch_userland_of_file_added_to_directory() {
+        let root_dir = PublicDirectory::new(Utc::now());
+
+        let mut store = MemoryBlockStore::default();
+
+        let content_cid = Cid::default();
+
+        let time = Utc::now();
+
+        let OpResult { root_node, .. } = root_dir
+            .write(&["text.txt".into()], content_cid, time, &store)
+            .await
+            .unwrap();
+
+        let OpResult { result, .. } = root_node
+            .borrow()
+            .as_dir()
+            .read(&["text.txt".into()], &mut store)
+            .await
+            .unwrap();
+
+        assert_eq!(result, content_cid);
+    }
+
+    #[async_std::test]
+    async fn base_history_on_can_create_a_new_derived_tree_pointing_to_base() {
+        let time = Utc::now();
+        let mut store = MemoryBlockStore::default();
+        let root_dir = PublicDirectory::new(time);
+
+        let OpResult {
+            root_node: base_root,
+            ..
+        } = root_dir
+            .write(
+                &["pictures".into(), "cats".into(), "tabby.jpg".into()],
+                Cid::default(),
+                time,
+                &store,
+            )
+            .await
+            .unwrap();
+
+        let OpResult {
+            root_node: updated_root,
+            ..
+        } = base_root
+            .borrow()
+            .as_dir()
+            .write(
+                &["pictures".into(), "cats".into(), "luna.png".into()],
+                Cid::default(),
+                time,
+                &store,
+            )
+            .await
+            .unwrap();
+
+        let OpResult {
+            root_node: derived_root,
+            ..
+        } = updated_root
+            .borrow()
+            .as_dir()
+            .base_history_on(base_root.borrow().as_dir(), &mut store)
+            .await
+            .unwrap();
+
+        // Assert that the root node points to its old version.
+        let derived_previous_cid = derived_root.borrow().as_dir().get_previous();
+        let base_cid = base_root.borrow().store(&mut store).await.unwrap();
+
+        assert!(derived_previous_cid.is_some());
+        assert_eq!(derived_previous_cid.unwrap(), base_cid);
+
+        // Assert that some node that exists between versions points to its old version.
+        let OpResult {
+            result: derived_node,
+            ..
+        } = derived_root
+            .borrow()
+            .as_dir()
+            .get_node(&["pictures".into(), "cats".into()], &store, false)
+            .await
+            .unwrap();
+
+        let OpResult {
+            result: base_node, ..
+        } = base_root
+            .borrow()
+            .as_dir()
+            .get_node(&["pictures".into(), "cats".into()], &store, false)
+            .await
+            .unwrap();
+
+        assert!(derived_node.is_some());
+        assert!(base_node.is_some());
+
+        let derived_previous_cid = derived_node.unwrap().borrow().as_dir().get_previous();
+        let base_cid = base_node.unwrap().borrow().store(&mut store).await.unwrap();
+
+        assert!(derived_previous_cid.is_some());
+        assert_eq!(derived_previous_cid.unwrap(), base_cid);
+
+        // Assert that some node that doesn't exists between versions does not point to anything.
+        let OpResult {
+            result: derived_node,
+            ..
+        } = derived_root
+            .borrow()
+            .as_dir()
+            .get_node(
+                &["pictures".into(), "cats".into(), "luna.png".into()],
+                &store,
+                false,
+            )
+            .await
+            .unwrap();
+
+        assert!(derived_node.is_some());
+        assert!(matches!(
+            derived_node.unwrap().borrow().as_file().get_previous(),
+            None
+        ));
+    }
+
+    #[async_std::test]
+    async fn mv_can_move_sub_directory_to_another_valid_location() {
+        let time = Utc::now();
+        let store = MemoryBlockStore::default();
+        let root_dir = PublicDirectory::new(time);
+
+        let OpResult { root_node, .. } = root_dir
+            .write(
+                &["pictures".into(), "cats".into(), "tabby.jpg".into()],
+                Cid::default(),
+                time,
+                &store,
+            )
+            .await
+            .unwrap();
+
+        let OpResult { root_node, .. } = root_node
+            .borrow()
+            .as_dir()
+            .write(
+                &["pictures".into(), "cats".into(), "luna.png".into()],
+                Cid::default(),
+                time,
+                &store,
+            )
+            .await
+            .unwrap();
+
+        let OpResult { root_node, .. } = root_node
+            .borrow()
+            .as_dir()
+            .mkdir(&["images".into()], time, &store, false)
+            .await
+            .unwrap();
+
+        let OpResult { root_node, .. } = root_node
+            .borrow()
+            .as_dir()
+            .basic_mv(
+                &["pictures".into(), "cats".into()],
+                &["images".into(), "cats".into()],
+                time,
+                &store,
+            )
+            .await
+            .unwrap();
+
+        let OpResult { root_node, result } = root_node
+            .borrow()
+            .as_dir()
+            .ls(&["images".into()], &store)
+            .await
+            .unwrap();
+
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].0, String::from("cats"));
+
+        let OpResult { result, .. } = root_node
+            .borrow()
+            .as_dir()
+            .ls(&["pictures".into()], &store)
+            .await
+            .unwrap();
+
+        assert_eq!(result.len(), 0);
+    }
+
+    #[async_std::test]
+    async fn mv_cannot_move_sub_directory_to_invalid_location() {
+        let time = Utc::now();
+        let store = MemoryBlockStore::default();
+        let root_dir = PublicDirectory::new(time);
+
+        let OpResult { root_node, .. } = root_dir
+            .mkdir(
+                &[
+                    "videos".into(),
+                    "movies".into(),
+                    "anime".into(),
+                    "ghibli".into(),
+                ],
+                time,
+                &store,
+                false,
+            )
+            .await
+            .unwrap();
+
+        let result = root_node
+            .borrow()
+            .as_dir()
+            .basic_mv(
+                &["videos".into(), "movies".into()],
+                &["videos".into(), "movies".into(), "anime".into()],
+                time,
+                &store,
+            )
+            .await;
+
+        assert!(result.is_err());
+    }
+
+    #[async_std::test]
+    async fn mv_can_rename_directories() {
+        let time = Utc::now();
+        let mut store = MemoryBlockStore::default();
+        let root_dir = PublicDirectory::new(time);
+
+        let OpResult { root_node, .. } = root_dir
+            .write(&["file.txt".into()], Cid::default(), time, &store)
+            .await
+            .unwrap();
+
+        let OpResult { root_node, .. } = root_node
+            .borrow()
+            .as_dir()
+            .basic_mv(&["file.txt".into()], &["renamed.txt".into()], time, &store)
+            .await
+            .unwrap();
+
+        let OpResult { result, .. } = root_node
+            .borrow()
+            .as_dir()
+            .read(&["renamed.txt".into()], &mut store)
+            .await
+            .unwrap();
+
+        assert!(result == Cid::default());
+    }
+    #[async_std::test]
+    async fn mv_fails_moving_directories_to_files() {
+        let time = Utc::now();
+        let store = MemoryBlockStore::default();
+        let root_dir = PublicDirectory::new(time);
+
+        let OpResult { root_node, .. } = root_dir
+            .mkdir(&["movies".into(), "ghibli".into()], time, &store, false)
+            .await
+            .unwrap();
+
+        let OpResult { root_node, .. } = root_node
+            .borrow()
+            .as_dir()
+            .write(&["file.txt".into()], Cid::default(), time, &store)
+            .await
+            .unwrap();
+
+        let result = root_node
+            .borrow()
+            .as_dir()
+            .basic_mv(
+                &["movies".into(), "ghibli".into()],
+                &["file.txt".into()],
+                time,
+                &store,
+            )
             .await;
 
         assert!(result.is_err());

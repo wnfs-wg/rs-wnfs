@@ -14,18 +14,8 @@
   wasm-pack build --target web
   ```
 
-## Trying the Examples
-
-- Run server
+- Run tests
 
   ```bash
-  npx http-server -p 8080
+  yarn playwright test
   ```
-
-- Visit the following pages:
-
-  ```bash
-  open http://localhost:8080/examples/graph/
-  ```
-
-NOTE: Examples will be moved into separate projects in the future.

@@ -3,7 +3,7 @@
 use std::rc::Rc;
 
 use anyhow::Result;
-use libipld::{cbor::DagCborCodec, Cid};
+use libipld::Cid;
 
 use super::{PublicDirectory, PublicFile, PublicNode};
 use crate::{blockstore, shared, BlockStore, Shared};
@@ -32,7 +32,7 @@ impl Link {
     pub async fn resolve<B: BlockStore>(&self, store: &B) -> Result<Shared<PublicNode>> {
         Ok(match self {
             Link::Cid(cid) => {
-                let node = blockstore::load(store, cid, DagCborCodec).await?;
+                let node = blockstore::load(store, cid).await?;
                 shared(node)
             }
             Link::Node(node) => Rc::clone(node),
