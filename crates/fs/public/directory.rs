@@ -424,7 +424,7 @@ impl PublicDirectory {
         &self,
         path_segments: &[String],
         store: &B,
-    ) -> Result<OpResult<(String, Shared<PublicNode>)>> {
+    ) -> Result<OpResult<Shared<PublicNode>>> {
         // Get node's parent directory.
         let (
             OpResult {
@@ -456,12 +456,12 @@ impl PublicDirectory {
 
         Ok(OpResult {
             root_node,
-            result: (tail.clone(), link.resolve(store).await?),
+            result: link.resolve(store).await?,
         })
     }
 
     /// Moves a specified path to a new location.
-    pub async fn mv<B: BlockStore>(
+    pub async fn basic_mv<B: BlockStore>(
         &self,
         path_segments_from: &[String],
         path_segments_to: &[String],
@@ -469,18 +469,18 @@ impl PublicDirectory {
         store: &B,
     ) -> Result<OpResult<()>> {
         // Check for some impossible cases like if `path_segments_from` is a subset of `path_segments_to`.
-        if path_segments_from
-            .iter()
-            .zip(path_segments_to.iter())
-            .fold(0, |accum, (a, b)| if a == b { accum } else { accum + 1 })
-            == 0
-        {
+        if path_segments_to.starts_with(path_segments_from) {
             bail!(FsError::InvalidMoveLocation);
+        };
+
+        let (name, parent_path_to) = match path_segments_to.split_last() {
+            Some(last) => last,
+            None => bail!(FsError::InvalidMoveLocation),
         };
 
         // Remove node from the old location.
         let OpResult {
-            result: (name, removed_node),
+            result: removed_node,
             root_node,
         } = self.rm(path_segments_from, store).await?;
 
@@ -491,18 +491,22 @@ impl PublicDirectory {
         } = root_node
             .borrow()
             .as_dir()
-            .mkdir(path_segments_to, time, store, true)
+            .mkdir(parent_path_to, time, store, true)
             .await?;
 
         // Make new parent point to the new path.
         let link = Link::Node(Rc::clone(&removed_node));
-        parent_node
-            .borrow_mut()
-            .as_mut_dir()
-            .0
-            .borrow_mut()
-            .userland
-            .insert(name, link);
+        let mut node = parent_node.borrow_mut();
+        let mut dir_inner = node.as_mut_dir().0.borrow_mut();
+
+        if dir_inner.userland.contains_key(name) {
+            match &*removed_node.borrow() {
+                PublicNode::File(_) => bail!(FsError::FileAlreadyExists),
+                PublicNode::Dir(_) => bail!(FsError::DirectoryAlreadyExists),
+            }
+        }
+
+        dir_inner.userland.insert(name.to_string(), link);
 
         Ok(OpResult {
             root_node,
@@ -1154,9 +1158,9 @@ mod public_directory_tests {
         let OpResult { root_node, .. } = root_node
             .borrow()
             .as_dir()
-            .mv(
+            .basic_mv(
                 &["pictures".into(), "cats".into()],
-                &["images".into()],
+                &["images".into(), "cats".into()],
                 time,
                 &store,
             )
@@ -1207,9 +1211,91 @@ mod public_directory_tests {
         let result = root_node
             .borrow()
             .as_dir()
-            .mv(
+            .basic_mv(
                 &["videos".into(), "movies".into()],
                 &["videos".into(), "movies".into(), "anime".into()],
+                time,
+                &store,
+            )
+            .await;
+
+        assert!(result.is_err());
+    }
+
+    #[async_std::test]
+    async fn mv_can_rename_directories() {
+        let time = Utc::now();
+        let mut store = MemoryBlockStore::default();
+        let root_dir = PublicDirectory::new(time);
+
+        let OpResult { root_node, .. } = root_dir
+            .write(
+                &["file.txt".into()],
+                Cid::default(),
+                time,
+                &store,
+            )
+            .await
+            .unwrap();
+
+        let OpResult { root_node, .. } = root_node
+            .borrow()
+            .as_dir()
+            .basic_mv(
+                &["file.txt".into()],
+                &["renamed.txt".into()],
+                time,
+                &store,
+            )
+            .await
+            .unwrap();
+
+        let OpResult { result, .. } = root_node
+            .borrow()
+            .as_dir()
+            .read(
+                &["renamed.txt".into()],
+                &mut store,
+            )
+            .await
+            .unwrap();
+
+        assert!(result == Cid::default());
+    }
+    #[async_std::test]
+    async fn mv_fails_moving_directories_to_files() {
+        let time = Utc::now();
+        let store = MemoryBlockStore::default();
+        let root_dir = PublicDirectory::new(time);
+
+        let OpResult { root_node, .. } = root_dir
+            .mkdir(
+                &["movies".into(), "ghibli".into()],
+                time,
+                &store,
+                false,
+            )
+            .await
+            .unwrap();
+
+        let OpResult { root_node, .. } = root_node
+            .borrow()
+            .as_dir()
+            .write(
+                &["file.txt".into()],
+                Cid::default(),
+                time,
+                &store,
+            )
+            .await
+            .unwrap();
+
+        let result = root_node
+            .borrow()
+            .as_dir()
+            .basic_mv(
+                &["movies".into(), "ghibli".into()],
+                &["file.txt".into()],
                 time,
                 &store,
             )
