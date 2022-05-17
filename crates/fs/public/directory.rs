@@ -1229,34 +1229,21 @@ mod public_directory_tests {
         let root_dir = PublicDirectory::new(time);
 
         let OpResult { root_node, .. } = root_dir
-            .write(
-                &["file.txt".into()],
-                Cid::default(),
-                time,
-                &store,
-            )
+            .write(&["file.txt".into()], Cid::default(), time, &store)
             .await
             .unwrap();
 
         let OpResult { root_node, .. } = root_node
             .borrow()
             .as_dir()
-            .basic_mv(
-                &["file.txt".into()],
-                &["renamed.txt".into()],
-                time,
-                &store,
-            )
+            .basic_mv(&["file.txt".into()], &["renamed.txt".into()], time, &store)
             .await
             .unwrap();
 
         let OpResult { result, .. } = root_node
             .borrow()
             .as_dir()
-            .read(
-                &["renamed.txt".into()],
-                &mut store,
-            )
+            .read(&["renamed.txt".into()], &mut store)
             .await
             .unwrap();
 
@@ -1269,24 +1256,14 @@ mod public_directory_tests {
         let root_dir = PublicDirectory::new(time);
 
         let OpResult { root_node, .. } = root_dir
-            .mkdir(
-                &["movies".into(), "ghibli".into()],
-                time,
-                &store,
-                false,
-            )
+            .mkdir(&["movies".into(), "ghibli".into()], time, &store, false)
             .await
             .unwrap();
 
         let OpResult { root_node, .. } = root_node
             .borrow()
             .as_dir()
-            .write(
-                &["file.txt".into()],
-                Cid::default(),
-                time,
-                &store,
-            )
+            .write(&["file.txt".into()], Cid::default(), time, &store)
             .await
             .unwrap();
 

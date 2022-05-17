@@ -1,7 +1,7 @@
 //! The bindgen API for PublicDirectory.
 
 use chrono::{DateTime, Utc};
-use js_sys::{Array, Date, Error, Object, Promise, Reflect, Uint8Array};
+use js_sys::{Array, Date, Error, Promise, Uint8Array};
 use wasm_bindgen::{prelude::wasm_bindgen, JsValue};
 use wasm_bindgen_futures::future_to_promise;
 use wnfs::{
@@ -132,20 +132,13 @@ impl PublicDirectory {
         Ok(future_to_promise(async move {
             let WnfsOpResult {
                 root_node,
-                result: (name, node),
+                result: node,
             } = directory
                 .rm(&path_segments, &store)
                 .await
                 .map_err(|e| Error::new(&format!("Cannot remove from directory: {e}")))?;
 
-            let result = {
-                let tmp = Object::new();
-                Reflect::set(&tmp, &value!("name"), &value!(name))?;
-                Reflect::set(&tmp, &value!("node"), &value!(SharedNode(node)))?;
-                tmp
-            };
-
-            Ok(utils::create_op_result(root_node, result)?)
+            Ok(utils::create_op_result(root_node, SharedNode(node))?)
         }))
     }
 
@@ -180,7 +173,7 @@ impl PublicDirectory {
     }
 
     /// Moves a specified path to a new location.
-    pub fn mv(
+    pub fn basic_mv(
         &mut self,
         path_segments_from: &Array,
         path_segments_to: &Array,
@@ -195,7 +188,7 @@ impl PublicDirectory {
 
         Ok(future_to_promise(async move {
             let WnfsOpResult { root_node, .. } = directory
-                .mv(&path_segments_from, &path_segments_to, time, &store)
+                .basic_mv(&path_segments_from, &path_segments_to, time, &store)
                 .await
                 .map_err(|e| Error::new(&format!("Cannot create directory: {e}")))?;
 
