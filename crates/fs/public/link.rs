@@ -6,7 +6,7 @@ use anyhow::Result;
 use libipld::Cid;
 
 use super::{PublicDirectory, PublicFile, PublicNode};
-use crate::{blockstore, BlockStore};
+use crate::{blockstore, BlockStore, error, FsError};
 
 /// A link to another node in the WNFS public file system. It can be held as a simple serialised CID or as a reference to the node itself.
 ///
@@ -14,28 +14,54 @@ use crate::{blockstore, BlockStore};
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Link {
     Cid(Cid),
-    Node(Rc<PublicNode>),
+    Node(PublicNode),
 }
+
 
 impl Link {
     /// Creates a new directory node link.
     pub fn with_dir(dir: PublicDirectory) -> Self {
-        Link::Node(Rc::new(PublicNode::Dir(Rc::new(dir))))
+        Link::Node(PublicNode::Dir(Rc::new(dir)))
     }
 
     /// Creates a new file node link.
     pub fn with_file(file: PublicFile) -> Self {
-        Link::Node(Rc::new(PublicNode::File(Rc::new(file))))
+        Link::Node(PublicNode::File(Rc::new(file)))
+    }
+
+    pub async fn resolve_file<B: BlockStore>(&self, store: &B) -> Result<Rc<PublicFile>> {
+        match self {
+            Link::Cid(cid) => {
+                match blockstore::load(store, cid, DagCborCodec).await? {
+                    PublicNode::File(file) => Ok(file),
+                    _ => error(FsError::NotAFile),
+                }
+            }
+            Link::Node(PublicNode::File(file)) => Ok(Rc::clone(file)),
+            Link::Node(_) => error(FsError::NotAFile),
+        }
+    }
+
+    pub async fn resolve_dir<B: BlockStore>(&self, store: &B) -> Result<Rc<PublicDirectory>> {
+        match self {
+            Link::Cid(cid) => {
+                match blockstore::load(store, cid, DagCborCodec).await? {
+                    PublicNode::Dir(dir) => Ok(dir),
+                    _ => error(FsError::NotADirectory),
+                }
+            }
+            Link::Node(PublicNode::Dir(dir)) => Ok(Rc::clone(dir)),
+            Link::Node(_) => error(FsError::NotADirectory),
+        }
     }
 
     /// Resolves a CID linkin the file system to a node.
-    pub async fn resolve<B: BlockStore>(&self, store: &B) -> Result<Rc<PublicNode>> {
+    pub async fn resolve<B: BlockStore>(&self, store: &B) -> Result<PublicNode> {
         Ok(match self {
             Link::Cid(cid) => {
-                let node = blockstore::load(store, cid, DagCborCodec).await?;
-                Rc::new(node)
+                blockstore::load(store, cid, DagCborCodec).await?
             }
-            Link::Node(node) => Rc::clone(node),
+            Link::Node(node) => node.clone(),
         })
     }
 
@@ -95,6 +121,6 @@ mod public_link_tests {
 
         let resolved_node = unresolved_link.resolve(&store).await.unwrap();
 
-        assert_eq!(Rc::new(PublicNode::Dir(dir)), resolved_node);
+        assert_eq!(PublicNode::Dir(dir), resolved_node);
     }
 }

@@ -44,46 +44,41 @@ pub struct OpResult<T> {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PathTo<T> {
+pub struct PathToDir {
     path: Vec<(Rc<PublicDirectory>, String)>,
-    focus: T,
+    dir: Rc<PublicDirectory>,
 }
 
 pub enum GetNodePathResult {
-    Complete(PathTo<Rc<PublicDirectory>>),
-    MissingLink(PathTo<Rc<PublicDirectory>>, String),
-    NotADirectory(PathTo<Rc<PublicDirectory>>, String),
+    Complete(PathToDir),
+    MissingLink(PathToDir, String),
+    NotADirectory(PathToDir, String),
 }
 
-fn reconstruct_dir(path_nodes: PathTo<Rc<PublicDirectory>>) -> Rc<PublicDirectory> {
-    if path_nodes.path.is_empty() {
-        return path_nodes.focus;
+impl PathToDir {
+    fn new(time: DateTime<Utc>, path: &[String], to: Rc<PublicDirectory>) -> Self {
+        let path: Vec<(Rc<PublicDirectory>, String)> = path
+            .iter()
+            .map(|segment| (Rc::new(PublicDirectory::new(time)), segment.to_string()))
+            .collect();
+        Self { path, dir: to }
     }
 
-    let mut working_node = path_nodes.focus;
+    fn reconstruct(self) -> Rc<PublicDirectory> {
+        if self.path.is_empty() {
+            return self.dir;
+        }
 
-    for (dir, segment) in path_nodes.path.iter().rev() {
-        let mut dir = (**dir).clone();
-        let link = Link::Node(Rc::new(PublicNode::Dir(working_node)));
-        dir.userland.insert(segment.clone(), link);
-        working_node = Rc::new(dir);
-    }
+        let mut working_node = self.dir;
 
-    working_node
-}
+        for (dir, segment) in self.path.iter().rev() {
+            let mut dir = (**dir).clone();
+            let link = Link::Node(PublicNode::Dir(working_node));
+            dir.userland.insert(segment.clone(), link);
+            working_node = Rc::new(dir);
+        }
 
-fn new_path_to<T>(time: DateTime<Utc>, path: &[String], to: T) -> PathTo<T> {
-    let path: Vec<(Rc<PublicDirectory>, String)> = path
-        .iter()
-        .map(|segment| (Rc::new(PublicDirectory::new(time)), segment.to_string()))
-        .collect();
-    PathTo { path, focus: to }
-}
-
-fn expect_nonempty_path(path_segments: &[String]) -> Result<(&[String], &String)> {
-    match path_segments.split_last() {
-        Some((last, rest)) => Ok((rest, last)),
-        None => error(FsError::InvalidPath),
+        working_node
     }
 }
 
@@ -155,31 +150,29 @@ impl PublicDirectory {
         for segment in path_segments.iter() {
             match working_node.lookup_node(segment, store).await? {
                 None => {
-                    let path_to = PathTo {
+                    let path_to = PathToDir {
                         path: path_nodes,
-                        focus: Rc::clone(&working_node),
+                        dir: Rc::clone(&working_node),
                     };
                     return Ok(MissingLink(path_to, segment.to_string()));
                 }
-                Some(found_node) => match &*found_node {
-                    PublicNode::Dir(directory) => {
-                        path_nodes.push((Rc::clone(&working_node), segment.to_string()));
-                        working_node = Rc::clone(directory);
-                    }
-                    _ => {
-                        let path_to = PathTo {
-                            path: path_nodes,
-                            focus: Rc::clone(&working_node),
-                        };
-                        return Ok(NotADirectory(path_to, segment.to_string()));
-                    }
-                },
+                Some(PublicNode::Dir(ref directory)) => {
+                    path_nodes.push((Rc::clone(&working_node), segment.to_string()));
+                    working_node = Rc::clone(directory);
+                }
+                Some(_) => {
+                    let path_to = PathToDir {
+                        path: path_nodes,
+                        dir: Rc::clone(&working_node),
+                    };
+                    return Ok(NotADirectory(path_to, segment.to_string()));
+                }
             }
         }
 
-        Ok(Complete(PathTo {
+        Ok(Complete(PathToDir {
             path: path_nodes,
-            focus: Rc::clone(&working_node),
+            dir: Rc::clone(&working_node),
         }))
     }
 
@@ -188,7 +181,7 @@ impl PublicDirectory {
         path_segments: &[String],
         mkdir_ctime: DateTime<Utc>,
         store: &B,
-    ) -> Result<PathTo<Rc<PublicDirectory>>> {
+    ) -> Result<PathToDir> {
         match self.get_node_path(path_segments, store).await? {
             GetNodePathResult::Complete(np) => Ok(np),
             GetNodePathResult::NotADirectory(_, _) => error(FsError::InvalidPath),
@@ -198,19 +191,19 @@ impl PublicDirectory {
                 // missing_link is index path_so_far.path.len()
                 // missing_path covers [path_so_far.path.len()+1..path_segments.len()]
                 let missing_path = path_segments.split_at(path_so_far.path.len() + 1).1;
-                let missing_path_to = new_path_to(
+                let missing_path_to = PathToDir::new(
                     mkdir_ctime,
                     missing_path,
                     Rc::new(PublicDirectory::new(mkdir_ctime)),
                 );
-                Ok(PathTo {
+                Ok(PathToDir {
                     path: [
                         path_so_far.path,
-                        vec![(path_so_far.focus, missing_link)],
+                        vec![(path_so_far.dir, missing_link)],
                         missing_path_to.path,
                     ]
                     .concat(),
-                    focus: missing_path_to.focus,
+                    dir: missing_path_to.dir,
                 })
             }
         }
@@ -223,7 +216,7 @@ impl PublicDirectory {
         self: Rc<PublicDirectory>,
         path_segments: &[String],
         store: &B,
-    ) -> Result<OpResult<Option<Rc<PublicNode>>>> {
+    ) -> Result<OpResult<Option<PublicNode>>> {
         let root_node = Rc::clone(&self);
 
         Ok(match path_segments.split_last() {
@@ -231,10 +224,7 @@ impl PublicDirectory {
                 match self.get_node_path(parent_path, store).await? {
                     GetNodePathResult::Complete(parent_path_to) => OpResult {
                         root_node,
-                        result: parent_path_to
-                            .focus
-                            .lookup_node(path_segment, store)
-                            .await?,
+                        result: parent_path_to.dir.lookup_node(path_segment, store).await?,
                     },
                     GetNodePathResult::MissingLink(_, _) => bail!(FsError::NotFound),
                     GetNodePathResult::NotADirectory(_, _) => bail!(FsError::NotFound),
@@ -242,19 +232,17 @@ impl PublicDirectory {
             }
             None => OpResult {
                 root_node,
-                result: Some(Rc::new(PublicNode::Dir(self))),
+                result: Some(PublicNode::Dir(self)),
             },
         })
     }
 
     /// Looks up a node by its path name in the current directory.
-    ///
-    /// TODO(appcypher): What is a valid path segment identifier?
     pub async fn lookup_node<B: BlockStore>(
         &self,
         path_segment: &str,
         store: &B,
-    ) -> Result<Option<Rc<PublicNode>>> {
+    ) -> Result<Option<PublicNode>> {
         Ok(match self.userland.get(path_segment) {
             Some(link) => Some(link.resolve(store).await?),
             None => None,
@@ -277,15 +265,16 @@ impl PublicDirectory {
         store: &mut B,
     ) -> Result<OpResult<Cid>> {
         let root_node = Rc::clone(&self);
-        let (path, filename) = expect_nonempty_path(path_segments)?;
+        let (path, filename) = utils::expect_nonempty_path(path_segments)?;
 
         match self.get_node_path(path, store).await? {
             GetNodePathResult::Complete(node_path) => {
-                match node_path.focus.lookup_node(filename, store).await? {
-                    Some(node) => match &*node {
-                        PublicNode::File(file) => Ok(OpResult{ root_node, result: file.userland }),
-                        PublicNode::Dir(_) => error(FsError::NotAFile),
-                    },
+                match node_path.dir.lookup_node(filename, store).await? {
+                    Some(PublicNode::File(file)) => Ok(OpResult {
+                        root_node,
+                        result: file.userland,
+                    }),
+                    Some(PublicNode::Dir(_)) => error(FsError::NotAFile),
                     None => error(FsError::NotFound),
                 }
             }
@@ -303,39 +292,37 @@ impl PublicDirectory {
         time: DateTime<Utc>,
         store: &B,
     ) -> Result<OpResult<()>> {
-        let (directory_path, filename) = expect_nonempty_path(path_segments)?;
+        let (directory_path, filename) = utils::expect_nonempty_path(path_segments)?;
 
         // get_node_path_with_mkdir will create directories if they don't exist yet
         let mut directory_path_nodes = self
             .get_node_path_with_mkdir(directory_path, time, store)
             .await?;
 
-        let mut directory = (*directory_path_nodes.focus).clone();
+        let mut directory = (*directory_path_nodes.dir).clone();
 
         // Modify the file if it already exists, otherwise create a new file with expected content
         let file = match directory.lookup_node(filename, store).await? {
-            Some(link) => match &*link {
-                PublicNode::File(file_before) => {
-                    let mut file = (**file_before).clone();
-                    file.userland = content_cid;
-                    file.metadata = Metadata::new(time, UnixFsNodeKind::File);
-                    file
-                }
-                PublicNode::Dir(_) => bail!(FsError::DirectoryAlreadyExists),
-            },
+            Some(PublicNode::File(file_before)) => {
+                let mut file = (*file_before).clone();
+                file.userland = content_cid;
+                file.metadata = Metadata::new(time, UnixFsNodeKind::File);
+                file
+            }
+            Some(PublicNode::Dir(_)) => bail!(FsError::DirectoryAlreadyExists),
             None => PublicFile::new(time, content_cid),
         };
 
         // insert the file into its parent directory
         directory.userland.insert(
             filename.to_string(),
-            Link::Node(Rc::new(PublicNode::File(Rc::new(file)))),
+            Link::Node(PublicNode::File(Rc::new(file))),
         );
-        directory_path_nodes.focus = Rc::new(directory);
+        directory_path_nodes.dir = Rc::new(directory);
 
         // reconstruct the file path
         Ok(OpResult {
-            root_node: reconstruct_dir(directory_path_nodes),
+            root_node: directory_path_nodes.reconstruct(),
             result: (),
         })
     }
@@ -358,7 +345,7 @@ impl PublicDirectory {
             .await?;
 
         Ok(OpResult {
-            root_node: reconstruct_dir(node_path_with_dirs),
+            root_node: node_path_with_dirs.reconstruct(),
             result: (),
         })
     }
@@ -373,8 +360,8 @@ impl PublicDirectory {
         match self.get_node_path(path_segments, store).await? {
             GetNodePathResult::Complete(node_path) => {
                 let mut result = vec![];
-                for (name, link) in node_path.focus.userland.iter() {
-                    match &*link.resolve(store).await? {
+                for (name, link) in node_path.dir.userland.iter() {
+                    match link.resolve(store).await? {
                         PublicNode::File(file) => {
                             result.push((name.clone(), file.metadata.clone()));
                         }
@@ -396,15 +383,15 @@ impl PublicDirectory {
         self: Rc<PublicDirectory>,
         path_segments: &[String],
         store: &B,
-    ) -> Result<OpResult<Rc<PublicNode>>> {
-        let (directory_path, node_name) = expect_nonempty_path(path_segments)?;
+    ) -> Result<OpResult<PublicNode>> {
+        let (directory_path, node_name) = utils::expect_nonempty_path(path_segments)?;
 
         let mut directory_node_path = match self.get_node_path(directory_path, store).await? {
             GetNodePathResult::Complete(node_path) => node_path,
             _ => bail!(FsError::NotFound),
         };
 
-        let mut directory = (*directory_node_path.focus).clone();
+        let mut directory = (*directory_node_path.dir).clone();
 
         // remove the entry from its parent directory
         let removed_node = match directory.userland.remove(node_name) {
@@ -412,11 +399,49 @@ impl PublicDirectory {
             None => bail!(FsError::NotFound),
         };
 
-        directory_node_path.focus = Rc::new(directory);
+        directory_node_path.dir = Rc::new(directory);
 
         Ok(OpResult {
-            root_node: reconstruct_dir(directory_node_path),
+            root_node: directory_node_path.reconstruct(),
             result: removed_node,
+        })
+    }
+
+    /// Moves a file or directory from one path to another.
+    pub async fn basic_mv<B: BlockStore>(
+        self: Rc<PublicDirectory>,
+        path_segments_from: &[String],
+        path_segments_to: &[String],
+        store: &B,
+    ) -> Result<OpResult<()>> {
+        let root_node = Rc::clone(&self);
+        let (directory_path_to, node_name_to) = utils::expect_nonempty_path(path_segments_to)?;
+
+        let OpResult {
+            root_node,
+            result: removed_node,
+        } = root_node.rm(path_segments_from, store).await?;
+
+        let mut node_path_to = match root_node.get_node_path(directory_path_to, store).await? {
+            GetNodePathResult::Complete(node_path) => node_path,
+            _ => bail!(FsError::NotFound),
+        };
+
+        let mut directory = (*node_path_to.dir).clone();
+
+        if directory.userland.contains_key(node_name_to) {
+            bail!(FsError::FileAlreadyExists);
+        }
+
+        directory
+            .userland
+            .insert(node_name_to.to_string(), Link::Node(removed_node));
+
+        node_path_to.dir = Rc::new(directory);
+
+        Ok(OpResult {
+            root_node: node_path_to.reconstruct(),
+            result: (),
         })
     }
 
@@ -618,6 +643,23 @@ impl Decode<DagCborCodec> for PublicDirectory {
 }
 
 //--------------------------------------------------------------------------------------------------
+// Utilities
+//--------------------------------------------------------------------------------------------------
+
+mod utils {
+    use anyhow::Result;
+
+    use crate::{error, FsError};
+
+    pub(super) fn expect_nonempty_path(path_segments: &[String]) -> Result<(&[String], &String)> {
+        match path_segments.split_last() {
+            Some((last, rest)) => Ok((rest, last)),
+            None => error(FsError::InvalidPath),
+        }
+    }
+}
+
+//--------------------------------------------------------------------------------------------------
 // Tests
 //--------------------------------------------------------------------------------------------------
 
@@ -650,10 +692,10 @@ mod public_directory_tests {
 
         assert_eq!(
             node,
-            Some(Rc::new(PublicNode::File(Rc::new(PublicFile::new(
+            Some(PublicNode::File(Rc::new(PublicFile::new(
                 time,
                 content_cid
-            )))))
+            ))))
         );
     }
 
@@ -845,13 +887,13 @@ mod public_directory_tests {
         let store = MemoryBlockStore::default();
         let now = Utc::now();
 
-        let path_to = new_path_to(
+        let path_to = PathToDir::new(
             now,
             &["Documents".into(), "Apps".into()],
             Rc::new(PublicDirectory::new(now)),
         );
 
-        let reconstructed = reconstruct_dir(path_to.clone());
+        let reconstructed = path_to.clone().reconstruct();
 
         let result = reconstructed
             .get_node_path(&["Documents".into(), "Apps".into()], &store)
