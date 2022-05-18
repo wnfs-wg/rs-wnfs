@@ -7,9 +7,11 @@ pub use common::*;
 // Re-exports
 //--------------------------------------------------------------------------------------------------
 
-pub use libipld::{
-    cbor::DagCborCodec,
-    codec::Codec,
-    codec::{Decode, Encode},
-    Cid, IpldCodec,
-};
+pub mod ipld {
+    pub use libipld::{
+        cbor::DagCborCodec,
+        codec::Codec,
+        codec::{Decode, Encode},
+        Cid, IpldCodec,
+    };
+}

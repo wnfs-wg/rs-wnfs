@@ -26,7 +26,7 @@ use super::{Id, Link, PublicFile, PublicNode};
 // Type Definitions
 //--------------------------------------------------------------------------------------------------
 
-/// A directory in a WNFS public file system.
+/// A directory in a WNFS public file system.``
 #[derive(Debug, Clone, PartialEq, Eq, FieldNames)]
 pub struct PublicDirectory {
     pub(crate) metadata: Metadata,
@@ -37,41 +37,44 @@ pub struct PublicDirectory {
 /// Represents a directory that has possibly diverged. It is the result of operating on a directory.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OpResult<T> {
-    // The root node. It is the same as the previous root node if the directory has not been diverged.
-    pub root_node: Rc<PublicDirectory>,
+    // The root directory.
+    pub root_dir: Rc<PublicDirectory>,
     // Implementation dependent but it usually the last leaf node operated on.
     pub result: T,
 }
 
+/// Represents the directory nodes along a path.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PathToDir {
+pub struct PathNodes {
     path: Vec<(Rc<PublicDirectory>, String)>,
-    dir: Rc<PublicDirectory>,
+    tail: Rc<PublicDirectory>,
 }
 
+/// The kinds of outcome from getting a `PathNodes`.
 pub enum GetNodePathResult {
-    Complete(PathToDir),
-    MissingLink(PathToDir, String),
-    NotADirectory(PathToDir, String),
+    Complete(PathNodes),
+    MissingLink(PathNodes, String),
+    NotADirectory(PathNodes, String),
 }
 
-impl PathToDir {
-    fn new(time: DateTime<Utc>, path: &[String], to: Rc<PublicDirectory>) -> Self {
-        let path: Vec<(Rc<PublicDirectory>, String)> = path
+impl PathNodes {
+    /// Creates a new `PathNodes` that is not based on an existing file tree.
+    fn new(time: DateTime<Utc>, path_segments: &[String], tail: Rc<PublicDirectory>) -> Self {
+        let path: Vec<(Rc<PublicDirectory>, String)> = path_segments
             .iter()
-            .map(|segment| (Rc::new(PublicDirectory::new(time)), segment.to_string()))
+            .map(|segment| (Rc::new(PublicDirectory::new(time)), segment.clone()))
             .collect();
 
-        Self { path, dir: to }
+        Self { path, tail }
     }
 
+    /// Constructs a new "spine" by fixing up links in a PathNodes and returning the resulting root node.
     fn reconstruct(self) -> Rc<PublicDirectory> {
         if self.path.is_empty() {
-            return self.dir;
+            return self.tail;
         }
 
-        let mut working_node = self.dir;
-
+        let mut working_node = self.tail;
         for (dir, segment) in self.path.iter().rev() {
             let mut dir = (**dir).clone();
             let link = Link::Node(PublicNode::Dir(working_node));
@@ -97,11 +100,12 @@ impl PublicDirectory {
         }
     }
 
-    // Gets the previous value of the directory.
+    /// Gets the previous value of the directory.
     pub fn get_previous(self: &Rc<Self>) -> Option<Cid> {
         self.previous
     }
 
+    /// Gets the directory nodes along a path and allows for cases where the path is nopt fully constructed.
     pub async fn get_node_path<B: BlockStore>(
         self: Rc<Self>,
         path_segments: &[String],
@@ -119,81 +123,82 @@ impl PublicDirectory {
                     working_node = Rc::clone(directory);
                 }
                 Some(_) => {
-                    let path_to = PathToDir {
+                    let path_nodes = PathNodes {
                         path: path_nodes,
-                        dir: Rc::clone(&working_node),
+                        tail: Rc::clone(&working_node),
                     };
-                    return Ok(NotADirectory(path_to, segment.to_string()));
+
+                    return Ok(NotADirectory(path_nodes, segment.clone()));
                 }
                 None => {
-                    let path_to = PathToDir {
+                    let path_nodes = PathNodes {
                         path: path_nodes,
-                        dir: Rc::clone(&working_node),
+                        tail: Rc::clone(&working_node),
                     };
-                    return Ok(MissingLink(path_to, segment.to_string()));
+
+                    return Ok(MissingLink(path_nodes, segment.clone()));
                 }
             }
         }
 
-        Ok(Complete(PathToDir {
+        Ok(Complete(PathNodes {
             path: path_nodes,
-            dir: Rc::clone(&working_node),
+            tail: Rc::clone(&working_node),
         }))
     }
 
+    /// Gets the directory nodes along a path and also supports creating missing intermediate directories.
     pub async fn get_node_path_with_mkdir<B: BlockStore>(
         self: Rc<Self>,
         path_segments: &[String],
-        mkdir_ctime: DateTime<Utc>,
+        time: DateTime<Utc>,
         store: &B,
-    ) -> Result<PathToDir> {
+    ) -> Result<PathNodes> {
         match self.get_node_path(path_segments, store).await? {
-            GetNodePathResult::Complete(path_to) => Ok(path_to),
+            GetNodePathResult::Complete(path_nodes) => Ok(path_nodes),
             GetNodePathResult::NotADirectory(_, _) => error(FsError::InvalidPath),
             GetNodePathResult::MissingLink(path_so_far, missing_link) => {
                 let missing_path = path_segments.split_at(path_so_far.path.len() + 1).1;
-                let missing_path_to = PathToDir::new(
-                    mkdir_ctime,
-                    missing_path,
-                    Rc::new(PublicDirectory::new(mkdir_ctime)),
-                );
+                let missing_path_nodes =
+                    PathNodes::new(time, missing_path, Rc::new(PublicDirectory::new(time)));
 
-                Ok(PathToDir {
+                Ok(PathNodes {
                     path: [
                         path_so_far.path,
-                        vec![(path_so_far.dir, missing_link)],
-                        missing_path_to.path,
+                        vec![(path_so_far.tail, missing_link)],
+                        missing_path_nodes.path,
                     ]
                     .concat(),
-                    dir: missing_path_to.dir,
+                    tail: missing_path_nodes.tail,
                 })
             }
         }
     }
 
     /// Follows a path and fetches the node at the end of the path.
-    ///
-    /// If path is empty, this returns a new node based on self.
     pub async fn get_node<B: BlockStore>(
         self: Rc<Self>,
         path_segments: &[String],
         store: &B,
     ) -> Result<OpResult<Option<PublicNode>>> {
-        let root_node = Rc::clone(&self);
+        let root_dir = Rc::clone(&self);
 
         Ok(match path_segments.split_last() {
             Some((path_segment, parent_path)) => {
                 match self.get_node_path(parent_path, store).await? {
-                    GetNodePathResult::Complete(parent_path_to) => OpResult {
-                        root_node,
-                        result: parent_path_to.dir.lookup_node(path_segment, store).await?,
+                    GetNodePathResult::Complete(parent_path_nodes) => OpResult {
+                        root_dir,
+                        result: parent_path_nodes
+                            .tail
+                            .lookup_node(path_segment, store)
+                            .await?,
                     },
                     GetNodePathResult::MissingLink(_, _) => bail!(FsError::NotFound),
                     GetNodePathResult::NotADirectory(_, _) => bail!(FsError::NotFound),
                 }
             }
             None => OpResult {
-                root_node,
+                root_dir,
                 result: Some(PublicNode::Dir(self)),
             },
         })
@@ -226,14 +231,14 @@ impl PublicDirectory {
         path_segments: &[String],
         store: &mut B,
     ) -> Result<OpResult<Cid>> {
-        let root_node = Rc::clone(&self);
+        let root_dir = Rc::clone(&self);
         let (path, filename) = utils::expect_nonempty_path(path_segments)?;
 
         match self.get_node_path(path, store).await? {
             GetNodePathResult::Complete(node_path) => {
-                match node_path.dir.lookup_node(filename, store).await? {
+                match node_path.tail.lookup_node(filename, store).await? {
                     Some(PublicNode::File(file)) => Ok(OpResult {
-                        root_node,
+                        root_dir,
                         result: file.userland,
                     }),
                     Some(PublicNode::Dir(_)) => error(FsError::NotAFile),
@@ -245,8 +250,6 @@ impl PublicDirectory {
     }
 
     /// Writes a file to the directory.
-    ///
-    /// Rather than mutate the directory directly, we create a new directory and return it.
     pub async fn write<B: BlockStore>(
         self: Rc<Self>,
         path_segments: &[String],
@@ -256,12 +259,12 @@ impl PublicDirectory {
     ) -> Result<OpResult<()>> {
         let (directory_path, filename) = utils::expect_nonempty_path(path_segments)?;
 
-        // get_node_path_with_mkdir will create directories if they don't exist yet
+        // This will create directories if they don't exist yet
         let mut directory_path_nodes = self
             .get_node_path_with_mkdir(directory_path, time, store)
             .await?;
 
-        let mut directory = (*directory_path_nodes.dir).clone();
+        let mut directory = (*directory_path_nodes.tail).clone();
 
         // Modify the file if it already exists, otherwise create a new file with expected content
         let file = match directory.lookup_node(filename, store).await? {
@@ -280,22 +283,18 @@ impl PublicDirectory {
             filename.to_string(),
             Link::Node(PublicNode::File(Rc::new(file))),
         );
-        directory_path_nodes.dir = Rc::new(directory);
+        directory_path_nodes.tail = Rc::new(directory);
 
         // reconstruct the file path
         Ok(OpResult {
-            root_node: directory_path_nodes.reconstruct(),
+            root_dir: directory_path_nodes.reconstruct(),
             result: (),
         })
     }
 
     /// Creates a new directory at the specified path.
     ///
-    /// If path is empty, this returns the root node.
-    ///
     /// This method acts like `mkdir -p` in Unix because it creates intermediate directories if they do not exist.
-    ///
-    /// If `diverge_anyway` is set to true, the path diverges even if directory exists. This is only used internally.
     pub async fn mkdir<B: BlockStore>(
         self: Rc<Self>,
         path_segments: &[String],
@@ -307,7 +306,7 @@ impl PublicDirectory {
             .await?;
 
         Ok(OpResult {
-            root_node: node_path_with_dirs.reconstruct(),
+            root_dir: node_path_with_dirs.reconstruct(),
             result: (),
         })
     }
@@ -318,11 +317,11 @@ impl PublicDirectory {
         path_segments: &[String],
         store: &B,
     ) -> Result<OpResult<Vec<(String, Metadata)>>> {
-        let root_node = Rc::clone(&self);
+        let root_dir = Rc::clone(&self);
         match self.get_node_path(path_segments, store).await? {
             GetNodePathResult::Complete(node_path) => {
                 let mut result = vec![];
-                for (name, link) in node_path.dir.userland.iter() {
+                for (name, link) in node_path.tail.userland.iter() {
                     match link.resolve(store).await? {
                         PublicNode::File(file) => {
                             result.push((name.clone(), file.metadata.clone()));
@@ -332,15 +331,13 @@ impl PublicDirectory {
                         }
                     }
                 }
-                Ok(OpResult { root_node, result })
+                Ok(OpResult { root_dir, result })
             }
             _ => bail!(FsError::NotFound),
         }
     }
 
     /// Removes a file or directory from the directory.
-    ///
-    /// Rather than mutate the directory directly, we create a new directory and return it.
     pub async fn rm<B: BlockStore>(
         self: Rc<Self>,
         path_segments: &[String],
@@ -353,7 +350,7 @@ impl PublicDirectory {
             _ => bail!(FsError::NotFound),
         };
 
-        let mut directory = (*directory_node_path.dir).clone();
+        let mut directory = (*directory_node_path.tail).clone();
 
         // remove the entry from its parent directory
         let removed_node = match directory.userland.remove(node_name) {
@@ -361,35 +358,37 @@ impl PublicDirectory {
             None => bail!(FsError::NotFound),
         };
 
-        directory_node_path.dir = Rc::new(directory);
+        directory_node_path.tail = Rc::new(directory);
 
         Ok(OpResult {
-            root_node: directory_node_path.reconstruct(),
+            root_dir: directory_node_path.reconstruct(),
             result: removed_node,
         })
     }
 
     /// Moves a file or directory from one path to another.
+    ///
+    /// This function requires stating the destination name explicitly.
     pub async fn basic_mv<B: BlockStore>(
         self: Rc<Self>,
         path_segments_from: &[String],
         path_segments_to: &[String],
         store: &B,
     ) -> Result<OpResult<()>> {
-        let root_node = Rc::clone(&self);
-        let (directory_path_to, node_name_to) = utils::expect_nonempty_path(path_segments_to)?;
+        let root_dir = Rc::clone(&self);
+        let (directory_path_nodes, node_name_to) = utils::expect_nonempty_path(path_segments_to)?;
 
         let OpResult {
-            root_node,
+            root_dir,
             result: removed_node,
-        } = root_node.rm(path_segments_from, store).await?;
+        } = root_dir.rm(path_segments_from, store).await?;
 
-        let mut node_path_to = match root_node.get_node_path(directory_path_to, store).await? {
+        let mut path_nodes = match root_dir.get_node_path(directory_path_nodes, store).await? {
             GetNodePathResult::Complete(node_path) => node_path,
             _ => bail!(FsError::NotFound),
         };
 
-        let mut directory = (*node_path_to.dir).clone();
+        let mut directory = (*path_nodes.tail).clone();
 
         ensure!(
             !directory.userland.contains_key(node_name_to),
@@ -401,10 +400,10 @@ impl PublicDirectory {
             .userland
             .insert(node_name_to.to_string(), Link::Node(removed_node));
 
-        node_path_to.dir = Rc::new(directory);
+        path_nodes.tail = Rc::new(directory);
 
         Ok(OpResult {
-            root_node: node_path_to.reconstruct(),
+            root_dir: path_nodes.reconstruct(),
             result: (),
         })
     }
@@ -468,7 +467,7 @@ impl PublicDirectory {
     ) -> Result<OpResult<()>> {
         if Rc::ptr_eq(&self, &base) {
             return Ok(OpResult {
-                root_node: Rc::clone(&self),
+                root_dir: Rc::clone(&self),
                 result: (),
             });
         }
@@ -487,7 +486,7 @@ impl PublicDirectory {
         }
 
         Ok(OpResult {
-            root_node: Rc::new(dir),
+            root_dir: Rc::new(dir),
             result: (),
         })
     }
@@ -538,10 +537,10 @@ impl PublicDirectory {
     }
 
     /// Gets the iterator for walking the history of a directory node.
-    pub fn get_history<'a, B: BlockStore>(
+    pub fn get_history<B: BlockStore>(
         self: Rc<Self>,
-        store: &'a B,
-    ) -> impl Stream<Item = Result<Cid>> + 'a {
+        store: &B,
+    ) -> impl Stream<Item = Result<Cid>> + '_ {
         let mut working_node = self;
         try_stream! {
             while let Some(cid) = working_node.get_previous() {
@@ -647,20 +646,17 @@ mod public_directory_tests {
 
     #[async_std::test]
     async fn look_up_can_fetch_file_added_to_directory() {
-        let root_node = Rc::new(PublicDirectory::new(Utc::now()));
-
+        let root_dir = Rc::new(PublicDirectory::new(Utc::now()));
         let store = MemoryBlockStore::default();
-
         let content_cid = Cid::default();
-
         let time = Utc::now();
 
-        let OpResult { root_node, .. } = root_node
+        let OpResult { root_dir, .. } = root_dir
             .write(&["text.txt".into()], content_cid, time, &store)
             .await
             .unwrap();
 
-        let node = root_node.lookup_node("text.txt", &store).await.unwrap();
+        let node = root_dir.lookup_node("text.txt", &store).await.unwrap();
 
         assert!(node.is_some());
 
@@ -676,7 +672,6 @@ mod public_directory_tests {
     #[async_std::test]
     async fn look_up_cannot_fetch_file_not_added_to_directory() {
         let root = PublicDirectory::new(Utc::now());
-
         let store = MemoryBlockStore::default();
 
         let node = root.lookup_node("Unknown", &store).await;
@@ -689,7 +684,6 @@ mod public_directory_tests {
     #[async_std::test]
     async fn directory_added_to_store_can_be_retrieved() {
         let root = PublicDirectory::new(Utc::now());
-
         let mut store = MemoryBlockStore::default();
 
         let cid = root.store(&mut store).await.unwrap();
@@ -706,7 +700,6 @@ mod public_directory_tests {
     #[async_std::test]
     async fn directory_can_encode_decode_as_cbor() {
         let root = PublicDirectory::new(Utc::now());
-
         let mut store = MemoryBlockStore::default();
 
         let encoded_bytes = root.encode(&mut store).await.unwrap();
@@ -721,18 +714,17 @@ mod public_directory_tests {
     #[async_std::test]
     async fn mkdir_can_create_new_directory() {
         let time = Utc::now();
-
         let store = MemoryBlockStore::default();
 
         // on a fresh directory
-        let OpResult { root_node, .. } = Rc::new(PublicDirectory::new(time))
+        let OpResult { root_dir, .. } = Rc::new(PublicDirectory::new(time))
             // create a new dir
             .mkdir(&["tamedun".into(), "pictures".into()], time, &store)
             .await
             .unwrap();
 
         // get the node
-        let OpResult { result, .. } = root_node
+        let OpResult { result, .. } = root_dir
             .get_node(&["tamedun".into(), "pictures".into()], &store)
             .await
             .unwrap();
@@ -743,17 +735,15 @@ mod public_directory_tests {
     #[async_std::test]
     async fn ls_can_list_children_under_directory() {
         let time = Utc::now();
-
         let store = MemoryBlockStore::default();
-
         let root_dir = Rc::new(PublicDirectory::new(time));
 
-        let OpResult { root_node, .. } = root_dir
+        let OpResult { root_dir, .. } = root_dir
             .mkdir(&["tamedun".into(), "pictures".into()], time, &store)
             .await
             .unwrap();
 
-        let OpResult { root_node, .. } = root_node
+        let OpResult { root_dir, .. } = root_dir
             .write(
                 &["tamedun".into(), "pictures".into(), "puppy.jpg".into()],
                 Cid::default(),
@@ -763,7 +753,7 @@ mod public_directory_tests {
             .await
             .unwrap();
 
-        let OpResult { root_node, .. } = root_node
+        let OpResult { root_dir, .. } = root_dir
             .mkdir(
                 &["tamedun".into(), "pictures".into(), "cats".into()],
                 time,
@@ -772,7 +762,7 @@ mod public_directory_tests {
             .await
             .unwrap();
 
-        let OpResult { result, .. } = root_node
+        let OpResult { result, .. } = root_dir
             .ls(&["tamedun".into(), "pictures".into()], &store)
             .await
             .unwrap();
@@ -791,17 +781,15 @@ mod public_directory_tests {
     #[async_std::test]
     async fn rm_can_remove_children_from_directory() {
         let time = Utc::now();
-
         let store = MemoryBlockStore::default();
-
         let root_dir = Rc::new(PublicDirectory::new(time));
 
-        let OpResult { root_node, .. } = root_dir
+        let OpResult { root_dir, .. } = root_dir
             .mkdir(&["tamedun".into(), "pictures".into()], time, &store)
             .await
             .unwrap();
 
-        let OpResult { root_node, .. } = root_node
+        let OpResult { root_dir, .. } = root_dir
             .write(
                 &["tamedun".into(), "pictures".into(), "puppy.jpg".into()],
                 Cid::default(),
@@ -811,7 +799,7 @@ mod public_directory_tests {
             .await
             .unwrap();
 
-        let OpResult { root_node, .. } = root_node
+        let OpResult { root_dir, .. } = root_dir
             .mkdir(
                 &["tamedun".into(), "pictures".into(), "cats".into()],
                 time,
@@ -820,7 +808,7 @@ mod public_directory_tests {
             .await
             .unwrap();
 
-        let result = root_node
+        let result = root_dir
             .rm(&["tamedun".into(), "pictures".into()], &store)
             .await;
 
@@ -828,7 +816,7 @@ mod public_directory_tests {
 
         let result = result
             .unwrap()
-            .root_node
+            .root_dir
             .rm(&["tamedun".into(), "pictures".into()], &store)
             .await;
 
@@ -838,17 +826,15 @@ mod public_directory_tests {
     #[async_std::test]
     async fn read_can_fetch_userland_of_file_added_to_directory() {
         let mut store = MemoryBlockStore::default();
-
         let content_cid = Cid::default();
-
         let time = Utc::now();
 
-        let OpResult { root_node, .. } = Rc::new(PublicDirectory::new(time))
+        let OpResult { root_dir, .. } = Rc::new(PublicDirectory::new(time))
             .write(&["text.txt".into()], content_cid, time, &store)
             .await
             .unwrap();
 
-        let OpResult { result, .. } = root_node
+        let OpResult { result, .. } = root_dir
             .read(&["text.txt".into()], &mut store)
             .await
             .unwrap();
@@ -857,17 +843,17 @@ mod public_directory_tests {
     }
 
     #[async_std::test]
-    async fn path_to_can_generates_new_path_nodes() {
+    async fn path_nodes_can_generates_new_path_nodes() {
         let store = MemoryBlockStore::default();
         let now = Utc::now();
 
-        let path_to = PathToDir::new(
+        let path_nodes = PathNodes::new(
             now,
             &["Documents".into(), "Apps".into()],
             Rc::new(PublicDirectory::new(now)),
         );
 
-        let reconstructed = path_to.clone().reconstruct();
+        let reconstructed = path_nodes.clone().reconstruct();
 
         let result = reconstructed
             .get_node_path(&["Documents".into(), "Apps".into()], &store)
@@ -877,10 +863,10 @@ mod public_directory_tests {
         match result {
             GetNodePathResult::MissingLink(_, segment) => panic!("MissingLink {segment}"),
             GetNodePathResult::NotADirectory(_, segment) => panic!("NotADirectory {segment}"),
-            GetNodePathResult::Complete(path_to_2) => {
-                assert_eq!(path_to.path.len(), path_to_2.path.len());
-                assert_eq!(path_to.path[0].1, path_to_2.path[0].1);
-                assert_eq!(path_to.path[1].1, path_to_2.path[1].1);
+            GetNodePathResult::Complete(path_nodes_2) => {
+                assert_eq!(path_nodes.path.len(), path_nodes_2.path.len());
+                assert_eq!(path_nodes.path[0].1, path_nodes_2.path[0].1);
+                assert_eq!(path_nodes.path[1].1, path_nodes_2.path[1].1);
             }
         }
     }
@@ -892,7 +878,7 @@ mod public_directory_tests {
         let root_dir = Rc::new(PublicDirectory::new(time));
 
         let OpResult {
-            root_node: base_root,
+            root_dir: base_root,
             ..
         } = root_dir
             .write(
@@ -905,7 +891,7 @@ mod public_directory_tests {
             .unwrap();
 
         let OpResult {
-            root_node: updated_root,
+            root_dir: updated_root,
             ..
         } = Rc::clone(&base_root)
             .write(
@@ -918,7 +904,7 @@ mod public_directory_tests {
             .unwrap();
 
         let OpResult {
-            root_node: derived_root,
+            root_dir: derived_root,
             ..
         } = updated_root
             .base_history_on(Rc::clone(&base_root), &mut store)
@@ -979,7 +965,7 @@ mod public_directory_tests {
         let store = MemoryBlockStore::default();
         let root_dir = Rc::new(PublicDirectory::new(time));
 
-        let OpResult { root_node, .. } = root_dir
+        let OpResult { root_dir, .. } = root_dir
             .write(
                 &["pictures".into(), "cats".into(), "tabby.jpg".into()],
                 Cid::default(),
@@ -989,7 +975,7 @@ mod public_directory_tests {
             .await
             .unwrap();
 
-        let OpResult { root_node, .. } = root_node
+        let OpResult { root_dir, .. } = root_dir
             .write(
                 &["pictures".into(), "cats".into(), "luna.png".into()],
                 Cid::default(),
@@ -999,12 +985,12 @@ mod public_directory_tests {
             .await
             .unwrap();
 
-        let OpResult { root_node, .. } = root_node
+        let OpResult { root_dir, .. } = root_dir
             .mkdir(&["images".into()], time, &store)
             .await
             .unwrap();
 
-        let OpResult { root_node, .. } = root_node
+        let OpResult { root_dir, .. } = root_dir
             .basic_mv(
                 &["pictures".into(), "cats".into()],
                 &["images".into(), "cats".into()],
@@ -1013,15 +999,14 @@ mod public_directory_tests {
             .await
             .unwrap();
 
-        // let OpResult { root_node, result } =
-        //     root_node.ls(&["images".into()], &store).await.unwrap();
+        let OpResult { root_dir, result } = root_dir.ls(&["images".into()], &store).await.unwrap();
 
-        // assert_eq!(result.len(), 1);
-        // assert_eq!(result[0].0, String::from("cats"));
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].0, String::from("cats"));
 
-        // let OpResult { result, .. } = root_node.ls(&["pictures".into()], &store).await.unwrap();
+        let OpResult { result, .. } = root_dir.ls(&["pictures".into()], &store).await.unwrap();
 
-        // assert_eq!(result.len(), 0);
+        assert_eq!(result.len(), 0);
     }
 
     #[async_std::test]
@@ -1030,7 +1015,7 @@ mod public_directory_tests {
         let store = MemoryBlockStore::default();
         let root_dir = Rc::new(PublicDirectory::new(time));
 
-        let OpResult { root_node, .. } = root_dir
+        let OpResult { root_dir, .. } = root_dir
             .mkdir(
                 &[
                     "videos".into(),
@@ -1044,7 +1029,7 @@ mod public_directory_tests {
             .await
             .unwrap();
 
-        let result = root_node
+        let result = root_dir
             .basic_mv(
                 &["videos".into(), "movies".into()],
                 &["videos".into(), "movies".into(), "anime".into()],
@@ -1061,17 +1046,17 @@ mod public_directory_tests {
         let mut store = MemoryBlockStore::default();
         let root_dir = Rc::new(PublicDirectory::new(time));
 
-        let OpResult { root_node, .. } = root_dir
+        let OpResult { root_dir, .. } = root_dir
             .write(&["file.txt".into()], Cid::default(), time, &store)
             .await
             .unwrap();
 
-        let OpResult { root_node, .. } = root_node
+        let OpResult { root_dir, .. } = root_dir
             .basic_mv(&["file.txt".into()], &["renamed.txt".into()], &store)
             .await
             .unwrap();
 
-        let OpResult { result, .. } = root_node
+        let OpResult { result, .. } = root_dir
             .read(&["renamed.txt".into()], &mut store)
             .await
             .unwrap();
@@ -1085,17 +1070,17 @@ mod public_directory_tests {
         let store = MemoryBlockStore::default();
         let root_dir = Rc::new(PublicDirectory::new(time));
 
-        let OpResult { root_node, .. } = root_dir
+        let OpResult { root_dir, .. } = root_dir
             .mkdir(&["movies".into(), "ghibli".into()], time, &store)
             .await
             .unwrap();
 
-        let OpResult { root_node, .. } = root_node
+        let OpResult { root_dir, .. } = root_dir
             .write(&["file.txt".into()], Cid::default(), time, &store)
             .await
             .unwrap();
 
-        let result = root_node
+        let result = root_dir
             .basic_mv(
                 &["movies".into(), "ghibli".into()],
                 &["file.txt".into()],

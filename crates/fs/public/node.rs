@@ -29,7 +29,7 @@ impl PublicNode {
     }
 
     /// Create node with updated previous pointer value.
-    pub(crate) fn update_previous(&self, cid: Option<Cid>) -> Self {
+    pub fn update_previous(&self, cid: Option<Cid>) -> Self {
         match self {
             Self::File(file) => {
                 let mut file = (**file).clone();
@@ -45,7 +45,7 @@ impl PublicNode {
     }
 
     /// Get previous ancestor of a node.
-    pub(crate) fn get_previous(&self) -> Option<Cid> {
+    pub fn get_previous(&self) -> Option<Cid> {
         match self {
             Self::File(file) => file.get_previous(),
             Self::Dir(dir) => dir.get_previous(),
@@ -57,11 +57,11 @@ impl PublicNode {
     /// # Panics
     ///
     /// Panics if the node is not a directory.
-    pub fn as_dir(&self) -> Result<&PublicDirectory> {
-        match self {
-            Self::Dir(dir) => Ok(dir),
+    pub fn as_dir(&self) -> Result<Rc<PublicDirectory>> {
+        Ok(match self {
+            Self::Dir(dir) => Rc::clone(dir),
             _ => bail!(FsError::NotADirectory),
-        }
+        })
     }
 
     /// Casts a node to a file.
@@ -69,11 +69,11 @@ impl PublicNode {
     /// # Panics
     ///
     /// Panics if the node is not a file.
-    pub fn as_file(&self) -> Result<&PublicFile> {
-        match self {
-            Self::File(file) => Ok(file),
+    pub fn as_file(&self) -> Result<Rc<PublicFile>> {
+        Ok(match self {
+            Self::File(file) => Rc::clone(file),
             _ => bail!(FsError::NotAFile),
-        }
+        })
     }
 
     /// Stores a WNFS node as block(s) in chosen block store.

@@ -1,32 +1,32 @@
+use js_sys::Error;
 use wasm_bindgen::prelude::wasm_bindgen;
-use wnfs::{
-    public::{Id, PublicNode as WnfsPublicNode},
-    Shared,
-};
+use wnfs::public::{Id, PublicNode as WnfsPublicNode};
 
-use super::PublicDirectory;
+use crate::fs::{JsResult, PublicDirectory};
 
-/// Wraps a shared<PublicNode>
+/// Wraps a wnfs PublicNode.
 #[wasm_bindgen]
-pub struct SharedNode(pub(crate) Shared<WnfsPublicNode>);
+pub struct PublicNode(pub(crate) WnfsPublicNode);
 
 #[wasm_bindgen]
-impl SharedNode {
+impl PublicNode {
     #[wasm_bindgen(js_name = "asDir")]
-    pub fn as_dir(&self) -> PublicDirectory {
-        let node = self.0.borrow();
-        let dir = node.as_dir();
-        PublicDirectory(dir.clone())
+    pub fn as_dir(&self) -> JsResult<PublicDirectory> {
+        let dir = self
+            .0
+            .as_dir()
+            .map_err(|e| Error::new(&format!("Cannot cast to a directory: {e}")))?;
+
+        Ok(PublicDirectory(dir))
     }
 
     #[wasm_bindgen(js_name = "isDir")]
     pub fn is_dir(&self) -> bool {
-        self.0.borrow().is_dir()
+        self.0.is_dir()
     }
 
     #[wasm_bindgen(js_name = "getId")]
     pub fn get_id(&self) -> String {
-        let node = self.0.borrow();
-        node.get_id()
+        self.0.get_id()
     }
 }

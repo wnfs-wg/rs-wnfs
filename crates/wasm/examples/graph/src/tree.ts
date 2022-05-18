@@ -1,22 +1,22 @@
-import { SharedNode } from "../../../pkg";
+import { PublicDirectory, PublicNode } from "../../../pkg";
 import { Nullable, BlockStore } from "./types";
 
 export class Vertex {
   name: string;
-  node: Nullable<SharedNode>;
+  node: Nullable<PublicNode>;
   isDir: boolean;
   tree: Tree;
   parentVertex: Nullable<Vertex>;
-  rootNode: Nullable<SharedNode>;
+  rootDir: Nullable<PublicDirectory>;
   noRender: boolean;
   id: string;
 
   constructor(
     name: string,
-    node: Nullable<SharedNode>,
+    node: Nullable<PublicNode>,
     parentVertex: Nullable<Vertex>,
     tree: Tree,
-    rootNode: Nullable<SharedNode> = null
+    rootDir: Nullable<PublicDirectory> = null
   ) {
     // Information about the vertex itself.
     this.name = name;
@@ -24,7 +24,7 @@ export class Vertex {
     this.isDir = node ? node.isDir() : false;
     this.tree = tree;
     this.parentVertex = parentVertex;
-    this.rootNode = rootNode;
+    this.rootDir = rootDir;
     this.noRender = false;
     this.id = node ? node.getId() : "";
   }
@@ -46,21 +46,21 @@ export class Vertex {
 }
 
 export class Tree {
-  rootNode: Nullable<SharedNode>;
+  rootDir: Nullable<PublicDirectory>;
   store: BlockStore;
   levels: Vertex[][][];
 
   constructor(
-    rootNode: Nullable<SharedNode>,
+    rootDir: PublicDirectory,
     store: BlockStore,
     levels: Vertex[][][] = []
   ) {
-    this.rootNode = rootNode;
+    this.rootDir = rootDir;
     this.store = store;
     this.levels =
       levels.length > 0
         ? levels
-        : [[[new Vertex("root", rootNode, null, this, rootNode)]]];
+        : [[[new Vertex("root", rootDir.asNode(), null, this, rootDir)]]];
   }
 
   // Breadth-first traversal.
@@ -102,8 +102,8 @@ export class Tree {
       if (result.length > 0) {
         const children: Vertex[] = [];
         for (let name of result) {
-          const node: SharedNode = await dir.lookupNode(name, this.store);
-          children.push(new Vertex(name, node, vertex, this, vertex.rootNode));
+          const node: PublicNode = await dir.lookupNode(name, this.store);
+          children.push(new Vertex(name, node, vertex, this, vertex.rootDir));
         }
 
         return children;
@@ -118,9 +118,9 @@ export class Tree {
 
     // If previous tree has the same root node, we return null.
     if (
-      this.rootNode &&
-      previousTree.rootNode &&
-      previousTree.rootNode.getId() === this.rootNode.getId()
+      this.rootDir &&
+      previousTree.rootDir &&
+      previousTree.rootDir.getId() === this.rootDir.getId()
     ) {
       return null;
     }
@@ -134,7 +134,7 @@ export class Tree {
       }
     }
 
-    return new Tree(this.rootNode, this.store, levels);
+    return new Tree(this.rootDir as PublicDirectory, this.store, levels);
   }
 
   diffLevel(level: Vertex[][], previousLevels: Vertex[]) {
@@ -164,7 +164,7 @@ export class Tree {
             vertex.node,
             vertex.parentVertex,
             this,
-            this.rootNode
+            this.rootDir
           );
           // We don't want to render duplicate vertices.
           newVertex.noRender = true;
