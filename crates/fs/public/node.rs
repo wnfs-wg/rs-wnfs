@@ -2,14 +2,15 @@
 
 use std::{
     io::{Cursor, Read, Seek},
-    result, rc::Rc,
+    rc::Rc,
+    result,
 };
 
-use anyhow::Result;
+use anyhow::{bail, Result};
 use libipld::{cbor::DagCborCodec, codec::Decode, Cid};
 
-use super::{DeepClone, Id, PublicDirectory, PublicFile};
-use crate::{common::BlockStore, UnixFsNodeKind};
+use super::{Id, PublicDirectory, PublicFile};
+use crate::{common::BlockStore, FsError, UnixFsNodeKind};
 
 /// A node in a WNFS public file system. This can either be a file or a directory.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -19,34 +20,35 @@ pub enum PublicNode {
 }
 
 impl PublicNode {
-    /// Updates the node previous pointer value.
-    pub(crate) fn update_previous(&mut self, cid: Option<Cid>) {
+    pub(crate) fn ptr_eq(&self, other: &PublicNode) -> bool {
+        match (self, other) {
+            (Self::File(self_file), Self::File(other_file)) => Rc::ptr_eq(self_file, other_file),
+            (Self::Dir(self_dir), Self::Dir(other_dir)) => Rc::ptr_eq(self_dir, other_dir),
+            _ => false,
+        }
+    }
+
+    /// Create node with updated previous pointer value.
+    pub(crate) fn update_previous(&self, cid: Option<Cid>) -> Self {
         match self {
-            PublicNode::File(file) => {
+            Self::File(file) => {
+                let mut file = (**file).clone();
                 file.previous = cid;
+                Self::File(Rc::new(file))
             }
-            PublicNode::Dir(dir) => {
-                dir.update_previous(cid);
+            Self::Dir(dir) => {
+                let mut dir = (**dir).clone();
+                dir.previous = cid;
+                Self::Dir(Rc::new(dir))
             }
         }
     }
-    /// Stores a WNFS node as block(s) in chosen block store.
-    pub async fn store<B: BlockStore>(&self, store: &mut B) -> Result<Cid> {
-        Ok(match self {
-            PublicNode::File(file) => file.store(store).await?,
-            PublicNode::Dir(dir) => dir.store(store).await?,
-        })
-    }
 
-    /// Casts a node to an owned directory.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the node is not a directory.
-    pub fn into_dir(self) -> PublicDirectory {
+    /// Get previous ancestor of a node.
+    pub(crate) fn get_previous(&self) -> Option<Cid> {
         match self {
-            PublicNode::Dir(dir) => (*dir).clone(),
-            _ => unreachable!(),
+            Self::File(file) => file.get_previous(),
+            Self::Dir(dir) => dir.get_previous(),
         }
     }
 
@@ -55,16 +57,11 @@ impl PublicNode {
     /// # Panics
     ///
     /// Panics if the node is not a directory.
-    pub fn as_dir(&self) -> &PublicDirectory {
+    pub fn as_dir(&self) -> Result<&PublicDirectory> {
         match self {
-            PublicNode::Dir(dir) => dir,
-            _ => unreachable!(),
+            Self::Dir(dir) => Ok(dir),
+            _ => bail!(FsError::NotADirectory),
         }
-    }
-
-    /// Returns true if underlying node is a directory.
-    pub fn is_dir(&self) -> bool {
-        matches!(self, PublicNode::Dir(_))
     }
 
     /// Casts a node to a file.
@@ -72,18 +69,31 @@ impl PublicNode {
     /// # Panics
     ///
     /// Panics if the node is not a file.
-    pub fn as_file(&self) -> &PublicFile {
+    pub fn as_file(&self) -> Result<&PublicFile> {
         match self {
-            PublicNode::File(file) => file,
-            _ => unreachable!(),
+            Self::File(file) => Ok(file),
+            _ => bail!(FsError::NotAFile),
         }
+    }
+
+    /// Stores a WNFS node as block(s) in chosen block store.
+    pub async fn store<B: BlockStore>(&self, store: &mut B) -> Result<Cid> {
+        Ok(match self {
+            Self::File(file) => file.store(store).await?,
+            Self::Dir(dir) => dir.store(store).await?,
+        })
+    }
+
+    /// Returns true if underlying node is a directory.
+    pub fn is_dir(&self) -> bool {
+        matches!(self, Self::Dir(_))
     }
 
     /// Gets the node kind.
     pub fn kind(&self) -> UnixFsNodeKind {
         match self {
-            PublicNode::File(_) => UnixFsNodeKind::File,
-            PublicNode::Dir(_) => UnixFsNodeKind::Dir,
+            Self::File(_) => UnixFsNodeKind::File,
+            Self::Dir(_) => UnixFsNodeKind::Dir,
         }
     }
 }
@@ -93,15 +103,6 @@ impl Id for PublicNode {
         match self {
             PublicNode::File(file) => file.get_id(),
             PublicNode::Dir(dir) => dir.get_id(),
-        }
-    }
-}
-
-impl DeepClone for PublicNode {
-    fn deep_clone(&self) -> Self {
-        match self {
-            PublicNode::File(file) => PublicNode::File(file.deep_clone()),
-            PublicNode::Dir(dir) => PublicNode::Dir(dir.deep_clone()),
         }
     }
 }
@@ -171,14 +172,5 @@ mod public_node_tests {
         let decoded_directory = PublicNode::decode(DagCborCodec, &mut cursor).unwrap();
 
         assert_eq!(PublicNode::Dir(Rc::new(directory)), decoded_directory);
-    }
-
-    #[async_std::test]
-    async fn public_node_can_be_casted_to_public_directory() {
-        let directory = PublicDirectory::new(Utc::now());
-
-        let node = PublicNode::Dir(Rc::new(directory.clone()));
-
-        assert_eq!(node.as_dir(), &directory);
     }
 }

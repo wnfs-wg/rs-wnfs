@@ -13,9 +13,3 @@ pub trait Id {
     /// Returns a unique identifier for the node.
     fn get_id(&self) -> String;
 }
-
-/// Implements deeply cloning a type.
-pub trait DeepClone {
-    /// Deep clones the type.
-    fn deep_clone(&self) -> Self;
-}
