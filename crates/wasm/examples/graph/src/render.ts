@@ -1,7 +1,7 @@
 ///<reference path="index.d.ts"/>
 
 import { CID } from "multiformats/cid";
-import { SharedNode } from "../../../pkg/index";
+import { PublicDirectory, PublicNode } from "../../../pkg/index";
 import { Tree, Vertex } from "./tree";
 import { Nullable, BlockStore, EventMap, Connection, Handler } from "./types";
 
@@ -313,16 +313,18 @@ export class Render {
 
   static async handleAddFolder(vertex: Vertex, path_segments: string[]) {
     const { store } = globalThis;
-    let { rootNode, tree } = vertex;
+    let { rootDir, tree } = vertex;
     let full_path_segments = [
       ...vertex.getRootVertexPath().path,
       ...path_segments,
     ];
 
     // Create new directory.
-    ({ rootNode } = await (rootNode as SharedNode)
-      .asDir()
-      .mkdir(full_path_segments, new Date(), store));
+    ({ rootDir } = await (rootDir as PublicDirectory).mkdir(
+      full_path_segments,
+      new Date(),
+      store
+    ));
 
     const path_string = `/${full_path_segments.join("/")}`;
     console.log(`mkdir -p ${path_string}`);
@@ -333,12 +335,12 @@ export class Render {
     Render.activityBodyElement.appendChild(item);
 
     // Draw new tree.
-    await draw(rootNode, store, tree);
+    await draw(rootDir as PublicDirectory, store, tree);
   }
 
   static async handleAddFile(vertex: Vertex, path_segments: string[]) {
     const { store } = globalThis;
-    let { rootNode, tree } = vertex;
+    let { rootDir, tree } = vertex;
     let full_path_segments = [
       ...vertex.getRootVertexPath().path,
       ...path_segments,
@@ -352,9 +354,12 @@ export class Render {
     ).bytes;
 
     // Create new file.
-    ({ rootNode } = await (rootNode as SharedNode)
-      .asDir()
-      .write(full_path_segments, cid, new Date(), store));
+    ({ rootDir } = await (rootDir as PublicDirectory).write(
+      full_path_segments,
+      cid,
+      new Date(),
+      store
+    ));
 
     const path_string = `/${full_path_segments.join("/")}`;
     console.log(`echo "" >> ${path_string}`);
@@ -365,15 +370,15 @@ export class Render {
     Render.activityBodyElement.appendChild(item);
 
     // Draw new tree.
-    await draw(rootNode, store, tree);
+    await draw(rootDir as PublicDirectory, store, tree);
   }
 
   static async handleDeleteNode(vertex: Vertex) {
     const { store } = globalThis;
-    let { rootNode, tree } = vertex;
+    let { rootDir, tree } = vertex;
     let { path } = vertex.getRootVertexPath();
 
-    ({ rootNode } = await (rootNode as SharedNode).asDir().rm(path, store));
+    ({ rootDir } = await (rootDir as PublicDirectory).rm(path, store));
 
     console.log(`rm /${path.join("/")}`);
 
@@ -383,7 +388,7 @@ export class Render {
     Render.activityBodyElement.appendChild(item);
 
     // Draw new tree.
-    await draw(rootNode, store, tree);
+    await draw(rootDir as PublicDirectory, store, tree);
   }
 
   static attachHandler(
@@ -410,12 +415,12 @@ export class Render {
 //------------------------------------------------------------------------------
 
 export const draw = async (
-  rootNode: Nullable<SharedNode>,
+  rootDir: PublicDirectory,
   store: BlockStore,
   previousTree: Nullable<Tree> = null
 ): Promise<Tree> => {
-  // Create tree based on rootNode.
-  let tree: Nullable<Tree> = new Tree(rootNode, store);
+  // Create tree based on rootDir.
+  let tree: Nullable<Tree> = new Tree(rootDir, store);
   await tree.traverse();
 
   // Keep track of the tree.

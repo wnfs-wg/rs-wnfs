@@ -6,7 +6,7 @@ use anyhow::Result;
 use libipld::Cid;
 
 use super::{PublicDirectory, PublicFile, PublicNode};
-use crate::{blockstore, shared, BlockStore, Shared};
+use crate::{blockstore, BlockStore};
 
 /// A link to another node in the WNFS public file system. It can be held as a simple serialised CID or as a reference to the node itself.
 ///
@@ -14,28 +14,27 @@ use crate::{blockstore, shared, BlockStore, Shared};
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Link {
     Cid(Cid),
-    Node(Shared<PublicNode>),
+    Node(PublicNode),
 }
 
 impl Link {
+    // TODO(appcypher): Remove.
     /// Creates a new directory node link.
     pub fn with_dir(dir: PublicDirectory) -> Self {
-        Link::Node(shared(PublicNode::Dir(dir)))
+        Link::Node(PublicNode::Dir(Rc::new(dir)))
     }
 
+    // TODO(appcypher): Remove.
     /// Creates a new file node link.
     pub fn with_file(file: PublicFile) -> Self {
-        Link::Node(shared(PublicNode::File(file)))
+        Link::Node(PublicNode::File(Rc::new(file)))
     }
 
     /// Resolves a CID linkin the file system to a node.
-    pub async fn resolve<B: BlockStore>(&self, store: &B) -> Result<Shared<PublicNode>> {
+    pub async fn resolve<B: BlockStore>(&self, store: &B) -> Result<PublicNode> {
         Ok(match self {
-            Link::Cid(cid) => {
-                let node = blockstore::load(store, cid).await?;
-                shared(node)
-            }
-            Link::Node(node) => Rc::clone(node),
+            Link::Cid(cid) => blockstore::load(store, cid).await?,
+            Link::Node(node) => node.clone(),
         })
     }
 
@@ -43,21 +42,56 @@ impl Link {
     pub async fn seal<B: BlockStore>(&self, store: &mut B) -> Result<Cid> {
         Ok(match self {
             Link::Cid(cid) => *cid,
-            Link::Node(node) => node.borrow().store(store).await?,
+            Link::Node(node) => node.store(store).await?,
         })
+    }
+
+    pub async fn partial_equal<B: BlockStore>(&self, other: &Self, store: &mut B) -> Result<bool> {
+        match (self, other) {
+            (Self::Cid(cid), Self::Cid(base_cid)) => {
+                if cid == base_cid {
+                    return Ok(true);
+                }
+            }
+            (Self::Node(PublicNode::File(_)), Self::Node(PublicNode::Dir(_))) => {
+                return Ok(true);
+            }
+            (Self::Node(PublicNode::Dir(_)), Self::Node(PublicNode::File(_))) => {
+                return Ok(true);
+            }
+            (Self::Node(ref node), Self::Node(ref other)) => {
+                if node.ptr_eq(other) {
+                    return Ok(true);
+                }
+            }
+            (Self::Cid(cid), Self::Node(base_node)) => {
+                let base_cid = base_node.store(store).await?;
+                if cid == &base_cid {
+                    return Ok(true);
+                }
+            }
+            (Self::Node(node), Self::Cid(base_cid)) => {
+                let cid = node.store(store).await?;
+                if &cid == base_cid {
+                    return Ok(true);
+                }
+            }
+        };
+
+        Ok(false)
     }
 }
 
 #[cfg(test)]
 mod public_link_tests {
-    use std::mem;
+    use std::rc::Rc;
 
     use chrono::Utc;
     use libipld::Cid;
 
     use crate::{
         public::{PublicDirectory, PublicFile, PublicNode},
-        shared, MemoryBlockStore,
+        MemoryBlockStore,
     };
 
     use super::Link;
@@ -74,7 +108,7 @@ mod public_link_tests {
 
         let file_cid = file.store(&mut store).await.unwrap();
 
-        let unsealed_link = Link::Node(shared(PublicNode::File(file)));
+        let unsealed_link = Link::with_file(file);
 
         let sealed_cid = unsealed_link.seal(&mut store).await.unwrap();
 
@@ -85,7 +119,7 @@ mod public_link_tests {
     async fn cid_link_can_be_resolved() {
         let time = Utc::now();
 
-        let dir = PublicDirectory::new(time);
+        let dir = Rc::new(PublicDirectory::new(time));
 
         let mut store = MemoryBlockStore::default();
 
@@ -95,11 +129,6 @@ mod public_link_tests {
 
         let resolved_node = unresolved_link.resolve(&store).await.unwrap();
 
-        let node = mem::replace(
-            &mut *resolved_node.borrow_mut(),
-            PublicNode::Dir(PublicDirectory::new(time)),
-        );
-
-        assert_eq!(dir, node.into_dir())
+        assert_eq!(PublicNode::Dir(dir), resolved_node);
     }
 }

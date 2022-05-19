@@ -18,16 +18,11 @@ test.describe("PublicDirectory", () => {
 
       const time = new Date();
       const store = new MemoryBlockStore();
-      const rootDir = new PublicDirectory(time);
+      const root = new PublicDirectory(time);
 
-      var { rootNode } = await rootDir.write(
-        ["text.txt"],
-        sampleCID,
-        time,
-        store
-      );
+      var { rootDir } = await root.write(["text.txt"], sampleCID, time, store);
 
-      return await rootNode.asDir().lookupNode("text.txt", store);
+      return await rootDir.lookupNode("text.txt", store);
     });
 
     expect(result).toBeDefined();
@@ -44,9 +39,9 @@ test.describe("PublicDirectory", () => {
 
       const time = new Date();
       const store = new MemoryBlockStore();
-      const rootDir = new PublicDirectory(time);
+      const root = new PublicDirectory(time);
 
-      return await rootDir.lookupNode("Unknown", store);
+      return await root.lookupNode("Unknown", store);
     });
 
     expect(result).toBe(undefined);
@@ -61,19 +56,23 @@ test.describe("PublicDirectory", () => {
 
       const time = new Date();
       const store = new MemoryBlockStore();
-      const rootDir = new PublicDirectory(time);
+      const root = new PublicDirectory(time);
 
-      var { rootNode } = await rootDir.mkdir(["pictures", "cats"], time, store);
+      var { rootDir } = await root.mkdir(["pictures", "cats"], time, store);
 
-      var { rootNode } = await rootNode
-        .asDir()
-        .write(["pictures", "cats", "tabby.png"], sampleCID, time, store);
+      var { rootDir } = await rootDir.write(
+        ["pictures", "cats", "tabby.png"],
+        sampleCID,
+        time,
+        store
+      );
 
-      var { rootNode } = await rootNode
-        .asDir()
-        .getNode(["pictures", "cats", "tabby.png"], store);
+      var { rootDir } = await rootDir.getNode(
+        ["pictures", "cats", "tabby.png"],
+        store
+      );
 
-      return rootNode;
+      return rootDir;
     });
 
     expect(result).toBeDefined();
@@ -88,15 +87,18 @@ test.describe("PublicDirectory", () => {
 
       const time = new Date();
       const store = new MemoryBlockStore();
-      const rootDir = new PublicDirectory(time);
+      const root = new PublicDirectory(time);
 
-      var { rootNode } = await rootDir.mkdir(["pictures", "dogs"], time, store);
+      var { rootDir } = await root.mkdir(["pictures", "dogs"], time, store);
 
-      var { rootNode } = await rootNode
-        .asDir()
-        .write(["pictures", "cats", "tabby.png"], sampleCID, time, store);
+      var { rootDir } = await rootDir.write(
+        ["pictures", "cats", "tabby.png"],
+        sampleCID,
+        time,
+        store
+      );
 
-      var { result } = await rootNode.asDir().ls(["pictures"], store);
+      var { result } = await rootDir.ls(["pictures"], store);
 
       return result;
     });
@@ -115,19 +117,22 @@ test.describe("PublicDirectory", () => {
 
       const time = new Date();
       const store = new MemoryBlockStore();
-      const rootDir = new PublicDirectory(time);
+      const root = new PublicDirectory(time);
 
-      var { rootNode } = await rootDir.write(
+      var { rootDir } = await root.write(
         ["pictures", "dogs", "billie.jpeg"],
         sampleCID,
         time,
         store
       );
-      var { rootNode } = await rootNode
-        .asDir()
-        .write(["pictures", "cats", "tabby.png"], sampleCID, time, store);
-      var { rootNode } = await rootNode.asDir().rm(["pictures", "cats"], store);
-      var { result } = await rootNode.asDir().ls(["pictures"], store);
+      var { rootDir } = await rootDir.write(
+        ["pictures", "cats", "tabby.png"],
+        sampleCID,
+        time,
+        store
+      );
+      var { rootDir } = await rootDir.rm(["pictures", "cats"], store);
+      var { result } = await rootDir.ls(["pictures"], store);
 
       return result;
     });

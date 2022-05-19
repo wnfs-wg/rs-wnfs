@@ -63,6 +63,12 @@ Its goal is to be as dependency-less as possible in order to be easily compiled 
     cargo install wasm-pack
     ```
 
+  - Install playwrigth binaries
+
+    ```bash
+    npx playwright install
+    ```
+
   On ARM-based (M1 family) macOS, you might need to explicitly install the following:
 
   - Install wasm-bindgen

@@ -8,6 +8,12 @@
   cargo install wasm-pack
   ```
 
+- Install playwrigth binaries
+
+  ```bash
+  npx playwright install
+  ```
+
 - Build project
 
   ```bash

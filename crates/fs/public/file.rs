@@ -1,12 +1,14 @@
 //! Public fs file node.
 
+use std::rc::Rc;
+
 use anyhow::Result;
 use chrono::{DateTime, Utc};
 use libipld::{cbor::DagCborCodec, prelude::Encode, Cid, DagCbor, IpldCodec};
 
 use crate::{BlockStore, Metadata, UnixFsNodeKind};
 
-use super::{DeepClone, Id};
+use super::Id;
 
 /// A file in a WNFS public file system.
 #[derive(Debug, Clone, PartialEq, Eq, DagCbor)]
@@ -31,7 +33,7 @@ impl PublicFile {
     }
 
     // Gets the previous value of the file.
-    pub fn get_previous(&self) -> Option<Cid> {
+    pub fn get_previous(self: &Rc<Self>) -> Option<Cid> {
         self.previous
     }
 
@@ -49,12 +51,6 @@ impl PublicFile {
 impl Id for PublicFile {
     fn get_id(&self) -> String {
         format!("{:p}", &self.metadata)
-    }
-}
-
-impl DeepClone for PublicFile {
-    fn deep_clone(&self) -> Self {
-        self.clone()
     }
 }
 

@@ -2,6 +2,7 @@ import "./styles/index.css";
 
 import { MemoryBlockStore } from "./blockstore";
 import { draw } from "./render";
+import { sampleCID } from "../../../tests/mock";
 
 //------------------------------------------------------------------------------
 // Init
@@ -11,9 +12,9 @@ const { PublicDirectory } = await import("../../../pkg/index");
 
 const time = new Date();
 const store = new MemoryBlockStore();
-const rootDir = new PublicDirectory(time);
+const root = new PublicDirectory(time);
 
-console.log(`root id at creation: ${rootDir.getId()}`);
+console.log(`root id at creation: ${root.getId()}`);
 
 //------------------------------------------------------------------------------
 // Globals
@@ -25,131 +26,115 @@ globalThis.store = store;
 // mkdir -p /pictures/cats
 //------------------------------------------------------------------------------
 
-var { rootNode } = await rootDir.mkdir(["pictures", "cats"], time, store);
-console.log(`root id after "mkdir -p /pictures/cats": ${rootNode.getId()}`);
+var { rootDir } = await root.mkdir(["pictures", "cats"], time, store);
+console.log(`root id after "mkdir -p /pictures/cats": ${rootDir.getId()}`);
 
-var tree = await draw(rootNode, store);
+var tree = await draw(rootDir, store);
 
-// //------------------------------------------------------------------------------
-// // mkdir -p /pictures/dogs
-// //------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------
+// mkdir -p /pictures/dogs
+// ------------------------------------------------------------------------------
 
-// var { rootNode } = await rootNode
-//   .asDir()
-//   .mkdir(["pictures", "dogs"], time, store);
+var { rootDir } = await rootDir.mkdir(["pictures", "dogs"], time, store);
 
-// console.log(`root id after "mkdir -p /pictures/dogs": ${rootNode.getId()}`);
+console.log(`root id after "mkdir -p /pictures/dogs": ${rootDir.getId()}`);
 
-// var tree = await draw(rootNode, store, tree);
+var tree = await draw(rootDir, store, tree);
 
-// //------------------------------------------------------------------------------
-// // mkdir -p /videos/dogs
-// //------------------------------------------------------------------------------
+//------------------------------------------------------------------------------
+// mkdir -p /videos/dogs
+//------------------------------------------------------------------------------
 
-// var { rootNode } = await rootNode
-//   .asDir()
-//   .mkdir(["videos", "dogs"], time, store);
+var { rootDir } = await rootDir.mkdir(["videos", "dogs"], time, store);
 
-// console.log(`root id after "mkdir -p /videos/dogs": ${rootNode.getId()}`);
+console.log(`root id after "mkdir -p /videos/dogs": ${rootDir.getId()}`);
 
-// var tree = await draw(rootNode, store, tree);
+var tree = await draw(rootDir, store, tree);
 
-// //------------------------------------------------------------------------------
-// // echo '...' >> /videos/dogs/puppy.mp4
-// //------------------------------------------------------------------------------
+//------------------------------------------------------------------------------
+// echo '...' >> /videos/dogs/puppy.mp4
+//------------------------------------------------------------------------------
 
-// var { rootNode } = await rootNode
-//   .asDir()
-//   .write(
-//     ["videos", "dogs", "puppy.mp4"],
-//     "bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi",
-//     time,
-//     store
-//   );
+var { rootDir } = await rootDir.write(
+  ["videos", "dogs", "puppy.mp4"],
+  sampleCID,
+  time,
+  store
+);
 
-// console.log(
-//   `root id after "echo '...' >> /videos/dogs/puppy.mp4": ${rootNode.getId()}`
-// );
+console.log(
+  `root id after "echo '...' >> /videos/dogs/puppy.mp4": ${rootDir.getId()}`
+);
 
-// var tree = await draw(rootNode, store, tree);
+var tree = await draw(rootDir, store, tree);
 
-// //------------------------------------------------------------------------------
-// // echo '...' >> /pictures/cats/kitten.png
-// //------------------------------------------------------------------------------
+//------------------------------------------------------------------------------
+// echo '...' >> /pictures/cats/kitten.png
+//------------------------------------------------------------------------------
 
-// var { rootNode } = await rootNode
-//   .asDir()
-//   .write(
-//     ["pictures", "cats", "kitten.png"],
-//     "bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi",
-//     time,
-//     store
-//   );
+var { rootDir } = await rootDir.write(
+  ["pictures", "cats", "kitten.png"],
+  sampleCID,
+  time,
+  store
+);
 
-// console.log(
-//   `root id after "echo '...' >> /pictures/cats/kitten.png": ${rootNode.getId()}`
-// );
+console.log(
+  `root id after "echo '...' >> /pictures/cats/kitten.png": ${rootDir.getId()}`
+);
 
-// var tree = await draw(rootNode, store, tree);
+var tree = await draw(rootDir, store, tree);
 
-// //------------------------------------------------------------------------------
-// // mkdir -p /music/rock
-// //------------------------------------------------------------------------------
+//------------------------------------------------------------------------------
+// mkdir -p /music/rock
+//------------------------------------------------------------------------------
 
-// var { rootNode } = await rootNode.asDir().mkdir(["music", "rock"], time, store);
+var { rootDir } = await rootDir.mkdir(["music", "rock"], time, store);
 
-// console.log(`root id after "mkdir -p /music/rock": ${rootNode.getId()}`);
+console.log(`root id after "mkdir -p /music/rock": ${rootDir.getId()}`);
 
-// var tree = await draw(rootNode, store, tree);
+var tree = await draw(rootDir, store, tree);
 
-// //------------------------------------------------------------------------------
-// // echo '...' >>  /music/rock/toxicity.mp3
-// //------------------------------------------------------------------------------
+//------------------------------------------------------------------------------
+// echo '...' >>  /music/rock/toxicity.mp3
+//------------------------------------------------------------------------------
 
-// var { rootNode } = await rootNode
-//   .asDir()
-//   .write(
-//     ["music", "rock", "toxicity.mp3"],
-//     "bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi",
-//     time,
-//     store
-//   );
+var { rootDir } = await rootDir.write(
+  ["music", "rock", "toxicity.mp3"],
+  sampleCID,
+  time,
+  store
+);
 
-// console.log(
-//   `root id after "echo '...' >> /music/rock/toxicity.mp3": ${rootNode.getId()}`
-// );
+console.log(
+  `root id after "echo '...' >> /music/rock/toxicity.mp3": ${rootDir.getId()}`
+);
 
-// var tree = await draw(rootNode, store, tree);
+var tree = await draw(rootDir, store, tree);
 
-// //------------------------------------------------------------------------------
-// // rm  /pictures/cats/kitten.png
-// //------------------------------------------------------------------------------
+//------------------------------------------------------------------------------
+// rm  /pictures/cats/kitten.png
+//------------------------------------------------------------------------------
 
-// var { rootNode } = await rootNode
-//   .asDir()
-//   .rm(["pictures", "cats", "kitten.png"], store);
+var { rootDir } = await rootDir.rm(["pictures", "cats", "kitten.png"], store);
 
-// console.log(
-//   `root id after "rm /pictures/cats/kitten.png": ${rootNode.getId()}`
-// );
+console.log(`root id after "rm /pictures/cats/kitten.png": ${rootDir.getId()}`);
 
-// var tree = await draw(rootNode, store, tree);
+var tree = await draw(rootDir, store, tree);
 
-// //------------------------------------------------------------------------------
-// // echo '...' >>  /movies/anime/ghibli/ponyo.mov
-// //------------------------------------------------------------------------------
+//------------------------------------------------------------------------------
+// echo '...' >>  /movies/anime/ghibli/ponyo.mov
+//------------------------------------------------------------------------------
 
-// var { rootNode } = await rootNode
-//   .asDir()
-//   .write(
-//     ["movies", "anime", "ghibli", "ponyo.mov"],
-//     "bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi",
-//     time,
-//     store
-//   );
+var { rootDir } = await rootDir.write(
+  ["movies", "anime", "ghibli", "ponyo.mov"],
+  sampleCID,
+  time,
+  store
+);
 
-// console.log(
-//   `root id after "echo '...' >> /movies/anime/ghibli/ponyo.mov": ${rootNode.getId()}`
-// );
+console.log(
+  `root id after "echo '...' >> /movies/anime/ghibli/ponyo.mov": ${rootDir.getId()}`
+);
 
-// var tree = await draw(rootNode, store, tree);
+var tree = await draw(rootDir, store, tree);
