@@ -68,7 +68,7 @@ impl PathNodes {
         Self { path, tail }
     }
 
-    /// Constructs a new "spine" by fixing up links in a PathNodes and returning the resulting root node.
+    /// Constructs a diverged path nodes by fixing up links in a `PathNodes` and returning the resulting root node.
     fn reconstruct(self) -> Rc<PublicDirectory> {
         if self.path.is_empty() {
             return self.tail;
@@ -232,7 +232,7 @@ impl PublicDirectory {
         store: &mut B,
     ) -> Result<OpResult<Cid>> {
         let root_dir = Rc::clone(&self);
-        let (path, filename) = utils::expect_nonempty_path(path_segments)?;
+        let (path, filename) = utils::split_last(path_segments)?;
 
         match self.get_node_path(path, store).await? {
             GetNodePathResult::Complete(node_path) => {
@@ -257,7 +257,7 @@ impl PublicDirectory {
         time: DateTime<Utc>,
         store: &B,
     ) -> Result<OpResult<()>> {
-        let (directory_path, filename) = utils::expect_nonempty_path(path_segments)?;
+        let (directory_path, filename) = utils::split_last(path_segments)?;
 
         // This will create directories if they don't exist yet
         let mut directory_path_nodes = self
@@ -343,7 +343,7 @@ impl PublicDirectory {
         path_segments: &[String],
         store: &B,
     ) -> Result<OpResult<PublicNode>> {
-        let (directory_path, node_name) = utils::expect_nonempty_path(path_segments)?;
+        let (directory_path, node_name) = utils::split_last(path_segments)?;
 
         let mut directory_node_path = match self.get_node_path(directory_path, store).await? {
             GetNodePathResult::Complete(node_path) => node_path,
@@ -376,7 +376,7 @@ impl PublicDirectory {
         store: &B,
     ) -> Result<OpResult<()>> {
         let root_dir = Rc::clone(&self);
-        let (directory_path_nodes, node_name_to) = utils::expect_nonempty_path(path_segments_to)?;
+        let (directory_path_nodes, tail) = utils::split_last(path_segments_to)?;
 
         let OpResult {
             root_dir,
@@ -391,14 +391,14 @@ impl PublicDirectory {
         let mut directory = (*path_nodes.tail).clone();
 
         ensure!(
-            !directory.userland.contains_key(node_name_to),
+            !directory.userland.contains_key(tail),
             FsError::FileAlreadyExists
         );
 
         // TODO(appcypher): We need to update the mtime of the moved node.
         directory
             .userland
-            .insert(node_name_to.to_string(), Link::Node(removed_node));
+            .insert(tail.clone(), Link::Node(removed_node));
 
         path_nodes.tail = Rc::new(directory);
 
@@ -624,7 +624,7 @@ mod utils {
 
     use crate::{error, FsError};
 
-    pub(super) fn expect_nonempty_path(path_segments: &[String]) -> Result<(&[String], &String)> {
+    pub(super) fn split_last(path_segments: &[String]) -> Result<(&[String], &String)> {
         match path_segments.split_last() {
             Some((last, rest)) => Ok((rest, last)),
             None => error(FsError::InvalidPath),

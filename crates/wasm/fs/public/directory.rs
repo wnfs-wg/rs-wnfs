@@ -40,7 +40,7 @@ impl PublicDirectory {
     ///
     /// If `diverge` is true, this will clone the spine of the path.
     #[wasm_bindgen(js_name = "getNode")]
-    pub fn get_node(&mut self, path_segments: &Array, store: BlockStore) -> JsResult<Promise> {
+    pub fn get_node(&self, path_segments: &Array, store: BlockStore) -> JsResult<Promise> {
         let directory = Rc::clone(&self.0);
         let store = ForeignBlockStore(store);
         let path_segments = utils::convert_path_segments(path_segments)?;
@@ -57,7 +57,7 @@ impl PublicDirectory {
 
     /// Looks up a node by its path name in the current directory.
     #[wasm_bindgen(js_name = "lookupNode")]
-    pub fn lookup_node(&mut self, path_segment: &str, store: BlockStore) -> JsResult<Promise> {
+    pub fn lookup_node(&self, path_segment: &str, store: BlockStore) -> JsResult<Promise> {
         let directory = Rc::clone(&self.0);
         let store = ForeignBlockStore(store);
         let path_segment = path_segment.to_string();
@@ -151,10 +151,10 @@ impl PublicDirectory {
     ///
     /// Rather than mutate the directory directly, we create a new directory and return it.
     pub fn write(
-        &mut self,
+        &self,
         path_segments: &Array,
         content_cid: Vec<u8>,
-        time: &js_sys::Date,
+        time: &Date,
         store: BlockStore,
     ) -> JsResult<Promise> {
         let directory = Rc::clone(&self.0);
@@ -177,7 +177,7 @@ impl PublicDirectory {
 
     /// Moves a specified path to a new location.
     pub fn basic_mv(
-        &mut self,
+        &self,
         path_segments_from: &Array,
         path_segments_to: &Array,
         store: BlockStore,
@@ -203,9 +203,9 @@ impl PublicDirectory {
     ///
     /// This method acts like `mkdir -p` in Unix because it creates intermediate directories if they do not exist.
     pub fn mkdir(
-        &mut self,
+        &self,
         path_segments: &Array,
-        time: &js_sys::Date,
+        time: &Date,
         store: BlockStore,
     ) -> JsResult<Promise> {
         let directory = self.0.clone();
