@@ -1,6 +1,6 @@
 [package]
 name = "wasm-wnfs"
-version = "0.1.1"
+version = "0.1.2"
 description = "WebNative filesystem WebAssembly API"
 keywords = ["wnfs", "webnative", "ipfs", "decentralisation"]
 categories = [
@@ -12,7 +12,7 @@ categories = [
 license-file = "LICENSE"
 readme = "README.md"
 edition = "2021"
-repository = "https://github.com/fission-suite/rs-wnfs"
+repository = "https://github.com/WebNativeFileSystem/rs-wnfs/tree/main/crates/wasm"
 homepage = "https://fission.codes"
 authors = ["The Fission Authors"]
 

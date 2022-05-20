@@ -4,6 +4,13 @@ This package implements the primitives for creating and manipulating IPLD graphs
 
 The core of this project is a WebAssembly binary compiled from the [Rust source code](https://github.com/WebNativeFileSystem/rs-wnfs/tree/main/crates/fs).
 
+## Outline
+
+- [Usage](#usage)
+- [Building the Project](#building-the-project)
+- [Testing the Project](#testing-the-project)
+- [Publishing Package](#publishing-package)
+
 ## Usage
 
 Creating a new public directory.
@@ -87,6 +94,8 @@ var { result } = await rootDir.ls(["pictures"], store);
   ```bash
   wasm-pack build --target web
   ```
+
+## Testing the Project
 
 - Run tests
 
