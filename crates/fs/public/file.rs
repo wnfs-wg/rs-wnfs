@@ -11,6 +11,18 @@ use crate::{BlockStore, Metadata, UnixFsNodeKind};
 use super::Id;
 
 /// A file in a WNFS public file system.
+///
+/// # Examples
+///
+/// ```
+/// use wnfs::{PublicFile, Id};
+/// use chrono::Utc;
+/// use libipld::Cid;
+///
+/// let file = PublicFile::new(Utc::now(), Cid::default());
+///
+/// println!("id = {}", file.get_id());
+/// ```
 #[derive(Debug, Clone, PartialEq, Eq, DagCbor)]
 pub struct PublicFile {
     pub(crate) metadata: Metadata,
@@ -24,6 +36,18 @@ pub struct PublicFile {
 
 impl PublicFile {
     /// Creates a new file using the given metadata and CID.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use wnfs::{PublicFile, Id};
+    /// use chrono::Utc;
+    /// use libipld::Cid;
+    ///
+    /// let file = PublicFile::new(Utc::now(), Cid::default());
+    ///
+    /// println!("id = {}", file.get_id());
+    /// ```
     pub fn new(time: DateTime<Utc>, userland: Cid) -> Self {
         Self {
             metadata: Metadata::new(time, UnixFsNodeKind::File),
@@ -38,6 +62,22 @@ impl PublicFile {
     }
 
     /// Stores file in provided block store.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use wnfs::{PublicFile, Id, MemoryBlockStore};
+    /// use chrono::Utc;
+    /// use libipld::Cid;
+    ///
+    /// #[async_std::main]
+    /// async fn main() {
+    ///     let mut store = MemoryBlockStore::default();
+    ///     let file = PublicFile::new(Utc::now(), Cid::default());
+    ///
+    ///     file.store(&mut store).await.unwrap();
+    /// }
+    /// ```
     pub async fn store<B: BlockStore>(&self, store: &mut B) -> Result<Cid> {
         let bytes = {
             let mut tmp = vec![];

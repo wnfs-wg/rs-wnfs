@@ -31,8 +31,92 @@
 
 ##
 
-This project will implement a pure rust crate for creating and manipulating IPLD graphs that encode WNFS.
-Its goal is to be as dependency-less as possible in order to be easily compiled to WebAssembly to be used in the browsers or other environments.
+This crate is a Rust implementation of the primitives for creating and manipulating IPLD graphs that encode WNFS.
+
+A goal of the project is to be easily compiled to WebAssembly to be used in the browsers or other environments.
+
+## Outline
+
+- [Usage](#usage)
+- [Building the Project](#building-the-project)
+- [Testing the Project](#testing-the-project)
+
+## Usage
+
+Creating a new public directory.
+
+```rs
+use wnfs::{PublicDirectory, Id};
+use chrono::Utc;
+
+let dir = PublicDirectory::new(Utc::now());
+println!("id = {}", dir.get_id());
+```
+
+The in-memory files and directories you create with `wnfs` will need to be sealed and stored somewhere. For that, an object that implements the BlockStore trait like [this one](https://github.com/WebNativeFileSystem/rs-wnfs/blob/8bb0fbb457051295f1ed4a4707dc230c04612658/crates/fs/common/blockstore.rs#L42-L62) can be used.
+
+```rs
+use wnfs::{PublicDirectory, MemoryBlockStore, ipld::Cid};
+use chrono::Utc;
+
+let dir = PublicDirectory::new(Utc::now());
+let store = MemoryBlockStore::default();
+
+// ...
+```
+
+The WNFS API is immutable, therefore, we need to keep track of the updated root directory after every change.
+
+Each fs operation returns a possibly updated root directory that subsequent changes can be applied on.
+
+```rs
+// ...
+
+let dir = Rc::new(dir);
+
+// Create a /pictures/cats directory.
+let OpResult { root_dir, .. } = dir
+    .mkdir(&["pictures".into(), "cats".into()], time, &store)
+    .await
+    .unwrap();
+
+// Get a sample CIDv1.
+let cid = Cid::default();
+
+// Add a file to /pictures/cats.
+let OpResult { root_dir, .. } = root_dir
+    .write(
+        &["pictures".into(), "cats".into(), "tabby.png".into()],
+        cid,
+        time,
+        &store,
+    )
+    .await
+    .unwrap();
+
+// Create and add a file to /pictures/dogs directory.
+let OpResult { root_dir, .. } = root_dir
+    .write(
+        &["pictures".into(), "cats".into(), "billie.jpeg".into()],
+        cid,
+        time,
+        &store,
+    )
+    .await
+    .unwrap();
+
+// Delete /pictures/cats directory.
+let OpResult { root_dir, .. } = root_dir
+    .rm(&["pictures".into(), "cats".into()], &store)
+    .await
+    .unwrap();
+
+// List all files in /pictures directory.
+let OpResult { result, .. } = root_dir
+    .ls(&["pictures".into()], &store)
+    .await
+    .unwrap();
+```
 
 ## Building the Project
 
@@ -44,7 +128,7 @@ Its goal is to be as dependency-less as possible in order to be easily compiled 
 
 - **The WebAssembly Toolchain**
 
-  If yous are interested in compiling the project for WebAssembly, you can follow the instructions below.
+  If you are interested in compiling the project for WebAssembly, you can follow the instructions below.
 
   <details>
     <summary>Read more</summary>

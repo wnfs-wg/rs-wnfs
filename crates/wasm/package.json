@@ -1,6 +1,24 @@
 {
-  "scripts": {
-    "build": "webpack"
+  "name": "wnfs",
+  "version": "0.1.1",
+  "homepage": "https://guide.fission.codes",
+  "license": "Apache-2.0",
+  "author": {
+    "name": "Stephen Akinyemi",
+    "email": "appcypher@fission.codes"
+  },
+  "keywords": [
+    "wnfs",
+    "web",
+    "webnative",
+    "filesystem",
+    "cryptography",
+    "web-programming",
+    "wasm"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/WebNativeFileSystem/rs-wnfs/tree/main/crates/wasm"
   },
   "devDependencies": {
     "@playwright/test": "^1.21.1",

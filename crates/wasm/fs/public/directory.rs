@@ -35,10 +35,6 @@ impl PublicDirectory {
     }
 
     /// Follows a path and fetches the node at the end of the path.
-    ///
-    /// If path is empty, this returns a cloned directory based on `self`.
-    ///
-    /// If `diverge` is true, this will clone the spine of the path.
     #[wasm_bindgen(js_name = "getNode")]
     pub fn get_node(&self, path_segments: &Array, store: BlockStore) -> JsResult<Promise> {
         let directory = Rc::clone(&self.0);
@@ -127,8 +123,6 @@ impl PublicDirectory {
     }
 
     /// Removes a file or directory from the directory.
-    ///
-    /// Rather than mutate the directory directly, we create a new directory and return it.
     pub fn rm(&self, path_segments: &Array, store: BlockStore) -> JsResult<Promise> {
         let directory = Rc::clone(&self.0);
         let store = ForeignBlockStore(store);
@@ -148,8 +142,6 @@ impl PublicDirectory {
     }
 
     /// Writes a file to the directory.
-    ///
-    /// Rather than mutate the directory directly, we create a new directory and return it.
     pub fn write(
         &self,
         path_segments: &Array,
@@ -180,16 +172,18 @@ impl PublicDirectory {
         &self,
         path_segments_from: &Array,
         path_segments_to: &Array,
+        time: &Date,
         store: BlockStore,
     ) -> JsResult<Promise> {
         let directory = self.0.clone();
         let store = ForeignBlockStore(store);
+        let time = DateTime::<Utc>::from(time);
         let path_segments_from = utils::convert_path_segments(path_segments_from)?;
         let path_segments_to = utils::convert_path_segments(path_segments_to)?;
 
         Ok(future_to_promise(async move {
             let WnfsOpResult { root_dir, .. } = directory
-                .basic_mv(&path_segments_from, &path_segments_to, &store)
+                .basic_mv(&path_segments_from, &path_segments_to, time, &store)
                 .await
                 .map_err(|e| Error::new(&format!("Cannot create directory: {e}")))?;
 
@@ -198,8 +192,6 @@ impl PublicDirectory {
     }
 
     /// Creates a new directory at the specified path.
-    ///
-    /// If path is empty, this returns a cloned directory based on `self`.
     ///
     /// This method acts like `mkdir -p` in Unix because it creates intermediate directories if they do not exist.
     pub fn mkdir(
@@ -223,7 +215,7 @@ impl PublicDirectory {
         }))
     }
 
-    /// Converts a directory to a node.
+    /// Converts directory to a node.
     #[wasm_bindgen(js_name = "asNode")]
     pub fn as_node(&self) -> PublicNode {
         PublicNode(WnfsPublicNode::Dir(self.0.clone()))

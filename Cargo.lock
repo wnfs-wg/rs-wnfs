@@ -1675,6 +1675,7 @@ dependencies = [
  "chrono",
  "field_names",
  "futures",
+ "futures-util",
  "hashbrown 0.12.0",
  "libipld",
  "multihash",
