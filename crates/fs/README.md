@@ -45,21 +45,26 @@ Creating a new public directory.
 
 ```rust
 use wnfs::{PublicDirectory, Id};
+
+use async_std::main;
 use chrono::Utc;
 
-let dir = PublicDirectory::new(Utc::now());
-println!("id = {}", dir.get_id());
+#[async_std::main]
+async fn main() {
+  let dir = PublicDirectory::new(Utc::now());
+  println!("id = {}", dir.get_id());
+}
 ```
 
-The in-memory files and directories you create with `wnfs` will need to be sealed and stored somewhere. For that, an object that implements the BlockStore trait like [this one](https://github.com/WebNativeFileSystem/rs-wnfs/blob/8bb0fbb457051295f1ed4a4707dc230c04612658/crates/fs/common/blockstore.rs#L42-L62) can be used.
+The in-memory files and directories you create with `wnfs` will need to be sealed and stored somewhere. For that, a type that implements the BlockStore trait like [this one](https://github.com/WebNativeFileSystem/rs-wnfs/blob/8bb0fbb457051295f1ed4a4707dc230c04612658/crates/fs/common/blockstore.rs#L42-L62) can be used.
 
 ```rust
-use wnfs::{PublicDirectory, MemoryBlockStore, ipld::Cid};
+use wnfs::{MemoryBlockStore, PublicDirectory, OpResult, ipld::Cid};
+
+use async_std::main;
 use chrono::Utc;
 
-let dir = PublicDirectory::new(Utc::now());
-let store = MemoryBlockStore::default();
-
+use std::rc::Rc;
 // ...
 ```
 
@@ -69,51 +74,57 @@ Each fs operation returns a possibly updated root directory that subsequent chan
 
 ```rust
 // ...
+#[async_std::main]
+async fn main() {
+    let time = Utc::now();
+    let dir = Rc::new(PublicDirectory::new(time));
+    let store = MemoryBlockStore::default();
 
-let dir = Rc::new(dir);
+    // Create a /pictures/cats directory.
+    let OpResult { root_dir, .. } = dir
+        .mkdir(&["pictures".into(), "cats".into()], time, &store)
+        .await
+        .unwrap();
 
-// Create a /pictures/cats directory.
-let OpResult { root_dir, .. } = dir
-    .mkdir(&["pictures".into(), "cats".into()], time, &store)
-    .await
-    .unwrap();
+    // Get a sample CIDv1.
+    let cid = Cid::default();
 
-// Get a sample CIDv1.
-let cid = Cid::default();
+    // Add a file to /pictures/cats.
+    let OpResult { root_dir, .. } = root_dir
+        .write(
+            &["pictures".into(), "cats".into(), "tabby.png".into()],
+            cid,
+            time,
+            &store,
+        )
+        .await
+        .unwrap();
 
-// Add a file to /pictures/cats.
-let OpResult { root_dir, .. } = root_dir
-    .write(
-        &["pictures".into(), "cats".into(), "tabby.png".into()],
-        cid,
-        time,
-        &store,
-    )
-    .await
-    .unwrap();
+    // Create and add a file to /pictures/dogs directory.
+    let OpResult { root_dir, .. } = root_dir
+        .write(
+            &["pictures".into(), "dogs".into(), "billie.jpeg".into()],
+            cid,
+            time,
+            &store,
+        )
+        .await
+        .unwrap();
 
-// Create and add a file to /pictures/dogs directory.
-let OpResult { root_dir, .. } = root_dir
-    .write(
-        &["pictures".into(), "cats".into(), "billie.jpeg".into()],
-        cid,
-        time,
-        &store,
-    )
-    .await
-    .unwrap();
+    // Delete /pictures/cats directory.
+    let OpResult { root_dir, .. } = root_dir
+        .rm(&["pictures".into(), "cats".into()], &store)
+        .await
+        .unwrap();
 
-// Delete /pictures/cats directory.
-let OpResult { root_dir, .. } = root_dir
-    .rm(&["pictures".into(), "cats".into()], &store)
-    .await
-    .unwrap();
+    // List all files in /pictures directory.
+    let OpResult { result, .. } = root_dir
+        .ls(&["pictures".into()], &store)
+        .await
+        .unwrap();
 
-// List all files in /pictures directory.
-let OpResult { result, .. } = root_dir
-    .ls(&["pictures".into()], &store)
-    .await
-    .unwrap();
+    println!("Files in /pictures: {:#?}", result);
+}
 ```
 
 ## Building the Project

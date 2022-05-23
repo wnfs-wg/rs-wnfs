@@ -15,16 +15,16 @@ The core of this project is a WebAssembly binary compiled from the [Rust source 
 
 Creating a new public directory.
 
-```ts
+```js
 import { PublicDirectory } from "wnfs";
 
 const time = new Date();
 const dir = new PublicDirectory(time);
 ```
 
-The in-memory files and directories you create with `wnfs` will need to be sealed and stored somewhere. For that, an object that implements the BlockStore interface like [this one](https://github.com/WebNativeFileSystem/rs-wnfs/blob/8bb0fbb457051295f1ed4a4707dc230c04612658/crates/wasm/examples/graph/src/blockstore.ts#L9-L29) can be used.
+The in-memory files and directories you create with `wnfs` will need to be sealed and stored somewhere. For that, an type that implements the BlockStore interface like [this one](https://github.com/WebNativeFileSystem/rs-wnfs/blob/8bb0fbb457051295f1ed4a4707dc230c04612658/crates/wasm/examples/graph/src/blockstore.ts#L9-L29) can be used.
 
-```ts
+```js
 import { MemoryBlockStore } from "./store";
 import { PublicDirectory } from "wnfs";
 
@@ -39,7 +39,7 @@ The WNFS API is immutable, therefore, we need to keep track of the updated root 
 
 Each fs operation returns a possibly updated root directory that subsequent changes can be applied on.
 
-```ts
+```js
 // ...
 
 // Create a /pictures/cats directory.
@@ -61,7 +61,7 @@ var { rootDir } = await rootDir.write(
 );
 
 // Create and add a file to /pictures/dogs directory.
-var { rootDir } = await root.write(
+var { rootDir } = await rootDir.write(
   ["pictures", "dogs", "billie.jpeg"],
   cid,
   time,
@@ -73,6 +73,8 @@ var { rootDir } = await rootDir.rm(["pictures", "cats"], store);
 
 // List all files in /pictures directory.
 var { result } = await rootDir.ls(["pictures"], store);
+
+console.log("Files in /pictures directory:", result);
 ```
 
 ## Setting up the Project
