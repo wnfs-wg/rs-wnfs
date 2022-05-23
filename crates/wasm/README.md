@@ -122,5 +122,9 @@ console.log("Files in /pictures directory:", result);
 - Publish from the `pkg` directory
 
   ```bash
-  wasm-pack publish --nodejs
+  cd pkg
+  ```
+
+  ```bash
+  npm publish
   ```
