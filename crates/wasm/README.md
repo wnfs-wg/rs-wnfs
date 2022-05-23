@@ -7,7 +7,7 @@ The core of this project is a WebAssembly binary compiled from the [Rust source 
 ## Outline
 
 - [Usage](#usage)
-- [Building the Project](#building-the-project)
+- [Setting up the project](#setting-up-the-project)
 - [Testing the Project](#testing-the-project)
 - [Publishing Package](#publishing-package)
 
@@ -75,7 +75,7 @@ var { rootDir } = await rootDir.rm(["pictures", "cats"], store);
 var { result } = await rootDir.ls(["pictures"], store);
 ```
 
-## Building the Project
+## Setting up the Project
 
 - Install `wasm-pack`
 
@@ -83,7 +83,13 @@ var { result } = await rootDir.ls(["pictures"], store);
   cargo install wasm-pack
   ```
 
-- Install playwrigth binaries
+- Install dependencies
+
+  ```bash
+  yarn
+  ```
+
+- Install playwright binaries
 
   ```bash
   npx playwright install
@@ -92,7 +98,7 @@ var { result } = await rootDir.ls(["pictures"], store);
 - Build project
 
   ```bash
-  wasm-pack build --target web
+  wasm-pack build
   ```
 
 ## Testing the Project
@@ -105,18 +111,14 @@ var { result } = await rootDir.ls(["pictures"], store);
 
 ## Publishing Package
 
-- Generate the compilation artifacts in `pkg` directory
+- Build the project
 
   ```bash
-  wasm-pack init
+  wnfs build --wasm
   ```
 
 - Publish from the `pkg` directory
 
   ```bash
-  cd pkg
-  ```
-
-  ```bash
-  npm publish --access=public
+  wasm-pack publish --nodejs
   ```

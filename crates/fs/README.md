@@ -27,8 +27,6 @@
   </p>
 </div>
 
-<div align="center"><sub>:warning: Work in progress :warning:</sub></div>
-
 ##
 
 This crate is a Rust implementation of the primitives for creating and manipulating IPLD graphs that encode WNFS.
@@ -45,7 +43,7 @@ A goal of the project is to be easily compiled to WebAssembly to be used in the 
 
 Creating a new public directory.
 
-```rs
+```rust
 use wnfs::{PublicDirectory, Id};
 use chrono::Utc;
 
@@ -55,7 +53,7 @@ println!("id = {}", dir.get_id());
 
 The in-memory files and directories you create with `wnfs` will need to be sealed and stored somewhere. For that, an object that implements the BlockStore trait like [this one](https://github.com/WebNativeFileSystem/rs-wnfs/blob/8bb0fbb457051295f1ed4a4707dc230c04612658/crates/fs/common/blockstore.rs#L42-L62) can be used.
 
-```rs
+```rust
 use wnfs::{PublicDirectory, MemoryBlockStore, ipld::Cid};
 use chrono::Utc;
 
@@ -69,7 +67,7 @@ The WNFS API is immutable, therefore, we need to keep track of the updated root 
 
 Each fs operation returns a possibly updated root directory that subsequent changes can be applied on.
 
-```rs
+```rust
 // ...
 
 let dir = Rc::new(dir);

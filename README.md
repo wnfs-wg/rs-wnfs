@@ -45,7 +45,7 @@ A goal of the project is to be easily compiled to WebAssembly to be used in the 
 
 Creating a new public directory.
 
-```rs
+```rust
 use wnfs::{PublicDirectory, Id};
 use chrono::Utc;
 
@@ -55,7 +55,7 @@ println!("id = {}", dir.get_id());
 
 The in-memory files and directories you create with `wnfs` will need to be sealed and stored somewhere. For that, an object that implements the BlockStore trait like [this one](https://github.com/WebNativeFileSystem/rs-wnfs/blob/8bb0fbb457051295f1ed4a4707dc230c04612658/crates/fs/common/blockstore.rs#L42-L62) can be used.
 
-```rs
+```rust
 use wnfs::{PublicDirectory, MemoryBlockStore, ipld::Cid};
 use chrono::Utc;
 
@@ -69,7 +69,7 @@ The WNFS API is immutable, therefore, we need to keep track of the updated root 
 
 Each fs operation returns a possibly updated root directory that subsequent changes can be applied on.
 
-```rs
+```rust
 // ...
 
 let dir = Rc::new(dir);
@@ -169,9 +169,9 @@ let OpResult { result, .. } = root_dir
 
   </details>
 
-- **The _wnfs_ Helper Script**
+- **The _wnfs_ Command**
 
-  If you are on a Unix platform, you can optionally install the `wnfs` script.
+  You can optionally set up the `wnfs` script.
 
   <details>
     <summary>Read more</summary>
@@ -182,7 +182,7 @@ let OpResult { result, .. } = root_dir
     sh script/wnfs.sh setup
     ```
 
-  - This lets you run the `wnfs.sh` script with just the `wnfs` command.
+  - This lets you run the `wnfs.sh` script as a command.
 
     ```bash
     wnfs help
@@ -206,8 +206,16 @@ let OpResult { result, .. } = root_dir
 
 - Build the project
 
+  Check [REQUIREMENTS](#requirements) on how to set up the `wnfs` command.
+
   ```bash
-  sh scripts/wnfs.sh build
+  wnfs build --all
+  ```
+
+- You can also build for specific crates
+
+  ```bash
+  wnfs build --wasm
   ```
 
 ## Testing the Project
@@ -215,11 +223,11 @@ let OpResult { result, .. } = root_dir
 - Run all tests
 
   ```bash
-  sh scripts/wnfs.sh test
+  wnfs test --all
   ```
 
 - Show code coverage
 
   ```bash
-  sh scripts/wnfs.sh coverage
+  wnfs coverage
   ```

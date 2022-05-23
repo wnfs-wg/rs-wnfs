@@ -1,12 +1,19 @@
 #!/bin/bash
+set -e
 
 # PATHS
 # Get current working directory
 current_dir=`pwd`
 
-# Get the absolute path of where script is running from
-script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}" )" >/dev/null && pwd)"
-script_path="$script_dir/wnfs.sh"
+# Get the absolute path where current script is running from.
+script_path=$(readlink -f  $(which $0))
+
+# Get the canonical directory of script.
+if [[ -L $script_path ]]; then
+    script_dir=$(dirname $(readlink -f $script_path))
+else
+    script_dir=$(dirname $script_path)
+fi
 
 # RETURN VARIABLE
 ret=""
@@ -17,6 +24,7 @@ args="${@:2}" # All arguments except the first
 # COLORS
 red='\033[0;31m'
 green='\033[0;32m'
+purple='\033[0;35m'
 none='\033[0m'
 
 # DESCRIPTION:
@@ -32,6 +40,9 @@ main() {
         ;;
         coverage )
             coverage
+        ;;
+        publish )
+            publish
         ;;
         setup )
             setup
@@ -58,11 +69,12 @@ help() {
     echo "    wnfs [COMMAND] [...args]"
     echo ""
     echo "COMMAND:"
-    echo "   * build           - build project"
-    echo "   * test            - run tests"
-    echo "   * coverage        - show code coverage"
-    echo "   * setup           - install wnfs script"
-    echo "   * -h, help        - print this help message"
+    echo "   * build    [--wnfs|--wasm|--all]  - build projects"
+    echo "   * test     [--wnfs|--wasm|--all]  - run tests"
+    echo "   * publish  [--wnfs|--wasm|--all]  - publish packages"
+    echo "   * coverage [--wnfs|--wasm|--all]  - show code coverage"
+    echo "   * setup                           - install wnfs script"
+    echo "   * help                            - print this help message"
     echo ""
     echo ""
 }
@@ -75,38 +87,82 @@ help() {
 #	Builds the project.
 #
 # USAGE:
-#	wnfs build
+#	wnfs build [--wnfs|--wasm|--all]
 #
 build() {
-    display_header "💿 BUILDING WNFS PROJECT"
-    cargo build --release
+	if check_flag --wnfs; then
+        build_wnfs
+    elif check_flag --wasm; then
+        build_wasm
+    else
+        build_wnfs
+        build_wasm
+    fi
+}
 
-    display_header "💿 BUILDING WASM-WNFS PROJECT"
-    cd crates/wasm && wasm-pack build --target web --release
+build_wnfs() {
+    display_header "💿 | BUILDING WNFS PROJECT | 💿"
+    cargo build --release
+}
+
+build_wasm() {
+    display_header "💿 | BUILDING WASM-WNFS PROJECT | 💿"
+    echo "script_dir = $script_dir"
+    cd $script_dir/../crates/wasm
+    wasm-pack build --target nodejs
+	sed -i ".bak" -e 's/"name": "wasm-wnfs"/"name": "wnfs"/g' pkg/package.json
+	rm pkg/package.json.bak
 }
 
 # DESCRIPTION:
 #   Runs tests.
 #
 # USAGE:
-#	wnfs test
+#	wnfs test [--wnfs|--wasm|--all]
 #
 test() {
-    display_header "🧪 RUNNING WNFS TESTS"
-    cargo test -p wnfs --release -- --nocapture
+	if check_flag --wnfs; then
+        test_wnfs
+    elif check_flag --wasm; then
+        test_wasm
+    else
+        test_wnfs
+        test_wasm
+    fi
+}
 
-    display_header "🧪 RUNNING WASM-WNFS TESTS"
-    cd crates/wasm && yarn playwright test
+test_wnfs() {
+    display_header "🧪 | RUNNING WNFS TESTS | 🧪"
+    cargo test -p wnfs --release -- --nocapture
+}
+
+test_wasm() {
+    display_header "🧪 | RUNNING WASM-WNFS TESTS | 🧪"
+    echo "script_dir = $script_dir"
+    cd $script_dir/../crates/wasm
+    yarn playwright test
 }
 
 # DESCRIPTION:
 #    Shows the code coverage of the project
 #
 # USAGE:
-#	wnfs coverage
+#	wnfs coverage [--wnfs|--wasm|--all]
 #
 coverage() {
-    displayln "coverage command not implemented yet"
+    errorln "coverage command not implemented yet"
+    exit 1
+}
+
+# DESCRIPTION:
+#    Publishes the project.
+#
+# USAGE:
+#	wnfs publish [--wnfs|--wasm|--all]
+#
+publish() {
+    errorln "publish command not implemented yet"
+    exit 1
 }
 
 #------------------------------------------------------------------------------
@@ -151,35 +207,67 @@ get_flag_value() {
 }
 
 # DESCRIPTION:
+#	Checks if the flag is present in the list of arguments
+#
+check_flag() {
+    local found=1
+    local key=$1
+
+    # For every argument in the list of arguments
+    for arg in $args; do
+        # Check if any of the argument matches the key provided
+        if [[ $arg = $key ]]; then
+            found=0
+            break
+        fi
+    done
+
+    return $found
+}
+
+# DESCRIPTION:
 #	Sets up the cript by making it excutable and available system wide
 #
 setup() {
-    display "Make script executable"
+    displayln "Make script executable"
     chmod u+x $script_path
 
-    display "Drop a link to it in /usr/local/bin"
-    ln -s $script_path /usr/local/bin/wnfs
+    displayln "Drop a link to it in /usr/local/bin"
+    if ln -s $script_path /usr/local/bin/wnfs; then
+        successln "Successfully installed"
+    else
+        local result=$?
+        errorln "Failed to install"
+        exit $result
+    fi
 }
 
 # DESCRIPTION:
-#	A custom print function
-#
-display() {
-    printf "::: $1 :::\n"
-}
-
-# DESCRIPTION:
-#	A custom print function that starts its output with a newline
+#	Prints a message.
 #
 displayln() {
     printf "\n::: $1 :::\n"
 }
 
 # DESCRIPTION:
-#	A custom print function for headers.
+#	Prints an error message.
+#
+errorln() {
+    printf "\n${red}::: $1 :::${none}\n\n"
+}
+
+# DESCRIPTION:
+#	Prints an success message.
+#
+successln() {
+    printf "\n${green}::: $1 :::${none}\n\n"
+}
+
+# DESCRIPTION:
+#	Prints a header message.
 #
 display_header() {
-    printf "\n${green}$1${none}\n\n"
+    printf "\n${purple}$1${none}\n\n"
 }
 
 main $@

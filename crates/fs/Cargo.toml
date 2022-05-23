@@ -1,6 +1,6 @@
 [package]
 name = "wnfs"
-version = "0.1.2"
+version = "0.1.5"
 description = "WebNative filesystem core implementation"
 keywords = ["wnfs", "webnative", "ipfs", "decentralisation"]
 categories = [
@@ -10,7 +10,7 @@ categories = [
   "wasm",
 ]
 license-file = "../../LICENSE"
-readme = "README.md"
+readme = "Apache-2.0"
 edition = "2021"
 repository = "https://github.com/WebNativeFileSystem/rs-wnfs/tree/main/crates/fs"
 homepage = "https://fission.codes"
