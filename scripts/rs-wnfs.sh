@@ -59,21 +59,21 @@ main() {
 #	Prints the help info.
 #
 # USAGE:
-#	wnfs build
+#	rs-wnfs build
 #
 help() {
     echo ""
     echo "Rust WNFS Utility Script"
     echo ""
     echo "USAGE:"
-    echo "    wnfs [COMMAND] [...args]"
+    echo "    rs-wnfs [COMMAND] [...args]"
     echo ""
     echo "COMMAND:"
-    echo "   * build    [--wnfs|--wasm|--all]  - build projects"
-    echo "   * test     [--wnfs|--wasm|--all]  - run tests"
-    echo "   * publish  [--wnfs|--wasm|--all]  - publish packages"
-    echo "   * coverage [--wnfs|--wasm|--all]  - show code coverage"
-    echo "   * setup                           - install wnfs script"
+    echo "   * build    [--fs|--wasm|--all]  - build projects"
+    echo "   * test     [--fs|--wasm|--all]  - run tests"
+    echo "   * publish  [--fs|--wasm|--all]  - publish packages"
+    echo "   * coverage [--fs|--wasm|--all]  - show code coverage"
+    echo "   * setup                           - install rs-wnfs script"
     echo "   * help                            - print this help message"
     echo ""
     echo ""
@@ -87,20 +87,20 @@ help() {
 #	Builds the project.
 #
 # USAGE:
-#	wnfs build [--wnfs|--wasm|--all]
+#	rs-wnfs build [--fs|--wasm|--all]
 #
 build() {
-	if check_flag --wnfs; then
-        build_wnfs
+	if check_flag --fs; then
+        build_fs
     elif check_flag --wasm; then
         build_wasm
     else
-        build_wnfs
+        build_fs
         build_wasm
     fi
 }
 
-build_wnfs() {
+build_fs() {
     display_header "💿 | BUILDING WNFS PROJECT | 💿"
     cargo build --release
 }
@@ -118,20 +118,20 @@ build_wasm() {
 #   Runs tests.
 #
 # USAGE:
-#	wnfs test [--wnfs|--wasm|--all]
+#	rs-wnfs test [--fs|--wasm|--all]
 #
 test() {
-	if check_flag --wnfs; then
-        test_wnfs
+	if check_flag --fs; then
+        test_fs
     elif check_flag --wasm; then
         test_wasm
     else
-        test_wnfs
+        test_fs
         test_wasm
     fi
 }
 
-test_wnfs() {
+test_fs() {
     display_header "🧪 | RUNNING WNFS TESTS | 🧪"
     cargo test -p wnfs --release -- --nocapture
 }
@@ -147,7 +147,7 @@ test_wasm() {
 #    Shows the code coverage of the project
 #
 # USAGE:
-#	wnfs coverage [--wnfs|--wasm|--all]
+#	rs-wnfs coverage [--fs|--wasm|--all]
 #
 coverage() {
     errorln "coverage command not implemented yet"
@@ -158,7 +158,7 @@ coverage() {
 #    Publishes the project.
 #
 # USAGE:
-#	wnfs publish [--wnfs|--wasm|--all]
+#	rs-wnfs publish [--fs|--wasm|--all]
 #
 publish() {
     errorln "publish command not implemented yet"
@@ -233,7 +233,7 @@ setup() {
     chmod u+x $script_path
 
     displayln "Drop a link to it in /usr/local/bin"
-    if ln -s $script_path /usr/local/bin/wnfs; then
+    if ln -s $script_path /usr/local/bin/rs-wnfs; then
         successln "Successfully installed"
     else
         local result=$?

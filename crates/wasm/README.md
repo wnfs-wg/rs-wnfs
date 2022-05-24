@@ -116,7 +116,7 @@ console.log("Files in /pictures directory:", result);
 - Build the project
 
   ```bash
-  wnfs build --wasm
+  rs-wnfs build --wasm
   ```
 
 - Publish from the `pkg` directory

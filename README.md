@@ -180,9 +180,9 @@ async fn main() {
 
   </details>
 
-- **The _wnfs_ Command**
+- **The _rs-wnfs_ Command**
 
-  You can optionally set up the `wnfs` script.
+  You can optionally set up the `rs-wnfs` script.
 
   <details>
     <summary>Read more</summary>
@@ -190,13 +190,13 @@ async fn main() {
   - Install it using the following command:
 
     ```bash
-    sh script/wnfs.sh setup
+    sh script/rs-wnfs.sh setup
     ```
 
-  - This lets you run the `wnfs.sh` script as a command.
+  - This lets you run the `rs-wnfs.sh` script as a command.
 
     ```bash
-    wnfs help
+    rs-wnfs help
     ```
 
   </details>
@@ -217,16 +217,16 @@ async fn main() {
 
 - Build the project
 
-  Check [REQUIREMENTS](#requirements) on how to set up the `wnfs` command.
+  Check [REQUIREMENTS](#requirements) on how to set up the `rs-wnfs` command.
 
   ```bash
-  wnfs build --all
+  rs-wnfs build --all
   ```
 
 - You can also build for specific crates
 
   ```bash
-  wnfs build --wasm
+  rs-wnfs build --wasm
   ```
 
 ## Testing the Project
@@ -234,11 +234,11 @@ async fn main() {
 - Run all tests
 
   ```bash
-  wnfs test --all
+  rs-wnfs test --all
   ```
 
 - Show code coverage
 
   ```bash
-  wnfs coverage
+  rs-wnfs coverage
   ```
