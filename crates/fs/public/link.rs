@@ -18,16 +18,14 @@ pub enum Link {
 }
 
 impl Link {
-    // TODO(appcypher): Remove.
     /// Creates a new directory node link.
-    pub fn with_dir(dir: PublicDirectory) -> Self {
-        Link::Node(PublicNode::Dir(Rc::new(dir)))
+    pub fn with_dir(dir: Rc<PublicDirectory>) -> Self {
+        Link::Node(PublicNode::Dir(dir))
     }
 
-    // TODO(appcypher): Remove.
     /// Creates a new file node link.
-    pub fn with_file(file: PublicFile) -> Self {
-        Link::Node(PublicNode::File(Rc::new(file)))
+    pub fn with_file(file: Rc<PublicFile>) -> Self {
+        Link::Node(PublicNode::File(file))
     }
 
     /// Resolves a CID linkin the file system to a node.
@@ -46,6 +44,7 @@ impl Link {
         })
     }
 
+    /// Checks if the link matches another link.
     pub async fn partial_equal<B: BlockStore>(&self, other: &Self, store: &mut B) -> Result<bool> {
         match (self, other) {
             (Self::Cid(cid), Self::Cid(base_cid)) => {
@@ -102,7 +101,7 @@ mod public_link_tests {
 
         let userland = Cid::default();
 
-        let file = PublicFile::new(time, userland);
+        let file = Rc::new(PublicFile::new(time, userland));
 
         let mut store = MemoryBlockStore::default();
 

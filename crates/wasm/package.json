@@ -1,7 +1,4 @@
 {
-  "scripts": {
-    "build": "webpack"
-  },
   "devDependencies": {
     "@playwright/test": "^1.21.1",
     "@wasm-tool/wasm-pack-plugin": "^1.6.0",

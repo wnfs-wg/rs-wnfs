@@ -7,6 +7,7 @@ use std::{
 };
 
 use anyhow::{bail, Result};
+use chrono::{DateTime, Utc};
 use libipld::{cbor::DagCborCodec, codec::Decode, Cid};
 
 use super::{Id, PublicDirectory, PublicFile};
@@ -20,11 +21,28 @@ pub enum PublicNode {
 }
 
 impl PublicNode {
+    /// Checks if the reference of one node is the same as the reference of another node.
     pub(crate) fn ptr_eq(&self, other: &PublicNode) -> bool {
         match (self, other) {
             (Self::File(self_file), Self::File(other_file)) => Rc::ptr_eq(self_file, other_file),
             (Self::Dir(self_dir), Self::Dir(other_dir)) => Rc::ptr_eq(self_dir, other_dir),
             _ => false,
+        }
+    }
+
+    /// Create node with updated modified time.
+    pub fn update_mtime(&self, time: DateTime<Utc>) -> Self {
+        match self {
+            Self::File(file) => {
+                let mut file = (**file).clone();
+                file.metadata.unix_fs.modified = time.timestamp();
+                Self::File(Rc::new(file))
+            }
+            Self::Dir(dir) => {
+                let mut dir = (**dir).clone();
+                dir.metadata.unix_fs.modified = time.timestamp();
+                Self::Dir(Rc::new(dir))
+            }
         }
     }
 

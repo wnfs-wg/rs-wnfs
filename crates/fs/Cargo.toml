@@ -1,6 +1,6 @@
 [package]
 name = "wnfs"
-version = "0.1.1"
+version = "0.1.6"
 description = "WebNative filesystem core implementation"
 keywords = ["wnfs", "webnative", "ipfs", "decentralisation"]
 categories = [
@@ -9,10 +9,10 @@ categories = [
   "web-programming",
   "wasm",
 ]
-license-file = "../../LICENSE"
+license = "Apache-2.0"
 readme = "README.md"
 edition = "2021"
-repository = "https://github.com/fission-suite/rs-wnfs"
+repository = "https://github.com/WebNativeFileSystem/rs-wnfs/tree/main/crates/fs"
 homepage = "https://fission.codes"
 authors = ["The Fission Authors"]
 
@@ -29,7 +29,7 @@ async-recursion = "1.0.0"
 field_names = "0.2.0"
 futures = "0.3.21"
 async-stream = "0.3.3"
-
+futures-util = "0.3.21"
 
 [lib]
 path = "lib.rs"
