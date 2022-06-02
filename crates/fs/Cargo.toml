@@ -17,9 +17,9 @@ homepage = "https://fission.codes"
 authors = ["The Fission Authors"]
 
 [dependencies]
-libipld = { version = "0.13.1", features = ["dag-cbor", "derive"] }
+libipld = { version = "0.13.1", features = ["dag-cbor", "derive", "serde-codec" ] }
 multihash = "0.16.2"
-semver = "1.0.7"
+semver = { version = "1.0.7", features = ["serde"] }
 chrono = "0.4.19"
 anyhow = "1.0.56"
 hashbrown = "0.12.0"
@@ -30,6 +30,11 @@ field_names = "0.2.0"
 futures = "0.3.21"
 async-stream = "0.3.3"
 futures-util = "0.3.21"
+skip_ratchet = { git = "https://github.com/appcypher/rs-skip-ratchet", branch = "appcypher/doc-and-structure" }
+twox-hash = "1.6.3"
+bitvec = "1.0.0"
+serde = "1.0.137"
+criterion = "0.3.5"
 
 [lib]
 path = "lib.rs"
@@ -38,3 +43,8 @@ crate-type = ["cdylib" , "rlib"]
 [features]
 default = []
 wasm = []
+
+[[bench]]
+name = "namefilter"
+path = "benches/namefilter.rs"
+harness = false

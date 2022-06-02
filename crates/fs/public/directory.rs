@@ -132,7 +132,7 @@ impl PathNodes {
     pub fn new(time: DateTime<Utc>, path_segments: &[String], tail: Rc<PublicDirectory>) -> Self {
         let path: Vec<(Rc<PublicDirectory>, String)> = path_segments
             .iter()
-            .map(|segment| (Rc::new(PublicDirectory::new(time)), segment.clone()))
+            .map(|segment| (PublicDirectory::with_rc(time), segment.clone()))
             .collect();
 
         Self { path, tail }
@@ -235,6 +235,11 @@ impl PublicDirectory {
             userland: BTreeMap::new(),
             previous: None,
         }
+    }
+
+    /// Creates a new directory using the given metadata.
+    pub fn with_rc(time: DateTime<Utc>) -> Rc<Self> {
+        Rc::new(Self::new(time))
     }
 
     /// Gets the previous value of the directory.
@@ -1048,6 +1053,7 @@ impl Id for PublicDirectory {
     }
 }
 
+// TODO(appcypher): Use serde.
 // Decoding CBOR-encoded PublicDirectory from bytes.
 impl Decode<DagCborCodec> for PublicDirectory {
     fn decode<R: Read + Seek>(c: DagCborCodec, r: &mut R) -> Result<Self> {

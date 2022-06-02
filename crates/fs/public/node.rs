@@ -1,4 +1,4 @@
-//! Public file system in-memory representation.
+//! Public node system in-memory representation.
 
 use std::{
     io::{Cursor, Read, Seek},

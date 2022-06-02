@@ -5,6 +5,7 @@ use std::rc::Rc;
 use anyhow::Result;
 use chrono::{DateTime, Utc};
 use libipld::{cbor::DagCborCodec, prelude::Encode, Cid, DagCbor, IpldCodec};
+use serde::{Serialize, Deserialize};
 
 use crate::{BlockStore, Metadata, UnixFsNodeKind};
 
@@ -23,7 +24,7 @@ use super::Id;
 ///
 /// println!("id = {}", file.get_id());
 /// ```
-#[derive(Debug, Clone, PartialEq, Eq, DagCbor)]
+#[derive(Debug, Clone, PartialEq, Eq, DagCbor, Serialize, Deserialize)]
 pub struct PublicFile {
     pub(crate) metadata: Metadata,
     pub(crate) userland: Cid,

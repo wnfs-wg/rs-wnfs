@@ -5,7 +5,7 @@ mod node;
 
 pub use directory::*;
 pub use file::*;
-pub use link::*;
+use link::*;
 pub use node::*;
 
 /// Implements getting a unique identifier for a node.

@@ -15,6 +15,7 @@ use libipld::{
     DagCbor,
 };
 use semver::Version;
+use serde::{Deserialize, Serialize};
 
 use crate::FsError;
 
@@ -24,8 +25,8 @@ use crate::FsError;
 
 /// The different types a UnixFS can be.
 ///
-/// See https://docs.ipfs.io/concepts/file-systems/#unix-file-system-unixfs
-#[derive(Debug, Clone, PartialEq, Eq, Copy, DagCbor)]
+/// See <https://docs.ipfs.io/concepts/file-systems/#unix-file-system-unixfs>
+#[derive(Debug, Clone, PartialEq, Eq, Copy, DagCbor, Serialize, Deserialize)]
 pub enum UnixFsNodeKind {
     Raw,
     File,
@@ -38,9 +39,9 @@ pub enum UnixFsNodeKind {
 /// Mode represents the Unix permissions for a UnixFS node.
 ///
 /// See
-/// - https://docs.ipfs.io/concepts/file-systems/#unix-file-system-unixfs
-/// - https://en.wikipedia.org/wiki/File-system_permissions#Numeric_notation
-#[derive(Debug, Clone, PartialEq, Eq, DagCbor)]
+/// - <https://docs.ipfs.io/concepts/file-systems/#unix-file-system-unixfs>
+/// - <https://en.wikipedia.org/wiki/File-system_permissions#Numeric_notation>
+#[derive(Debug, Clone, PartialEq, Eq, DagCbor, Serialize, Deserialize)]
 pub enum UnixFsMode {
     NoPermissions = 0,
     OwnerReadWriteExecute = 700,
@@ -59,8 +60,8 @@ pub enum UnixFsMode {
 
 /// The metadata of a node in the UnixFS file system.
 ///
-/// See https://docs.ipfs.io/concepts/file-systems/#unix-file-system-unixfs
-#[derive(Debug, Clone, PartialEq, Eq, DagCbor)]
+/// See <https://docs.ipfs.io/concepts/file-systems/#unix-file-system-unixfs>
+#[derive(Debug, Clone, PartialEq, Eq, DagCbor, Serialize, Deserialize)]
 pub struct UnixFsMetadata {
     pub(crate) created: i64,
     pub(crate) modified: i64,
@@ -69,7 +70,7 @@ pub struct UnixFsMetadata {
 }
 
 /// The metadata of a node on the WNFS file system.
-#[derive(Debug, Clone, PartialEq, Eq, FieldNames)]
+#[derive(Debug, Clone, PartialEq, Eq, FieldNames, Serialize, Deserialize)]
 pub struct Metadata {
     pub(crate) unix_fs: UnixFsMetadata,
     pub(crate) version: Version,
@@ -103,6 +104,7 @@ impl Metadata {
     }
 }
 
+// TODO(appcypher): Use serde.
 impl Decode<DagCborCodec> for Metadata {
     fn decode<R: Read + Seek>(c: DagCborCodec, r: &mut R) -> Result<Self> {
         // Ensure the major kind is a map.
