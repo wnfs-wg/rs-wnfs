@@ -35,6 +35,7 @@ twox-hash = "1.6.3"
 bitvec = "1.0.0"
 serde = "1.0.137"
 criterion = "0.3.5"
+async-once-cell = "0.4.0"
 
 [lib]
 path = "lib.rs"
