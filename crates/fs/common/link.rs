@@ -20,11 +20,18 @@ impl<T> Link<T>
 where
     T: Decode<DagCborCodec> + Encode<DagCborCodec> + OptimizedAwayValue,
 {
-    fn new(item: T) -> Self {
+    pub(crate) fn new(item: T) -> Self {
         Self::Dirty(item)
     }
 
-    async fn resolve<B: BlockStore>(&self, store: &B) -> Result<&T> {
+    pub(crate) fn from_cid(cid: Cid) -> Self {
+        Self::Clean {
+            cid,
+            cache: OnceCell::new(),
+        }
+    }
+
+    pub(crate) async fn resolve<B: BlockStore>(&self, store: &B) -> Result<&T> {
         match self {
             Self::Clean { cid, cache } => {
                 cache
@@ -35,21 +42,7 @@ where
         }
     }
 
-    // TODO(matheus23) hmmm. Do we even need this?
-    // async fn get_mut<B: BlockStore>(&mut self, store: &B) -> Result<&mut T> {
-    //     match self {
-    //         IpldLink::Clean { cid, cache } => match cache.get_mut() {
-    //             Some(node) => Ok(node),
-    //             None => {
-    //                 let mut node = blockstore::load(store, &cid).await?;
-    //                 Ok(&mut node)
-    //             }
-    //         },
-    //         IpldLink::Dirty(node) => Ok(node),
-    //     }
-    // }
-
-    async fn get<B: BlockStore>(self, store: &B) -> Result<T> {
+    pub(crate) async fn get<B: BlockStore>(self, store: &B) -> Result<T> {
         match self {
             Self::Clean { cid, cache } => match cache.into_inner() {
                 Some(cached) => Ok(cached),
@@ -59,7 +52,7 @@ where
         }
     }
 
-    async fn seal<B: BlockStore>(&mut self, store: &mut B) -> Result<Cid> {
+    pub(crate) async fn seal<B: BlockStore>(&mut self, store: &mut B) -> Result<Cid> {
         match self {
             Self::Clean { cid, .. } => Ok(*cid),
             Self::Dirty(node) => {
@@ -94,8 +87,7 @@ mod ipld_link_tests {
 
     #[async_std::test]
     async fn ipld_link() {
-        let link = IpldLink::new(10_u64);
-        let mut link = Link::to(42_u64);
+        let mut link = Link::new(42_u64);
         let mut store = MemoryBlockStore::default();
         let cid = link.seal(&mut store).await.unwrap();
         println!("Clean? {}", link.is_clean());
