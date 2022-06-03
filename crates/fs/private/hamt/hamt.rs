@@ -1,16 +1,15 @@
-use std::hash::Hash;
+use super::Node;
 
-#[derive(Debug, PartialEq, Eq, Default)]
-pub struct Hamt<K, V> {
-    // pub(crate) root: Option<Box<Node<K, V>>>,
-    phantom: std::marker::PhantomData<(K, V)>,
+/*
+#[derive(Debug)]
+pub struct Hamt<V> {
+    pub(crate) root: Node<V>,
+    // phantom: std::marker::PhantomData<(K, V)>,
 }
 
-impl<K, V> Hamt<K, V>
-where
-    K: Hash + Eq,
-{
+impl<V> Hamt<V> {
     pub fn new() -> Self {
         todo!()
     }
 }
+ */

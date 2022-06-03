@@ -1,12 +1,23 @@
+use std::io::Cursor;
+
 use anyhow::Result;
 use async_once_cell::OnceCell;
+use futures::Future;
+use libipld::cbor::DagCborCodec;
+use libipld::codec::Decode;
 use libipld::codec::Encode;
+use libipld::serde::from_ipld;
+use libipld::serde::to_ipld;
+use libipld::Cid;
+use libipld::Ipld;
 use libipld::IpldCodec;
-use libipld::{cbor::DagCborCodec, codec::Decode, Cid};
+use serde::de::DeserializeOwned;
+use serde::Serialize;
 
-use crate::blockstore;
 use crate::BlockStore;
 
+// TODO(matheus23) we should have a custom impl of PartialEq and Eq
+#[derive(Debug)]
 pub(crate) enum Link<T> {
     /// Invariant: the (optional) contents of the cache *must* encode the cid
     Clean {
@@ -16,9 +27,40 @@ pub(crate) enum Link<T> {
     Dirty(T),
 }
 
+impl<T> Clone for Link<T>
+where
+    T: Clone,
+{
+    fn clone(&self) -> Self {
+        match self {
+            Link::Clean { cid, cache } => Self::Clean {
+                cid: cid.clone(),
+                cache: OnceCell::new_with(cache.get().cloned()),
+            },
+            Link::Dirty(node) => Self::Dirty(node.clone()),
+        }
+    }
+}
+
+// TODO(appcypher): Move to blockstore
+async fn load<D: DeserializeOwned, B: BlockStore>(cid: &Cid, store: &B) -> Result<D> {
+    // TODO(appcypher): Abstract the codec.
+    let bytes = store.get_block(cid).await?;
+    let ipld = Ipld::decode(DagCborCodec, &mut Cursor::new(bytes.as_ref()))?;
+    Ok(from_ipld::<D>(ipld)?)
+}
+
+// TODO(appcypher): Move to blockstore
+async fn store_put<S: Serialize, B: BlockStore>(value: &S, store: &mut B) -> Result<Cid> {
+    let ipld = to_ipld(value)?;
+    let mut bytes = Vec::new();
+    ipld.encode(DagCborCodec, &mut bytes)?;
+    store.put_block(bytes, IpldCodec::DagCbor).await
+}
+
 impl<T> Link<T>
 where
-    T: Decode<DagCborCodec> + Encode<DagCborCodec> + OptimizedAwayValue,
+    T: DeserializeOwned + OptimizedAwayValue,
 {
     pub(crate) fn new(item: T) -> Self {
         Self::Dirty(item)
@@ -35,7 +77,7 @@ where
         match self {
             Self::Clean { cid, cache } => {
                 cache
-                    .get_or_try_init(async { blockstore::load(store, cid).await })
+                    .get_or_try_init(async { load(cid, store).await })
                     .await
             }
             Self::Dirty(node) => Ok(node),
@@ -46,18 +88,24 @@ where
         match self {
             Self::Clean { cid, cache } => match cache.into_inner() {
                 Some(cached) => Ok(cached),
-                None => blockstore::load(store, &cid).await,
+                None => load(&cid, store).await,
             },
             Self::Dirty(node) => Ok(node),
         }
     }
 
-    pub(crate) async fn seal<B: BlockStore>(&mut self, store: &mut B) -> Result<Cid> {
+    pub(crate) async fn seal<B: BlockStore, Fut>(
+        &mut self,
+        store: &mut B,
+        serialize: impl Fn(&T) -> Fut,
+    ) -> Result<Cid>
+    where
+        Fut: Future<Output = Result<Vec<u8>>>,
+    {
         match self {
             Self::Clean { cid, .. } => Ok(*cid),
             Self::Dirty(node) => {
-                let mut bytes: Vec<u8> = Vec::new();
-                node.encode(DagCborCodec, &mut bytes)?;
+                let bytes = serialize(node).await?;
                 let cid = store.put_block(bytes, IpldCodec::DagCbor).await?;
                 let node = std::mem::replace(node, T::bogus_value());
                 *self = Self::Clean {

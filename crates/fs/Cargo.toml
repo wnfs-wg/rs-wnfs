@@ -18,7 +18,7 @@ authors = ["The Fission Authors"]
 
 [dependencies]
 libipld = { version = "0.13.1", features = ["dag-cbor", "derive", "serde-codec" ] }
-multihash = "0.16.2"
+multihash = { version = "0.16.2", features = ["std"] }
 semver = { version = "1.0.7", features = ["serde"] }
 chrono = "0.4.19"
 anyhow = "1.0.56"
