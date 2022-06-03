@@ -8,14 +8,17 @@ use crate::blockstore;
 use crate::BlockStore;
 
 pub(crate) enum IpldLink<T> {
-    Clean { cid: Cid, cache: OnceCell<T> },
+    /// Invariant: the (optional) contents of the cache *must* encode the cid
+    Clean {
+        cid: Cid,
+        cache: OnceCell<T>,
+    },
     Dirty(T),
 }
 
 impl<T> IpldLink<T>
 where
-    T: Decode<DagCborCodec>,
-    T: Encode<DagCborCodec>,
+    T: Decode<DagCborCodec> + Encode<DagCborCodec> + OptimizedAwayValue,
 {
     fn new(item: T) -> Self {
         Self::Dirty(item)
@@ -63,9 +66,10 @@ where
                 let mut bytes: Vec<u8> = Vec::new();
                 node.encode(DagCborCodec, &mut bytes)?;
                 let cid = store.put_block(bytes, IpldCodec::DagCbor).await?;
+                let node = std::mem::replace(node, T::bogus_value());
                 *self = Self::Clean {
                     cid,
-                    cache: OnceCell::new_with(Some(*node)),
+                    cache: OnceCell::new_with(Some(node)),
                 };
                 Ok(cid)
             }
@@ -75,7 +79,7 @@ where
 
 #[cfg(test)]
 mod ipld_link_tests {
-    use crate::{IpldLink, MemoryBlockStore};
+    use crate::{IpldLink, MemoryBlockStore, OptimizedAwayValue};
 
     #[async_std::test]
     async fn ipld_link() {
@@ -84,4 +88,14 @@ mod ipld_link_tests {
         let cid = link.seal(&mut store).await.unwrap();
         println!("{}", cid)
     }
+
+    impl OptimizedAwayValue for u64 {
+        fn bogus_value() -> Self {
+            0
+        }
+    }
+}
+
+pub(crate) trait OptimizedAwayValue {
+    fn bogus_value() -> Self;
 }
