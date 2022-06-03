@@ -7,7 +7,7 @@ use libipld::{cbor::DagCborCodec, codec::Decode, Cid};
 use crate::blockstore;
 use crate::BlockStore;
 
-pub(crate) enum IpldLink<T> {
+pub(crate) enum Link<T> {
     /// Invariant: the (optional) contents of the cache *must* encode the cid
     Clean {
         cid: Cid,
@@ -16,7 +16,7 @@ pub(crate) enum IpldLink<T> {
     Dirty(T),
 }
 
-impl<T> IpldLink<T>
+impl<T> Link<T>
 where
     T: Decode<DagCborCodec> + Encode<DagCborCodec> + OptimizedAwayValue,
 {
@@ -33,22 +33,22 @@ where
 
     pub(crate) async fn resolve<B: BlockStore>(&self, store: &B) -> Result<&T> {
         match self {
-            IpldLink::Clean { cid, cache } => {
+            Self::Clean { cid, cache } => {
                 cache
                     .get_or_try_init(async { blockstore::load(store, cid).await })
                     .await
             }
-            IpldLink::Dirty(node) => Ok(node),
+            Self::Dirty(node) => Ok(node),
         }
     }
 
     pub(crate) async fn get<B: BlockStore>(self, store: &B) -> Result<T> {
         match self {
-            IpldLink::Clean { cid, cache } => match cache.into_inner() {
+            Self::Clean { cid, cache } => match cache.into_inner() {
                 Some(cached) => Ok(cached),
                 None => blockstore::load(store, &cid).await,
             },
-            IpldLink::Dirty(node) => Ok(node),
+            Self::Dirty(node) => Ok(node),
         }
     }
 
@@ -75,19 +75,19 @@ where
 
     fn is_cached(&self) -> bool {
         match self {
-            IpldLink::Clean { cache, .. } => cache.get().is_some(),
-            IpldLink::Dirty(_) => true,
+            Self::Clean { cache, .. } => cache.get().is_some(),
+            Self::Dirty(_) => true,
         }
     }
 }
 
 #[cfg(test)]
 mod ipld_link_tests {
-    use crate::{IpldLink, MemoryBlockStore, OptimizedAwayValue};
+    use crate::{Link, MemoryBlockStore, OptimizedAwayValue};
 
     #[async_std::test]
     async fn ipld_link() {
-        let mut link = IpldLink::to(42_u64);
+        let mut link = Link::to(42_u64);
         let mut store = MemoryBlockStore::default();
         println!("Clean? {}", link.is_clean());
         let cid = link.seal(&mut store).await.unwrap();
@@ -95,7 +95,7 @@ mod ipld_link_tests {
         println!("{}", cid);
 
         // another link
-        let link2: IpldLink<u64> = IpldLink::from_cid(cid);
+        let link2: Link<u64> = Link::from_cid(cid);
         println!("Clean? {} Cached? {}", link2.is_clean(), link2.is_cached());
         let num = *link2.resolve(&store).await.unwrap();
         println!("num: {num}");
