@@ -20,7 +20,7 @@ use libipld::{
     Cid, IpldCodec,
 };
 
-use super::{Id, Link, PublicFile, PublicNode};
+use super::{Id, PublicFile, PublicLink, PublicNode};
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
@@ -41,7 +41,7 @@ use super::{Id, Link, PublicFile, PublicNode};
 #[derive(Debug, Clone, PartialEq, Eq, FieldNames)]
 pub struct PublicDirectory {
     pub(crate) metadata: Metadata,
-    pub(crate) userland: BTreeMap<String, Link>,
+    pub(crate) userland: BTreeMap<String, PublicLink>,
     pub(crate) previous: Option<Cid>,
 }
 
@@ -165,7 +165,7 @@ impl PathNodes {
         let mut working_dir = self.tail;
         for (dir, segment) in self.path.iter().rev() {
             let mut dir = (**dir).clone();
-            let link = Link::with_dir(working_dir);
+            let link = PublicLink::with_dir(working_dir);
             dir.userland.insert(segment.clone(), link);
             working_dir = Rc::new(dir);
         }
@@ -545,7 +545,7 @@ impl PublicDirectory {
         // insert the file into its parent directory
         directory
             .userland
-            .insert(filename.to_string(), Link::with_file(Rc::new(file)));
+            .insert(filename.to_string(), PublicLink::with_file(Rc::new(file)));
         directory_path_nodes.tail = Rc::new(directory);
 
         // reconstruct the file path
@@ -796,7 +796,7 @@ impl PublicDirectory {
 
         directory
             .userland
-            .insert(filename.clone(), Link::Node(removed_node));
+            .insert(filename.clone(), PublicLink::Node(removed_node));
 
         path_nodes.tail = Rc::new(directory);
 
@@ -883,10 +883,10 @@ impl PublicDirectory {
     /// Constructs a tree from directory with `base` as the historical ancestor.
     #[async_recursion(?Send)]
     pub(crate) async fn base_history_on_helper<B: BlockStore>(
-        link: &Link,
-        base_link: &Link,
+        link: &PublicLink,
+        base_link: &PublicLink,
         store: &mut B,
-    ) -> Result<Option<Link>> {
+    ) -> Result<Option<PublicLink>> {
         if link.partial_equal(base_link, store).await? {
             return Ok(None);
         }
@@ -903,7 +903,7 @@ impl PublicDirectory {
             (PublicNode::File(file_rc), PublicNode::File(_)) => {
                 let mut file = (*file_rc).clone();
                 file.previous = Some(base_link.seal(store).await?);
-                return Ok(Some(Link::with_file(Rc::new(file))));
+                return Ok(Some(PublicLink::with_file(Rc::new(file))));
             }
             _ => {
                 // One is a file and the other is a directory
@@ -922,7 +922,7 @@ impl PublicDirectory {
             }
         }
 
-        Ok(Some(Link::with_dir(Rc::new(dir))))
+        Ok(Some(PublicLink::with_dir(Rc::new(dir))))
     }
 
     /// Gets a stream for walking the history of a directory node.
@@ -1087,7 +1087,7 @@ impl Decode<DagCborCodec> for PublicDirectory {
                 "userland" => {
                     userland = BTreeMap::<_, Cid>::decode(c, r)?
                         .into_iter()
-                        .map(|(k, cid)| (k, Link::Cid(cid)))
+                        .map(|(k, cid)| (k, PublicLink::Cid(cid)))
                         .collect();
                 }
                 "previous" => {
