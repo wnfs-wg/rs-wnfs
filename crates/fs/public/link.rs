@@ -12,35 +12,35 @@ use crate::{blockstore, BlockStore};
 ///
 /// The public file system is a DAG so we don't have to worry bout cyclic references.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Link {
+pub enum PublicLink {
     Cid(Cid),
     Node(PublicNode),
 }
 
-impl Link {
+impl PublicLink {
     /// Creates a new directory node link.
     pub fn with_dir(dir: Rc<PublicDirectory>) -> Self {
-        Link::Node(PublicNode::Dir(dir))
+        PublicLink::Node(PublicNode::Dir(dir))
     }
 
     /// Creates a new file node link.
     pub fn with_file(file: Rc<PublicFile>) -> Self {
-        Link::Node(PublicNode::File(file))
+        PublicLink::Node(PublicNode::File(file))
     }
 
     /// Resolves a CID linkin the file system to a node.
     pub async fn resolve<B: BlockStore>(&self, store: &B) -> Result<PublicNode> {
         Ok(match self {
-            Link::Cid(cid) => blockstore::load(store, cid).await?,
-            Link::Node(node) => node.clone(),
+            PublicLink::Cid(cid) => blockstore::load(store, cid).await?,
+            PublicLink::Node(node) => node.clone(),
         })
     }
 
     /// Stores the link in the block store and returns the CID.
     pub async fn seal<B: BlockStore>(&self, store: &mut B) -> Result<Cid> {
         Ok(match self {
-            Link::Cid(cid) => *cid,
-            Link::Node(node) => node.store(store).await?,
+            PublicLink::Cid(cid) => *cid,
+            PublicLink::Node(node) => node.store(store).await?,
         })
     }
 
@@ -93,7 +93,7 @@ mod public_link_tests {
         MemoryBlockStore,
     };
 
-    use super::Link;
+    use super::PublicLink;
 
     #[async_std::test]
     async fn node_link_can_be_sealed() {
@@ -107,7 +107,7 @@ mod public_link_tests {
 
         let file_cid = file.store(&mut store).await.unwrap();
 
-        let unsealed_link = Link::with_file(file);
+        let unsealed_link = PublicLink::with_file(file);
 
         let sealed_cid = unsealed_link.seal(&mut store).await.unwrap();
 
@@ -124,7 +124,7 @@ mod public_link_tests {
 
         let dir_cid = dir.store(&mut store).await.unwrap();
 
-        let unresolved_link = Link::Cid(dir_cid);
+        let unresolved_link = PublicLink::Cid(dir_cid);
 
         let resolved_node = unresolved_link.resolve(&store).await.unwrap();
 
