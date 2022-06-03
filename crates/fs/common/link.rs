@@ -16,12 +16,20 @@ impl<T> IpldLink<T>
 where
     T: Decode<DagCborCodec>,
     T: Encode<DagCborCodec>,
+    T: Clone,
 {
-    fn new(item: T) -> Self {
+    pub(crate) fn to(item: T) -> Self {
         Self::Dirty(item)
     }
 
-    async fn resolve<B: BlockStore>(&self, store: &B) -> Result<&T> {
+    pub(crate) fn from_cid(cid: Cid) -> Self {
+        Self::Clean {
+            cid,
+            cache: OnceCell::new(),
+        }
+    }
+
+    pub(crate) async fn resolve<B: BlockStore>(&self, store: &B) -> Result<&T> {
         match self {
             IpldLink::Clean { cid, cache } => {
                 cache
@@ -32,21 +40,7 @@ where
         }
     }
 
-    // TODO(matheus23) hmmm. Do we even need this?
-    // async fn get_mut<B: BlockStore>(&mut self, store: &B) -> Result<&mut T> {
-    //     match self {
-    //         IpldLink::Clean { cid, cache } => match cache.get_mut() {
-    //             Some(node) => Ok(node),
-    //             None => {
-    //                 let mut node = blockstore::load(store, &cid).await?;
-    //                 Ok(&mut node)
-    //             }
-    //         },
-    //         IpldLink::Dirty(node) => Ok(node),
-    //     }
-    // }
-
-    async fn get<B: BlockStore>(self, store: &B) -> Result<T> {
+    pub(crate) async fn get<B: BlockStore>(self, store: &B) -> Result<T> {
         match self {
             IpldLink::Clean { cid, cache } => match cache.into_inner() {
                 Some(cached) => Ok(cached),
@@ -56,19 +50,30 @@ where
         }
     }
 
-    async fn seal<B: BlockStore>(&mut self, store: &mut B) -> Result<Cid> {
+    pub(crate) async fn seal<B: BlockStore>(&mut self, store: &mut B) -> Result<Cid> {
         match self {
-            IpldLink::Clean { cid, .. } => Ok(*cid),
-            IpldLink::Dirty(node) => {
+            Self::Clean { cid, .. } => Ok(*cid),
+            Self::Dirty(node) => {
                 let mut bytes: Vec<u8> = Vec::new();
                 node.encode(DagCborCodec, &mut bytes)?;
                 let cid = store.put_block(bytes, IpldCodec::DagCbor).await?;
                 *self = Self::Clean {
                     cid,
-                    cache: OnceCell::new_with(Some(*node)),
+                    cache: OnceCell::new_with(Some((*node).clone())),
                 };
                 Ok(cid)
             }
+        }
+    }
+
+    fn is_clean(&self) -> bool {
+        matches!(self, Self::Clean { .. })
+    }
+
+    fn is_cached(&self) -> bool {
+        match self {
+            IpldLink::Clean { cache, .. } => cache.get().is_some(),
+            IpldLink::Dirty(_) => true,
         }
     }
 }
@@ -79,9 +84,20 @@ mod ipld_link_tests {
 
     #[async_std::test]
     async fn ipld_link() {
-        let link = IpldLink::new(10_u64);
+        let mut link = IpldLink::to(42_u64);
         let mut store = MemoryBlockStore::default();
+        println!("Clean? {}", link.is_clean());
         let cid = link.seal(&mut store).await.unwrap();
-        println!("{}", cid)
+        println!("Clean? {}", link.is_clean());
+        println!("{}", cid);
+
+        // another link
+        let link2: IpldLink<u64> = IpldLink::from_cid(cid);
+        println!("Clean? {} Cached? {}", link2.is_clean(), link2.is_cached());
+        let num = *link2.resolve(&store).await.unwrap();
+        println!("num: {num}");
+        // interior mutability makes is_cached suddenly return true :S
+        // we may want to just never have that be observable behavior from the outside.
+        println!("Clean? {} Cached? {}", link2.is_clean(), link2.is_cached());
     }
 }
