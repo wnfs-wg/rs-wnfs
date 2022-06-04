@@ -3,14 +3,13 @@ use super::{BloomFilter, BloomParams};
 // TODO(appcypher): What is the magic number? Should this be 1024 if we want half-filled bloom filters?
 pub const SATURATION_THRESHOLD: usize = 1019;
 
-pub type Namefilter = BloomFilter<256>;
+pub type Namefilter = BloomFilter<2048>;
 
 impl Namefilter {
     pub fn new() -> Self {
         Self::with_params(BloomParams {
             m_bytes: 256,
             k_hashes: 30,
-            n_items: 1024,
         })
     }
 

@@ -4,7 +4,7 @@ use std::{
 };
 
 use anyhow::Result;
-use bitvec::prelude::BitVec;
+use bitvec::prelude::BitArray;
 use twox_hash::XxHash32;
 
 use crate::error;
@@ -13,7 +13,7 @@ use super::NameFilterError;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BloomFilter<const N: u32> {
-    pub(super) bits: BitVec,
+    pub(super) bits: BitArray<[u8; N]>,
     pub len: u32,
     pub params: BloomParams,
 }
@@ -22,7 +22,6 @@ pub struct BloomFilter<const N: u32> {
 pub struct BloomParams {
     pub m_bytes: u32,
     pub k_hashes: u32,
-    pub n_items: u32,
 }
 
 pub struct HashIndexIterator<'a, const N: u32, T: Hash> {
@@ -47,7 +46,7 @@ impl<const N: u32, T: Hash> Iterator for HashIndexIterator<'_, N, T> {
     type Item = u32;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.index < self.filter.params.n_items {
+        if self.index < self.filter.params.k_hashes {
             let hash = {
                 let mut h = XxHash32::with_seed(self.index);
                 self.item.hash(&mut h);
@@ -66,7 +65,7 @@ impl<const N: u32, T: Hash> Iterator for HashIndexIterator<'_, N, T> {
 impl<const N: u32> BloomFilter<N> {
     pub fn with_params(params: BloomParams) -> Self {
         Self {
-            bits: BitVec::with_capacity(N as usize),
+            bits: BitArray::default(),
             params,
             len: 0,
         }
@@ -76,10 +75,6 @@ impl<const N: u32> BloomFilter<N> {
     where
         T: Hash,
     {
-        if self.len > self.params.n_items {
-            return error(NameFilterError::MaxItemCountReached);
-        }
-
         let indices = self.hash_indices(item).collect::<Vec<_>>();
         for i in indices {
             self.bits.set(i as usize, true);
