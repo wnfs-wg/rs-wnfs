@@ -1,13 +1,11 @@
 use std::rc::Rc;
 
-use std::collections::hash_map::DefaultHasher;
-use std::hash::{Hash, Hasher};
-
 use anyhow::Result;
 use bitvec::array::BitArray;
 use bitvec::bitarr;
 use bitvec::order::Lsb0;
 use serde::{Serialize, Serializer};
+use sha3::{Digest, Sha3_256};
 
 use crate::BlockStore;
 
@@ -15,7 +13,7 @@ use super::{hashbits::HashBits, Pointer};
 
 #[derive(Debug, Default, Clone)]
 pub struct Node<K, V> {
-    pub(crate) bitmask: BitArray<[u8; 2]>,
+    pub(crate) bitmask: BitArray<[u16; 1]>,
     pub(crate) pointers: Vec<Pointer<K, V>>,
 }
 
@@ -43,7 +41,7 @@ where
 
 impl<K, V> Node<K, V>
 where
-    K: Hash + Clone,
+    K: AsRef<[u8]> + Clone,
     V: Clone,
 {
     pub async fn set<B: BlockStore>(
@@ -81,13 +79,13 @@ where
             return Ok(Rc::new(cloned));
         }
 
-        let cindex = self.get_value_index(index);
-        match self.pointers[cindex] {
-            Pointer::Values(_) => todo!(),
-            Pointer::NodeLink(link) => {
-                let child = link.get(store).await?;
-            }
-        }
+        // let value_index = self.get_value_index(index);
+        // match self.pointers[value_index] {
+        //     Pointer::Values(_) => todo!(),
+        //     Pointer::NodeLink(link) => {
+        //         let child = link.get(store).await?;
+        //     }
+        // }
 
         todo!()
     }
@@ -110,13 +108,16 @@ where
             self.get_value_index(index),
             Pointer::Values(vec![(key, value)]),
         );
-        self.bitmask[index as usize] = true;
+        self.bitmask.set(index as usize, true);
     }
 
     fn get_value_index(&self, bit_pos: u32) -> usize {
-        let mut mask = bitarr!(u8, Lsb0; 1; 2);
+        let mut mask = bitarr!(u16, Lsb0; 1; 1);
+
         mask.shift_right(16 - bit_pos as usize);
+
         assert_eq!(mask.count_ones(), bit_pos as usize);
+
         (mask & &self.bitmask).count_ones()
     }
 
@@ -125,9 +126,8 @@ where
     }
 }
 
-pub fn hash<K: Hash>(key: &K) -> [u8; 8] {
-    // TODO(appcypher): Change to SHA3_256
-    let mut hasher = DefaultHasher::default();
-    key.hash(&mut hasher);
-    hasher.finish().to_le_bytes()
+pub fn hash<K: AsRef<[u8]>>(key: &K) -> Vec<u8> {
+    let mut hasher = Sha3_256::default();
+    hasher.update(key.as_ref());
+    hasher.finalize().as_slice().to_vec()
 }

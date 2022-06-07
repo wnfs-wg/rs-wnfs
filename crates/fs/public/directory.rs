@@ -48,9 +48,9 @@ pub struct PublicDirectory {
 /// The result of an operation applied to a directory.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OpResult<T> {
-    // The root directory.
+    /// The root directory.
     pub root_dir: Rc<PublicDirectory>,
-    // Implementation dependent but it usually the last leaf node operated on.
+    /// Implementation dependent but it usually the last leaf node operated on.
     pub result: T,
 }
 

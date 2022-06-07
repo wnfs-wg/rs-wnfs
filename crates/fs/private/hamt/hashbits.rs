@@ -1,6 +1,3 @@
-// Copyright 2019-2022 ChainSafe Systems
-// SPDX-License-Identifier: Apache-2.0, MIT
-
 use anyhow::Result;
 use std::cmp::Ordering;
 
@@ -8,13 +5,10 @@ use crate::error;
 
 use super::error::HamtError;
 
-// TODO(appcypher): Change to fixed Sha3 256 [u8; 32]
-type HashedKey = [u8; 8];
-
 /// Helper struct which indexes and allows returning bits from a hashed key
 #[derive(Debug, Clone, Copy)]
 pub struct HashBits<'a> {
-    b: &'a HashedKey,
+    b: &'a [u8],
     pub consumed: u32,
 }
 
@@ -24,12 +18,12 @@ fn mkmask(n: u32) -> u32 {
 }
 
 impl<'a> HashBits<'a> {
-    pub fn new(hash_buffer: &'a HashedKey) -> HashBits<'a> {
+    pub fn new(hash_buffer: &'a [u8]) -> HashBits<'a> {
         Self::new_at_index(hash_buffer, 0)
     }
 
     /// Constructs hash bits with custom consumed index
-    pub fn new_at_index(hash_buffer: &'a HashedKey, consumed: u32) -> HashBits<'a> {
+    pub fn new_at_index(hash_buffer: &'a [u8], consumed: u32) -> HashBits<'a> {
         Self {
             b: hash_buffer,
             consumed,
@@ -86,7 +80,7 @@ mod tests {
 
     #[test]
     fn test_bitfield() {
-        let mut key: HashedKey = Default::default();
+        let mut key = Vec::new();
         key[0] = 0b10001000;
         key[1] = 0b10101010;
         key[2] = 0b10111111;

@@ -9,7 +9,7 @@ use super::{PrivateDirectory, PrivateFile};
 use anyhow::{bail, Result};
 
 /// A node in a WNFS private file system. This can either be a private file or a directory.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 pub enum PrivateNode {
     File(Rc<PrivateFile>),
     Dir(Rc<PrivateDirectory>),

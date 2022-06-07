@@ -2206,6 +2206,7 @@ dependencies = [
  "multihash",
  "semver",
  "serde",
+ "sha3",
  "skip_ratchet",
  "twox-hash",
 ]

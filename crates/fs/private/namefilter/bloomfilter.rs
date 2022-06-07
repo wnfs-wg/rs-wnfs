@@ -4,15 +4,11 @@ use std::{
 };
 
 use anyhow::Result;
-use bitvec::prelude::BitArray;
+use bitvec::{order::Lsb0, prelude::BitArray};
 use twox_hash::XxHash32;
 
-use crate::error;
-
-use super::NameFilterError;
-
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct BloomFilter<const N: u32> {
+pub struct BloomFilter<const N: usize> {
     pub(super) bits: BitArray<[u8; N]>,
     pub len: u32,
     pub params: BloomParams,
@@ -24,14 +20,14 @@ pub struct BloomParams {
     pub k_hashes: u32,
 }
 
-pub struct HashIndexIterator<'a, const N: u32, T: Hash> {
+pub struct HashIndexIterator<'a, const N: usize, T: Hash> {
     filter: &'a BloomFilter<N>,
     m_bits: u32,
     item: &'a T,
     index: u32,
 }
 
-impl<'a, const N: u32, T: Hash> HashIndexIterator<'a, N, T> {
+impl<'a, const N: usize, T: Hash> HashIndexIterator<'a, N, T> {
     pub(super) fn new(bloomfilter: &'a BloomFilter<N>, item: &'a T) -> Self {
         Self {
             filter: bloomfilter,
@@ -42,7 +38,7 @@ impl<'a, const N: u32, T: Hash> HashIndexIterator<'a, N, T> {
     }
 }
 
-impl<const N: u32, T: Hash> Iterator for HashIndexIterator<'_, N, T> {
+impl<const N: usize, T: Hash> Iterator for HashIndexIterator<'_, N, T> {
     type Item = u32;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -62,10 +58,10 @@ impl<const N: u32, T: Hash> Iterator for HashIndexIterator<'_, N, T> {
     }
 }
 
-impl<const N: u32> BloomFilter<N> {
+impl<const N: usize> BloomFilter<N> {
     pub fn with_params(params: BloomParams) -> Self {
         Self {
-            bits: BitArray::default(),
+            bits: BitArray::<[u8; N], Lsb0>::ZERO,
             params,
             len: 0,
         }
@@ -119,7 +115,7 @@ impl<const N: u32> BloomFilter<N> {
     }
 }
 
-impl<const N: u32> Index<u32> for BloomFilter<N> {
+impl<const N: usize> Index<u32> for BloomFilter<N> {
     type Output = bool;
 
     fn index(&self, index: u32) -> &Self::Output {
