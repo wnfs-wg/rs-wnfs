@@ -3,8 +3,9 @@ use std::{error::Error, fmt::Display};
 
 #[derive(Debug)]
 pub enum HamtError {
-    InvalidHashBitLen,
-    MaxDepth,
+    CursorOutOfBounds,
+    // InvalidHashBitLen,
+    // MaxDepth,
 }
 
 impl std::error::Error for HamtError {}

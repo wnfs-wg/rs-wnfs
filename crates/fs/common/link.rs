@@ -20,11 +20,14 @@ use crate::BlockStore;
 #[derive(Debug)]
 pub enum Link<T> {
     /// Invariant: the (optional) contents of the cache *must* encode the cid
-    Clean {
+    Encoded {
         cid: Cid,
-        cache: OnceCell<T>,
+        value_cache: OnceCell<T>,
     },
-    Dirty(T),
+    Decoded {
+        value: T,
+        cid_cache: OnceCell<Cid>,
+    },
 }
 
 impl<T> Clone for Link<T>
@@ -33,11 +36,14 @@ where
 {
     fn clone(&self) -> Self {
         match self {
-            Link::Clean { cid, cache } => Self::Clean {
+            Link::Encoded { cid, value_cache } => Self::Encoded {
                 cid: cid.clone(),
-                cache: OnceCell::new_with(cache.get().cloned()),
+                value_cache: OnceCell::new_with(value_cache.get().cloned()),
             },
-            Link::Dirty(node) => Self::Dirty(node.clone()),
+            Link::Decoded { value, cid_cache } => Self::Decoded {
+                value: value.clone(),
+                cid_cache: OnceCell::new_with(cid_cache.get().cloned()),
+            },
         }
     }
 }
@@ -58,106 +64,129 @@ async fn store_put<S: Serialize, B: BlockStore>(value: &S, store: &mut B) -> Res
     store.put_block(bytes, IpldCodec::DagCbor).await
 }
 
-impl<T> Link<T>
-where
-    T: DeserializeOwned + OptimizedAwayValue,
-{
-    pub(crate) fn new(item: T) -> Self {
-        Self::Dirty(item)
-    }
-
+impl<T> Link<T> {
     pub(crate) fn from_cid(cid: Cid) -> Self {
-        Self::Clean {
+        Self::Encoded {
             cid,
-            cache: OnceCell::new(),
+            value_cache: OnceCell::new(),
         }
     }
 
-    pub(crate) async fn resolve<B: BlockStore>(&self, store: &B) -> Result<&T> {
+    pub(crate) async fn resolve<B: BlockStore>(&self, store: &B) -> Result<&T>
+    where
+        T: DeserializeOwned,
+    {
         match self {
-            Self::Clean { cid, cache } => {
-                cache
+            Self::Encoded { cid, value_cache } => {
+                value_cache
                     .get_or_try_init(async { load(cid, store).await })
                     .await
             }
-            Self::Dirty(node) => Ok(node),
+            Self::Decoded { value, .. } => Ok(value),
         }
     }
 
-    pub(crate) async fn get<B: BlockStore>(self, store: &B) -> Result<T> {
+    pub(crate) async fn get<B: BlockStore>(self, store: &B) -> Result<T>
+    where
+        T: DeserializeOwned,
+    {
         match self {
-            Self::Clean { cid, cache } => match cache.into_inner() {
+            Self::Encoded { cid, value_cache } => match value_cache.into_inner() {
                 Some(cached) => Ok(cached),
                 None => load(&cid, store).await,
             },
-            Self::Dirty(node) => Ok(node),
+            Self::Decoded { value, .. } => Ok(value),
         }
     }
 
-    pub(crate) async fn seal<B: BlockStore, Fut>(
-        &mut self,
-        store: &mut B,
-        serialize: impl Fn(&T) -> Fut,
-    ) -> Result<Cid>
+    pub(crate) fn get_cached(&self) -> Option<&T> {
+        match self {
+            Self::Encoded { value_cache, .. } => value_cache.get(),
+            Self::Decoded { value, .. } => Some(value),
+        }
+    }
+
+    pub(crate) fn cid_cached(&self) -> Option<&Cid> {
+        match self {
+            Self::Encoded { cid, .. } => Some(cid),
+            Self::Decoded { cid_cache, .. } => cid_cache.get(),
+        }
+    }
+
+    pub(crate) async fn seal<B: BlockStore>(&self, store: &mut B) -> Result<&Cid>
     where
-        Fut: Future<Output = Result<Vec<u8>>>,
+        T: Serialize,
     {
         match self {
-            Self::Clean { cid, .. } => Ok(*cid),
-            Self::Dirty(node) => {
-                let bytes = serialize(node).await?;
-                let cid = store.put_block(bytes, IpldCodec::DagCbor).await?;
-                let node = std::mem::replace(node, T::bogus_value());
-                *self = Self::Clean {
-                    cid,
-                    cache: OnceCell::new_with(Some(node)),
-                };
-                Ok(cid)
+            Self::Encoded { cid, .. } => Ok(cid),
+            Self::Decoded { value, cid_cache } => {
+                cid_cache
+                    .get_or_try_init(async { store_put(value, store).await })
+                    .await
             }
         }
     }
 
-    fn is_clean(&self) -> bool {
-        matches!(self, Self::Clean { .. })
+    fn is_value_cached(&self) -> bool {
+        match self {
+            Self::Encoded { value_cache, .. } => value_cache.get().is_some(),
+            Self::Decoded { .. } => true,
+        }
     }
 
-    fn is_cached(&self) -> bool {
+    fn is_cid_cached(&self) -> bool {
         match self {
-            Self::Clean { cache, .. } => cache.get().is_some(),
-            Self::Dirty(_) => true,
+            Self::Encoded { .. } => true,
+            Self::Decoded { cid_cache, .. } => cid_cache.get().is_some(),
         }
     }
 }
+
+impl<T> From<T> for Link<T> {
+    fn from(value: T) -> Self {
+        Self::Decoded {
+            value,
+            cid_cache: OnceCell::new(),
+        }
+    }
+}
+
+// impl<T> From<Cid> for Link<T> {
+//     fn from(cid: Cid) -> Self {
+//         Self::Encoded {
+//             cid,
+//             value_cache: OnceCell::new(),
+//         }
+//     }
+// }
 
 #[cfg(test)]
 mod ipld_link_tests {
-    use crate::{Link, MemoryBlockStore, OptimizedAwayValue};
+    use crate::{Link, MemoryBlockStore};
 
-    // #[async_std::test]
-    // async fn ipld_link() {
-    //     let mut link = Link::new(42_u64);
-    //     let mut store = MemoryBlockStore::default();
-    //     let cid = link.seal(&mut store).await.unwrap();
-    //     println!("Clean? {}", link.is_clean());
-    //     println!("{}", cid);
+    #[async_std::test]
+    async fn ipld_link() {
+        let link = Link::from(42_u64);
+        let mut store = MemoryBlockStore::default();
+        let cid = link.seal(&mut store).await.unwrap();
+        println!("Value Cached? {}", link.is_value_cached());
+        println!("{}", cid);
 
-    //     // another link
-    //     let link2: Link<u64> = Link::from_cid(cid);
-    //     println!("Clean? {} Cached? {}", link2.is_clean(), link2.is_cached());
-    //     let num = *link2.resolve(&store).await.unwrap();
-    //     println!("num: {num}");
-    //     // interior mutability makes is_cached suddenly return true :S
-    //     // we may want to just never have that be observable behavior from the outside.
-    //     println!("Clean? {} Cached? {}", link2.is_clean(), link2.is_cached());
-    // }
-
-    impl OptimizedAwayValue for u64 {
-        fn bogus_value() -> Self {
-            0
-        }
+        // another link
+        let link2: Link<u64> = Link::from_cid(*cid);
+        println!(
+            "Value Cached? {} Cid Cached? {}",
+            link2.is_value_cached(),
+            link2.is_cid_cached()
+        );
+        let num = *link2.resolve(&store).await.unwrap();
+        println!("num: {num}");
+        // interior mutability makes is_cached suddenly return true :S
+        // we may want to just never have that be observable behavior from the outside.
+        println!(
+            "Value Cached? {} Cid Cached? {}",
+            link2.is_value_cached(),
+            link2.is_cid_cached()
+        );
     }
-}
-
-pub trait OptimizedAwayValue {
-    fn bogus_value() -> Self;
 }

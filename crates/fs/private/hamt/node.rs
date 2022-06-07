@@ -1,15 +1,25 @@
+use std::pin::Pin;
 use std::rc::Rc;
 
+use crate::BlockStore;
 use anyhow::Result;
+use async_recursion::async_recursion;
 use bitvec::array::BitArray;
 use bitvec::bitarr;
 use bitvec::order::Lsb0;
-use serde::{Serialize, Serializer};
-use sha3::{Digest, Sha3_256};
+use libipld::serde::to_ipld;
+use libipld::{cbor::DagCborCodec, codec::Encode};
+use serde::{
+    de::{Deserialize, DeserializeOwned},
+    ser::{self, SerializeTuple},
+    Deserializer, Serialize, Serializer,
+};
+use sha3::Sha3_256;
 
-use crate::BlockStore;
-
-use super::{hashbits::HashBits, Pointer};
+use super::{
+    hash::{GenerateHash, HashBits},
+    Pointer,
+};
 
 #[derive(Debug, Default, Clone)]
 pub struct Node<K, V> {
@@ -30,19 +40,27 @@ where
     }
 }
 
-// key = 0x83279d6298d6a9f
-// // 0x83479d6298d6a9f
-// // 0x81279d6298d6a9f
-
-// Node{
-//     bitmask: 0000_0001_0000_0000
-//     pointers: vec![Values(vec![value])]
-// }
+impl<'de, K, V> Deserialize<'de> for Node<K, V>
+where
+    K: DeserializeOwned,
+    V: DeserializeOwned,
+{
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let (bitmask, pointers): ([u16; 1], _) = Deserialize::deserialize(deserializer)?;
+        Ok(Node {
+            bitmask: BitArray::<[u16; 1]>::from(bitmask),
+            pointers,
+        })
+    }
+}
 
 impl<K, V> Node<K, V>
 where
-    K: AsRef<[u8]> + Clone,
-    V: Clone,
+    K: DeserializeOwned + Serialize + AsRef<[u8]> + Clone,
+    V: DeserializeOwned + Serialize + Clone,
 {
     pub async fn set<B: BlockStore>(
         self: Rc<Self>,
@@ -50,7 +68,7 @@ where
         value: V,
         store: &mut B,
     ) -> Result<Rc<Self>> {
-        let hash = &hash(&key);
+        let hash = &Sha3_256::generate_hash(&key);
         let mut hashbits = HashBits::new(hash);
         self.modify_value(&mut hashbits, key, value, store).await?;
 
@@ -58,34 +76,35 @@ where
     }
 
     pub async fn get<B: BlockStore>(key: &K, store: &B) {
-        let hash = hash(key);
+        let hash = &Sha3_256::generate_hash(&key);
 
         todo!()
     }
 
     pub async fn modify_value<'a, B: BlockStore>(
         self: Rc<Self>,
-        hashed_key: &mut HashBits<'a>,
+        hashbits: &mut HashBits<'a>,
         key: K,
         value: V,
         store: &B,
     ) -> Result<Rc<Self>> {
-        let index = hashed_key.next(4)?;
+        let index = hashbits.next()?;
 
         // No existing values at this point.
         if !self.bitmask[index as usize] {
             let mut cloned = (*self).clone();
-            cloned.insert_child(index, key, value);
+            cloned.insert_child(index as u32, key, value);
             return Ok(Rc::new(cloned));
         }
 
-        // let value_index = self.get_value_index(index);
-        // match self.pointers[value_index] {
-        //     Pointer::Values(_) => todo!(),
-        //     Pointer::NodeLink(link) => {
-        //         let child = link.get(store).await?;
-        //     }
-        // }
+        let value_index = self.get_value_index(index as u32);
+        match &self.pointers[value_index] {
+            Pointer::Values(_) => todo!(),
+            Pointer::NodeLink(link) => {
+                // let child = link.get(store).await?;
+                todo!()
+            }
+        }
 
         todo!()
     }
@@ -108,6 +127,7 @@ where
             self.get_value_index(index),
             Pointer::Values(vec![(key, value)]),
         );
+
         self.bitmask.set(index as usize, true);
     }
 
@@ -118,16 +138,25 @@ where
 
         assert_eq!(mask.count_ones(), bit_pos as usize);
 
-        (mask & &self.bitmask).count_ones()
+        (mask & self.bitmask).count_ones()
+    }
+
+    #[async_recursion(?Send)]
+    pub(crate) async fn flush<'a, B: BlockStore>(self: &'a Rc<Self>, store: &mut B) -> Result<()> {
+        for pointer in self.pointers.iter() {
+            if let Pointer::NodeLink(link) = pointer {
+                match link.get_cached() {
+                    Some(node) => Rc::clone(node).flush(store).await?,
+                    None => {}
+                };
+                link.seal(store).await?;
+            }
+        }
+
+        Ok(())
     }
 
     pub async fn search<B: BlockStore>(key: &K, store: &B) -> Result<Option<V>> {
         todo!()
     }
-}
-
-pub fn hash<K: AsRef<[u8]>>(key: &K) -> Vec<u8> {
-    let mut hasher = Sha3_256::default();
-    hasher.update(key.as_ref());
-    hasher.finalize().as_slice().to_vec()
 }

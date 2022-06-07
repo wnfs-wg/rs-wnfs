@@ -1,7 +1,7 @@
 mod error;
 #[allow(clippy::module_inception)]
 mod hamt;
-mod hashbits;
+mod hash;
 mod node;
 mod pointer;
 
