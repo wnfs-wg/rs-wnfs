@@ -4,7 +4,7 @@ use std::{
 };
 
 use anyhow::Result;
-use bitvec::{order::Lsb0, prelude::BitArray};
+use bitvec::prelude::BitArray;
 use twox_hash::XxHash32;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -61,7 +61,7 @@ impl<const N: usize, T: Hash> Iterator for HashIndexIterator<'_, N, T> {
 impl<const N: usize> BloomFilter<N> {
     pub fn with_params(params: BloomParams) -> Self {
         Self {
-            bits: BitArray::<[u8; N], Lsb0>::ZERO,
+            bits: BitArray::<[u8; N], _>::ZERO,
             params,
             len: 0,
         }

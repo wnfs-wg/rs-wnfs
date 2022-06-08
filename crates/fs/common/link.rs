@@ -2,7 +2,6 @@ use std::io::Cursor;
 
 use anyhow::Result;
 use async_once_cell::OnceCell;
-use futures::Future;
 use libipld::cbor::DagCborCodec;
 use libipld::codec::Decode;
 use libipld::codec::Encode;
@@ -37,7 +36,7 @@ where
     fn clone(&self) -> Self {
         match self {
             Link::Encoded { cid, value_cache } => Self::Encoded {
-                cid: cid.clone(),
+                cid: *cid,
                 value_cache: OnceCell::new_with(value_cache.get().cloned()),
             },
             Link::Decoded { value, cid_cache } => Self::Decoded {
@@ -57,7 +56,10 @@ async fn load<D: DeserializeOwned, B: BlockStore>(cid: &Cid, store: &B) -> Resul
 }
 
 // TODO(appcypher): Move to blockstore
-async fn store_put<S: Serialize, B: BlockStore>(value: &S, store: &mut B) -> Result<Cid> {
+pub(crate) async fn store_put<S: Serialize, B: BlockStore>(
+    value: &S,
+    store: &mut B,
+) -> Result<Cid> {
     let ipld = to_ipld(value)?;
     let mut bytes = Vec::new();
     ipld.encode(DagCborCodec, &mut bytes)?;
@@ -69,6 +71,33 @@ impl<T> Link<T> {
         Self::Encoded {
             cid,
             value_cache: OnceCell::new(),
+        }
+    }
+
+    pub(crate) async fn get<B: BlockStore>(self, store: &B) -> Result<T>
+    where
+        T: DeserializeOwned,
+    {
+        match self {
+            Self::Encoded { cid, value_cache } => match value_cache.into_inner() {
+                Some(cached) => Ok(cached),
+                None => load(&cid, store).await,
+            },
+            Self::Decoded { value, .. } => Ok(value),
+        }
+    }
+
+    pub(crate) fn get_value(&self) -> Option<&T> {
+        match self {
+            Self::Encoded { value_cache, .. } => value_cache.get(),
+            Self::Decoded { value, .. } => Some(value),
+        }
+    }
+
+    pub(crate) fn get_cid(&self) -> Option<&Cid> {
+        match self {
+            Self::Encoded { cid, .. } => Some(cid),
+            Self::Decoded { cid_cache, .. } => cid_cache.get(),
         }
     }
 
@@ -86,33 +115,6 @@ impl<T> Link<T> {
         }
     }
 
-    pub(crate) async fn get<B: BlockStore>(self, store: &B) -> Result<T>
-    where
-        T: DeserializeOwned,
-    {
-        match self {
-            Self::Encoded { cid, value_cache } => match value_cache.into_inner() {
-                Some(cached) => Ok(cached),
-                None => load(&cid, store).await,
-            },
-            Self::Decoded { value, .. } => Ok(value),
-        }
-    }
-
-    pub(crate) fn get_cached(&self) -> Option<&T> {
-        match self {
-            Self::Encoded { value_cache, .. } => value_cache.get(),
-            Self::Decoded { value, .. } => Some(value),
-        }
-    }
-
-    pub(crate) fn cid_cached(&self) -> Option<&Cid> {
-        match self {
-            Self::Encoded { cid, .. } => Some(cid),
-            Self::Decoded { cid_cache, .. } => cid_cache.get(),
-        }
-    }
-
     pub(crate) async fn seal<B: BlockStore>(&self, store: &mut B) -> Result<&Cid>
     where
         T: Serialize,
@@ -127,14 +129,14 @@ impl<T> Link<T> {
         }
     }
 
-    fn is_value_cached(&self) -> bool {
+    pub(crate) fn is_value_cached(&self) -> bool {
         match self {
             Self::Encoded { value_cache, .. } => value_cache.get().is_some(),
             Self::Decoded { .. } => true,
         }
     }
 
-    fn is_cid_cached(&self) -> bool {
+    pub(crate) fn is_cid_cached(&self) -> bool {
         match self {
             Self::Encoded { .. } => true,
             Self::Decoded { cid_cache, .. } => cid_cache.get().is_some(),

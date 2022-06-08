@@ -1,5 +1,7 @@
 // TODO(appcypher): Based on ipld_hamt implementation
 
+use std::borrow::Cow;
+
 use anyhow::Result;
 use sha3::{Digest, Sha3_256};
 
@@ -24,8 +26,7 @@ pub trait GenerateHash {
     fn generate_hash<K: AsRef<[u8]>>(key: &K) -> HashOutput; // &[u8]
 }
 
-// TODO(appcypher): Rename to HashNibbles?
-pub struct HashBits<'a> {
+pub struct HashQuartets<'a> {
     digest: &'a HashOutput,
     cursor: usize,
 }
@@ -34,13 +35,13 @@ pub struct HashBits<'a> {
 // Implementation
 //--------------------------------------------------------------------------------------------------
 
-impl<'a> HashBits<'a> {
-    pub fn new(digest: &'a HashOutput) -> HashBits<'a> {
+impl<'a> HashQuartets<'a> {
+    pub fn new(digest: &'a HashOutput) -> HashQuartets<'a> {
         Self::with_cursor(digest, 0)
     }
 
     /// Constructs hash bits with custom cursor index
-    pub fn with_cursor(digest: &'a HashOutput, cursor: usize) -> HashBits<'a> {
+    pub fn with_cursor(digest: &'a HashOutput, cursor: usize) -> HashQuartets<'a> {
         Self { digest, cursor }
     }
 
@@ -88,7 +89,7 @@ mod tests {
         key[1] = 0b10101010;
         key[2] = 0b10111111;
         key[3] = 0b11111111;
-        let mut hb = HashBits::new(&key);
+        let mut hb = HashQuartets::new(&key);
         assert_eq!(hb.next().unwrap(), 0b1000);
         assert_eq!(hb.next().unwrap(), 0b1000);
         assert_eq!(hb.next().unwrap(), 0b1010);

@@ -1,3 +1,5 @@
+// TODO(appcypher): Based on ipld_hamt implementation
+
 use std::rc::Rc;
 
 use libipld::Ipld;
@@ -10,13 +12,26 @@ use crate::Link;
 
 use super::Node;
 
+//--------------------------------------------------------------------------------------------------
+// Type Definitions
+//--------------------------------------------------------------------------------------------------
+
 #[derive(Debug, Clone)]
-pub enum Pointer<K, V> {
-    Values(Vec<(K, V)>),
-    NodeLink(Link<Rc<Node<K, V>>>),
+pub struct Pair<K, V> {
+    pub key: K,
+    pub value: V,
 }
 
-/// Serialize the Pointer like an untagged enum.
+#[derive(Debug, Clone)]
+pub enum Pointer<K, V> {
+    Values(Vec<Pair<K, V>>),
+    Link(Link<Rc<Node<K, V>>>),
+}
+
+//--------------------------------------------------------------------------------------------------
+// Implementations
+//--------------------------------------------------------------------------------------------------
+
 impl<K, V> Serialize for Pointer<K, V>
 where
     K: Serialize,
@@ -28,7 +43,7 @@ where
     {
         match self {
             Pointer::Values(vals) => vals.serialize(serializer),
-            Pointer::NodeLink(link) => match link.cid_cached() {
+            Pointer::Link(link) => match link.get_cid() {
                 Some(cid) => cid.serialize(serializer),
                 None => Err(ser::Error::custom("Must flush HAMT before serialization")),
             },
@@ -46,11 +61,11 @@ where
     fn try_from(ipld: Ipld) -> Result<Self, Self::Error> {
         match ipld {
             ipld_list @ Ipld::List(_) => {
-                let values: Vec<(K, V)> =
+                let values: Vec<Pair<K, V>> =
                     Deserialize::deserialize(ipld_list).map_err(|error| error.to_string())?;
                 Ok(Self::Values(values))
             }
-            Ipld::Link(cid) => Ok(Self::NodeLink(Link::from_cid(cid))),
+            Ipld::Link(cid) => Ok(Self::Link(Link::from_cid(cid))),
             other => Err(format!(
                 "Expected `Ipld::List` or `Ipld::Link`, got {:#?}",
                 other
@@ -75,5 +90,32 @@ where
 impl<K, V> Default for Pointer<K, V> {
     fn default() -> Self {
         Pointer::Values(Vec::new())
+    }
+}
+
+impl<'de, K, V> Deserialize<'de> for Pair<K, V>
+where
+    K: DeserializeOwned,
+    V: DeserializeOwned,
+{
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let (key, value) = <(K, V)>::deserialize(deserializer)?;
+        Ok(Pair { key, value })
+    }
+}
+
+impl<K, V> Serialize for Pair<K, V>
+where
+    K: Serialize,
+    V: Serialize,
+{
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        (&self.key, &self.value).serialize(serializer)
     }
 }
