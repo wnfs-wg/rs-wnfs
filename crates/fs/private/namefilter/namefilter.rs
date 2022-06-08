@@ -1,6 +1,5 @@
 use super::{BloomFilter, BloomParams};
 
-// TODO(appcypher): What is the magic number? Should this be 1024 if we want half-filled bloom filters?
 pub const SATURATION_THRESHOLD: usize = 1019;
 
 pub type Namefilter = BloomFilter<2048>;
@@ -19,9 +18,12 @@ impl Namefilter {
         if pop_count >= SATURATION_THRESHOLD {
             return;
         }
+    }
+}
 
-        // TODO(appcypher): Implement saturation.
-        todo!();
+impl AsRef<[u8]> for Namefilter {
+    fn as_ref(&self) -> &[u8] {
+        self.bits.as_raw_slice()
     }
 }
 
