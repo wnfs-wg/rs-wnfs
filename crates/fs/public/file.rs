@@ -4,8 +4,8 @@ use std::rc::Rc;
 
 use anyhow::Result;
 use chrono::{DateTime, Utc};
-use libipld::{cbor::DagCborCodec, prelude::Encode, Cid, DagCbor, IpldCodec};
-use serde::{Serialize, Deserialize};
+use libipld::Cid;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::{BlockStore, Metadata, UnixFsNodeKind};
 
@@ -24,7 +24,7 @@ use super::Id;
 ///
 /// println!("id = {}", file.get_id());
 /// ```
-#[derive(Debug, Clone, PartialEq, Eq, DagCbor, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PublicFile {
     pub(crate) metadata: Metadata,
     pub(crate) userland: Cid,
@@ -79,13 +79,9 @@ impl PublicFile {
     ///     file.store(&mut store).await.unwrap();
     /// }
     /// ```
+    #[inline(always)]
     pub async fn store<B: BlockStore>(&self, store: &mut B) -> Result<Cid> {
-        let bytes = {
-            let mut tmp = vec![];
-            self.encode(DagCborCodec, &mut tmp)?;
-            tmp
-        };
-        store.put_block(bytes, IpldCodec::DagCbor).await
+        store.put_serializable(self).await
     }
 }
 
@@ -95,31 +91,50 @@ impl Id for PublicFile {
     }
 }
 
+impl Serialize for PublicFile {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        (&self.metadata, &self.userland, &self.previous).serialize(serializer)
+    }
+}
+
+impl<'de> Deserialize<'de> for PublicFile {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let (metadata, userland, previous): (Metadata, Cid, Option<Cid>) =
+            Deserialize::deserialize(deserializer)?;
+
+        Ok(Self {
+            metadata,
+            userland,
+            previous,
+        })
+    }
+}
+
 //--------------------------------------------------------------------------------------------------
 // Tests
 //--------------------------------------------------------------------------------------------------
 
 #[cfg(test)]
 mod public_file_tests {
-    use std::io::Cursor;
 
     use chrono::Utc;
-    use libipld::prelude::Decode;
+    use libipld::Cid;
 
-    use super::*;
+    use crate::{dagcbor, public::PublicFile};
 
     #[async_std::test]
-    async fn file_can_encode_decode_as_cbor() {
-        let file = PublicFile::new(Utc::now(), Cid::default());
+    async fn serialized_public_file_can_be_deserialized() {
+        let original_file = PublicFile::new(Utc::now(), Cid::default());
 
-        let mut encoded_bytes = vec![];
+        let serialized_file = dagcbor::encode(&original_file);
+        let deserialized_file: PublicFile = dagcbor::decode(serialized_file.as_ref());
 
-        file.encode(DagCborCodec, &mut encoded_bytes).unwrap();
-
-        let mut cursor = Cursor::new(encoded_bytes);
-
-        let decoded_file = PublicFile::decode(DagCborCodec, &mut cursor).unwrap();
-
-        assert_eq!(file, decoded_file);
+        assert_eq!(deserialized_file, original_file);
     }
 }

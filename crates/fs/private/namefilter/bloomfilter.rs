@@ -3,9 +3,12 @@ use std::{
     ops::Index,
 };
 
-use anyhow::Result;
 use bitvec::prelude::BitArray;
 use twox_hash::XxHash32;
+
+//------------------------------------------------------------------------------
+// Type Definitions
+//------------------------------------------------------------------------------
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BloomFilter<const N: usize> {
@@ -25,10 +28,14 @@ pub struct HashIndexIterator<'a, T: Hash> {
     index: u32,
 }
 
+//------------------------------------------------------------------------------
+// Implementations
+//------------------------------------------------------------------------------
+
 impl<'a, T: Hash> HashIndexIterator<'a, T> {
-    pub(super) fn new(params: &BloomParams, item: &'a T) -> Self {
+    pub(super) fn new(m_bits: u32, item: &'a T) -> Self {
         Self {
-            m_bits: params.m_bytes * 8,
+            m_bits,
             item,
             index: 0,
         }
@@ -59,15 +66,13 @@ impl<const N: usize> BloomFilter<N> {
         }
     }
 
-    pub fn add<T>(&mut self, item: &T) -> Result<()>
+    pub fn add<T>(&mut self, item: &T)
     where
         T: Hash,
     {
         for i in self.hash_indices(item) {
             self.bits.set(i, true);
         }
-
-        Ok(())
     }
 
     pub fn contains<T>(&self, item: &T) -> bool
@@ -92,7 +97,7 @@ impl<const N: usize> BloomFilter<N> {
     where
         T: Hash,
     {
-        HashIndexIterator::new(&self.params, item).take(self.params.k_hashes as usize)
+        HashIndexIterator::new(&self.params.m_bytes * 8, item).take(self.params.k_hashes as usize)
     }
 }
 
@@ -104,5 +109,21 @@ impl<const N: usize> Index<usize> for BloomFilter<N> {
     }
 }
 
+//------------------------------------------------------------------------------
+// Tests
+//------------------------------------------------------------------------------
+
 #[cfg(test)]
-mod bloomfilter_tests {}
+mod bloomfilter_tests {
+    use super::*;
+
+    #[test]
+    fn test_bloomfilter_() {
+        let mut bloom = BloomFilter::<2048>::with_params(BloomParams {
+            m_bytes: 256,
+            k_hashes: 30,
+        });
+
+        bloom.add(&"hello");
+    }
+}

@@ -1,34 +1,135 @@
-use std::io::Cursor;
-
 use anyhow::Result;
 use async_once_cell::OnceCell;
-use libipld::cbor::DagCborCodec;
-use libipld::codec::Decode;
-use libipld::codec::Encode;
-use libipld::serde::from_ipld;
-use libipld::serde::to_ipld;
 use libipld::Cid;
-use libipld::Ipld;
-use libipld::IpldCodec;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
 use crate::BlockStore;
 
-// TODO(matheus23) we should have a custom impl of PartialEq and Eq
+//--------------------------------------------------------------------------------------------------
+// Type Definitions
+//--------------------------------------------------------------------------------------------------
+
+/// A data structure that represents a link in the IPLD graph. Basically it is "link" to some content addressable value of `T`.
+///
+/// It supports representing the "link" with a Cid or the deserialized value itself.
+///
+/// Link needs a `BlockStore` to be able to resolve Cids to corresponding values of `T` and vice versa.
 #[derive(Debug)]
 pub enum Link<T> {
-    /// Invariant: the (optional) contents of the cache *must* encode the cid
-    Encoded {
-        cid: Cid,
-        value_cache: OnceCell<T>,
-    },
-    Decoded {
-        value: T,
-        cid_cache: OnceCell<Cid>,
-    },
+    /// A variant of `Link` that starts out as a Cid.
+    /// It supports converting the Cid to a `T` by caching it only once in `value_cache`.
+    Encoded { cid: Cid, value_cache: OnceCell<T> },
+    /// A variant of `Link` that starts out as a value of `T`.
+    /// It supports converting the value of `T` to a Cid by caching it only once in `cid_cache`.
+    Decoded { value: T, cid_cache: OnceCell<Cid> },
 }
 
+//--------------------------------------------------------------------------------------------------
+// Implementations
+//--------------------------------------------------------------------------------------------------
+
+impl<T> Link<T> {
+    /// Creates a new `Link` that starts out as a Cid.
+    pub fn from_cid(cid: Cid) -> Self {
+        Self::Encoded {
+            cid,
+            value_cache: OnceCell::new(),
+        }
+    }
+
+    /// Gets an owned value from link. It attempts to it get from the store if it is not present in link.
+    pub async fn get_owned_value<B: BlockStore>(self, store: &B) -> Result<T>
+    where
+        T: DeserializeOwned,
+    {
+        match self {
+            Self::Encoded {
+                ref cid,
+                value_cache,
+            } => match value_cache.into_inner() {
+                Some(cached) => Ok(cached),
+                None => store.get_deserializable(cid).await,
+            },
+            Self::Decoded { value, .. } => Ok(value),
+        }
+    }
+
+    /// Gets the value stored in link.
+    ///
+    /// NOTE: This does not attempt to get it from the store if it does not exist.
+    pub fn get_value(&self) -> Option<&T> {
+        match self {
+            Self::Encoded { value_cache, .. } => value_cache.get(),
+            Self::Decoded { value, .. } => Some(value),
+        }
+    }
+
+    /// Gets the Cid stored in link.
+    ///
+    /// NOTE: This does not attempt to get it from the store if it does not exist.
+    pub fn get_cid(&self) -> Option<&Cid> {
+        match self {
+            Self::Encoded { cid, .. } => Some(cid),
+            Self::Decoded { cid_cache, .. } => cid_cache.get(),
+        }
+    }
+
+    /// Gets the value stored in link. It attempts to get it from the store if it is not present in link.
+    pub async fn resolve_value<B: BlockStore>(&self, store: &B) -> Result<&T>
+    where
+        T: DeserializeOwned,
+    {
+        match self {
+            Self::Encoded { cid, value_cache } => {
+                value_cache
+                    .get_or_try_init(async { store.get_deserializable(cid).await })
+                    .await
+            }
+            Self::Decoded { value, .. } => Ok(value),
+        }
+    }
+
+    /// Gets the Cid stored in link. It attempts to get it from the store if it is not present in link.
+    pub async fn resolve_cid<B: BlockStore>(&self, store: &mut B) -> Result<&Cid>
+    where
+        T: Serialize,
+    {
+        match self {
+            Self::Encoded { cid, .. } => Ok(cid),
+            Self::Decoded { value, cid_cache } => {
+                cid_cache
+                    .get_or_try_init(async { store.put_serializable(value).await })
+                    .await
+            }
+        }
+    }
+
+    /// Checks if there is a value stored in link.
+    pub fn has_value(&self) -> bool {
+        match self {
+            Self::Encoded { value_cache, .. } => value_cache.get().is_some(),
+            _ => true,
+        }
+    }
+
+    /// Checks if there is a Cid stored in link.
+    pub fn has_cid(&self) -> bool {
+        match self {
+            Self::Decoded { cid_cache, .. } => cid_cache.get().is_some(),
+            _ => true,
+        }
+    }
+}
+
+impl<T> From<T> for Link<T> {
+    fn from(value: T) -> Self {
+        Self::Decoded {
+            value,
+            cid_cache: OnceCell::new(),
+        }
+    }
+}
 impl<T> Clone for Link<T>
 where
     T: Clone,
@@ -47,120 +148,35 @@ where
     }
 }
 
-// TODO(appcypher): Move to blockstore
-async fn load<D: DeserializeOwned, B: BlockStore>(cid: &Cid, store: &B) -> Result<D> {
-    // TODO(appcypher): Abstract the codec.
-    let bytes = store.get_block(cid).await?;
-    let ipld = Ipld::decode(DagCborCodec, &mut Cursor::new(bytes.as_ref()))?;
-    Ok(from_ipld::<D>(ipld)?)
-}
-
-// TODO(appcypher): Move to blockstore
-pub(crate) async fn store_put<S: Serialize, B: BlockStore>(
-    value: &S,
-    store: &mut B,
-) -> Result<Cid> {
-    let ipld = to_ipld(value)?;
-    let mut bytes = Vec::new();
-    ipld.encode(DagCborCodec, &mut bytes)?;
-    store.put_block(bytes, IpldCodec::DagCbor).await
-}
-
-impl<T> Link<T> {
-    pub(crate) fn from_cid(cid: Cid) -> Self {
-        Self::Encoded {
-            cid,
-            value_cache: OnceCell::new(),
-        }
-    }
-
-    pub(crate) async fn get<B: BlockStore>(self, store: &B) -> Result<T>
-    where
-        T: DeserializeOwned,
-    {
-        match self {
-            Self::Encoded { cid, value_cache } => match value_cache.into_inner() {
-                Some(cached) => Ok(cached),
-                None => load(&cid, store).await,
-            },
-            Self::Decoded { value, .. } => Ok(value),
-        }
-    }
-
-    pub(crate) fn get_value(&self) -> Option<&T> {
-        match self {
-            Self::Encoded { value_cache, .. } => value_cache.get(),
-            Self::Decoded { value, .. } => Some(value),
-        }
-    }
-
-    pub(crate) fn get_cid(&self) -> Option<&Cid> {
-        match self {
-            Self::Encoded { cid, .. } => Some(cid),
-            Self::Decoded { cid_cache, .. } => cid_cache.get(),
-        }
-    }
-
-    pub(crate) async fn resolve<B: BlockStore>(&self, store: &B) -> Result<&T>
-    where
-        T: DeserializeOwned,
-    {
-        match self {
-            Self::Encoded { cid, value_cache } => {
-                value_cache
-                    .get_or_try_init(async { load(cid, store).await })
-                    .await
+impl<T: PartialEq> PartialEq for Link<T> {
+    /// This equality check does not cover cases where one holds a Cid and the other holds a value T.
+    /// This is because sealing or resolving the link requires async operation which PartialEq does not expose.
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Encoded { cid, .. }, Self::Encoded { cid: cid2, .. }) => cid == cid2,
+            (Self::Decoded { value, .. }, Self::Decoded { value: value2, .. }) => value == value2,
+            (Self::Encoded { cid, .. }, Self::Decoded { .. }) => {
+                if let Some(cid2) = other.get_cid() {
+                    cid == cid2
+                } else {
+                    false
+                }
             }
-            Self::Decoded { value, .. } => Ok(value),
-        }
-    }
-
-    pub(crate) async fn seal<B: BlockStore>(&self, store: &mut B) -> Result<&Cid>
-    where
-        T: Serialize,
-    {
-        match self {
-            Self::Encoded { cid, .. } => Ok(cid),
-            Self::Decoded { value, cid_cache } => {
-                cid_cache
-                    .get_or_try_init(async { store_put(value, store).await })
-                    .await
+            (Self::Decoded { .. }, Self::Encoded { cid: cid2, .. }) => {
+                if let Some(cid) = self.get_cid() {
+                    cid == cid2
+                } else {
+                    false
+                }
             }
-        }
-    }
-
-    pub(crate) fn is_value_cached(&self) -> bool {
-        match self {
-            Self::Encoded { value_cache, .. } => value_cache.get().is_some(),
-            Self::Decoded { .. } => true,
-        }
-    }
-
-    pub(crate) fn is_cid_cached(&self) -> bool {
-        match self {
-            Self::Encoded { .. } => true,
-            Self::Decoded { cid_cache, .. } => cid_cache.get().is_some(),
+            _ => false,
         }
     }
 }
 
-impl<T> From<T> for Link<T> {
-    fn from(value: T) -> Self {
-        Self::Decoded {
-            value,
-            cid_cache: OnceCell::new(),
-        }
-    }
-}
-
-// impl<T> From<Cid> for Link<T> {
-//     fn from(cid: Cid) -> Self {
-//         Self::Encoded {
-//             cid,
-//             value_cache: OnceCell::new(),
-//         }
-//     }
-// }
+//--------------------------------------------------------------------------------------------------
+// Tests
+//--------------------------------------------------------------------------------------------------
 
 #[cfg(test)]
 mod ipld_link_tests {
@@ -170,25 +186,26 @@ mod ipld_link_tests {
     async fn ipld_link() {
         let link = Link::from(42_u64);
         let mut store = MemoryBlockStore::default();
-        let cid = link.seal(&mut store).await.unwrap();
-        println!("Value Cached? {}", link.is_value_cached());
+        let cid = link.resolve_cid(&mut store).await.unwrap();
+        println!("Has Value? {}", link.has_value());
         println!("{}", cid);
 
         // another link
         let link2: Link<u64> = Link::from_cid(*cid);
         println!(
-            "Value Cached? {} Cid Cached? {}",
-            link2.is_value_cached(),
-            link2.is_cid_cached()
+            "Has Value? {} Has Cid? {}",
+            link2.has_value(),
+            link2.has_cid()
         );
-        let num = *link2.resolve(&store).await.unwrap();
+
+        let num = *link2.resolve_value(&store).await.unwrap();
         println!("num: {num}");
         // interior mutability makes is_cached suddenly return true :S
         // we may want to just never have that be observable behavior from the outside.
         println!(
-            "Value Cached? {} Cid Cached? {}",
-            link2.is_value_cached(),
-            link2.is_cid_cached()
+            "Has Value? {} Has Cid? {}",
+            link2.has_value(),
+            link2.has_cid()
         );
     }
 }

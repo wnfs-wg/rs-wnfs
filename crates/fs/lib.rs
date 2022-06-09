@@ -12,7 +12,6 @@ pub mod private;
 pub mod public;
 
 pub use common::*;
-pub use public::*;
 
 //--------------------------------------------------------------------------------------------------
 // Re-exports

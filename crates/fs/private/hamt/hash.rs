@@ -1,7 +1,5 @@
 // TODO(appcypher): Based on ipld_hamt implementation
 
-use std::borrow::Cow;
-
 use anyhow::Result;
 use sha3::{Digest, Sha3_256};
 
@@ -40,29 +38,25 @@ impl<'a> HashQuartets<'a> {
         Self::with_cursor(digest, 0)
     }
 
-    /// Constructs hash bits with custom cursor index
+    /// Constructs hash quartets with custom cursor index.
     pub fn with_cursor(digest: &'a HashOutput, cursor: usize) -> HashQuartets<'a> {
         Self { digest, cursor }
     }
 
-    // TODO(appcypher): Implement Iterator??
     pub fn next(&mut self) -> Result<u8> {
         if self.cursor >= MAX_CURSOR_DEPTH {
             return error(HamtError::CursorOutOfBounds);
         }
 
-        let byte_index = self.cursor / 2;
-        let byte = self.digest[byte_index];
-
-        let ret = if self.cursor % 2 == 0 {
+        let byte = self.digest[self.cursor / 2];
+        let byte = if self.cursor % 2 == 0 {
             byte & 0b0000_1111
         } else {
             byte >> 4
         };
 
         self.cursor += 1;
-
-        Ok(ret)
+        Ok(byte)
     }
 }
 
@@ -79,11 +73,11 @@ impl GenerateHash for Sha3_256 {
 //--------------------------------------------------------------------------------------------------
 
 #[cfg(test)]
-mod tests {
+mod hash_quartets_tests {
     use super::*;
 
     #[test]
-    fn test_can_cursor_over_digest() {
+    fn hash_quartets_can_cursor_over_digest() {
         let mut key = [0u8; HASH_BYTES];
         key[0] = 0b10001000;
         key[1] = 0b10101010;

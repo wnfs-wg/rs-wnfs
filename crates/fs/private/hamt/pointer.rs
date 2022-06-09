@@ -5,7 +5,8 @@ use std::rc::Rc;
 use libipld::Ipld;
 use serde::{
     de::{self, DeserializeOwned},
-    ser, Deserialize, Deserializer, Serialize, Serializer,
+    ser::Error as SerError,
+    Deserialize, Deserializer, Serialize, Serializer,
 };
 
 use crate::Link;
@@ -16,13 +17,13 @@ use super::Node;
 // Type Definitions
 //--------------------------------------------------------------------------------------------------
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Pair<K, V> {
     pub key: K,
     pub value: V,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Pointer<K, V> {
     Values(Vec<Pair<K, V>>),
     Link(Link<Rc<Node<K, V>>>),
@@ -45,9 +46,22 @@ where
             Pointer::Values(vals) => vals.serialize(serializer),
             Pointer::Link(link) => match link.get_cid() {
                 Some(cid) => cid.serialize(serializer),
-                None => Err(ser::Error::custom("Must flush HAMT before serialization")),
+                None => Err(SerError::custom("Must flush HAMT before serialization")),
             },
         }
+    }
+}
+
+impl<'de, K, V> Deserialize<'de> for Pointer<K, V>
+where
+    K: DeserializeOwned,
+    V: DeserializeOwned,
+{
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        Ipld::deserialize(deserializer).and_then(|ipld| ipld.try_into().map_err(de::Error::custom))
     }
 }
 
@@ -71,19 +85,6 @@ where
                 other
             )),
         }
-    }
-}
-
-impl<'de, K, V> Deserialize<'de> for Pointer<K, V>
-where
-    K: DeserializeOwned,
-    V: DeserializeOwned,
-{
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        Ipld::deserialize(deserializer).and_then(|ipld| ipld.try_into().map_err(de::Error::custom))
     }
 }
 

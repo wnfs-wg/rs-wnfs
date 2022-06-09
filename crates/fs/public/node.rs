@@ -1,24 +1,34 @@
 //! Public node system in-memory representation.
 
-use std::{
-    io::{Cursor, Read, Seek},
-    rc::Rc,
-    result,
-};
+use std::rc::Rc;
 
 use anyhow::{bail, Result};
 use chrono::{DateTime, Utc};
-use libipld::{cbor::DagCborCodec, codec::Decode, Cid};
+use libipld::Cid;
+use serde::{Deserialize, Serialize};
 
 use super::{Id, PublicDirectory, PublicFile};
 use crate::{common::BlockStore, FsError, UnixFsNodeKind};
 
+//--------------------------------------------------------------------------------------------------
+// Type Definitions
+//--------------------------------------------------------------------------------------------------
+
 /// A node in a WNFS public file system. This can either be a file or a directory.
-#[derive(Debug, Clone, PartialEq, Eq)]
+///
+/// PublicNode is serialized and deserialized as [untagged][1] enum.
+///
+/// [1]: https://serde.rs/enum-representations.html#untagged
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(untagged)]
 pub enum PublicNode {
     File(Rc<PublicFile>),
     Dir(Rc<PublicDirectory>),
 }
+
+//--------------------------------------------------------------------------------------------------
+// Implementations
+//--------------------------------------------------------------------------------------------------
 
 impl PublicNode {
     /// Checks if the reference of one node is the same as the reference of another node.
@@ -125,70 +135,37 @@ impl Id for PublicNode {
     }
 }
 
-impl Decode<DagCborCodec> for PublicNode {
-    fn decode<R: Read + Seek>(c: DagCborCodec, r: &mut R) -> Result<Self> {
-        // NOTE(appcypher): There is really no great way to seek or peek at the data behind `r :: R: Read + Seek`.
-        // So we just copy the whole data behind the opaque type which allows us to cursor over the data multiple times.
-        // It is not ideal but it works.
-        let bytes: Vec<u8> = r.bytes().collect::<result::Result<_, _>>()?;
-
-        // We first try to decode as a file.
-        let mut try_file_cursor = Cursor::new(bytes);
-        let try_file_decode = PublicFile::decode(c, &mut try_file_cursor);
-
-        let node = match try_file_decode {
-            Ok(file) => PublicNode::File(Rc::new(file)),
-            _ => {
-                // If the file decode failed, we try to decode as a directory.
-                let mut cursor = Cursor::new(try_file_cursor.into_inner());
-                let dir = PublicDirectory::decode(c, &mut cursor)?;
-                PublicNode::Dir(Rc::new(dir))
-            }
-        };
-
-        Ok(node)
-    }
-}
-
 #[cfg(test)]
 mod public_node_tests {
-    use std::{io::Cursor, rc::Rc};
+
+    use std::rc::Rc;
 
     use chrono::Utc;
-    use libipld::{cbor::DagCborCodec, codec::Decode, prelude::Encode, Cid};
+    use libipld::Cid;
 
     use crate::{
+        dagcbor,
         public::{PublicDirectory, PublicFile, PublicNode},
-        MemoryBlockStore,
     };
 
     #[async_std::test]
-    async fn encoded_public_file_can_be_decoded() {
-        let file = PublicFile::new(Utc::now(), Cid::default());
+    async fn serialized_public_file_can_be_deserialized() {
+        let original_node_file =
+            PublicNode::File(Rc::new(PublicFile::new(Utc::now(), Cid::default())));
 
-        let mut encoded_bytes = vec![];
+        let serialized_node_file = dagcbor::encode(&original_node_file);
+        let deserialized_node_file: PublicNode = dagcbor::decode(serialized_node_file.as_ref());
 
-        file.encode(DagCborCodec, &mut encoded_bytes).unwrap();
-
-        let mut cursor = Cursor::new(encoded_bytes);
-
-        let decoded_file = PublicNode::decode(DagCborCodec, &mut cursor).unwrap();
-
-        assert_eq!(PublicNode::File(Rc::new(file)), decoded_file);
+        assert_eq!(deserialized_node_file, original_node_file);
     }
 
     #[async_std::test]
     async fn encoded_public_directory_can_be_decoded() {
-        let directory = PublicDirectory::new(Utc::now());
+        let original_node_dir = PublicNode::Dir(Rc::new(PublicDirectory::new(Utc::now())));
 
-        let mut store = MemoryBlockStore::default();
+        let serialized_node_dir = dagcbor::encode(&original_node_dir);
+        let deserialized_node_dir: PublicNode = dagcbor::decode(serialized_node_dir.as_ref());
 
-        let encoded_bytes = directory.encode(&mut store).await.unwrap();
-
-        let mut cursor = Cursor::new(encoded_bytes);
-
-        let decoded_directory = PublicNode::decode(DagCborCodec, &mut cursor).unwrap();
-
-        assert_eq!(PublicNode::Dir(Rc::new(directory)), decoded_directory);
+        assert_eq!(deserialized_node_dir, original_node_dir);
     }
 }
