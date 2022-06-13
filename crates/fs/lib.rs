@@ -10,8 +10,10 @@
 mod common;
 pub mod private;
 pub mod public;
+mod traits;
 
 pub use common::*;
+pub use traits::*;
 
 //--------------------------------------------------------------------------------------------------
 // Re-exports

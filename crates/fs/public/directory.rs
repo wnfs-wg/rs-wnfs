@@ -2,17 +2,18 @@
 
 use std::{collections::BTreeMap, rc::Rc};
 
-use crate::{error, BlockStore, FsError, Metadata, UnixFsNodeKind};
+use crate::{error, AsyncSerialize, BlockStore, FsError, Id, Metadata, UnixFsNodeKind};
 use anyhow::{bail, ensure, Result};
 use async_recursion::async_recursion;
 use async_stream::try_stream;
+use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use field_names::FieldNames;
 use futures::Stream;
 use libipld::Cid;
 use serde::{ser::Error as SerError, Deserialize, Deserializer, Serialize, Serializer};
 
-use super::{Id, PublicFile, PublicLink, PublicNode};
+use super::{PublicFile, PublicLink, PublicNode};
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
@@ -422,8 +423,9 @@ impl PublicDirectory {
     /// }
     /// ```
     pub async fn store<B: BlockStore>(&self, store: &mut B) -> Result<Cid> {
-        self.flush(store).await?;
-        store.put_serializable(self).await
+        store.put_async_serializable(self).await
+        // self.flush(store).await?;
+        // store.put_serializable(self).await
     }
 
     /// Reads specified file content from the directory.
@@ -986,20 +988,6 @@ impl PublicDirectory {
             }
         }
     }
-
-    /// Recursively resolves all nodes under the directory to Cids.
-    #[async_recursion(?Send)]
-    pub async fn flush<B: BlockStore>(&self, store: &mut B) -> Result<()> {
-        for (_, link) in self.userland.iter() {
-            if let Some(PublicNode::Dir(dir)) = link.get_value() {
-                dir.flush(store).await?;
-            }
-
-            link.resolve_cid(store).await?;
-        }
-
-        Ok(())
-    }
 }
 
 impl Id for PublicDirectory {
@@ -1008,19 +996,22 @@ impl Id for PublicDirectory {
     }
 }
 
-impl Serialize for PublicDirectory {
-    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
+/// Implements async deserialization for serde serializable types.
+#[async_trait(?Send)]
+impl AsyncSerialize for PublicDirectory {
+    async fn async_serialize<S: Serializer, B: BlockStore + ?Sized>(
+        &self,
+        serializer: S,
+        store: &mut B,
+    ) -> Result<S::Ok, S::Error> {
         let encoded_userland = {
             let mut map = BTreeMap::new();
             for (name, link) in self.userland.iter() {
                 map.insert(
                     name.clone(),
-                    *link.get_cid().ok_or_else(|| {
-                        SerError::custom("Must flush directory before serialization")
-                    })?,
+                    link.resolve_cid(store)
+                        .await
+                        .map_err(|e| SerError::custom(format!("{}", e)))?,
                 );
             }
             map
@@ -1074,10 +1065,8 @@ mod utils {
 
 #[cfg(test)]
 mod public_directory_tests {
-    use std::io::Cursor;
-
     use super::*;
-    use crate::{public::PublicFile, MemoryBlockStore};
+    use crate::{dagcbor, public::PublicFile, MemoryBlockStore};
     use chrono::Utc;
 
     #[async_std::test]
@@ -1124,30 +1113,21 @@ mod public_directory_tests {
 
         let cid = root.store(&mut store).await.unwrap();
 
-        let bytes = store.get_block(&cid).await.unwrap();
+        let encoded_dir = store.get_block(&cid).await.unwrap();
+        let deserialized_dir = dagcbor::decode::<PublicDirectory>(encoded_dir.as_ref()).unwrap();
 
-        let _cursor = Cursor::new(bytes.as_ref());
-
-        // TODO(appcypher)
-
-        // let decoded_root = PublicDirectory::decode(DagCborCodec, &mut cursor).unwrap();
-
-        // assert_eq!(root, decoded_root);
+        assert_eq!(root, deserialized_dir);
     }
 
     #[async_std::test]
     async fn directory_can_encode_decode_as_cbor() {
-        let _root = PublicDirectory::new(Utc::now());
-        let _store = MemoryBlockStore::default();
+        let root = PublicDirectory::new(Utc::now());
+        let store = &mut MemoryBlockStore::default();
 
-        // TODO(appcypher)
-        // let encoded_bytes = root.encode(&mut store).await.unwrap();
+        let encoded_dir = dagcbor::async_encode(&root, store).await.unwrap();
+        let decoded_dir = dagcbor::decode::<PublicDirectory>(encoded_dir.as_ref()).unwrap();
 
-        // let mut cursor = Cursor::new(encoded_bytes);
-
-        // let decoded_root = PublicDirectory::decode(DagCborCodec, &mut cursor).unwrap();
-
-        // assert_eq!(root, decoded_root);
+        assert_eq!(root, decoded_dir);
     }
 
     #[async_std::test]

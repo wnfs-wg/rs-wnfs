@@ -1,14 +1,15 @@
 //! Public node system in-memory representation.
 
-use std::rc::Rc;
+use std::{rc::Rc};
 
 use anyhow::{bail, Result};
+use async_trait::async_trait;
 use chrono::{DateTime, Utc};
-use libipld::Cid;
-use serde::{Deserialize, Serialize};
+use libipld::{Cid};
+use serde::{Deserialize, Serializer};
 
-use super::{Id, PublicDirectory, PublicFile};
-use crate::{common::BlockStore, FsError, UnixFsNodeKind};
+use super::{PublicDirectory, PublicFile};
+use crate::{common::BlockStore, AsyncSerialize, FsError, Id, UnixFsNodeKind};
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
@@ -19,8 +20,8 @@ use crate::{common::BlockStore, FsError, UnixFsNodeKind};
 /// PublicNode is serialized and deserialized as [untagged][1] enum.
 ///
 /// [1]: https://serde.rs/enum-representations.html#untagged
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(untagged)]
+#[derive(Debug, Clone, Deserialize)]
+// #[serde(untagged)]
 pub enum PublicNode {
     File(Rc<PublicFile>),
     Dir(Rc<PublicDirectory>),
@@ -31,15 +32,6 @@ pub enum PublicNode {
 //--------------------------------------------------------------------------------------------------
 
 impl PublicNode {
-    /// Checks if the reference of one node is the same as the reference of another node.
-    pub(crate) fn ptr_eq(&self, other: &PublicNode) -> bool {
-        match (self, other) {
-            (Self::File(self_file), Self::File(other_file)) => Rc::ptr_eq(self_file, other_file),
-            (Self::Dir(self_dir), Self::Dir(other_dir)) => Rc::ptr_eq(self_dir, other_dir),
-            _ => false,
-        }
-    }
-
     /// Create node with updated modified time.
     pub fn update_mtime(&self, time: DateTime<Utc>) -> Self {
         match self {
@@ -135,6 +127,55 @@ impl Id for PublicNode {
     }
 }
 
+impl PartialEq for PublicNode {
+    fn eq(&self, other: &PublicNode) -> bool {
+        match (self, other) {
+            (Self::File(self_file), Self::File(other_file)) => {
+                Rc::ptr_eq(self_file, other_file) || self_file == other_file
+            }
+            (Self::Dir(self_dir), Self::Dir(other_dir)) => {
+                Rc::ptr_eq(self_dir, other_dir) || self_dir == other_dir
+            }
+            _ => false,
+        }
+    }
+}
+
+// impl<'de> Deserialize<'de> for PublicNode {
+//     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+//     where
+//         D: Deserializer<'de>,
+//     {
+//         // We try to deserialize as a file first, if there is an error, we try it as a directory.
+//         if let Ok(file) = PublicFile::deserialize(deserializer) {
+//             Ok(Self::File(Rc::new(file)))
+//         } else {
+//             let dir = PublicDirectory::deserialize(deserializer)?;
+//             Ok(Self::Dir(Rc::new(dir)))
+//         }
+//         // TODO(appcypher): Implement visitor for deserialization.
+//     }
+// }
+
+/// Implements async deserialization for serde serializable types.
+#[async_trait(?Send)]
+impl AsyncSerialize for PublicNode {
+    async fn async_serialize<S: Serializer, B: BlockStore + ?Sized>(
+        &self,
+        serializer: S,
+        store: &mut B,
+    ) -> Result<S::Ok, S::Error> {
+        match self {
+            Self::File(file) => file.async_serialize(serializer, store).await,
+            Self::Dir(dir) => dir.async_serialize(serializer, store).await,
+        }
+    }
+}
+
+//--------------------------------------------------------------------------------------------------
+// Tests
+//--------------------------------------------------------------------------------------------------
+
 #[cfg(test)]
 mod public_node_tests {
 
@@ -146,25 +187,40 @@ mod public_node_tests {
     use crate::{
         dagcbor,
         public::{PublicDirectory, PublicFile, PublicNode},
+        MemoryBlockStore,
     };
 
     #[async_std::test]
     async fn serialized_public_file_can_be_deserialized() {
+        let store = &mut MemoryBlockStore::default();
         let original_node_file =
             PublicNode::File(Rc::new(PublicFile::new(Utc::now(), Cid::default())));
 
-        let serialized_node_file = dagcbor::encode(&original_node_file);
-        let deserialized_node_file: PublicNode = dagcbor::decode(serialized_node_file.as_ref());
+        let serialized_node_file = dagcbor::async_encode(&original_node_file, store)
+            .await
+            .unwrap();
+
+        println!("bytes = {:02x?}", serialized_node_file);
+
+        let deserialized_node_file: PublicNode =
+            dagcbor::decode(serialized_node_file.as_ref()).unwrap();
 
         assert_eq!(deserialized_node_file, original_node_file);
     }
 
     #[async_std::test]
-    async fn encoded_public_directory_can_be_decoded() {
+    async fn serialized_public_directory_can_be_deserialized() {
+        let store = &mut MemoryBlockStore::default();
         let original_node_dir = PublicNode::Dir(Rc::new(PublicDirectory::new(Utc::now())));
 
-        let serialized_node_dir = dagcbor::encode(&original_node_dir);
-        let deserialized_node_dir: PublicNode = dagcbor::decode(serialized_node_dir.as_ref());
+        let serialized_node_dir = dagcbor::async_encode(&original_node_dir, store)
+            .await
+            .unwrap();
+
+        println!("bytes = {:02x?}", serialized_node_dir);
+
+        let deserialized_node_dir: PublicNode =
+            dagcbor::decode(serialized_node_dir.as_ref()).unwrap();
 
         assert_eq!(deserialized_node_dir, original_node_dir);
     }

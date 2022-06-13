@@ -2,6 +2,8 @@
 pub mod dagcbor {
     use std::io::Cursor;
 
+    use anyhow::Result;
+
     use libipld::{
         cbor::DagCborCodec,
         codec::{Decode, Encode},
@@ -9,17 +11,30 @@ pub mod dagcbor {
     };
     use serde::{de::DeserializeOwned, Serialize};
 
+    use crate::{AsyncSerialize, BlockStore};
+
     /// Encodes a serializable value into DagCbor bytes.
-    pub fn encode<S: Serialize>(value: &S) -> Vec<u8> {
-        let ipld = ipld_serde::to_ipld(value).unwrap();
+    pub fn encode<S: Serialize>(value: &S) -> Result<Vec<u8>> {
+        let ipld = ipld_serde::to_ipld(value)?;
         let mut bytes = Vec::new();
-        ipld.encode(DagCborCodec, &mut bytes).unwrap();
-        bytes
+        ipld.encode(DagCborCodec, &mut bytes)?;
+        Ok(bytes)
+    }
+
+    /// Encodes an async serializable value into DagCbor bytes.
+    pub async fn async_encode<S: AsyncSerialize, B: BlockStore>(
+        value: &S,
+        store: &mut B,
+    ) -> Result<Vec<u8>> {
+        let ipld = value.async_serialize_ipld(store).await?;
+        let mut bytes = Vec::new();
+        ipld.encode(DagCborCodec, &mut bytes)?;
+        Ok(bytes)
     }
 
     /// Decodes recieved DagCbor bytes into a deserializable value.
-    pub fn decode<D: DeserializeOwned>(bytes: &[u8]) -> D {
-        let ipld = Ipld::decode(DagCborCodec, &mut Cursor::new(bytes)).unwrap();
-        ipld_serde::from_ipld::<_>(ipld).unwrap()
+    pub fn decode<D: DeserializeOwned>(bytes: &[u8]) -> Result<D> {
+        let ipld = Ipld::decode(DagCborCodec, &mut Cursor::new(bytes))?;
+        Ok(ipld_serde::from_ipld::<_>(ipld)?)
     }
 }

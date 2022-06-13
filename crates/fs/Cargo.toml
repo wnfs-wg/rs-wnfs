@@ -17,7 +17,8 @@ homepage = "https://fission.codes"
 authors = ["The Fission Authors"]
 
 [dependencies]
-libipld = { version = "0.13.1", features = ["dag-cbor", "derive", "serde-codec" ] }
+# libipld = { git = "https://github.com/appcypher/libipld", branch = "appcypher/expose-ipld-serializer", features = ["dag-cbor", "derive", "serde-codec" ] }
+libipld = { version = "0.13.1", path = "../../../libipld", features = ["dag-cbor", "derive", "serde-codec" ] }
 multihash = "0.16.2"
 semver = { version = "1.0.7", features = ["serde"] }
 chrono = "0.4.19"

@@ -8,5 +8,6 @@ mod node;
 pub use directory::*;
 pub use file::*;
 pub use hamt::*;
+pub use link::*;
 pub use namefilter::*;
 pub use node::*;

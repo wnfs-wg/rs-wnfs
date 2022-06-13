@@ -7,9 +7,7 @@ use chrono::{DateTime, Utc};
 use libipld::Cid;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-use crate::{BlockStore, Metadata, UnixFsNodeKind};
-
-use super::Id;
+use crate::{BlockStore, Id, Metadata, UnixFsNodeKind};
 
 /// A file in a WNFS public file system.
 ///
@@ -105,8 +103,8 @@ impl<'de> Deserialize<'de> for PublicFile {
     where
         D: Deserializer<'de>,
     {
-        let (metadata, userland, previous): (Metadata, Cid, Option<Cid>) =
-            Deserialize::deserialize(deserializer)?;
+        let (metadata, userland, previous) =
+            <(Metadata, Cid, Option<Cid>)>::deserialize(deserializer)?;
 
         Ok(Self {
             metadata,
@@ -122,7 +120,6 @@ impl<'de> Deserialize<'de> for PublicFile {
 
 #[cfg(test)]
 mod public_file_tests {
-
     use chrono::Utc;
     use libipld::Cid;
 
@@ -132,8 +129,8 @@ mod public_file_tests {
     async fn serialized_public_file_can_be_deserialized() {
         let original_file = PublicFile::new(Utc::now(), Cid::default());
 
-        let serialized_file = dagcbor::encode(&original_file);
-        let deserialized_file: PublicFile = dagcbor::decode(serialized_file.as_ref());
+        let serialized_file = dagcbor::encode(&original_file).unwrap();
+        let deserialized_file: PublicFile = dagcbor::decode(serialized_file.as_ref()).unwrap();
 
         assert_eq!(deserialized_file, original_file);
     }

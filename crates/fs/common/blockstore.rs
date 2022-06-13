@@ -14,6 +14,8 @@ use libipld::{
 use multihash::{Code, MultihashDigest};
 use serde::{de::DeserializeOwned, Serialize};
 
+use crate::AsyncSerialize;
+
 use super::FsError;
 
 //--------------------------------------------------------------------------------------------------
@@ -28,6 +30,15 @@ pub trait BlockStore {
 
     async fn put_serializable<S: Serialize>(&mut self, value: &S) -> Result<Cid> {
         let ipld = ipld_serde::to_ipld(value)?;
+
+        let mut bytes = Vec::new();
+        ipld.encode(DagCborCodec, &mut bytes)?;
+
+        self.put_block(bytes, IpldCodec::DagCbor).await
+    }
+
+    async fn put_async_serializable<S: AsyncSerialize>(&mut self, value: &S) -> Result<Cid> {
+        let ipld = value.async_serialize_ipld(self).await?;
 
         let mut bytes = Vec::new();
         ipld.encode(DagCborCodec, &mut bytes)?;

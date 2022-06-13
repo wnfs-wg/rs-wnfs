@@ -9,9 +9,10 @@ use wasm_bindgen_futures::future_to_promise;
 use wnfs::{
     ipld::Cid,
     public::{
-        Id, OpResult as WnfsOpResult, PublicDirectory as WnfsPublicDirectory,
+        OpResult as WnfsOpResult, PublicDirectory as WnfsPublicDirectory,
         PublicNode as WnfsPublicNode,
     },
+    Id,
 };
 
 use crate::fs::{BlockStore, ForeignBlockStore, JsResult, PublicNode};
