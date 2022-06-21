@@ -5,7 +5,7 @@ use std::rc::Rc;
 use anyhow::Result;
 use chrono::{DateTime, Utc};
 use libipld::Cid;
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use serde::{Deserialize, Serialize};
 
 use crate::{BlockStore, Id, Metadata, UnixFsNodeKind};
 
@@ -22,7 +22,7 @@ use crate::{BlockStore, Id, Metadata, UnixFsNodeKind};
 ///
 /// println!("id = {}", file.get_id());
 /// ```
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PublicFile {
     pub(crate) metadata: Metadata,
     pub(crate) userland: Cid,
@@ -86,31 +86,6 @@ impl PublicFile {
 impl Id for PublicFile {
     fn get_id(&self) -> String {
         format!("{:p}", &self.metadata)
-    }
-}
-
-impl Serialize for PublicFile {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        (&self.metadata, &self.userland, &self.previous).serialize(serializer)
-    }
-}
-
-impl<'de> Deserialize<'de> for PublicFile {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let (metadata, userland, previous) =
-            <(Metadata, Cid, Option<Cid>)>::deserialize(deserializer)?;
-
-        Ok(Self {
-            metadata,
-            userland,
-            previous,
-        })
     }
 }
 

@@ -38,6 +38,13 @@ pub struct PublicDirectory {
     pub(crate) previous: Option<Cid>,
 }
 
+#[derive(Serialize, Deserialize)]
+struct PublicDirectorySerde {
+    metadata: Metadata,
+    userland: BTreeMap<String, Cid>,
+    previous: Option<Cid>,
+}
+
 /// The result of an operation applied to a directory.
 #[derive(Debug, Clone, PartialEq)]
 pub struct OpResult<T> {
@@ -1009,7 +1016,8 @@ impl AsyncSerialize for PublicDirectory {
             for (name, link) in self.userland.iter() {
                 map.insert(
                     name.clone(),
-                    link.resolve_cid(store)
+                    *link
+                        .resolve_cid(store)
                         .await
                         .map_err(|e| SerError::custom(format!("{}", e)))?,
                 );
@@ -1017,7 +1025,12 @@ impl AsyncSerialize for PublicDirectory {
             map
         };
 
-        (&self.metadata, encoded_userland, &self.previous).serialize(serializer)
+        (PublicDirectorySerde {
+            metadata: self.metadata.clone(),
+            userland: encoded_userland,
+            previous: self.previous,
+        })
+        .serialize(serializer)
     }
 }
 
@@ -1026,8 +1039,11 @@ impl<'de> Deserialize<'de> for PublicDirectory {
     where
         D: Deserializer<'de>,
     {
-        let (metadata, userland, previous) =
-            <(Metadata, BTreeMap<String, Cid>, Option<Cid>)>::deserialize(deserializer)?;
+        let PublicDirectorySerde {
+            metadata,
+            userland,
+            previous,
+        } = PublicDirectorySerde::deserialize(deserializer)?;
 
         let decoded_userland = userland
             .into_iter()

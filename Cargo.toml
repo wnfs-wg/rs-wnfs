@@ -3,3 +3,8 @@ members = [
 	'crates/fs',
 	'crates/wasm'
 ]
+
+[patch.crates-io]
+serde = { git = "https://github.com/appcypher/serde", branch = "appcypher/content-visitor-i128" }
+libipld = { git = "https://github.com/appcypher/libipld", branch = "appcypher/serde-dep" }
+serde_json = { git = "https://github.com/appcypher/json", branch = "appcypher/serde-dep" }

@@ -13,19 +13,13 @@ use twox_hash::XxHash32;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BloomFilter<const N: usize> {
     pub(super) bits: BitArray<[u8; N]>,
-    pub params: BloomParams,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct BloomParams {
-    pub m_bytes: u32,
-    pub k_hashes: u32,
+    pub k_hashes: usize,
 }
 
 pub struct HashIndexIterator<'a, T: Hash> {
-    m_bits: u32,
+    m_bits: usize,
     item: &'a T,
-    index: u32,
+    index: usize,
 }
 
 //------------------------------------------------------------------------------
@@ -33,7 +27,7 @@ pub struct HashIndexIterator<'a, T: Hash> {
 //------------------------------------------------------------------------------
 
 impl<'a, T: Hash> HashIndexIterator<'a, T> {
-    pub(super) fn new(m_bits: u32, item: &'a T) -> Self {
+    pub(super) fn new(m_bits: usize, item: &'a T) -> Self {
         Self {
             m_bits,
             item,
@@ -47,7 +41,7 @@ impl<T: Hash> Iterator for HashIndexIterator<'_, T> {
 
     fn next(&mut self) -> Option<Self::Item> {
         let hash = {
-            let mut h = XxHash32::with_seed(self.index);
+            let mut h = XxHash32::with_seed(self.index as u32);
             self.item.hash(&mut h);
             h.finish()
         };
@@ -59,10 +53,10 @@ impl<T: Hash> Iterator for HashIndexIterator<'_, T> {
 }
 
 impl<const N: usize> BloomFilter<N> {
-    pub fn with_params(params: BloomParams) -> Self {
+    pub fn new(k_hashes: usize) -> Self {
         Self {
             bits: BitArray::<[u8; N], _>::ZERO,
-            params,
+            k_hashes,
         }
     }
 
@@ -97,7 +91,7 @@ impl<const N: usize> BloomFilter<N> {
     where
         T: Hash,
     {
-        HashIndexIterator::new(&self.params.m_bytes * 8, item).take(self.params.k_hashes as usize)
+        HashIndexIterator::new(N * 8, item).take(self.k_hashes as usize)
     }
 }
 
@@ -119,11 +113,7 @@ mod bloomfilter_tests {
 
     #[test]
     fn test_bloomfilter_() {
-        let mut bloom = BloomFilter::<2048>::with_params(BloomParams {
-            m_bytes: 256,
-            k_hashes: 30,
-        });
-
+        let mut bloom = BloomFilter::<256>::new(30);
         bloom.add(&"hello");
     }
 }

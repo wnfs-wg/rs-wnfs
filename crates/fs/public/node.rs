@@ -1,15 +1,18 @@
 //! Public node system in-memory representation.
 
-use std::{rc::Rc};
+use std::{collections::BTreeMap, rc::Rc};
 
 use anyhow::{bail, Result};
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
-use libipld::{Cid};
-use serde::{Deserialize, Serializer};
+use libipld::Cid;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use super::{PublicDirectory, PublicFile};
-use crate::{common::BlockStore, AsyncSerialize, FsError, Id, UnixFsNodeKind};
+use crate::{
+    common::BlockStore, public::link::PublicLink, AsyncSerialize, FsError, Id, Metadata,
+    UnixFsNodeKind,
+};
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
@@ -20,7 +23,8 @@ use crate::{common::BlockStore, AsyncSerialize, FsError, Id, UnixFsNodeKind};
 /// PublicNode is serialized and deserialized as [untagged][1] enum.
 ///
 /// [1]: https://serde.rs/enum-representations.html#untagged
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone)]
+// #[derive(Deserialize)]
 // #[serde(untagged)]
 pub enum PublicNode {
     File(Rc<PublicFile>),
@@ -141,21 +145,59 @@ impl PartialEq for PublicNode {
     }
 }
 
-// impl<'de> Deserialize<'de> for PublicNode {
-//     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-//     where
-//         D: Deserializer<'de>,
-//     {
-//         // We try to deserialize as a file first, if there is an error, we try it as a directory.
-//         if let Ok(file) = PublicFile::deserialize(deserializer) {
-//             Ok(Self::File(Rc::new(file)))
-//         } else {
-//             let dir = PublicDirectory::deserialize(deserializer)?;
-//             Ok(Self::Dir(Rc::new(dir)))
-//         }
-//         // TODO(appcypher): Implement visitor for deserialization.
-//     }
-// }
+impl<'de> Deserialize<'de> for PublicNode {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        #[derive(Debug, Deserialize, Serialize)]
+        #[serde(untagged)]
+        enum T {
+            File {
+                metadata: Metadata,
+                userland: Cid,
+                previous: Option<Cid>,
+            },
+            Dir {
+                metadata: Metadata,
+                userland: BTreeMap<String, Cid>,
+                previous: Option<Cid>,
+            },
+        }
+
+        let t = T::deserialize(deserializer)?;
+
+        match t {
+            T::File {
+                metadata,
+                userland,
+                previous,
+            } => Ok(PublicNode::File(Rc::new(PublicFile {
+                metadata,
+                userland,
+                previous,
+            }))),
+            T::Dir {
+                metadata,
+                userland,
+                previous,
+            } => {
+                let userland = userland
+                    .into_iter()
+                    .map(|(name, cid)| (name, PublicLink::from_cid(cid)))
+                    .collect();
+
+                Ok(PublicNode::Dir(Rc::new(PublicDirectory {
+                    metadata,
+                    userland,
+                    previous,
+                })))
+            }
+        }
+
+        // todo!()
+    }
+}
 
 /// Implements async deserialization for serde serializable types.
 #[async_trait(?Send)]
@@ -178,7 +220,6 @@ impl AsyncSerialize for PublicNode {
 
 #[cfg(test)]
 mod public_node_tests {
-
     use std::rc::Rc;
 
     use chrono::Utc;

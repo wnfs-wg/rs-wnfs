@@ -17,8 +17,9 @@ homepage = "https://fission.codes"
 authors = ["The Fission Authors"]
 
 [dependencies]
-# libipld = { git = "https://github.com/appcypher/libipld", branch = "appcypher/expose-ipld-serializer", features = ["dag-cbor", "derive", "serde-codec" ] }
-libipld = { version = "0.13.1", path = "../../../libipld", features = ["dag-cbor", "derive", "serde-codec" ] }
+libipld = { version = "0.13.1", features = ["dag-cbor", "derive", "serde-codec" ] }
+serde_repr = "0.1"
+serde = { version = "1.0.137", features = ["rc"]}
 multihash = "0.16.2"
 semver = { version = "1.0.7", features = ["serde"] }
 chrono = "0.4.19"
@@ -34,8 +35,6 @@ futures-util = "0.3.21"
 skip_ratchet = { git = "https://github.com/appcypher/rs-skip-ratchet", branch = "appcypher/doc-and-structure" }
 twox-hash = "1.6.3"
 bitvec = "1.0.0"
-serde = { version = "1.0.137", features = ["rc"] }
-criterion = "0.3.5"
 async-once-cell = "0.4.0"
 sha3 = "0.10.0"
 

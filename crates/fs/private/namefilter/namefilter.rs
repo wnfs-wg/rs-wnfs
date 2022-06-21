@@ -1,4 +1,4 @@
-use super::{BloomFilter, BloomParams};
+use super::BloomFilter;
 
 //--------------------------------------------------------------------------------------------------
 // Constants
@@ -11,7 +11,7 @@ pub const SATURATION_THRESHOLD: usize = 1019;
 //--------------------------------------------------------------------------------------------------
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Namefilter(BloomFilter<2048>);
+pub struct Namefilter(BloomFilter<256>);
 
 //--------------------------------------------------------------------------------------------------
 // Implementations
@@ -19,10 +19,7 @@ pub struct Namefilter(BloomFilter<2048>);
 
 impl Namefilter {
     pub fn new() -> Self {
-        Self(BloomFilter::with_params(BloomParams {
-            m_bytes: 256,
-            k_hashes: 30,
-        }))
+        Self(BloomFilter::new(30))
     }
 
     // Add hashes to filter until is is over the threshold.
