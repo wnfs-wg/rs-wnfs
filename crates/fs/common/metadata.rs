@@ -1,24 +1,14 @@
 //! File system metadata.
 
-use std::{
-    cmp::Ordering,
-    io::{Read, Seek, Write},
-    str::FromStr,
-};
+use std::str::FromStr;
 
-use anyhow::{ensure, Result};
+use anyhow::Result;
 use chrono::{DateTime, Utc};
 use field_names::FieldNames;
-use libipld::{
-    cbor::{cbor::MajorKind, decode, encode, DagCborCodec},
-    codec::{Decode, Encode},
-    DagCbor,
-};
+use libipld::{DagCbor, Ipld};
 use semver::Version;
 use serde::{Deserialize, Serialize};
 use serde_repr::{Deserialize_repr, Serialize_repr};
-
-use crate::FsError;
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
@@ -104,6 +94,119 @@ impl Metadata {
             version: Version::new(1, 0, 0),
         }
     }
+
+    pub fn is_file(&self) -> bool {
+        matches!(self.unix_fs.kind, UnixFsNodeKind::File)
+    }
+}
+
+impl TryFrom<&Ipld> for Metadata {
+    type Error = String;
+
+    fn try_from(ipld: &Ipld) -> Result<Self, Self::Error> {
+        match ipld {
+            Ipld::Map(map) => {
+                let unix_fs = map.get("unix_fs").ok_or("Missing unix_fs")?.try_into()?;
+
+                let version = match map.get("version").ok_or("Missing version")? {
+                    Ipld::String(v) => Version::from_str(v).map_err(|e| e.to_string())?,
+                    _ => return Err("version is not a string".into()),
+                };
+
+                Ok(Metadata { unix_fs, version })
+            }
+            other => Err(format!("Expected `Ipld::Map` got {:#?}", other)),
+        }
+    }
+}
+
+impl TryFrom<&Ipld> for UnixFsMetadata {
+    type Error = String;
+
+    fn try_from(ipld: &Ipld) -> Result<Self, Self::Error> {
+        match ipld {
+            Ipld::Map(map) => {
+                let created = match map.get("created").ok_or("Missing created")? {
+                    Ipld::Integer(i) => *i as i64,
+                    _ => return Err("created is not an integer".into()),
+                };
+
+                let modified = match map.get("modified").ok_or("Missing modified")? {
+                    Ipld::Integer(i) => *i as i64,
+                    _ => return Err("modified is not an integer".into()),
+                };
+
+                let mode = map.get("mode").ok_or("Missing mode")?.try_into()?;
+                let kind = map.get("kind").ok_or("Missing kind")?.try_into()?;
+
+                Ok(UnixFsMetadata {
+                    created,
+                    modified,
+                    mode,
+                    kind,
+                })
+            }
+            other => Err(format!("Expected `Ipld::Map` got {:#?}", other)),
+        }
+    }
+}
+
+impl TryFrom<&Ipld> for UnixFsMode {
+    type Error = String;
+
+    fn try_from(ipld: &Ipld) -> Result<Self, Self::Error> {
+        match ipld {
+            Ipld::Integer(i) => UnixFsMode::try_from(*i as u32),
+            other => Err(format!("Expected `Ipld::Integer` got {:#?}", other)),
+        }
+    }
+}
+
+impl TryFrom<u32> for UnixFsMode {
+    type Error = String;
+
+    fn try_from(num: u32) -> Result<Self, Self::Error> {
+        Ok(match num {
+            0 => UnixFsMode::NoPermissions,
+            700 => UnixFsMode::OwnerReadWriteExecute,
+            770 => UnixFsMode::OwnerGroupReadWriteExecute,
+            777 => UnixFsMode::AllReadWriteExecute,
+            111 => UnixFsMode::AllExecute,
+            222 => UnixFsMode::AllWrite,
+            333 => UnixFsMode::AllWriteExecute,
+            444 => UnixFsMode::AllRead,
+            555 => UnixFsMode::AllReadExecute,
+            666 => UnixFsMode::AllReadWrite,
+            740 => UnixFsMode::OwnerReadWriteExecuteGroupRead,
+            755 => UnixFsMode::OwnerReadWriteExecuteGroupOthersReadExecute,
+            644 => UnixFsMode::OwnerReadWriteGroupOthersRead,
+            _ => return Err(format!("Unknown UnixFsMode: {}", num)),
+        })
+    }
+}
+
+impl TryFrom<&Ipld> for UnixFsNodeKind {
+    type Error = String;
+
+    fn try_from(ipld: &Ipld) -> Result<Self, Self::Error> {
+        match ipld {
+            Ipld::String(s) => UnixFsNodeKind::try_from(s.as_str()),
+            other => Err(format!("Expected `Ipld::Integer` got {:#?}", other)),
+        }
+    }
+}
+
+impl TryFrom<&str> for UnixFsNodeKind {
+    type Error = String;
+
+    fn try_from(name: &str) -> Result<Self, Self::Error> {
+        Ok(match name.to_lowercase().as_str() {
+            "file" => UnixFsNodeKind::File,
+            "dir" => UnixFsNodeKind::Dir,
+            "hamt-shard" => UnixFsNodeKind::HAMTShard,
+            _ => return Err(format!("Unknown UnixFsNodeKind: {}", name)),
+        })
+    }
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -112,15 +215,6 @@ impl Metadata {
 
 #[cfg(test)]
 mod metadata_tests {
-    use std::io::Cursor;
-
-    use chrono::Utc;
-    use libipld::{
-        cbor::DagCborCodec,
-        codec::{Decode, Encode},
-    };
-
-    use crate::{Metadata, UnixFsNodeKind};
 
     // TODO(appcypher): Fix
     // #[async_std::test]

@@ -45,8 +45,3 @@ crate-type = ["cdylib" , "rlib"]
 [features]
 default = []
 wasm = []
-
-[[bench]]
-name = "namefilter"
-path = "benches/namefilter.rs"
-harness = false

@@ -1,18 +1,15 @@
 //! Public node system in-memory representation.
 
-use std::{collections::BTreeMap, rc::Rc};
+use std::rc::Rc;
 
 use anyhow::{bail, Result};
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
-use libipld::Cid;
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use libipld::{Cid, Ipld};
+use serde::{de, Deserialize, Deserializer, Serializer};
 
 use super::{PublicDirectory, PublicFile};
-use crate::{
-    common::BlockStore, public::link::PublicLink, AsyncSerialize, FsError, Id, Metadata,
-    UnixFsNodeKind,
-};
+use crate::{common::BlockStore, AsyncSerialize, FsError, Id, Metadata, UnixFsNodeKind};
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
@@ -24,8 +21,6 @@ use crate::{
 ///
 /// [1]: https://serde.rs/enum-representations.html#untagged
 #[derive(Debug, Clone)]
-// #[derive(Deserialize)]
-// #[serde(untagged)]
 pub enum PublicNode {
     File(Rc<PublicFile>),
     Dir(Rc<PublicDirectory>),
@@ -36,7 +31,7 @@ pub enum PublicNode {
 //--------------------------------------------------------------------------------------------------
 
 impl PublicNode {
-    /// Create node with updated modified time.
+    /// Creates node with updated modified time.
     pub fn update_mtime(&self, time: DateTime<Utc>) -> Self {
         match self {
             Self::File(file) => {
@@ -52,7 +47,7 @@ impl PublicNode {
         }
     }
 
-    /// Create node with updated previous pointer value.
+    /// Creates node with updated previous pointer value.
     pub fn update_previous(&self, cid: Option<Cid>) -> Self {
         match self {
             Self::File(file) => {
@@ -68,7 +63,7 @@ impl PublicNode {
         }
     }
 
-    /// Get previous ancestor of a node.
+    /// Gets previous ancestor of a node.
     pub fn get_previous(&self) -> Option<Cid> {
         match self {
             Self::File(file) => file.get_previous(),
@@ -150,52 +145,49 @@ impl<'de> Deserialize<'de> for PublicNode {
     where
         D: Deserializer<'de>,
     {
-        #[derive(Debug, Deserialize, Serialize)]
-        #[serde(untagged)]
-        enum T {
-            File {
-                metadata: Metadata,
-                userland: Cid,
-                previous: Option<Cid>,
-            },
-            Dir {
-                metadata: Metadata,
-                userland: BTreeMap<String, Cid>,
-                previous: Option<Cid>,
-            },
-        }
+        let ipld = Ipld::deserialize(deserializer);
 
-        let t = T::deserialize(deserializer)?;
+        println!("{:#?}", ipld);
 
-        match t {
-            T::File {
-                metadata,
-                userland,
-                previous,
-            } => Ok(PublicNode::File(Rc::new(PublicFile {
-                metadata,
-                userland,
-                previous,
-            }))),
-            T::Dir {
-                metadata,
-                userland,
-                previous,
-            } => {
-                let userland = userland
-                    .into_iter()
-                    .map(|(name, cid)| (name, PublicLink::from_cid(cid)))
-                    .collect();
+        ipld.and_then(|ipld| ipld.try_into().map_err(de::Error::custom))
+    }
+}
 
-                Ok(PublicNode::Dir(Rc::new(PublicDirectory {
-                    metadata,
-                    userland,
-                    previous,
-                })))
+impl TryFrom<Ipld> for PublicNode {
+    type Error = String;
+
+    fn try_from(ipld: Ipld) -> Result<Self, Self::Error> {
+        match ipld {
+            Ipld::Map(map) => {
+                let metadata: Metadata = map
+                    .get("metadata")
+                    .ok_or("Missing metadata field")?
+                    .try_into()?;
+
+                Ok(if metadata.is_file() {
+                    PublicNode::from(
+                        PublicFile::deserialize(Ipld::Map(map)).map_err(|e| e.to_string())?,
+                    )
+                } else {
+                    PublicNode::from(
+                        PublicDirectory::deserialize(Ipld::Map(map)).map_err(|e| e.to_string())?,
+                    )
+                })
             }
+            other => Err(format!("Expected `Ipld::Map` got {:#?}", other)),
         }
+    }
+}
 
-        // todo!()
+impl From<PublicFile> for PublicNode {
+    fn from(file: PublicFile) -> Self {
+        Self::File(Rc::new(file))
+    }
+}
+
+impl From<PublicDirectory> for PublicNode {
+    fn from(dir: PublicDirectory) -> Self {
+        Self::Dir(Rc::new(dir))
     }
 }
 
