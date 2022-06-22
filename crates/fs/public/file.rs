@@ -14,7 +14,7 @@ use crate::{BlockStore, Id, Metadata, UnixFsNodeKind};
 /// # Examples
 ///
 /// ```
-/// use wnfs::{PublicFile, Id};
+/// use wnfs::{public::PublicFile, Id};
 /// use chrono::Utc;
 /// use libipld::Cid;
 ///
@@ -39,7 +39,7 @@ impl PublicFile {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::{PublicFile, Id};
+    /// use wnfs::{public::PublicFile, Id};
     /// use chrono::Utc;
     /// use libipld::Cid;
     ///
@@ -65,7 +65,7 @@ impl PublicFile {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::{PublicFile, Id, MemoryBlockStore};
+    /// use wnfs::{public::PublicFile, Id, MemoryBlockStore};
     /// use chrono::Utc;
     /// use libipld::Cid;
     ///

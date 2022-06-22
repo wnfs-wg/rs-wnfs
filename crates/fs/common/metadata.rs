@@ -4,7 +4,6 @@ use std::str::FromStr;
 
 use anyhow::Result;
 use chrono::{DateTime, Utc};
-use field_names::FieldNames;
 use libipld::{DagCbor, Ipld};
 use semver::Version;
 use serde::{Deserialize, Serialize};
@@ -62,7 +61,7 @@ pub struct UnixFsMetadata {
 }
 
 /// The metadata of a node on the WNFS file system.
-#[derive(Debug, Clone, PartialEq, Eq, FieldNames, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Metadata {
     pub(crate) unix_fs: UnixFsMetadata,
     pub(crate) version: Version,

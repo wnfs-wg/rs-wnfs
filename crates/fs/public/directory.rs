@@ -8,7 +8,6 @@ use async_recursion::async_recursion;
 use async_stream::try_stream;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
-use field_names::FieldNames;
 use futures::Stream;
 use libipld::Cid;
 use serde::{ser::Error as SerError, Deserialize, Deserializer, Serialize, Serializer};
@@ -24,14 +23,14 @@ use super::{PublicFile, PublicLink, PublicNode};
 /// # Examples
 ///
 /// ```
-/// use wnfs::{PublicDirectory, Id};
+/// use wnfs::{public::PublicDirectory, Id};
 /// use chrono::Utc;
 ///
 /// let dir = PublicDirectory::new(Utc::now());
 ///
 /// println!("id = {}", dir.get_id());
 /// ```
-#[derive(Debug, Clone, PartialEq, FieldNames)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct PublicDirectory {
     pub(crate) metadata: Metadata,
     pub(crate) userland: BTreeMap<String, PublicLink>,
@@ -59,7 +58,7 @@ pub struct OpResult<T> {
 /// # Examples
 ///
 /// ```
-/// use wnfs::{PublicDirectory, PathNodes};
+/// use wnfs::public::{PublicDirectory, PathNodes};
 /// use std::rc::Rc;
 /// use chrono::Utc;
 ///
@@ -82,7 +81,7 @@ pub struct PathNodes {
 /// # Examples
 ///
 /// ```
-/// use wnfs::{PublicDirectory, MemoryBlockStore, OpResult};
+/// use wnfs::{public::{PublicDirectory, OpResult}, MemoryBlockStore};
 /// use std::rc::Rc;
 /// use chrono::Utc;
 ///
@@ -117,7 +116,7 @@ impl PathNodes {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::{PublicDirectory, PathNodes};
+    /// use wnfs::public::{PublicDirectory, PathNodes};
     /// use std::rc::Rc;
     /// use chrono::Utc;
     ///
@@ -143,7 +142,7 @@ impl PathNodes {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::{PublicDirectory, PathNodes};
+    /// use wnfs::public::{PublicDirectory, PathNodes};
     /// use std::rc::Rc;
     /// use chrono::Utc;
     ///
@@ -178,7 +177,7 @@ impl PathNodes {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::{PublicDirectory, PathNodes};
+    /// use wnfs::public::{PublicDirectory, PathNodes};
     /// use std::rc::Rc;
     /// use chrono::Utc;
     ///
@@ -199,7 +198,7 @@ impl PathNodes {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::{PublicDirectory, PathNodes};
+    /// use wnfs::public::{PublicDirectory, PathNodes};
     /// use std::rc::Rc;
     /// use chrono::Utc;
     ///
@@ -222,7 +221,7 @@ impl PublicDirectory {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::{PublicDirectory, Id};
+    /// use wnfs::{public::PublicDirectory, Id};
     /// use chrono::Utc;
     ///
     /// let dir = PublicDirectory::new(Utc::now());
@@ -324,7 +323,7 @@ impl PublicDirectory {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::{PublicDirectory, MemoryBlockStore, OpResult};
+    /// use wnfs::{public::{PublicDirectory, OpResult}, MemoryBlockStore};
     /// use std::rc::Rc;
     /// use chrono::Utc;
     ///
@@ -381,7 +380,7 @@ impl PublicDirectory {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::{PublicDirectory, Id, MemoryBlockStore, OpResult};
+    /// use wnfs::{public::{PublicDirectory, OpResult}, Id, MemoryBlockStore};
     /// use std::rc::Rc;
     /// use chrono::Utc;
     ///
@@ -418,7 +417,7 @@ impl PublicDirectory {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::{PublicDirectory, Id, MemoryBlockStore};
+    /// use wnfs::{public::PublicDirectory, Id, MemoryBlockStore};
     /// use chrono::Utc;
     ///
     /// #[async_std::main]
@@ -440,7 +439,7 @@ impl PublicDirectory {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::{PublicDirectory, MemoryBlockStore, OpResult};
+    /// use wnfs::{public::{PublicDirectory, OpResult}, MemoryBlockStore};
     /// use libipld::cid::Cid;
     /// use std::rc::Rc;
     /// use chrono::Utc;
@@ -498,7 +497,7 @@ impl PublicDirectory {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::{PublicDirectory, MemoryBlockStore, OpResult};
+    /// use wnfs::{public::{PublicDirectory, OpResult}, MemoryBlockStore};
     /// use libipld::cid::Cid;
     /// use std::rc::Rc;
     /// use chrono::Utc;
@@ -566,7 +565,7 @@ impl PublicDirectory {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::{PublicDirectory, Id, MemoryBlockStore, OpResult};
+    /// use wnfs::{public::{PublicDirectory, OpResult}, Id, MemoryBlockStore};
     /// use std::rc::Rc;
     /// use chrono::Utc;
     ///
@@ -603,7 +602,7 @@ impl PublicDirectory {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::{PublicDirectory, MemoryBlockStore, OpResult};
+    /// use wnfs::{public::{PublicDirectory, OpResult}, MemoryBlockStore};
     /// use libipld::cid::Cid;
     /// use std::rc::Rc;
     /// use chrono::Utc;
@@ -663,7 +662,7 @@ impl PublicDirectory {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::{PublicDirectory, MemoryBlockStore, OpResult};
+    /// use wnfs::{public::{PublicDirectory, OpResult}, MemoryBlockStore};
     /// use libipld::cid::Cid;
     /// use std::rc::Rc;
     /// use chrono::Utc;
@@ -732,7 +731,7 @@ impl PublicDirectory {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::{PublicDirectory, MemoryBlockStore, OpResult};
+    /// use wnfs::{public::{PublicDirectory, OpResult}, MemoryBlockStore};
     /// use libipld::cid::Cid;
     /// use std::rc::Rc;
     /// use chrono::Utc;
@@ -817,7 +816,7 @@ impl PublicDirectory {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::{PublicDirectory, MemoryBlockStore, OpResult};
+    /// use wnfs::{public::{PublicDirectory, OpResult}, MemoryBlockStore};
     /// use libipld::cid::Cid;
     /// use std::rc::Rc;
     /// use chrono::Utc;
@@ -937,7 +936,7 @@ impl PublicDirectory {
     /// ```
     /// use std::{rc::Rc, pin::Pin};
     ///
-    /// use wnfs::{PublicDirectory, MemoryBlockStore, OpResult};
+    /// use wnfs::{public::{PublicDirectory, OpResult}, MemoryBlockStore};
     /// use libipld::cid::Cid;
     /// use chrono::Utc;
     /// use futures_util::pin_mut;
