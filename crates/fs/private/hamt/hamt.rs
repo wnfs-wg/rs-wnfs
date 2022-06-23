@@ -29,7 +29,6 @@ impl<K, V> Hamt<K, V> {
     where
         V: PartialEq,
     {
-        // self.root.set(key, value).map(|(r, _)| r)
         // TODO(appcypher)
         todo!()
     }

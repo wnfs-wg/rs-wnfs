@@ -2,6 +2,7 @@
 
 use std::rc::Rc;
 
+use async_trait::async_trait;
 use libipld::Ipld;
 use serde::{
     de::{self, DeserializeOwned},
@@ -24,7 +25,7 @@ pub struct Pair<K, V> {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum Pointer<K, V> {
+pub enum                                                                                                                                   Pointer<K, V> {
     Values(Vec<Pair<K, V>>),
     Link(Link<Rc<Node<K, V>>>),
 }
@@ -33,21 +34,20 @@ pub enum Pointer<K, V> {
 // Implementations
 //--------------------------------------------------------------------------------------------------
 
-impl<K, V> Serialize for Pointer<K, V>
+#[async_trait(?Send)]
+impl<K, V> AsyncSerialize for Pointer<K, V>
 where
     K: Serialize,
     V: Serialize,
 {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
+    async fn async_serialize<S: Serializer, B: BlockStore + ?Sized>(
+        &self,
+        serializer: S,
+        store: &mut B,
+    ) -> Result<S::Ok, S::Error> {
         match self {
             Pointer::Values(vals) => vals.serialize(serializer),
-            Pointer::Link(link) => match link.get_cid() {
-                Some(cid) => cid.serialize(serializer),
-                None => Err(SerError::custom("Must flush HAMT before serialization")),
-            },
+            Pointer::Link(link) => link.resolve_cid(store).await.serialize(serializer),
         }
     }
 }
@@ -119,4 +119,24 @@ where
     {
         (&self.key, &self.value).serialize(serializer)
     }
+}
+
+//--------------------------------------------------------------------------------------------------
+// Tests
+//--------------------------------------------------------------------------------------------------
+
+mod pointer_tests {
+    use super::*;
+
+    #[async_std::test]
+    async fn pointer_can_encode_decode_as_cbor() {
+        let root = PublicDirectory::new(Utc::now());
+        let store = &mut MemoryBlockStore::default();
+
+        let encoded_dir = dagcbor::async_encode(&root, store).await.unwrap();
+        let decoded_dir = dagcbor::decode::<PublicDirectory>(encoded_dir.as_ref()).unwrap();
+
+        assert_eq!(root, decoded_dir);
+    }
+
 }

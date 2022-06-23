@@ -803,7 +803,7 @@ checksum = "349d5a591cd28b49e1d1037471617a32ddcda5731b99419008085f72d5a53836"
 [[package]]
 name = "libipld"
 version = "0.13.1"
-source = "git+https://github.com/appcypher/libipld?branch=appcypher/serde-dep#a10079faaaafb8f111e4eae68de44034de36f523"
+source = "git+https://github.com/appcypher/libipld?branch=appcypher/expose-ipld-serializer#98c4f96ada4ef5eb06271206e9e8e377671f1031"
 dependencies = [
  "async-trait",
  "cached",
@@ -823,7 +823,7 @@ dependencies = [
 [[package]]
 name = "libipld-cbor"
 version = "0.13.1"
-source = "git+https://github.com/appcypher/libipld?branch=appcypher/serde-dep#a10079faaaafb8f111e4eae68de44034de36f523"
+source = "git+https://github.com/appcypher/libipld?branch=appcypher/expose-ipld-serializer#98c4f96ada4ef5eb06271206e9e8e377671f1031"
 dependencies = [
  "byteorder",
  "libipld-core",
@@ -833,7 +833,7 @@ dependencies = [
 [[package]]
 name = "libipld-cbor-derive"
 version = "0.13.1"
-source = "git+https://github.com/appcypher/libipld?branch=appcypher/serde-dep#a10079faaaafb8f111e4eae68de44034de36f523"
+source = "git+https://github.com/appcypher/libipld?branch=appcypher/expose-ipld-serializer#98c4f96ada4ef5eb06271206e9e8e377671f1031"
 dependencies = [
  "proc-macro-crate",
  "proc-macro2",
@@ -845,7 +845,7 @@ dependencies = [
 [[package]]
 name = "libipld-core"
 version = "0.13.1"
-source = "git+https://github.com/appcypher/libipld?branch=appcypher/serde-dep#a10079faaaafb8f111e4eae68de44034de36f523"
+source = "git+https://github.com/appcypher/libipld?branch=appcypher/expose-ipld-serializer#98c4f96ada4ef5eb06271206e9e8e377671f1031"
 dependencies = [
  "anyhow",
  "cid",
@@ -859,7 +859,7 @@ dependencies = [
 [[package]]
 name = "libipld-json"
 version = "0.13.1"
-source = "git+https://github.com/appcypher/libipld?branch=appcypher/serde-dep#a10079faaaafb8f111e4eae68de44034de36f523"
+source = "git+https://github.com/appcypher/libipld?branch=appcypher/expose-ipld-serializer#98c4f96ada4ef5eb06271206e9e8e377671f1031"
 dependencies = [
  "libipld-core",
  "multihash",
@@ -870,7 +870,7 @@ dependencies = [
 [[package]]
 name = "libipld-macro"
 version = "0.13.1"
-source = "git+https://github.com/appcypher/libipld?branch=appcypher/serde-dep#a10079faaaafb8f111e4eae68de44034de36f523"
+source = "git+https://github.com/appcypher/libipld?branch=appcypher/expose-ipld-serializer#98c4f96ada4ef5eb06271206e9e8e377671f1031"
 dependencies = [
  "libipld-core",
 ]
@@ -878,7 +878,7 @@ dependencies = [
 [[package]]
 name = "libipld-pb"
 version = "0.13.1"
-source = "git+https://github.com/appcypher/libipld?branch=appcypher/serde-dep#a10079faaaafb8f111e4eae68de44034de36f523"
+source = "git+https://github.com/appcypher/libipld?branch=appcypher/expose-ipld-serializer#98c4f96ada4ef5eb06271206e9e8e377671f1031"
 dependencies = [
  "libipld-core",
  "prost",
@@ -1382,7 +1382,8 @@ dependencies = [
 [[package]]
 name = "serde"
 version = "1.0.137"
-source = "git+https://github.com/appcypher/serde?branch=appcypher/content-visitor-i128#c82d85ec113fe2eee745f6051bccd03711ea72ee"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "61ea8d54c77f8315140a05f4c7237403bf38b72704d031543aa1d16abbf517d1"
 dependencies = [
  "serde_derive",
 ]
@@ -1408,7 +1409,8 @@ dependencies = [
 [[package]]
 name = "serde_derive"
 version = "1.0.137"
-source = "git+https://github.com/appcypher/serde?branch=appcypher/content-visitor-i128#c82d85ec113fe2eee745f6051bccd03711ea72ee"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1f26faba0c3959972377d3b2d306ee9f71faee9714294e41bb777f83f88578be"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1418,7 +1420,8 @@ dependencies = [
 [[package]]
 name = "serde_json"
 version = "1.0.81"
-source = "git+https://github.com/appcypher/json?branch=appcypher/serde-dep#5e533d1f363134adf68efe8ba34aca69c515c9a0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9b7ce2b32a1aed03c558dc61a5cd328f15aff2dbc17daad8fb8af04d2100e15c"
 dependencies = [
  "itoa",
  "ryu",

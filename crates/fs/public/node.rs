@@ -145,11 +145,7 @@ impl<'de> Deserialize<'de> for PublicNode {
     where
         D: Deserializer<'de>,
     {
-        let ipld = Ipld::deserialize(deserializer);
-
-        println!("{:#?}", ipld);
-
-        ipld.and_then(|ipld| ipld.try_into().map_err(de::Error::custom))
+        Ipld::deserialize(deserializer).and_then(|ipld| ipld.try_into().map_err(de::Error::custom))
     }
 }
 
