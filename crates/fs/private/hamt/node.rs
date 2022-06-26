@@ -1,21 +1,23 @@
 // TODO(appcypher): Based on ipld_hamt implementation
 
-use std::rc::Rc;
+use std::{fmt::Debug, rc::Rc};
 
-use crate::{BlockStore, Link};
+use crate::{AsyncSerialize, BlockStore, Link};
 use anyhow::Result;
 use async_recursion::async_recursion;
+use async_trait::async_trait;
 use bitvec::array::BitArray;
-use bitvec::bitarr;
-use bitvec::order::Lsb0;
+
+use libipld::{serde as ipld_serde, Ipld};
 use serde::{
     de::{Deserialize, DeserializeOwned},
+    ser::Error as SerError,
     Deserializer, Serialize, Serializer,
 };
 use sha3::Sha3_256;
 
 use super::{
-    hash::{GenerateHash, HashQuartets},
+    hash::{GenerateHash, HashNibbles},
     Pair, Pointer, HAMT_BITMASK_BYTES, HAMT_BITMASK_SIZE,
 };
 
@@ -40,6 +42,7 @@ where
     K: DeserializeOwned + Serialize + AsRef<[u8]> + Clone + Eq,
     V: DeserializeOwned + Serialize + Clone,
 {
+    /// Sets a new value at the given key.
     pub async fn set<B: BlockStore>(
         self: Rc<Self>,
         key: K,
@@ -47,32 +50,17 @@ where
         store: &mut B,
     ) -> Result<Rc<Self>> {
         let hash = &Sha3_256::generate_hash(&key);
-        self.modify_value(&mut HashQuartets::new(hash), key, value, store)
+        self.modify_value(&mut HashNibbles::new(hash), key, value, store)
             .await
     }
 
+    /// Gets the value at the given key.
     pub async fn get<'a, B: BlockStore>(
         self: &'a Rc<Self>,
         key: &K,
         store: &B,
     ) -> Result<Option<&'a V>> {
         Ok(self.search(key, store).await?.map(|pair| &pair.value))
-    }
-
-    /// Recursively resolves all nodes under the directory to Cids.
-    #[async_recursion(?Send)]
-    pub async fn flush<'a, B: BlockStore>(self: &'a Rc<Self>, store: &mut B) -> Result<()> {
-        for pointer in self.pointers.iter() {
-            if let Pointer::Link(link) = pointer {
-                if let Some(node) = link.get_value() {
-                    node.flush(store).await?
-                }
-
-                link.resolve_cid(store).await?;
-            }
-        }
-
-        Ok(())
     }
 
     /// Checks if the node is empty.
@@ -87,7 +75,7 @@ where
         let value_index = self.get_value_index(bit_index);
         self.pointers
             .insert(value_index, Pointer::Values(vec![Pair { key, value }]));
-        self.bitmask.set(value_index, true);
+        self.bitmask.set(bit_index, true);
     }
 
     /// Removes a pointer at specified index.
@@ -101,21 +89,21 @@ where
 
     /// Calculates the value index from the bitmask index.
     fn get_value_index(&self, bit_index: usize) -> usize {
-        let mut mask = bitarr!(u8, Lsb0; 1; 2);
-        mask.shift_right(HAMT_BITMASK_SIZE - bit_index);
+        let mut mask = BitArray::<BitMaskType>::new([0xff, 0xff]);
+        mask.shift_left(HAMT_BITMASK_SIZE - bit_index);
+        assert_eq!(mask.count_ones(), bit_index);
         (mask & self.bitmask).count_ones()
     }
 
-    /// M
     #[async_recursion(?Send)]
     async fn modify_value<'a, 'b, B: BlockStore>(
         self: &'b Rc<Self>,
-        hashquartets: &mut HashQuartets<'a>,
+        hashnibbles: &mut HashNibbles<'a>,
         key: K,
         value: V,
         store: &B,
     ) -> Result<Rc<Self>> {
-        let bit_index = hashquartets.next()? as usize;
+        let bit_index = hashnibbles.next()? as usize;
 
         // No existing values at this point.
         if !self.bitmask[bit_index] {
@@ -141,7 +129,7 @@ where
             }
             Pointer::Link(link) => {
                 let child = Rc::clone(link.resolve_value(store).await?);
-                let new_child = child.modify_value(hashquartets, key, value, store).await?;
+                let new_child = child.modify_value(hashnibbles, key, value, store).await?;
                 let mut self_cloned = (**self).clone();
                 self_cloned.pointers[value_index] = Pointer::Link(Link::from(new_child));
                 Rc::new(self_cloned)
@@ -155,18 +143,18 @@ where
         store: &B,
     ) -> Result<Option<&'a Pair<K, V>>> {
         let hash = &Sha3_256::generate_hash(&key);
-        let mut hashquartets = HashQuartets::new(hash);
-        self.get_value(&mut hashquartets, key, store).await
+        let mut hashnibbles = HashNibbles::new(hash);
+        self.get_value(&mut hashnibbles, key, store).await
     }
 
     #[async_recursion(?Send)]
     async fn get_value<'a, 'b, B: BlockStore>(
         self: &'a Rc<Self>,
-        hashquartets: &'b mut HashQuartets,
+        hashnibbles: &'b mut HashNibbles,
         key: &K,
         store: &B,
     ) -> Result<Option<&'a Pair<K, V>>> {
-        let bit_index = hashquartets.next()? as usize;
+        let bit_index = hashnibbles.next()? as usize;
 
         if !self.bitmask[bit_index] {
             return Ok(None);
@@ -177,9 +165,28 @@ where
             Pointer::Values(values) => Ok(values.iter().find(|kv| key.eq(&kv.key))),
             Pointer::Link(link) => {
                 let child = link.resolve_value(store).await?;
-                child.get_value(hashquartets, key, store).await
+                child.get_value(hashnibbles, key, store).await
             }
         }
+    }
+}
+
+impl<K, V> Node<K, V> {
+    pub async fn to_ipld<B: BlockStore + ?Sized>(&self, store: &mut B) -> Result<Ipld>
+    where
+        K: Serialize,
+        V: Serialize,
+    {
+        let bitmask_ipld = ipld_serde::to_ipld(&self.bitmask.as_raw_slice())?;
+        let pointers_ipld = {
+            let mut tmp = Vec::with_capacity(self.pointers.len());
+            for pointer in self.pointers.iter() {
+                tmp.push(pointer.to_ipld(store).await?);
+            }
+            Ipld::List(tmp)
+        };
+
+        Ok(Ipld::List(vec![bitmask_ipld, pointers_ipld]))
     }
 }
 
@@ -187,21 +194,24 @@ impl<K, V> Default for Node<K, V> {
     fn default() -> Self {
         Node {
             bitmask: BitArray::ZERO,
-            pointers: Vec::new(),
+            pointers: Vec::with_capacity(HAMT_BITMASK_SIZE),
         }
     }
 }
 
-impl<K, V> Serialize for Node<K, V>
+#[async_trait(?Send)]
+impl<K, V> AsyncSerialize for Node<K, V>
 where
     K: Serialize,
     V: Serialize,
 {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        (&self.bitmask.as_raw_slice(), &self.pointers).serialize(serializer)
+    async fn async_serialize<S: Serializer, B: BlockStore + ?Sized>(
+        &self,
+        serializer: S,
+        store: &mut B,
+    ) -> Result<S::Ok, S::Error> {
+        let ipld = self.to_ipld(store).await.map_err(SerError::custom)?;
+        ipld.serialize(serializer)
     }
 }
 
@@ -228,24 +238,34 @@ where
 
 #[cfg(test)]
 mod hamt_node_tests {
-    use crate::{BlockStore, MemoryBlockStore};
-    use std::rc::Rc;
-
-    use super::Node;
+    use super::*;
+    use crate::{dagcbor, MemoryBlockStore};
 
     #[async_std::test]
-    async fn example_test() {
+    async fn node_can_insert_pair_and_retrieve() {
         let mut store = MemoryBlockStore::default();
+        let node = Rc::new(Node::<String, (i32, f64)>::default());
 
-        let node = Rc::new(Node::default())
-            .set("abc".to_string(), "def".to_string(), &mut store)
+        let node = node
+            .set("pill".into(), (10, 0.315), &mut store)
             .await
             .unwrap();
+        let value = node.get(&"pill".into(), &mut store).await.unwrap().unwrap();
 
-        node.flush(&mut store);
+        assert_eq!(value, &(10, 0.315));
+    }
 
-        let cid = store.put_serializable(&*node).await.unwrap();
+    #[async_std::test]
+    async fn node_can_encode_decode_as_cbor() {
+        let store = &mut MemoryBlockStore::default();
+        let node: Rc<Node<String, i32>> = Rc::new(Node::default());
 
-        println!("{:02X?}", store.get_block(&cid).await.unwrap().as_ref());
+        let node = node.set("James".into(), 4500, store).await.unwrap();
+        let node = node.set("Peter".into(), 2000, store).await.unwrap();
+
+        let encoded_node = dagcbor::async_encode(&node, store).await.unwrap();
+        let decoded_node = dagcbor::decode::<Node<String, i32>>(encoded_node.as_ref()).unwrap();
+
+        assert_eq!(*node, decoded_node);
     }
 }

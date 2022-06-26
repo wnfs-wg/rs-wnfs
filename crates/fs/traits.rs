@@ -1,9 +1,33 @@
+use std::rc::Rc;
+
 use crate::BlockStore;
 
 use anyhow::Result;
 use async_trait::async_trait;
 use libipld::{error::SerdeError, serde as ipld_serde, Ipld};
-use serde::{Serialize, Serializer};
+use serde::Serialize;
+use serde::Serializer;
+
+//--------------------------------------------------------------------------------------------------
+// Macros
+//--------------------------------------------------------------------------------------------------
+
+macro_rules! impl_async_serialize {
+    ( $( $ty:ty $( : < $( $generics:ident ),+ > )? ),+ ) => {
+        $(
+            #[async_trait(?Send)]
+            impl $( < $( $generics ),+ > )? AsyncSerialize for $ty $( where $( $generics: Serialize ),+  )? {
+                async fn async_serialize<S: Serializer, BS: BlockStore + ?Sized>(
+                    &self,
+                    serializer: S,
+                    _: &mut BS,
+                ) -> Result<S::Ok, S::Error> {
+                    self.serialize(serializer)
+                }
+            }
+        )+
+    };
+}
 
 //--------------------------------------------------------------------------------------------------
 // Traits
@@ -17,9 +41,9 @@ pub trait Id {
 
 /// Implements deep equality check for two types.
 #[async_trait(?Send)]
-pub trait DeepEq {
+pub trait IpldEq {
     /// Checks if the two items are deeply equal.
-    async fn deep_eq<B: BlockStore>(&self, other: &Self, store: &mut B) -> Result<bool>;
+    async fn eq<B: BlockStore>(&self, other: &Self, store: &mut B) -> Result<bool>;
 }
 
 /// A **data structure** that can be serialized into any data format supported
@@ -53,14 +77,29 @@ pub trait AsyncSerialize {
 // Implementations
 //--------------------------------------------------------------------------------------------------
 
-/// Implements async deserialization for serde serializable types.
 #[async_trait(?Send)]
-impl<T: Serialize> AsyncSerialize for T {
+impl<T: AsyncSerialize> AsyncSerialize for Rc<T> {
     async fn async_serialize<S: Serializer, B: BlockStore + ?Sized>(
         &self,
         serializer: S,
-        _: &mut B,
+        store: &mut B,
     ) -> Result<S::Ok, S::Error> {
-        self.serialize(serializer)
+        self.as_ref().async_serialize(serializer, store).await
     }
+}
+
+impl_async_serialize! { usize, u128, u64, u32, u16, u8, isize, i128, i64, i32, i16, i8 }
+impl_async_serialize! { String, &str }
+impl_async_serialize! {
+    (A,): <A>,
+    (A, B): <A, B>,
+    (A, B, C): <A, B, C>,
+    (A, B, C, D): <A, B, C, D>,
+    (A, B, C, D, E): <A, B, C, D, E>,
+    (A, B, C, D, E, F): <A, B, C, D, E, F>,
+    (A, B, C, D, E, F, G): <A, B, C, D, E, F, G>,
+    (A, B, C, D, E, F, G, H): <A, B, C, D, E, F, G, H>,
+    (A, B, C, D, E, F, G, H, I): <A, B, C, D, E, F, G, H, I>,
+    (A, B, C, D, E, F, G, H, I, J): <A, B, C, D, E, F, G, H, I, J>,
+    (A, B, C, D, E, F, G, H, I, J, K): <A, B, C, D, E, F, G, H, I, J, K>
 }

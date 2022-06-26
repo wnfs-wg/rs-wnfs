@@ -3,10 +3,9 @@ use async_once_cell::OnceCell;
 use async_trait::async_trait;
 use libipld::Cid;
 use serde::de::DeserializeOwned;
-use serde::Serialize;
 
 use crate::AsyncSerialize;
-use crate::{BlockStore, DeepEq};
+use crate::{BlockStore, IpldEq};
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
@@ -136,8 +135,8 @@ impl<T> Link<T> {
 }
 
 #[async_trait(?Send)]
-impl<T: PartialEq + Serialize> DeepEq for Link<T> {
-    async fn deep_eq<B: BlockStore>(&self, other: &Link<T>, store: &mut B) -> Result<bool> {
+impl<T: PartialEq + AsyncSerialize> IpldEq for Link<T> {
+    async fn eq<B: BlockStore>(&self, other: &Link<T>, store: &mut B) -> Result<bool> {
         if self == other {
             return Ok(true);
         }
@@ -222,10 +221,16 @@ mod ipld_link_tests {
 
     #[async_std::test]
     async fn link_cid_can_be_resolved() {
-        let mut store = MemoryBlockStore::default();
-        let link = Link::from(42_u64);
+        let pair = ("price".into(), 12_000_500);
+        let store = &mut MemoryBlockStore::default();
+        let link = Link::<(String, u64)>::from(pair.clone());
 
-        link.resolve_cid(&mut store).await.unwrap();
-        assert!(link.has_cid());
+        let cid = link.resolve_cid(store).await.unwrap();
+        let value = store
+            .get_deserializable::<(String, u64)>(cid)
+            .await
+            .unwrap();
+
+        assert_eq!(value, pair);
     }
 }

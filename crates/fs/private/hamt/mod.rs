@@ -8,5 +8,5 @@ mod pointer;
 
 pub(crate) use constants::*;
 
-pub(crate) use node::*;
-pub(crate) use pointer::*;
+pub use node::*;
+pub use pointer::*;

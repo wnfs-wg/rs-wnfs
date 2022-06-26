@@ -24,7 +24,7 @@ pub trait GenerateHash {
     fn generate_hash<K: AsRef<[u8]>>(key: &K) -> HashOutput; // &[u8]
 }
 
-pub struct HashQuartets<'a> {
+pub struct HashNibbles<'a> {
     digest: &'a HashOutput,
     cursor: usize,
 }
@@ -33,13 +33,13 @@ pub struct HashQuartets<'a> {
 // Implementation
 //--------------------------------------------------------------------------------------------------
 
-impl<'a> HashQuartets<'a> {
-    pub fn new(digest: &'a HashOutput) -> HashQuartets<'a> {
+impl<'a> HashNibbles<'a> {
+    pub fn new(digest: &'a HashOutput) -> HashNibbles<'a> {
         Self::with_cursor(digest, 0)
     }
 
-    /// Constructs hash quartets with custom cursor index.
-    pub fn with_cursor(digest: &'a HashOutput, cursor: usize) -> HashQuartets<'a> {
+    /// Constructs hash nibbles with custom cursor index.
+    pub fn with_cursor(digest: &'a HashOutput, cursor: usize) -> HashNibbles<'a> {
         Self { digest, cursor }
     }
 
@@ -73,17 +73,17 @@ impl GenerateHash for Sha3_256 {
 //--------------------------------------------------------------------------------------------------
 
 #[cfg(test)]
-mod hash_quartets_tests {
+mod hash_nibbles_tests {
     use super::*;
 
     #[test]
-    fn hash_quartets_can_cursor_over_digest() {
+    fn hash_nibbles_can_cursor_over_digest() {
         let mut key = [0u8; HASH_BYTES];
         key[0] = 0b10001000;
         key[1] = 0b10101010;
         key[2] = 0b10111111;
         key[3] = 0b11111111;
-        let mut hb = HashQuartets::new(&key);
+        let mut hb = HashNibbles::new(&key);
         assert_eq!(hb.next().unwrap(), 0b1000);
         assert_eq!(hb.next().unwrap(), 0b1000);
         assert_eq!(hb.next().unwrap(), 0b1010);

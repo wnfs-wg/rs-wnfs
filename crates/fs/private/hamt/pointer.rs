@@ -2,15 +2,16 @@
 
 use std::rc::Rc;
 
+use anyhow::Result;
 use async_trait::async_trait;
-use libipld::Ipld;
+use libipld::{serde as ipld_serde, Ipld};
 use serde::{
-    de::{self, DeserializeOwned},
+    de::{DeserializeOwned, Error as DeError},
     ser::Error as SerError,
     Deserialize, Deserializer, Serialize, Serializer,
 };
 
-use crate::Link;
+use crate::{AsyncSerialize, BlockStore, Link};
 
 use super::Node;
 
@@ -25,7 +26,7 @@ pub struct Pair<K, V> {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum                                                                                                                                   Pointer<K, V> {
+pub enum Pointer<K, V> {
     Values(Vec<Pair<K, V>>),
     Link(Link<Rc<Node<K, V>>>),
 }
@@ -33,6 +34,19 @@ pub enum                                                                        
 //--------------------------------------------------------------------------------------------------
 // Implementations
 //--------------------------------------------------------------------------------------------------
+
+impl<K, V> Pointer<K, V> {
+    pub async fn to_ipld<B: BlockStore + ?Sized>(&self, store: &mut B) -> Result<Ipld>
+    where
+        K: Serialize,
+        V: Serialize,
+    {
+        Ok(match self {
+            Pointer::Values(values) => ipld_serde::to_ipld(values)?,
+            Pointer::Link(link) => ipld_serde::to_ipld(link.resolve_cid(store).await?)?,
+        })
+    }
+}
 
 #[async_trait(?Send)]
 impl<K, V> AsyncSerialize for Pointer<K, V>
@@ -47,7 +61,11 @@ where
     ) -> Result<S::Ok, S::Error> {
         match self {
             Pointer::Values(vals) => vals.serialize(serializer),
-            Pointer::Link(link) => link.resolve_cid(store).await.serialize(serializer),
+            Pointer::Link(link) => link
+                .resolve_cid(store)
+                .await
+                .map_err(SerError::custom)?
+                .serialize(serializer),
         }
     }
 }
@@ -61,7 +79,7 @@ where
     where
         D: Deserializer<'de>,
     {
-        Ipld::deserialize(deserializer).and_then(|ipld| ipld.try_into().map_err(de::Error::custom))
+        Ipld::deserialize(deserializer).and_then(|ipld| ipld.try_into().map_err(DeError::custom))
     }
 }
 
@@ -125,18 +143,29 @@ where
 // Tests
 //--------------------------------------------------------------------------------------------------
 
+#[cfg(test)]
 mod pointer_tests {
     use super::*;
+    use crate::{dagcbor, MemoryBlockStore};
 
     #[async_std::test]
     async fn pointer_can_encode_decode_as_cbor() {
-        let root = PublicDirectory::new(Utc::now());
         let store = &mut MemoryBlockStore::default();
+        let pointer: Pointer<String, i32> = Pointer::Values(vec![
+            Pair {
+                key: "James".into(),
+                value: 4500,
+            },
+            Pair {
+                key: "Peter".into(),
+                value: 2000,
+            },
+        ]);
 
-        let encoded_dir = dagcbor::async_encode(&root, store).await.unwrap();
-        let decoded_dir = dagcbor::decode::<PublicDirectory>(encoded_dir.as_ref()).unwrap();
+        let encoded_pointer = dagcbor::async_encode(&pointer, store).await.unwrap();
+        let decoded_pointer =
+            dagcbor::decode::<Pointer<String, i32>>(encoded_pointer.as_ref()).unwrap();
 
-        assert_eq!(root, decoded_dir);
+        assert_eq!(pointer, decoded_pointer);
     }
-
 }

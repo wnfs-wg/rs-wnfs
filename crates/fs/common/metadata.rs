@@ -214,20 +214,16 @@ impl TryFrom<&str> for UnixFsNodeKind {
 
 #[cfg(test)]
 mod metadata_tests {
+    use chrono::Utc;
 
-    // TODO(appcypher): Fix
-    // #[async_std::test]
-    // async fn metadata_can_encode_decode_as_cbor() {
-    //     let metadata = Metadata::new(Utc::now(), UnixFsNodeKind::File);
+    use crate::{dagcbor, Metadata, UnixFsNodeKind};
 
-    //     let mut encoded_bytes = vec![];
+    #[async_std::test]
+    async fn metadata_can_encode_decode_as_cbor() {
+        let metadata = Metadata::new(Utc::now(), UnixFsNodeKind::File);
+        let encoded_metadata = dagcbor::encode(&metadata).unwrap();
+        let decoded_metadata = dagcbor::decode::<Metadata>(encoded_metadata.as_ref()).unwrap();
 
-    //     metadata.encode(DagCborCodec, &mut encoded_bytes).unwrap();
-
-    //     let mut cursor = Cursor::new(encoded_bytes);
-
-    //     let decoded_metadata = Metadata::decode(DagCborCodec, &mut cursor).unwrap();
-
-    //     assert_eq!(metadata, decoded_metadata);
-    // }
+        assert_eq!(metadata, decoded_metadata);
+    }
 }

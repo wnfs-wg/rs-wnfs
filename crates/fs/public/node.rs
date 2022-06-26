@@ -6,7 +6,7 @@ use anyhow::{bail, Result};
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use libipld::{Cid, Ipld};
-use serde::{de, Deserialize, Deserializer, Serializer};
+use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 
 use super::{PublicDirectory, PublicFile};
 use crate::{common::BlockStore, AsyncSerialize, FsError, Id, Metadata, UnixFsNodeKind};
@@ -196,7 +196,7 @@ impl AsyncSerialize for PublicNode {
         store: &mut B,
     ) -> Result<S::Ok, S::Error> {
         match self {
-            Self::File(file) => file.async_serialize(serializer, store).await,
+            Self::File(file) => file.serialize(serializer),
             Self::Dir(dir) => dir.async_serialize(serializer, store).await,
         }
     }
@@ -229,8 +229,6 @@ mod public_node_tests {
             .await
             .unwrap();
 
-        println!("bytes = {:02x?}", serialized_node_file);
-
         let deserialized_node_file: PublicNode =
             dagcbor::decode(serialized_node_file.as_ref()).unwrap();
 
@@ -245,8 +243,6 @@ mod public_node_tests {
         let serialized_node_dir = dagcbor::async_encode(&original_node_dir, store)
             .await
             .unwrap();
-
-        println!("bytes = {:02x?}", serialized_node_dir);
 
         let deserialized_node_dir: PublicNode =
             dagcbor::decode(serialized_node_dir.as_ref()).unwrap();
