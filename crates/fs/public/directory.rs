@@ -131,7 +131,7 @@ impl PathNodes {
     pub fn new(time: DateTime<Utc>, path_segments: &[String], tail: Rc<PublicDirectory>) -> Self {
         let path: Vec<(Rc<PublicDirectory>, String)> = path_segments
             .iter()
-            .map(|segment| (PublicDirectory::with_rc(time), segment.clone()))
+            .map(|segment| (Rc::new(PublicDirectory::new(time)), segment.clone()))
             .collect();
 
         Self { path, tail }
@@ -234,11 +234,6 @@ impl PublicDirectory {
             userland: BTreeMap::new(),
             previous: None,
         }
-    }
-
-    /// Creates a new directory using the given metadata.
-    pub fn with_rc(time: DateTime<Utc>) -> Rc<Self> {
-        Rc::new(Self::new(time))
     }
 
     /// Gets the previous value of the directory.
@@ -428,10 +423,9 @@ impl PublicDirectory {
     ///     dir.store(&mut store).await.unwrap();
     /// }
     /// ```
+    #[inline(always)]
     pub async fn store<B: BlockStore>(&self, store: &mut B) -> Result<Cid> {
         store.put_async_serializable(self).await
-        // self.flush(store).await?;
-        // store.put_serializable(self).await
     }
 
     /// Reads specified file content from the directory.

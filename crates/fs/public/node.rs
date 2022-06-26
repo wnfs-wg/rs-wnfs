@@ -17,9 +17,7 @@ use crate::{common::BlockStore, AsyncSerialize, FsError, Id, Metadata, UnixFsNod
 
 /// A node in a WNFS public file system. This can either be a file or a directory.
 ///
-/// PublicNode is serialized and deserialized as [untagged][1] enum.
-///
-/// [1]: https://serde.rs/enum-representations.html#untagged
+/// PublicNode is serialized as enum.
 #[derive(Debug, Clone)]
 pub enum PublicNode {
     File(Rc<PublicFile>),
@@ -96,6 +94,7 @@ impl PublicNode {
     }
 
     /// Stores a WNFS node as block(s) in chosen block store.
+    #[inline]
     pub async fn store<B: BlockStore>(&self, store: &mut B) -> Result<Cid> {
         Ok(match self {
             Self::File(file) => file.store(store).await?,
