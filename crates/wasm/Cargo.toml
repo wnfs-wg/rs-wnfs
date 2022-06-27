@@ -49,6 +49,3 @@ js = [
   "console_error_panic_hook",
 ]
 web = ["wasm", "web-sys"]
-
-[build]
-target = "wasm32-unknown-unknown"

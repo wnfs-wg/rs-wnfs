@@ -3,10 +3,7 @@
 use chrono::{DateTime, Utc};
 use js_sys::{Error, Uint8Array};
 use wasm_bindgen::prelude::wasm_bindgen;
-use wnfs::{
-    ipld::Cid,
-    public::{Id, PublicFile as WnfsPublicFile},
-};
+use wnfs::{ipld::Cid, public::PublicFile as WnfsPublicFile, Id};
 
 use crate::fs::JsResult;
 

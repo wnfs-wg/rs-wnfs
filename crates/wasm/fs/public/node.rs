@@ -1,6 +1,6 @@
 use js_sys::Error;
 use wasm_bindgen::prelude::wasm_bindgen;
-use wnfs::public::{Id, PublicNode as WnfsPublicNode};
+use wnfs::{public::PublicNode as WnfsPublicNode, Id};
 
 use crate::fs::{JsResult, PublicDirectory};
 

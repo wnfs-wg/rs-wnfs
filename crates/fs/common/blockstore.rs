@@ -5,8 +5,16 @@ use std::{borrow::Cow, io::Cursor};
 use anyhow::Result;
 use async_trait::async_trait;
 use hashbrown::HashMap;
-use libipld::{cbor::DagCborCodec, cid::Version, codec::Decode, Cid, IpldCodec};
+use libipld::{
+    cbor::DagCborCodec,
+    cid::Version,
+    codec::{Decode, Encode},
+    serde as ipld_serde, Cid, Ipld, IpldCodec,
+};
 use multihash::{Code, MultihashDigest};
+use serde::{de::DeserializeOwned, Serialize};
+
+use crate::AsyncSerialize;
 
 use super::FsError;
 
@@ -19,6 +27,30 @@ use super::FsError;
 pub trait BlockStore {
     async fn get_block<'a>(&'a self, cid: &Cid) -> Result<Cow<'a, Vec<u8>>>;
     async fn put_block(&mut self, bytes: Vec<u8>, codec: IpldCodec) -> Result<Cid>;
+
+    async fn put_serializable<S: Serialize>(&mut self, value: &S) -> Result<Cid> {
+        let ipld = ipld_serde::to_ipld(value)?;
+
+        let mut bytes = Vec::new();
+        ipld.encode(DagCborCodec, &mut bytes)?;
+
+        self.put_block(bytes, IpldCodec::DagCbor).await
+    }
+
+    async fn put_async_serializable<S: AsyncSerialize>(&mut self, value: &S) -> Result<Cid> {
+        let ipld = value.async_serialize_ipld(self).await?;
+
+        let mut bytes = Vec::new();
+        ipld.encode(DagCborCodec, &mut bytes)?;
+
+        self.put_block(bytes, IpldCodec::DagCbor).await
+    }
+
+    async fn get_deserializable<'a, D: DeserializeOwned>(&'a self, cid: &Cid) -> Result<D> {
+        let bytes = self.get_block(cid).await?;
+        let ipld = Ipld::decode(DagCborCodec, &mut Cursor::new(bytes.as_ref()))?;
+        Ok(ipld_serde::from_ipld::<D>(ipld)?)
+    }
 }
 
 /// An in-memory block store to simulate IPFS.
@@ -65,13 +97,6 @@ impl BlockStore for MemoryBlockStore {
 // Functions
 //--------------------------------------------------------------------------------------------------
 
-/// Loads a CBOR-encoded data from the store with provided CID.
-pub async fn load<B: BlockStore, T: Decode<DagCborCodec>>(store: &B, cid: &Cid) -> Result<T> {
-    let bytes = store.get_block(cid).await?;
-    let decoded = T::decode(DagCborCodec, &mut Cursor::new(bytes.as_ref()))?;
-    Ok(decoded)
-}
-
 #[cfg(test)]
 mod blockstore_tests {
     use libipld::{cbor::DagCborCodec, codec::Encode};
@@ -80,7 +105,7 @@ mod blockstore_tests {
 
     #[async_std::test]
     async fn inserted_items_can_be_fetched() {
-        let mut store = MemoryBlockStore::new();
+        let store = &mut MemoryBlockStore::new();
 
         let first_bytes = {
             let mut tmp = vec![];
@@ -110,8 +135,8 @@ mod blockstore_tests {
             .await
             .unwrap();
 
-        let first_loaded: Vec<u8> = super::load(&store, first_cid).await.unwrap();
-        let second_loaded: Vec<u8> = super::load(&store, second_cid).await.unwrap();
+        let first_loaded: Vec<u8> = store.get_deserializable(first_cid).await.unwrap();
+        let second_loaded: Vec<u8> = store.get_deserializable(second_cid).await.unwrap();
 
         assert_eq!(first_loaded, vec![1, 2, 3, 4, 5]);
         assert_eq!(second_loaded, b"hello world".to_vec());

@@ -1,36 +1,35 @@
-//! Public file system in-memory representation.
+//! Public node system in-memory representation.
 
-use std::{
-    io::{Cursor, Read, Seek},
-    rc::Rc,
-    result,
-};
+use std::rc::Rc;
 
 use anyhow::{bail, Result};
+use async_trait::async_trait;
 use chrono::{DateTime, Utc};
-use libipld::{cbor::DagCborCodec, codec::Decode, Cid};
+use libipld::{Cid, Ipld};
+use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 
-use super::{Id, PublicDirectory, PublicFile};
-use crate::{common::BlockStore, FsError, UnixFsNodeKind};
+use super::{PublicDirectory, PublicFile};
+use crate::{common::BlockStore, AsyncSerialize, FsError, Id, Metadata, UnixFsNodeKind};
+
+//--------------------------------------------------------------------------------------------------
+// Type Definitions
+//--------------------------------------------------------------------------------------------------
 
 /// A node in a WNFS public file system. This can either be a file or a directory.
-#[derive(Debug, Clone, PartialEq, Eq)]
+///
+/// PublicNode is serialized as enum.
+#[derive(Debug, Clone)]
 pub enum PublicNode {
     File(Rc<PublicFile>),
     Dir(Rc<PublicDirectory>),
 }
 
-impl PublicNode {
-    /// Checks if the reference of one node is the same as the reference of another node.
-    pub(crate) fn ptr_eq(&self, other: &PublicNode) -> bool {
-        match (self, other) {
-            (Self::File(self_file), Self::File(other_file)) => Rc::ptr_eq(self_file, other_file),
-            (Self::Dir(self_dir), Self::Dir(other_dir)) => Rc::ptr_eq(self_dir, other_dir),
-            _ => false,
-        }
-    }
+//--------------------------------------------------------------------------------------------------
+// Implementations
+//--------------------------------------------------------------------------------------------------
 
-    /// Create node with updated modified time.
+impl PublicNode {
+    /// Creates node with updated modified time.
     pub fn update_mtime(&self, time: DateTime<Utc>) -> Self {
         match self {
             Self::File(file) => {
@@ -46,7 +45,7 @@ impl PublicNode {
         }
     }
 
-    /// Create node with updated previous pointer value.
+    /// Creates node with updated previous pointer value.
     pub fn update_previous(&self, cid: Option<Cid>) -> Self {
         match self {
             Self::File(file) => {
@@ -62,7 +61,7 @@ impl PublicNode {
         }
     }
 
-    /// Get previous ancestor of a node.
+    /// Gets previous ancestor of a node.
     pub fn get_previous(&self) -> Option<Cid> {
         match self {
             Self::File(file) => file.get_previous(),
@@ -95,6 +94,7 @@ impl PublicNode {
     }
 
     /// Stores a WNFS node as block(s) in chosen block store.
+    #[inline]
     pub async fn store<B: BlockStore>(&self, store: &mut B) -> Result<Cid> {
         Ok(match self {
             Self::File(file) => file.store(store).await?,
@@ -125,70 +125,127 @@ impl Id for PublicNode {
     }
 }
 
-impl Decode<DagCborCodec> for PublicNode {
-    fn decode<R: Read + Seek>(c: DagCborCodec, r: &mut R) -> Result<Self> {
-        // NOTE(appcypher): There is really no great way to seek or peek at the data behind `r :: R: Read + Seek`.
-        // So we just copy the whole data behind the opaque type which allows us to cursor over the data multiple times.
-        // It is not ideal but it works.
-        let bytes: Vec<u8> = r.bytes().collect::<result::Result<_, _>>()?;
-
-        // We first try to decode as a file.
-        let mut try_file_cursor = Cursor::new(bytes);
-        let try_file_decode = PublicFile::decode(c, &mut try_file_cursor);
-
-        let node = match try_file_decode {
-            Ok(file) => PublicNode::File(Rc::new(file)),
-            _ => {
-                // If the file decode failed, we try to decode as a directory.
-                let mut cursor = Cursor::new(try_file_cursor.into_inner());
-                let dir = PublicDirectory::decode(c, &mut cursor)?;
-                PublicNode::Dir(Rc::new(dir))
+impl PartialEq for PublicNode {
+    fn eq(&self, other: &PublicNode) -> bool {
+        match (self, other) {
+            (Self::File(self_file), Self::File(other_file)) => {
+                Rc::ptr_eq(self_file, other_file) || self_file == other_file
             }
-        };
-
-        Ok(node)
+            (Self::Dir(self_dir), Self::Dir(other_dir)) => {
+                Rc::ptr_eq(self_dir, other_dir) || self_dir == other_dir
+            }
+            _ => false,
+        }
     }
 }
 
+impl<'de> Deserialize<'de> for PublicNode {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        Ipld::deserialize(deserializer).and_then(|ipld| ipld.try_into().map_err(de::Error::custom))
+    }
+}
+
+impl TryFrom<Ipld> for PublicNode {
+    type Error = String;
+
+    fn try_from(ipld: Ipld) -> Result<Self, Self::Error> {
+        match ipld {
+            Ipld::Map(map) => {
+                let metadata: Metadata = map
+                    .get("metadata")
+                    .ok_or("Missing metadata field")?
+                    .try_into()?;
+
+                Ok(if metadata.is_file() {
+                    PublicNode::from(
+                        PublicFile::deserialize(Ipld::Map(map)).map_err(|e| e.to_string())?,
+                    )
+                } else {
+                    PublicNode::from(
+                        PublicDirectory::deserialize(Ipld::Map(map)).map_err(|e| e.to_string())?,
+                    )
+                })
+            }
+            other => Err(format!("Expected `Ipld::Map` got {:#?}", other)),
+        }
+    }
+}
+
+impl From<PublicFile> for PublicNode {
+    fn from(file: PublicFile) -> Self {
+        Self::File(Rc::new(file))
+    }
+}
+
+impl From<PublicDirectory> for PublicNode {
+    fn from(dir: PublicDirectory) -> Self {
+        Self::Dir(Rc::new(dir))
+    }
+}
+
+/// Implements async deserialization for serde serializable types.
+#[async_trait(?Send)]
+impl AsyncSerialize for PublicNode {
+    async fn async_serialize<S: Serializer, B: BlockStore + ?Sized>(
+        &self,
+        serializer: S,
+        store: &mut B,
+    ) -> Result<S::Ok, S::Error> {
+        match self {
+            Self::File(file) => file.serialize(serializer),
+            Self::Dir(dir) => dir.async_serialize(serializer, store).await,
+        }
+    }
+}
+
+//--------------------------------------------------------------------------------------------------
+// Tests
+//--------------------------------------------------------------------------------------------------
+
 #[cfg(test)]
 mod public_node_tests {
-    use std::{io::Cursor, rc::Rc};
+    use std::rc::Rc;
 
     use chrono::Utc;
-    use libipld::{cbor::DagCborCodec, codec::Decode, prelude::Encode, Cid};
+    use libipld::Cid;
 
     use crate::{
+        dagcbor,
         public::{PublicDirectory, PublicFile, PublicNode},
         MemoryBlockStore,
     };
 
     #[async_std::test]
-    async fn encoded_public_file_can_be_decoded() {
-        let file = PublicFile::new(Utc::now(), Cid::default());
+    async fn serialized_public_file_can_be_deserialized() {
+        let store = &mut MemoryBlockStore::default();
+        let original_node_file =
+            PublicNode::File(Rc::new(PublicFile::new(Utc::now(), Cid::default())));
 
-        let mut encoded_bytes = vec![];
+        let serialized_node_file = dagcbor::async_encode(&original_node_file, store)
+            .await
+            .unwrap();
 
-        file.encode(DagCborCodec, &mut encoded_bytes).unwrap();
+        let deserialized_node_file: PublicNode =
+            dagcbor::decode(serialized_node_file.as_ref()).unwrap();
 
-        let mut cursor = Cursor::new(encoded_bytes);
-
-        let decoded_file = PublicNode::decode(DagCborCodec, &mut cursor).unwrap();
-
-        assert_eq!(PublicNode::File(Rc::new(file)), decoded_file);
+        assert_eq!(deserialized_node_file, original_node_file);
     }
 
     #[async_std::test]
-    async fn encoded_public_directory_can_be_decoded() {
-        let directory = PublicDirectory::new(Utc::now());
+    async fn serialized_public_directory_can_be_deserialized() {
+        let store = &mut MemoryBlockStore::default();
+        let original_node_dir = PublicNode::Dir(Rc::new(PublicDirectory::new(Utc::now())));
 
-        let mut store = MemoryBlockStore::default();
+        let serialized_node_dir = dagcbor::async_encode(&original_node_dir, store)
+            .await
+            .unwrap();
 
-        let encoded_bytes = directory.encode(&mut store).await.unwrap();
+        let deserialized_node_dir: PublicNode =
+            dagcbor::decode(serialized_node_dir.as_ref()).unwrap();
 
-        let mut cursor = Cursor::new(encoded_bytes);
-
-        let decoded_directory = PublicNode::decode(DagCborCodec, &mut cursor).unwrap();
-
-        assert_eq!(PublicNode::Dir(Rc::new(directory)), decoded_directory);
+        assert_eq!(deserialized_node_dir, original_node_dir);
     }
 }

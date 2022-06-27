@@ -1,22 +1,13 @@
 //! File system metadata.
 
-use std::{
-    cmp::Ordering,
-    io::{Read, Seek, Write},
-    str::FromStr,
-};
+use std::str::FromStr;
 
-use anyhow::{ensure, Result};
+use anyhow::Result;
 use chrono::{DateTime, Utc};
-use field_names::FieldNames;
-use libipld::{
-    cbor::{cbor::MajorKind, decode, encode, DagCborCodec},
-    codec::{Decode, Encode},
-    DagCbor,
-};
+use libipld::{DagCbor, Ipld};
 use semver::Version;
-
-use crate::FsError;
+use serde::{Deserialize, Serialize};
+use serde_repr::{Deserialize_repr, Serialize_repr};
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
@@ -24,8 +15,8 @@ use crate::FsError;
 
 /// The different types a UnixFS can be.
 ///
-/// See https://docs.ipfs.io/concepts/file-systems/#unix-file-system-unixfs
-#[derive(Debug, Clone, PartialEq, Eq, Copy, DagCbor)]
+/// See <https://docs.ipfs.io/concepts/file-systems/#unix-file-system-unixfs>
+#[derive(Debug, Clone, PartialEq, Eq, Copy, DagCbor, Serialize, Deserialize)]
 pub enum UnixFsNodeKind {
     Raw,
     File,
@@ -38,9 +29,10 @@ pub enum UnixFsNodeKind {
 /// Mode represents the Unix permissions for a UnixFS node.
 ///
 /// See
-/// - https://docs.ipfs.io/concepts/file-systems/#unix-file-system-unixfs
-/// - https://en.wikipedia.org/wiki/File-system_permissions#Numeric_notation
-#[derive(Debug, Clone, PartialEq, Eq, DagCbor)]
+/// - <https://docs.ipfs.io/concepts/file-systems/#unix-file-system-unixfs>
+/// - <https://en.wikipedia.org/wiki/File-system_permissions#Numeric_notation>
+#[derive(Debug, Clone, PartialEq, Eq, DagCbor, Serialize_repr, Deserialize_repr)]
+#[repr(u32)]
 pub enum UnixFsMode {
     NoPermissions = 0,
     OwnerReadWriteExecute = 700,
@@ -59,8 +51,8 @@ pub enum UnixFsMode {
 
 /// The metadata of a node in the UnixFS file system.
 ///
-/// See https://docs.ipfs.io/concepts/file-systems/#unix-file-system-unixfs
-#[derive(Debug, Clone, PartialEq, Eq, DagCbor)]
+/// See <https://docs.ipfs.io/concepts/file-systems/#unix-file-system-unixfs>
+#[derive(Debug, Clone, PartialEq, Eq, DagCbor, Serialize, Deserialize)]
 pub struct UnixFsMetadata {
     pub(crate) created: i64,
     pub(crate) modified: i64,
@@ -69,7 +61,7 @@ pub struct UnixFsMetadata {
 }
 
 /// The metadata of a node on the WNFS file system.
-#[derive(Debug, Clone, PartialEq, Eq, FieldNames)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Metadata {
     pub(crate) unix_fs: UnixFsMetadata,
     pub(crate) version: Version,
@@ -101,84 +93,118 @@ impl Metadata {
             version: Version::new(1, 0, 0),
         }
     }
+
+    pub fn is_file(&self) -> bool {
+        matches!(self.unix_fs.kind, UnixFsNodeKind::File)
+    }
 }
 
-impl Decode<DagCborCodec> for Metadata {
-    fn decode<R: Read + Seek>(c: DagCborCodec, r: &mut R) -> Result<Self> {
-        // Ensure the major kind is a map.
-        let major = decode::read_major(r)?;
-        ensure!(
-            major.kind() == MajorKind::Map,
-            FsError::UndecodableCborData("Unsupported major".into())
-        );
+impl TryFrom<&Ipld> for Metadata {
+    type Error = String;
 
-        let _ = decode::read_uint(r, major)?;
+    fn try_from(ipld: &Ipld) -> Result<Self, Self::Error> {
+        match ipld {
+            Ipld::Map(map) => {
+                let unix_fs = map.get("unix_fs").ok_or("Missing unix_fs")?.try_into()?;
 
-        // Ordering the fields by name based on RFC-7049 which is also what libipld uses.
-        let mut cbor_order: Vec<&'static str> = Vec::from_iter(Metadata::FIELDS);
-        cbor_order.sort_unstable_by(|&a, &b| match a.len().cmp(&b.len()) {
-            Ordering::Greater => Ordering::Greater,
-            Ordering::Less => Ordering::Less,
-            Ordering::Equal => a.cmp(b),
-        });
+                let version = match map.get("version").ok_or("Missing version")? {
+                    Ipld::String(v) => Version::from_str(v).map_err(|e| e.to_string())?,
+                    _ => return Err("version is not a string".into()),
+                };
 
-        // Iterate over the fields.
-        let mut unix_fs = None;
-        let mut version = String::new();
-        for field in cbor_order.iter() {
-            // Decode field name.
-            String::decode(c, r)?;
-
-            // Decode field value.
-            match *field {
-                "unix_fs" => {
-                    unix_fs = Some(UnixFsMetadata::decode(c, r)?);
-                }
-                "version" => {
-                    version = String::decode(c, r)?;
-                }
-                _ => unreachable!(),
+                Ok(Metadata { unix_fs, version })
             }
+            other => Err(format!("Expected `Ipld::Map` got {:#?}", other)),
         }
+    }
+}
 
-        Ok(Self {
-            unix_fs: unix_fs
-                .ok_or_else(|| FsError::UndecodableCborData("Missing unix_fs".into()))?,
-            version: Version::from_str(&version)?,
+impl TryFrom<&Ipld> for UnixFsMetadata {
+    type Error = String;
+
+    fn try_from(ipld: &Ipld) -> Result<Self, Self::Error> {
+        match ipld {
+            Ipld::Map(map) => {
+                let created = match map.get("created").ok_or("Missing created")? {
+                    Ipld::Integer(i) => *i as i64,
+                    _ => return Err("created is not an integer".into()),
+                };
+
+                let modified = match map.get("modified").ok_or("Missing modified")? {
+                    Ipld::Integer(i) => *i as i64,
+                    _ => return Err("modified is not an integer".into()),
+                };
+
+                let mode = map.get("mode").ok_or("Missing mode")?.try_into()?;
+                let kind = map.get("kind").ok_or("Missing kind")?.try_into()?;
+
+                Ok(UnixFsMetadata {
+                    created,
+                    modified,
+                    mode,
+                    kind,
+                })
+            }
+            other => Err(format!("Expected `Ipld::Map` got {:#?}", other)),
+        }
+    }
+}
+
+impl TryFrom<&Ipld> for UnixFsMode {
+    type Error = String;
+
+    fn try_from(ipld: &Ipld) -> Result<Self, Self::Error> {
+        match ipld {
+            Ipld::Integer(i) => UnixFsMode::try_from(*i as u32),
+            other => Err(format!("Expected `Ipld::Integer` got {:#?}", other)),
+        }
+    }
+}
+
+impl TryFrom<u32> for UnixFsMode {
+    type Error = String;
+
+    fn try_from(num: u32) -> Result<Self, Self::Error> {
+        Ok(match num {
+            0 => UnixFsMode::NoPermissions,
+            700 => UnixFsMode::OwnerReadWriteExecute,
+            770 => UnixFsMode::OwnerGroupReadWriteExecute,
+            777 => UnixFsMode::AllReadWriteExecute,
+            111 => UnixFsMode::AllExecute,
+            222 => UnixFsMode::AllWrite,
+            333 => UnixFsMode::AllWriteExecute,
+            444 => UnixFsMode::AllRead,
+            555 => UnixFsMode::AllReadExecute,
+            666 => UnixFsMode::AllReadWrite,
+            740 => UnixFsMode::OwnerReadWriteExecuteGroupRead,
+            755 => UnixFsMode::OwnerReadWriteExecuteGroupOthersReadExecute,
+            644 => UnixFsMode::OwnerReadWriteGroupOthersRead,
+            _ => return Err(format!("Unknown UnixFsMode: {}", num)),
         })
     }
 }
 
-impl Encode<DagCborCodec> for Metadata {
-    fn encode<W: Write>(&self, c: DagCborCodec, w: &mut W) -> Result<()> {
-        // Write the major of the section being written.
-        encode::write_u64(w, MajorKind::Map, Metadata::FIELDS.len() as u64)?;
+impl TryFrom<&Ipld> for UnixFsNodeKind {
+    type Error = String;
 
-        // Ordering the fields by name based on RFC-7049 which is also what libipld uses.
-        let mut cbor_order: Vec<&'static str> = Vec::from_iter(Metadata::FIELDS);
-        cbor_order.sort_unstable_by(|&a, &b| match a.len().cmp(&b.len()) {
-            Ordering::Greater => Ordering::Greater,
-            Ordering::Less => Ordering::Less,
-            Ordering::Equal => a.cmp(b),
-        });
-
-        // Iterate over the fields.
-        for field in cbor_order.iter() {
-            // Encode field name.
-            field.encode(c, w)?;
-            // Encode field value.
-            match *field {
-                "unix_fs" => {
-                    self.unix_fs.encode(c, w)?;
-                }
-                "version" => {
-                    self.version.to_string().encode(c, w)?;
-                }
-                _ => unreachable!(),
-            }
+    fn try_from(ipld: &Ipld) -> Result<Self, Self::Error> {
+        match ipld {
+            Ipld::String(s) => UnixFsNodeKind::try_from(s.as_str()),
+            other => Err(format!("Expected `Ipld::Integer` got {:#?}", other)),
         }
+    }
+}
 
-        Ok(())
+impl TryFrom<&str> for UnixFsNodeKind {
+    type Error = String;
+
+    fn try_from(name: &str) -> Result<Self, Self::Error> {
+        Ok(match name.to_lowercase().as_str() {
+            "file" => UnixFsNodeKind::File,
+            "dir" => UnixFsNodeKind::Dir,
+            "hamt-shard" => UnixFsNodeKind::HAMTShard,
+            _ => return Err(format!("Unknown UnixFsNodeKind: {}", name)),
+        })
     }
 }
 
@@ -188,27 +214,15 @@ impl Encode<DagCborCodec> for Metadata {
 
 #[cfg(test)]
 mod metadata_tests {
-    use std::io::Cursor;
-
     use chrono::Utc;
-    use libipld::{
-        cbor::DagCborCodec,
-        codec::{Decode, Encode},
-    };
 
-    use crate::{Metadata, UnixFsNodeKind};
+    use crate::{dagcbor, Metadata, UnixFsNodeKind};
 
     #[async_std::test]
     async fn metadata_can_encode_decode_as_cbor() {
         let metadata = Metadata::new(Utc::now(), UnixFsNodeKind::File);
-
-        let mut encoded_bytes = vec![];
-
-        metadata.encode(DagCborCodec, &mut encoded_bytes).unwrap();
-
-        let mut cursor = Cursor::new(encoded_bytes);
-
-        let decoded_metadata = Metadata::decode(DagCborCodec, &mut cursor).unwrap();
+        let encoded_metadata = dagcbor::encode(&metadata).unwrap();
+        let decoded_metadata = dagcbor::decode::<Metadata>(encoded_metadata.as_ref()).unwrap();
 
         assert_eq!(metadata, decoded_metadata);
     }

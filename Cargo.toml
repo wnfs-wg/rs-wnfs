@@ -3,3 +3,6 @@ members = [
 	'crates/fs',
 	'crates/wasm'
 ]
+
+[patch.crates-io]
+libipld = { git = "https://github.com/appcypher/libipld", branch = "appcypher/expose-ipld-serializer" }

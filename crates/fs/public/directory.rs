@@ -1,26 +1,18 @@
 //! Public fs directory node.
 
-use std::{
-    cmp::Ordering,
-    collections::BTreeMap,
-    io::{Read, Seek},
-    rc::Rc,
-};
+use std::{collections::BTreeMap, rc::Rc};
 
-use crate::{blockstore, error, BlockStore, FsError, Metadata, UnixFsNodeKind};
+use crate::{error, AsyncSerialize, BlockStore, FsError, Id, Metadata, UnixFsNodeKind};
 use anyhow::{bail, ensure, Result};
 use async_recursion::async_recursion;
 use async_stream::try_stream;
+use async_trait::async_trait;
 use chrono::{DateTime, Utc};
-use field_names::FieldNames;
 use futures::Stream;
-use libipld::{
-    cbor::{cbor::MajorKind, decode, encode, DagCborCodec},
-    codec::{Decode, Encode},
-    Cid, IpldCodec,
-};
+use libipld::Cid;
+use serde::{ser::Error as SerError, Deserialize, Deserializer, Serialize, Serializer};
 
-use super::{Id, Link, PublicFile, PublicNode};
+use super::{PublicFile, PublicLink, PublicNode};
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
@@ -31,26 +23,33 @@ use super::{Id, Link, PublicFile, PublicNode};
 /// # Examples
 ///
 /// ```
-/// use wnfs::{PublicDirectory, Id};
+/// use wnfs::{public::PublicDirectory, Id};
 /// use chrono::Utc;
 ///
 /// let dir = PublicDirectory::new(Utc::now());
 ///
 /// println!("id = {}", dir.get_id());
 /// ```
-#[derive(Debug, Clone, PartialEq, Eq, FieldNames)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct PublicDirectory {
     pub(crate) metadata: Metadata,
-    pub(crate) userland: BTreeMap<String, Link>,
+    pub(crate) userland: BTreeMap<String, PublicLink>,
     pub(crate) previous: Option<Cid>,
 }
 
+#[derive(Serialize, Deserialize)]
+struct PublicDirectorySerde {
+    metadata: Metadata,
+    userland: BTreeMap<String, Cid>,
+    previous: Option<Cid>,
+}
+
 /// The result of an operation applied to a directory.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct OpResult<T> {
-    // The root directory.
+    /// The root directory.
     pub root_dir: Rc<PublicDirectory>,
-    // Implementation dependent but it usually the last leaf node operated on.
+    /// Implementation dependent but it usually the last leaf node operated on.
     pub result: T,
 }
 
@@ -59,7 +58,7 @@ pub struct OpResult<T> {
 /// # Examples
 ///
 /// ```
-/// use wnfs::{PublicDirectory, PathNodes};
+/// use wnfs::public::{PublicDirectory, PathNodes};
 /// use std::rc::Rc;
 /// use chrono::Utc;
 ///
@@ -71,7 +70,7 @@ pub struct OpResult<T> {
 ///
 /// println!("path nodes = {:?}", nodes);
 /// ```
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct PathNodes {
     pub path: Vec<(Rc<PublicDirectory>, String)>,
     pub tail: Rc<PublicDirectory>,
@@ -82,7 +81,7 @@ pub struct PathNodes {
 /// # Examples
 ///
 /// ```
-/// use wnfs::{PublicDirectory, MemoryBlockStore, OpResult};
+/// use wnfs::{public::{PublicDirectory, OpResult}, MemoryBlockStore};
 /// use std::rc::Rc;
 /// use chrono::Utc;
 ///
@@ -100,7 +99,7 @@ pub struct PathNodes {
 ///     println!("ls = {:?}", result);
 /// }
 /// ```
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum PathNodesResult {
     Complete(PathNodes),
     MissingLink(PathNodes, String),
@@ -117,7 +116,7 @@ impl PathNodes {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::{PublicDirectory, PathNodes};
+    /// use wnfs::public::{PublicDirectory, PathNodes};
     /// use std::rc::Rc;
     /// use chrono::Utc;
     ///
@@ -143,7 +142,7 @@ impl PathNodes {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::{PublicDirectory, PathNodes};
+    /// use wnfs::public::{PublicDirectory, PathNodes};
     /// use std::rc::Rc;
     /// use chrono::Utc;
     ///
@@ -165,7 +164,7 @@ impl PathNodes {
         let mut working_dir = self.tail;
         for (dir, segment) in self.path.iter().rev() {
             let mut dir = (**dir).clone();
-            let link = Link::with_dir(working_dir);
+            let link = PublicLink::with_dir(working_dir);
             dir.userland.insert(segment.clone(), link);
             working_dir = Rc::new(dir);
         }
@@ -178,7 +177,7 @@ impl PathNodes {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::{PublicDirectory, PathNodes};
+    /// use wnfs::public::{PublicDirectory, PathNodes};
     /// use std::rc::Rc;
     /// use chrono::Utc;
     ///
@@ -199,7 +198,7 @@ impl PathNodes {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::{PublicDirectory, PathNodes};
+    /// use wnfs::public::{PublicDirectory, PathNodes};
     /// use std::rc::Rc;
     /// use chrono::Utc;
     ///
@@ -222,7 +221,7 @@ impl PublicDirectory {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::{PublicDirectory, Id};
+    /// use wnfs::{public::PublicDirectory, Id};
     /// use chrono::Utc;
     ///
     /// let dir = PublicDirectory::new(Utc::now());
@@ -319,7 +318,7 @@ impl PublicDirectory {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::{PublicDirectory, MemoryBlockStore, OpResult};
+    /// use wnfs::{public::{PublicDirectory, OpResult}, MemoryBlockStore};
     /// use std::rc::Rc;
     /// use chrono::Utc;
     ///
@@ -376,7 +375,7 @@ impl PublicDirectory {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::{PublicDirectory, Id, MemoryBlockStore, OpResult};
+    /// use wnfs::{public::{PublicDirectory, OpResult}, Id, MemoryBlockStore};
     /// use std::rc::Rc;
     /// use chrono::Utc;
     ///
@@ -400,7 +399,7 @@ impl PublicDirectory {
         store: &B,
     ) -> Result<Option<PublicNode>> {
         Ok(match self.userland.get(path_segment) {
-            Some(link) => Some(link.resolve(store).await?),
+            Some(link) => Some(link.resolve_value(store).await?.clone()),
             None => None,
         })
     }
@@ -413,7 +412,7 @@ impl PublicDirectory {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::{PublicDirectory, Id, MemoryBlockStore};
+    /// use wnfs::{public::PublicDirectory, Id, MemoryBlockStore};
     /// use chrono::Utc;
     ///
     /// #[async_std::main]
@@ -424,9 +423,9 @@ impl PublicDirectory {
     ///     dir.store(&mut store).await.unwrap();
     /// }
     /// ```
+    #[inline(always)]
     pub async fn store<B: BlockStore>(&self, store: &mut B) -> Result<Cid> {
-        let bytes = self.encode(store).await?;
-        store.put_block(bytes, IpldCodec::DagCbor).await
+        store.put_async_serializable(self).await
     }
 
     /// Reads specified file content from the directory.
@@ -434,7 +433,7 @@ impl PublicDirectory {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::{PublicDirectory, MemoryBlockStore, OpResult};
+    /// use wnfs::{public::{PublicDirectory, OpResult}, MemoryBlockStore};
     /// use libipld::cid::Cid;
     /// use std::rc::Rc;
     /// use chrono::Utc;
@@ -492,7 +491,7 @@ impl PublicDirectory {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::{PublicDirectory, MemoryBlockStore, OpResult};
+    /// use wnfs::{public::{PublicDirectory, OpResult}, MemoryBlockStore};
     /// use libipld::cid::Cid;
     /// use std::rc::Rc;
     /// use chrono::Utc;
@@ -545,7 +544,7 @@ impl PublicDirectory {
         // insert the file into its parent directory
         directory
             .userland
-            .insert(filename.to_string(), Link::with_file(Rc::new(file)));
+            .insert(filename.to_string(), PublicLink::with_file(Rc::new(file)));
         directory_path_nodes.tail = Rc::new(directory);
 
         // reconstruct the file path
@@ -560,7 +559,7 @@ impl PublicDirectory {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::{PublicDirectory, Id, MemoryBlockStore, OpResult};
+    /// use wnfs::{public::{PublicDirectory, OpResult}, Id, MemoryBlockStore};
     /// use std::rc::Rc;
     /// use chrono::Utc;
     ///
@@ -597,7 +596,7 @@ impl PublicDirectory {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::{PublicDirectory, MemoryBlockStore, OpResult};
+    /// use wnfs::{public::{PublicDirectory, OpResult}, MemoryBlockStore};
     /// use libipld::cid::Cid;
     /// use std::rc::Rc;
     /// use chrono::Utc;
@@ -637,7 +636,7 @@ impl PublicDirectory {
             PathNodesResult::Complete(path_nodes) => {
                 let mut result = vec![];
                 for (name, link) in path_nodes.tail.userland.iter() {
-                    match link.resolve(store).await? {
+                    match link.resolve_value(store).await? {
                         PublicNode::File(file) => {
                             result.push((name.clone(), file.metadata.clone()));
                         }
@@ -657,7 +656,7 @@ impl PublicDirectory {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::{PublicDirectory, MemoryBlockStore, OpResult};
+    /// use wnfs::{public::{PublicDirectory, OpResult}, MemoryBlockStore};
     /// use libipld::cid::Cid;
     /// use std::rc::Rc;
     /// use chrono::Utc;
@@ -707,7 +706,7 @@ impl PublicDirectory {
 
         // remove the entry from its parent directory
         let removed_node = match directory.userland.remove(node_name) {
-            Some(entry) => entry.resolve(store).await?,
+            Some(link) => link.get_owned_value(store).await?,
             None => bail!(FsError::NotFound),
         };
 
@@ -726,7 +725,7 @@ impl PublicDirectory {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::{PublicDirectory, MemoryBlockStore, OpResult};
+    /// use wnfs::{public::{PublicDirectory, OpResult}, MemoryBlockStore};
     /// use libipld::cid::Cid;
     /// use std::rc::Rc;
     /// use chrono::Utc;
@@ -796,7 +795,7 @@ impl PublicDirectory {
 
         directory
             .userland
-            .insert(filename.clone(), Link::Node(removed_node));
+            .insert(filename.clone(), PublicLink::new(removed_node));
 
         path_nodes.tail = Rc::new(directory);
 
@@ -806,13 +805,12 @@ impl PublicDirectory {
         })
     }
 
-    // TODO(appcypher): Make non recursive.
     /// Constructs a tree from directory with `base` as the historical ancestor.
     ///
     /// # Examples
     ///
     /// ```
-    /// use wnfs::{PublicDirectory, MemoryBlockStore, OpResult};
+    /// use wnfs::{public::{PublicDirectory, OpResult}, MemoryBlockStore};
     /// use libipld::cid::Cid;
     /// use std::rc::Rc;
     /// use chrono::Utc;
@@ -883,27 +881,27 @@ impl PublicDirectory {
     /// Constructs a tree from directory with `base` as the historical ancestor.
     #[async_recursion(?Send)]
     pub(crate) async fn base_history_on_helper<B: BlockStore>(
-        link: &Link,
-        base_link: &Link,
+        link: &PublicLink,
+        base_link: &PublicLink,
         store: &mut B,
-    ) -> Result<Option<Link>> {
-        if link.partial_equal(base_link, store).await? {
+    ) -> Result<Option<PublicLink>> {
+        if link.deep_eq(base_link, store).await? {
             return Ok(None);
         }
 
-        let node = link.resolve(store).await?;
-        let base_node = base_link.resolve(store).await?;
+        let node = link.resolve_value(store).await?;
+        let base_node = base_link.resolve_value(store).await?;
 
         let (mut dir, dir_rc, base_dir) = match (node, base_node) {
             (PublicNode::Dir(dir_rc), PublicNode::Dir(base_dir_rc)) => {
-                let mut dir = (*dir_rc).clone();
-                dir.previous = Some(base_link.seal(store).await?);
+                let mut dir = (**dir_rc).clone();
+                dir.previous = Some(*base_link.resolve_cid(store).await?);
                 (dir, dir_rc, base_dir_rc)
             }
             (PublicNode::File(file_rc), PublicNode::File(_)) => {
-                let mut file = (*file_rc).clone();
-                file.previous = Some(base_link.seal(store).await?);
-                return Ok(Some(Link::with_file(Rc::new(file))));
+                let mut file = (**file_rc).clone();
+                file.previous = Some(*base_link.resolve_cid(store).await?);
+                return Ok(Some(PublicLink::with_file(Rc::new(file))));
             }
             _ => {
                 // One is a file and the other is a directory
@@ -922,7 +920,7 @@ impl PublicDirectory {
             }
         }
 
-        Ok(Some(Link::with_dir(Rc::new(dir))))
+        Ok(Some(PublicLink::with_dir(Rc::new(dir))))
     }
 
     /// Gets a stream for walking the history of a directory node.
@@ -932,7 +930,7 @@ impl PublicDirectory {
     /// ```
     /// use std::{rc::Rc, pin::Pin};
     ///
-    /// use wnfs::{PublicDirectory, MemoryBlockStore, OpResult};
+    /// use wnfs::{public::{PublicDirectory, OpResult}, MemoryBlockStore};
     /// use libipld::cid::Cid;
     /// use chrono::Utc;
     /// use futures_util::pin_mut;
@@ -985,60 +983,10 @@ impl PublicDirectory {
         let mut working_node = self;
         try_stream! {
             while let Some(cid) = working_node.get_previous() {
-                working_node = Rc::new(blockstore::load(store, &cid).await?);
+                working_node = Rc::new(store.get_deserializable(&cid).await?);
                 yield cid;
             }
         }
-    }
-
-    /// Encode the directory as a CBOR object.
-    pub(crate) async fn encode<B: BlockStore>(&self, store: &mut B) -> Result<Vec<u8>> {
-        let mut bytes = Vec::new();
-
-        // Write the major of the section being written.
-        encode::write_u64(
-            &mut bytes,
-            MajorKind::Map,
-            PublicDirectory::FIELDS.len() as u64,
-        )?;
-
-        // Ordering the fields by name based on RFC-7049 which is also what libipld uses.
-        let mut cbor_order: Vec<&'static str> = Vec::from_iter(PublicDirectory::FIELDS);
-        cbor_order.sort_unstable_by(|&a, &b| match a.len().cmp(&b.len()) {
-            Ordering::Greater => Ordering::Greater,
-            Ordering::Less => Ordering::Less,
-            Ordering::Equal => a.cmp(b),
-        });
-
-        // Iterate over the fields.
-        for field in cbor_order.iter() {
-            // Encode field name.
-            field.encode(DagCborCodec, &mut bytes)?;
-            // Encode field value.
-            match *field {
-                "metadata" => {
-                    self.metadata.encode(DagCborCodec, &mut bytes)?;
-                }
-                "userland" => {
-                    let new_userland = {
-                        let mut tmp = BTreeMap::new();
-                        for (k, link) in self.userland.iter() {
-                            let cid = link.seal(store).await?;
-                            tmp.insert(k.clone(), cid);
-                        }
-                        tmp
-                    };
-
-                    new_userland.encode(DagCborCodec, &mut bytes)?;
-                }
-                "previous" => {
-                    self.previous.encode(DagCborCodec, &mut bytes)?;
-                }
-                _ => unreachable!(),
-            }
-        }
-
-        Ok(bytes)
     }
 }
 
@@ -1048,59 +996,56 @@ impl Id for PublicDirectory {
     }
 }
 
-// Decoding CBOR-encoded PublicDirectory from bytes.
-impl Decode<DagCborCodec> for PublicDirectory {
-    fn decode<R: Read + Seek>(c: DagCborCodec, r: &mut R) -> Result<Self> {
-        // Ensure the major kind is a map.
-        let major = decode::read_major(r)?;
-        ensure!(
-            major.kind() == MajorKind::Map,
-            FsError::UndecodableCborData("Unsupported major".into())
-        );
-
-        // Decode the length of the map.
-        let _ = decode::read_uint(r, major)?;
-
-        // Ordering the fields by name based on RFC-7049 which is also what libipld uses.
-        let mut cbor_order: Vec<&'static str> = Vec::from_iter(PublicDirectory::FIELDS);
-        cbor_order.sort_unstable_by(|&a, &b| match a.len().cmp(&b.len()) {
-            Ordering::Greater => Ordering::Greater,
-            Ordering::Less => Ordering::Less,
-            Ordering::Equal => a.cmp(b),
-        });
-
-        // Iterate over the fields.
-        let mut metadata = None;
-        let mut userland = BTreeMap::new();
-        let mut previous = None;
-
-        // Iterate over the fields.
-        for field in cbor_order.iter() {
-            // Decode field name.
-            String::decode(c, r)?;
-
-            // Decode field value.
-            match *field {
-                "metadata" => {
-                    metadata = Some(Metadata::decode(c, r)?);
-                }
-                "userland" => {
-                    userland = BTreeMap::<_, Cid>::decode(c, r)?
-                        .into_iter()
-                        .map(|(k, cid)| (k, Link::Cid(cid)))
-                        .collect();
-                }
-                "previous" => {
-                    previous = <Option<Cid>>::decode(c, r)?;
-                }
-                _ => unreachable!(),
+/// Implements async deserialization for serde serializable types.
+#[async_trait(?Send)]
+impl AsyncSerialize for PublicDirectory {
+    async fn async_serialize<S: Serializer, B: BlockStore + ?Sized>(
+        &self,
+        serializer: S,
+        store: &mut B,
+    ) -> Result<S::Ok, S::Error> {
+        let encoded_userland = {
+            let mut map = BTreeMap::new();
+            for (name, link) in self.userland.iter() {
+                map.insert(
+                    name.clone(),
+                    *link
+                        .resolve_cid(store)
+                        .await
+                        .map_err(|e| SerError::custom(format!("{}", e)))?,
+                );
             }
-        }
+            map
+        };
 
-        Ok(PublicDirectory {
-            metadata: metadata
-                .ok_or_else(|| FsError::UndecodableCborData("Missing unix_fs".into()))?,
+        (PublicDirectorySerde {
+            metadata: self.metadata.clone(),
+            userland: encoded_userland,
+            previous: self.previous,
+        })
+        .serialize(serializer)
+    }
+}
+
+impl<'de> Deserialize<'de> for PublicDirectory {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let PublicDirectorySerde {
+            metadata,
             userland,
+            previous,
+        } = PublicDirectorySerde::deserialize(deserializer)?;
+
+        let decoded_userland = userland
+            .into_iter()
+            .map(|(name, cid)| (name, PublicLink::from_cid(cid)))
+            .collect();
+
+        Ok(Self {
+            metadata,
+            userland: decoded_userland,
             previous,
         })
     }
@@ -1129,10 +1074,8 @@ mod utils {
 
 #[cfg(test)]
 mod public_directory_tests {
-    use std::io::Cursor;
-
     use super::*;
-    use crate::{public::PublicFile, MemoryBlockStore};
+    use crate::{dagcbor, public::PublicFile, MemoryBlockStore};
     use chrono::Utc;
 
     #[async_std::test]
@@ -1179,27 +1122,21 @@ mod public_directory_tests {
 
         let cid = root.store(&mut store).await.unwrap();
 
-        let bytes = store.get_block(&cid).await.unwrap();
+        let encoded_dir = store.get_block(&cid).await.unwrap();
+        let deserialized_dir = dagcbor::decode::<PublicDirectory>(encoded_dir.as_ref()).unwrap();
 
-        let mut cursor = Cursor::new(bytes.as_ref());
-
-        let decoded_root = PublicDirectory::decode(DagCborCodec, &mut cursor).unwrap();
-
-        assert_eq!(root, decoded_root);
+        assert_eq!(root, deserialized_dir);
     }
 
     #[async_std::test]
     async fn directory_can_encode_decode_as_cbor() {
         let root = PublicDirectory::new(Utc::now());
-        let mut store = MemoryBlockStore::default();
+        let store = &mut MemoryBlockStore::default();
 
-        let encoded_bytes = root.encode(&mut store).await.unwrap();
+        let encoded_dir = dagcbor::async_encode(&root, store).await.unwrap();
+        let decoded_dir = dagcbor::decode::<PublicDirectory>(encoded_dir.as_ref()).unwrap();
 
-        let mut cursor = Cursor::new(encoded_bytes);
-
-        let decoded_root = PublicDirectory::decode(DagCborCodec, &mut cursor).unwrap();
-
-        assert_eq!(root, decoded_root);
+        assert_eq!(root, decoded_dir);
     }
 
     #[async_std::test]

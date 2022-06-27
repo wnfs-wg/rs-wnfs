@@ -17,19 +17,24 @@ homepage = "https://fission.codes"
 authors = ["The Fission Authors"]
 
 [dependencies]
-libipld = { version = "0.13.1", features = ["dag-cbor", "derive"] }
+libipld = { version = "0.13.1", features = ["dag-cbor", "derive", "serde-codec" ] }
+serde_repr = "0.1"
+serde = { version = "1.0.137", features = ["rc"]}
 multihash = "0.16.2"
-semver = "1.0.7"
+semver = { version = "1.0.7", features = ["serde"] }
 chrono = "0.4.19"
 anyhow = "1.0.56"
 hashbrown = "0.12.0"
 async-trait = "0.1.53"
 async-std = { version = "1.11.0", features = ["attributes"] }
 async-recursion = "1.0.0"
-field_names = "0.2.0"
 futures = "0.3.21"
 async-stream = "0.3.3"
 futures-util = "0.3.21"
+skip_ratchet = { git = "https://github.com/appcypher/rs-skip-ratchet", branch = "appcypher/doc-and-structure" }
+bitvec = "1.0.0"
+async-once-cell = "0.4.0"
+sha3 = "0.10.0"
 
 [lib]
 path = "lib.rs"
