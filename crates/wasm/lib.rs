@@ -1,5 +1,5 @@
 #![allow(clippy::unused_unit)] // To prevent clippy screaming about wasm_bindgen macros.
-#![cfg(target_arch = "wasm32")]
+#![cfg(target_arch = "wasm32")] // This project only makes sense as a wasm32 target.
 use wasm_bindgen::prelude::wasm_bindgen;
 
 pub mod fs;

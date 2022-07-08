@@ -4,7 +4,7 @@ export type Nullable<T> = T | null;
 
 export interface BlockStore {
   getBlock(cid: Uint8Array): Promise<Uint8Array | undefined>;
-  putBlock(bytes: Uint8Array, code: number): Promise<void>;
+  putBlock(bytes: Uint8Array, code: number): Promise<Uint8Array>;
 }
 
 export type Handler = ((e: Event) => void) | ((e: Event) => Promise<void>);
