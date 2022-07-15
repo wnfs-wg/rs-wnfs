@@ -206,7 +206,7 @@ async fn main() {
 - Clone the repository.
 
   ```bash
-  git https://github.com/WebNativeFileSystem/rs-wnfs.git
+  git clone https://github.com/WebNativeFileSystem/rs-wnfs.git
   ```
 
 - Change directory
