@@ -18,6 +18,7 @@ use wnfs::{
 
 #[wasm_bindgen]
 extern "C" {
+    #[wasm_bindgen(typescript_type = "BlockStore")]
     pub type BlockStore;
 
     #[wasm_bindgen(method, js_name = "putBlock")]
