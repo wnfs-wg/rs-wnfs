@@ -272,7 +272,7 @@ impl PublicDirectory {
 mod utils {
     use std::rc::Rc;
 
-    use crate::{fs::JsMetadata, fs::JsResult, value};
+    use crate::{fs::metadata::JsMetadata, fs::JsResult, value};
     use js_sys::{Array, Error, Object, Reflect};
     use wasm_bindgen::JsValue;
     use wnfs::{public::PublicDirectory as WnfsPublicDirectory, Metadata};
