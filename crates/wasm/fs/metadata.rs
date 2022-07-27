@@ -12,9 +12,10 @@ impl TryInto<JsValue> for JsMetadata<'_> {
     fn try_into(self) -> JsResult<JsValue> {
         let metadata = Object::new();
         let unix_meta = unix_fs_to_js_value(&self.0.unix_fs)?;
+        let version = value!(self.0.version.to_string());
 
         Reflect::set(&metadata, &value!("unixMeta"), &unix_meta)?;
-        Reflect::set(&metadata, &value!("version"), &value!("3.0.0"))?;
+        Reflect::set(&metadata, &value!("version"), &version)?;
 
         Ok(value!(metadata))
     }
