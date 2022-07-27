@@ -208,6 +208,19 @@ impl TryFrom<&str> for UnixFsNodeKind {
     }
 }
 
+impl From<UnixFsNodeKind> for String {
+    fn from(kind: UnixFsNodeKind) -> Self {
+        match kind {
+            UnixFsNodeKind::Raw => "raw".into(),
+            UnixFsNodeKind::File => "file".into(),
+            UnixFsNodeKind::Dir => "dir".into(),
+            UnixFsNodeKind::Metadata => "metadata".into(),
+            UnixFsNodeKind::SymLink => "symlink".into(),
+            UnixFsNodeKind::HAMTShard => "hamt-shard".into(),
+        }
+    }
+}
+
 //--------------------------------------------------------------------------------------------------
 // Tests
 //--------------------------------------------------------------------------------------------------

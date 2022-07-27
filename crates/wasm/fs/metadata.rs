@@ -11,7 +11,7 @@ impl TryInto<JsValue> for JsMetadata<'_> {
 
     fn try_into(self) -> JsResult<JsValue> {
         let metadata = Object::new();
-        let unix_meta = unix_fs_to_js_value(&self.0.unix_fs)?;
+        let unix_meta = value!(String::from(&self.0.unix_fs));
         let version = value!(self.0.version.to_string());
 
         Reflect::set(&metadata, &value!("unixMeta"), &unix_meta)?;
@@ -31,15 +31,4 @@ fn unix_fs_to_js_value(unix_fs: &UnixFsMetadata) -> JsResult<JsValue> {
     Reflect::set(&obj, &value!("kind"), &kind)?;
 
     Ok(value!(obj))
-}
-
-fn unix_fs_kind_to_js_value(kind: &UnixFsNodeKind) -> JsValue {
-    match kind {
-        UnixFsNodeKind::Raw => value!("raw"),
-        UnixFsNodeKind::Dir => value!("dir"),
-        UnixFsNodeKind::File => value!("file"),
-        UnixFsNodeKind::Metadata => value!("metadata"),
-        UnixFsNodeKind::SymLink => value!("symlink"),
-        UnixFsNodeKind::HAMTShard => value!("hamtShard"),
-    }
 }
