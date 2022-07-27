@@ -109,7 +109,7 @@ build_wasm() {
     display_header "💿 | BUILDING WASM-WNFS PROJECT | 💿"
     echo "script_dir = $script_dir"
     cd $script_dir/../crates/wasm
-    wasm-pack build --target nodejs
+    wasm-pack build --target web
 	sed -i ".bak" -e 's/"name": "wasm-wnfs"/"name": "wnfs"/g' pkg/package.json
 	rm pkg/package.json.bak
 }
