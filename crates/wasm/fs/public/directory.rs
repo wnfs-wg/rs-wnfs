@@ -9,8 +9,8 @@ use wasm_bindgen_futures::future_to_promise;
 use wnfs::{
     ipld::Cid,
     public::{
-        OpResult as WnfsOpResult, PublicDirectory as WnfsPublicDirectory,
-        PublicNode as WnfsPublicNode,
+        PublicDirectory as WnfsPublicDirectory, PublicNode as WnfsPublicNode,
+        PublicOpResult as WnfsOpResult,
     },
     Id,
 };
