@@ -26,10 +26,11 @@ class MemoryBlockStore {
   }
 
   /** Retrieves an array of bytes from the block store with given CID. */
-  async putBlock(bytes: Uint8Array, code: number): Promise<void> {
+  async putBlock(bytes: Uint8Array, code: number): Promise<Uint8Array> {
     const hash = await sha256.digest(bytes);
     const cid = CID.create(1, code, hash);
     this.store.set(cid.toString(), bytes);
+    return cid.bytes;
   }
 }
 

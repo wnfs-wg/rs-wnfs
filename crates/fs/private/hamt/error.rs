@@ -1,14 +1,11 @@
-use std::{error::Error, fmt::Display};
+use thiserror::Error;
 
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub enum HamtError {
+    #[error("Hashnibbles cursor has exceeded HashOutput length")]
     CursorOutOfBounds,
-}
-
-impl Error for HamtError {}
-
-impl Display for HamtError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", self)
-    }
+    #[error("Cannot canonicalize a link pointer to a node with zero pointer")]
+    NonCanonicalizablePointer,
+    #[error("Values pointer expected")]
+    ValuesPointerExpected,
 }

@@ -4,7 +4,7 @@ use std::str::FromStr;
 
 use anyhow::Result;
 use chrono::{DateTime, Utc};
-use libipld::{DagCbor, Ipld};
+use libipld::Ipld;
 use semver::Version;
 use serde::{Deserialize, Serialize};
 use serde_repr::{Deserialize_repr, Serialize_repr};
@@ -16,7 +16,7 @@ use serde_repr::{Deserialize_repr, Serialize_repr};
 /// The different types a UnixFS can be.
 ///
 /// See <https://docs.ipfs.io/concepts/file-systems/#unix-file-system-unixfs>
-#[derive(Debug, Clone, PartialEq, Eq, Copy, DagCbor, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Copy, Serialize, Deserialize)]
 pub enum UnixFsNodeKind {
     Raw,
     File,
@@ -31,7 +31,7 @@ pub enum UnixFsNodeKind {
 /// See
 /// - <https://docs.ipfs.io/concepts/file-systems/#unix-file-system-unixfs>
 /// - <https://en.wikipedia.org/wiki/File-system_permissions#Numeric_notation>
-#[derive(Debug, Clone, PartialEq, Eq, DagCbor, Serialize_repr, Deserialize_repr)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize_repr, Deserialize_repr)]
 #[repr(u32)]
 pub enum UnixFsMode {
     NoPermissions = 0,
@@ -52,7 +52,7 @@ pub enum UnixFsMode {
 /// The metadata of a node in the UnixFS file system.
 ///
 /// See <https://docs.ipfs.io/concepts/file-systems/#unix-file-system-unixfs>
-#[derive(Debug, Clone, PartialEq, Eq, DagCbor, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct UnixFsMetadata {
     pub created: i64,
     pub modified: i64,
@@ -127,12 +127,12 @@ impl TryFrom<&Ipld> for UnixFsMetadata {
             Ipld::Map(map) => {
                 let created = match map.get("created").ok_or("Missing created")? {
                     Ipld::Integer(i) => *i as i64,
-                    _ => return Err("created is not an integer".into()),
+                    _ => return Err("`created` is not an integer".into()),
                 };
 
                 let modified = match map.get("modified").ok_or("Missing modified")? {
                     Ipld::Integer(i) => *i as i64,
-                    _ => return Err("modified is not an integer".into()),
+                    _ => return Err("`modified` is not an integer".into()),
                 };
 
                 let mode = map.get("mode").ok_or("Missing mode")?.try_into()?;
@@ -234,6 +234,7 @@ mod metadata_tests {
     #[async_std::test]
     async fn metadata_can_encode_decode_as_cbor() {
         let metadata = Metadata::new(Utc::now(), UnixFsNodeKind::File);
+
         let encoded_metadata = dagcbor::encode(&metadata).unwrap();
         let decoded_metadata = dagcbor::decode::<Metadata>(encoded_metadata.as_ref()).unwrap();
 

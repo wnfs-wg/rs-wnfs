@@ -1,9 +1,7 @@
-// TODO(appcypher): Based on ipld_hamt implementation
-
-use anyhow::Result;
+use anyhow::{bail, Result};
 use sha3::{Digest, Sha3_256};
 
-use crate::error;
+use crate::{HashOutput, HASH_BYTE_SIZE};
 
 use super::error::HamtError;
 
@@ -11,19 +9,19 @@ use super::error::HamtError;
 // Constants
 //--------------------------------------------------------------------------------------------------
 
-const HASH_BYTES: usize = 32;
-const MAX_CURSOR_DEPTH: usize = HASH_BYTES * 2;
+const MAX_CURSOR_DEPTH: usize = HASH_BYTE_SIZE * 2;
 
 //--------------------------------------------------------------------------------------------------
 // Type Definition
 //--------------------------------------------------------------------------------------------------
 
-pub type HashOutput = [u8; HASH_BYTES];
-
-pub trait GenerateHash {
-    fn generate_hash<K: AsRef<[u8]>>(key: &K) -> HashOutput; // &[u8]
+/// A common trait for the ability to generate a hash of some data.
+pub trait Hasher {
+    /// Generates a hash of the given data.
+    fn hash<K: AsRef<[u8]>>(key: &K) -> HashOutput;
 }
 
+#[derive(Debug, Clone)]
 pub struct HashNibbles<'a> {
     digest: &'a HashOutput,
     cursor: usize,
@@ -34,6 +32,7 @@ pub struct HashNibbles<'a> {
 //--------------------------------------------------------------------------------------------------
 
 impl<'a> HashNibbles<'a> {
+    /// Creates a new `HashNibbles` instance from a `[u8; 32]` hash.
     pub fn new(digest: &'a HashOutput) -> HashNibbles<'a> {
         Self::with_cursor(digest, 0)
     }
@@ -43,25 +42,43 @@ impl<'a> HashNibbles<'a> {
         Self { digest, cursor }
     }
 
-    pub fn next(&mut self) -> Result<u8> {
+    /// Gets the next nibble from the hash.
+    pub fn try_next(&mut self) -> Result<usize> {
+        if let Some(nibble) = self.next() {
+            return Ok(nibble as usize);
+        }
+        bail!(HamtError::CursorOutOfBounds)
+    }
+
+    /// Gets the current cursor position.
+    #[inline]
+    pub fn get_cursor(&self) -> usize {
+        self.cursor
+    }
+}
+
+impl Iterator for HashNibbles<'_> {
+    type Item = u8;
+
+    fn next(&mut self) -> Option<Self::Item> {
         if self.cursor >= MAX_CURSOR_DEPTH {
-            return error(HamtError::CursorOutOfBounds);
+            return None;
         }
 
         let byte = self.digest[self.cursor / 2];
         let byte = if self.cursor % 2 == 0 {
-            byte & 0b0000_1111
-        } else {
             byte >> 4
+        } else {
+            byte & 0b0000_1111
         };
 
         self.cursor += 1;
-        Ok(byte)
+        Some(byte)
     }
 }
 
-impl GenerateHash for Sha3_256 {
-    fn generate_hash<K: AsRef<[u8]>>(key: &K) -> HashOutput {
+impl Hasher for Sha3_256 {
+    fn hash<K: AsRef<[u8]>>(key: &K) -> HashOutput {
         let mut hasher = Self::default();
         hasher.update(key.as_ref());
         hasher.finalize().into()
@@ -78,23 +95,29 @@ mod hash_nibbles_tests {
 
     #[test]
     fn hash_nibbles_can_cursor_over_digest() {
-        let mut key = [0u8; HASH_BYTES];
-        key[0] = 0b10001000;
-        key[1] = 0b10101010;
-        key[2] = 0b10111111;
-        key[3] = 0b11111111;
-        let mut hb = HashNibbles::new(&key);
-        assert_eq!(hb.next().unwrap(), 0b1000);
-        assert_eq!(hb.next().unwrap(), 0b1000);
-        assert_eq!(hb.next().unwrap(), 0b1010);
-        assert_eq!(hb.next().unwrap(), 0b1010);
-        assert_eq!(hb.next().unwrap(), 0b1111);
-        assert_eq!(hb.next().unwrap(), 0b1011);
-        assert_eq!(hb.next().unwrap(), 0b1111);
-        assert_eq!(hb.next().unwrap(), 0b1111);
-        for _ in 0..(MAX_CURSOR_DEPTH - 8) {
-            assert!(hb.next().is_ok());
+        let key = {
+            let mut bytes = [0u8; HASH_BYTE_SIZE];
+            bytes[0] = 0b1000_1100;
+            bytes[1] = 0b1010_1010;
+            bytes[2] = 0b1011_1111;
+            bytes[3] = 0b1111_1101;
+            bytes
+        };
+
+        let hashnibbles = &mut HashNibbles::new(&key);
+        let expected_nibbles = [
+            0b1000, 0b1100, 0b1010, 0b1010, 0b1011, 0b1111, 0b1111, 0b1101,
+        ];
+
+        for (got, expected) in hashnibbles.zip(expected_nibbles.into_iter()) {
+            assert_eq!(expected, got);
         }
-        assert!(hb.next().is_err());
+
+        // Exhaust the iterator.
+        let _ = hashnibbles
+            .take(MAX_CURSOR_DEPTH - expected_nibbles.len())
+            .collect::<Vec<_>>();
+
+        assert_eq!(hashnibbles.next(), None);
     }
 }
