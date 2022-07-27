@@ -48,7 +48,7 @@ impl<K, V, H: Hasher> Pointer<K, V, H> {
     /// Converts a Link pointer to a canonical form to ensure consistent tree representation after deletes.
     pub async fn canonicalize<B: BlockStore>(self, store: &B) -> Result<Option<Self>>
     where
-        K: DeserializeOwned + PartialOrd + Clone,
+        K: DeserializeOwned + Clone + AsRef<[u8]>,
         V: DeserializeOwned + Clone,
         H: Clone,
     {
@@ -72,7 +72,9 @@ impl<K, V, H: Hasher> Pointer<K, V, H> {
                             .flatten()
                             .collect::<Vec<_>>();
 
-                        values.sort_unstable_by(|a, b| a.key.partial_cmp(&b.key).unwrap());
+                        values.sort_unstable_by(|a, b| {
+                            H::hash(&a.key).partial_cmp(&H::hash(&b.key)).unwrap()
+                        });
 
                         Ok(Some(Pointer::Values(values)))
                     }

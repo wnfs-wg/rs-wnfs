@@ -23,7 +23,7 @@ pub trait Hasher {
 
 #[derive(Debug, Clone)]
 pub struct HashNibbles<'a> {
-    digest: &'a HashOutput,
+    pub digest: &'a HashOutput,
     cursor: usize,
 }
 

@@ -1,7 +1,8 @@
 use std::{fmt::Debug, marker::PhantomData, rc::Rc};
 
 use crate::{
-    private::HAMT_VALUES_BUCKET_SIZE, AsyncSerialize, BlockStore, Link, ReferenceableStore,
+    private::HAMT_VALUES_BUCKET_SIZE, AsyncSerialize, BlockStore, HashOutput, Link,
+    ReferenceableStore,
 };
 use anyhow::{bail, Result};
 use async_recursion::async_recursion;
@@ -45,7 +46,7 @@ where
 
 impl<K, V, H> Node<K, V, H>
 where
-    K: DeserializeOwned + Serialize + AsRef<[u8]> + Clone + Eq + PartialOrd + Debug,
+    K: DeserializeOwned + Serialize + Clone + Debug + AsRef<[u8]>,
     V: DeserializeOwned + Serialize + Clone + Debug,
     H: Hasher + Clone + Debug,
 {
@@ -58,7 +59,7 @@ where
     ) -> Result<Rc<Self>> {
         let hash = &H::hash(&key);
         debug!("set: hash = {:02x?}", hash);
-        self.modify_value(&mut HashNibbles::new(hash), key, value, store)
+        self.set_value(&mut HashNibbles::new(hash), key, value, store)
             .await
     }
 
@@ -71,7 +72,7 @@ where
         let hash = &H::hash(key);
         debug!("get: hash = {:02x?}", hash);
         Ok(self
-            .get_value(&mut HashNibbles::new(hash), key, store)
+            .get_value(&mut HashNibbles::new(hash), store)
             .await?
             .map(|pair| &pair.value))
     }
@@ -84,7 +85,30 @@ where
     ) -> Result<(Rc<Self>, Option<V>)> {
         let hash = &H::hash(key);
         debug!("remove: hash = {:02x?}", hash);
-        self.remove_value(&mut HashNibbles::new(hash), key, store)
+        self.remove_value(&mut HashNibbles::new(hash), store)
+            .await
+            .map(|(node, pair)| (node, pair.map(|pair| pair.value)))
+    }
+
+    /// Gets the value at the key matching the provided hash.
+    pub async fn get_by_hash<'a, B: BlockStore>(
+        self: &'a Rc<Self>,
+        hash: &HashOutput,
+        store: &B,
+    ) -> Result<Option<&'a V>> {
+        Ok(self
+            .get_value(&mut HashNibbles::new(hash), store)
+            .await?
+            .map(|pair| &pair.value))
+    }
+
+    /// Removes the value at the key matching the provided hash.
+    pub async fn remove_by_hash<'a, B: BlockStore>(
+        self: &Rc<Self>,
+        hash: &HashOutput,
+        store: &B,
+    ) -> Result<(Rc<Self>, Option<V>)> {
+        self.remove_value(&mut HashNibbles::new(hash), store)
             .await
             .map(|(node, pair)| (node, pair.map(|pair| pair.value)))
     }
@@ -109,7 +133,7 @@ where
     }
 
     #[async_recursion(?Send)]
-    pub async fn modify_value<'a, 'b, B: BlockStore>(
+    pub async fn set_value<'a, 'b, B: BlockStore>(
         self: &'a Rc<Self>,
         hashnibbles: &'b mut HashNibbles,
         key: K,
@@ -120,7 +144,7 @@ where
         let value_index = self.get_value_index(bit_index);
 
         debug!(
-            "modify_value: bit_index = {}, value_index = {}",
+            "set_value: bit_index = {}, value_index = {}",
             bit_index, value_index
         );
 
@@ -141,7 +165,10 @@ where
                 let mut node = (**self).clone();
                 let pointers: Pointer<_, _, H> = {
                     let mut values = (*values).clone();
-                    if let Some(i) = values.iter().position(|p| p.key == key) {
+                    if let Some(i) = values
+                        .iter()
+                        .position(|p| &H::hash(&p.key) == hashnibbles.digest)
+                    {
                         // If the key is already present, update the value.
                         values[i] = Pair::new(key, value);
                         Pointer::Values(values)
@@ -151,7 +178,7 @@ where
                             // Insert in order of key.
                             let index = values
                                 .iter()
-                                .position(|p| p.key > key)
+                                .position(|p| &H::hash(&p.key) > hashnibbles.digest)
                                 .unwrap_or(values.len());
                             values.insert(index, Pair::new(key, value));
                             Pointer::Values(values)
@@ -164,9 +191,8 @@ where
                             {
                                 let hash = &H::hash(&key);
                                 let hashnibbles = &mut HashNibbles::with_cursor(hash, cursor);
-                                sub_node = sub_node
-                                    .modify_value(hashnibbles, key, value, store)
-                                    .await?;
+                                sub_node =
+                                    sub_node.set_value(hashnibbles, key, value, store).await?;
                             }
                             Pointer::Link(Link::from(sub_node))
                         }
@@ -178,7 +204,7 @@ where
             }
             Pointer::Link(link) => {
                 let child = Rc::clone(link.resolve_value(store).await?);
-                let child = child.modify_value(hashnibbles, key, value, store).await?;
+                let child = child.set_value(hashnibbles, key, value, store).await?;
                 let mut node = (**self).clone();
                 node.pointers[value_index] = Pointer::Link(Link::from(child));
                 Rc::new(node)
@@ -190,7 +216,6 @@ where
     pub async fn get_value<'a, 'b, B: BlockStore>(
         self: &'a Rc<Self>,
         hashnibbles: &'b mut HashNibbles,
-        key: &K,
         store: &B,
     ) -> Result<Option<&'a Pair<K, V>>> {
         let bit_index = hashnibbles.try_next()?;
@@ -202,10 +227,14 @@ where
 
         let value_index = self.get_value_index(bit_index);
         match &self.pointers[value_index] {
-            Pointer::Values(values) => Ok(values.iter().find(|kv| key.eq(&kv.key))),
+            Pointer::Values(values) => Ok({
+                values
+                    .iter()
+                    .find(|p| &H::hash(&p.key) == hashnibbles.digest)
+            }),
             Pointer::Link(link) => {
                 let child = link.resolve_value(store).await?;
-                child.get_value(hashnibbles, key, store).await
+                child.get_value(hashnibbles, store).await
             }
         }
     }
@@ -214,7 +243,6 @@ where
     pub async fn remove_value<'a, 'b, B: BlockStore>(
         self: &'a Rc<Self>,
         hashnibbles: &'b mut HashNibbles,
-        key: &K,
         store: &B,
     ) -> Result<(Rc<Self>, Option<Pair<K, V>>)> {
         let bit_index = hashnibbles.try_next()?;
@@ -238,18 +266,21 @@ where
                 } else {
                     // Otherwise, remove just the value.
                     let mut values = (*values).clone();
-                    values.iter().position(|p| p.key == *key).map(|i| {
-                        let value = values.remove(i);
-                        node.pointers[value_index] = Pointer::Values(values);
-                        value
-                    })
+                    values
+                        .iter()
+                        .position(|p| &H::hash(&p.key) == hashnibbles.digest)
+                        .map(|i| {
+                            let value = values.remove(i);
+                            node.pointers[value_index] = Pointer::Values(values);
+                            value
+                        })
                 };
 
                 (Rc::new(node), value)
             }
             Pointer::Link(link) => {
                 let child = Rc::clone(link.resolve_value(store).await?);
-                let (child, value) = child.remove_value(hashnibbles, key, store).await?;
+                let (child, value) = child.remove_value(hashnibbles, store).await?;
 
                 let mut node = (**self).clone();
                 if value.is_some() {
@@ -421,7 +452,7 @@ mod hamt_node_tests {
         for (digest, kv) in HASH_KV_PAIRS.iter() {
             let hashnibbles = &mut HashNibbles::new(&digest);
             working_node = working_node
-                .modify_value(hashnibbles, kv.to_string(), kv.to_string(), store)
+                .set_value(hashnibbles, kv.to_string(), kv.to_string(), store)
                 .await
                 .unwrap();
         }
@@ -429,10 +460,7 @@ mod hamt_node_tests {
         // Get the values.
         for (digest, kv) in HASH_KV_PAIRS.iter() {
             let hashnibbles = &mut HashNibbles::new(&digest);
-            let value = working_node
-                .get_value(hashnibbles, &kv.to_string(), store)
-                .await
-                .unwrap();
+            let value = working_node.get_value(hashnibbles, store).await.unwrap();
 
             assert_eq!(value, Some(&Pair::new(kv.to_string(), kv.to_string())));
         }
@@ -447,7 +475,7 @@ mod hamt_node_tests {
         for (digest, kv) in HASH_KV_PAIRS.iter() {
             let hashnibbles = &mut HashNibbles::new(&digest);
             working_node = working_node
-                .modify_value(hashnibbles, kv.to_string(), kv.to_string(), store)
+                .set_value(hashnibbles, kv.to_string(), kv.to_string(), store)
                 .await
                 .unwrap();
         }
@@ -457,7 +485,7 @@ mod hamt_node_tests {
         // Remove the third value.
         let third_hashnibbles = &mut HashNibbles::new(&HASH_KV_PAIRS[2].0);
         working_node = working_node
-            .remove_value(third_hashnibbles, &"third".to_string(), store)
+            .remove_value(third_hashnibbles, store)
             .await
             .unwrap()
             .0;
@@ -471,7 +499,7 @@ mod hamt_node_tests {
         }
 
         let value = working_node
-            .get_value(third_hashnibbles, &"third".to_string(), store)
+            .get_value(third_hashnibbles, store)
             .await
             .unwrap();
 
@@ -479,7 +507,7 @@ mod hamt_node_tests {
     }
 
     #[test(async_std::test)]
-    async fn modify_value_splits_when_bucket_threshold_reached() {
+    async fn set_value_splits_when_bucket_threshold_reached() {
         let store = &mut MemoryBlockStore::default();
 
         // Insert 3 values into the HAMT.
@@ -488,7 +516,7 @@ mod hamt_node_tests {
             let kv = kv.to_string();
             let hashnibbles = &mut HashNibbles::new(&digest);
             working_node = working_node
-                .modify_value(hashnibbles, kv.clone(), kv.clone(), store)
+                .set_value(hashnibbles, kv.clone(), kv.clone(), store)
                 .await
                 .unwrap();
 
@@ -504,7 +532,7 @@ mod hamt_node_tests {
 
         // Inserting the fourth value should introduce a link indirection.
         working_node = working_node
-            .modify_value(
+            .set_value(
                 &mut HashNibbles::new(&HASH_KV_PAIRS[3].0),
                 "fourth".to_string(),
                 "fourth".to_string(),
@@ -551,7 +579,7 @@ mod hamt_node_tests {
             let hashnibbles = &mut HashNibbles::new(&bytes);
 
             working_node = working_node
-                .modify_value(
+                .set_value(
                     hashnibbles,
                     expected_idx.to_string(),
                     expected_idx.to_string(),
