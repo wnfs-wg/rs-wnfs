@@ -208,8 +208,8 @@ impl TryFrom<&str> for UnixFsNodeKind {
     }
 }
 
-impl From<UnixFsNodeKind> for String {
-    fn from(kind: UnixFsNodeKind) -> Self {
+impl From<&UnixFsNodeKind> for String {
+    fn from(kind: &UnixFsNodeKind) -> Self {
         match kind {
             UnixFsNodeKind::Raw => "raw".into(),
             UnixFsNodeKind::File => "file".into(),
