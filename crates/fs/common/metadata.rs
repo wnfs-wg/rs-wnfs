@@ -54,17 +54,17 @@ pub enum UnixFsMode {
 /// See <https://docs.ipfs.io/concepts/file-systems/#unix-file-system-unixfs>
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct UnixFsMetadata {
-    pub(crate) created: i64,
-    pub(crate) modified: i64,
-    pub(crate) mode: UnixFsMode,
-    pub(crate) kind: UnixFsNodeKind,
+    pub created: i64,
+    pub modified: i64,
+    pub mode: UnixFsMode,
+    pub kind: UnixFsNodeKind,
 }
 
 /// The metadata of a node on the WNFS file system.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Metadata {
-    pub(crate) unix_fs: UnixFsMetadata,
-    pub(crate) version: Version,
+    pub unix_fs: UnixFsMetadata,
+    pub version: Version,
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -205,6 +205,19 @@ impl TryFrom<&str> for UnixFsNodeKind {
             "hamt-shard" => UnixFsNodeKind::HAMTShard,
             _ => return Err(format!("Unknown UnixFsNodeKind: {}", name)),
         })
+    }
+}
+
+impl From<&UnixFsNodeKind> for String {
+    fn from(kind: &UnixFsNodeKind) -> Self {
+        match kind {
+            UnixFsNodeKind::Raw => "raw".into(),
+            UnixFsNodeKind::File => "file".into(),
+            UnixFsNodeKind::Dir => "dir".into(),
+            UnixFsNodeKind::Metadata => "metadata".into(),
+            UnixFsNodeKind::SymLink => "symlink".into(),
+            UnixFsNodeKind::HAMTShard => "hamt-shard".into(),
+        }
     }
 }
 
