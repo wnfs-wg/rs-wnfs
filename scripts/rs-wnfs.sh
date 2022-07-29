@@ -107,14 +107,22 @@ build_fs() {
 
 build_wasm() {
     display_header "💿 | BUILDING WASM-WNFS PROJECT | 💿"
-    echo "script_dir = $script_dir"
     cd $script_dir/../crates/wasm
     wasm-pack build --target web
-	sed -i ".bak" \
+	sed -i.bak \
         -e 's/"name": "wasm-wnfs"/"name": "wnfs",\n  "type": "module"/g' \
         -e 's/"module": "wasm_wnfs\.js"/"module": "wasm_wnfs\.js",\n  "main": "wasm_wnfs\.js"/g' \
         pkg/package.json
 	rm pkg/package.json.bak
+    
+    cd $script_dir/..
+    pkg_dir="./crates/wasm/pkg"
+    wasm-bindgen ./target/wasm32-unknown-unknown/release/wasm_wnfs.wasm \
+        --out-dir=$pkg_dir \
+        --target=web \
+        --weak-refs
+    wasm-opt -O "$pkg_dir/wasm_wnfs_bg.wasm" -o "$pkg_dir/wasm-opt.wasm"
+    mv "$pkg_dir/wasm-opt.wasm" "$pkg_dir/wasm_wnfs_bg.wasm"
 }
 
 # DESCRIPTION:
@@ -141,7 +149,6 @@ test_fs() {
 
 test_wasm() {
     display_header "🧪 | RUNNING WASM-WNFS TESTS | 🧪"
-    echo "script_dir = $script_dir"
     cd $script_dir/../crates/wasm
     yarn playwright test
 }
