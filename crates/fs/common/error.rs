@@ -1,12 +1,12 @@
 //! File system errors.
 
-use std::error::Error;
+// use std::error::Error;
 
 use anyhow::Result;
 use thiserror::Error;
 
 /// File system errors.
-#[derive(Debug, Clone, PartialEq, Eq, Error)]
+#[derive(Debug, Error)]
 pub enum FsError {
     #[error("Cannot find a node with the specified CID in block store")]
     CIDNotFoundInBlockstore,
@@ -26,8 +26,14 @@ pub enum FsError {
     InvalidMoveLocation,
     #[error("Cannot decide cbor data")]
     UndecodableCborData(String),
+    #[error("Unable to encrypt data: {0}")]
+    UnableToEncrypt(String),
+    #[error("Unable to decrypt data: {0}")]
+    UnableToDecrypt(String),
+    #[error("Invalid deserialization: {0}")]
+    InvalidDeserialization(String),
 }
 
-pub fn error<T>(err: impl Error + Send + Sync + 'static) -> Result<T> {
+pub fn error<T>(err: impl std::error::Error + Send + Sync + 'static) -> Result<T> {
     Err(err.into())
 }

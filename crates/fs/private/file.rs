@@ -11,14 +11,14 @@ use super::{INumber, Namefilter, PrivateNodeHeader};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PrivateFileContent {
-    metadata: Metadata,
-    content: Vec<u8>, // Inlined file content. // TODO(appcypher): Support linked file content.
+    pub(crate) metadata: Metadata,
+    pub(crate) content: Vec<u8>, // Inlined file content. // TODO(appcypher): Support linked file content.
 }
 
 #[derive(Debug, Clone)]
 pub struct PrivateFile {
-    header: Option<PrivateNodeHeader>,
-    content: PrivateFileContent,
+    pub(crate) header: Option<PrivateNodeHeader>,
+    pub(crate) content: PrivateFileContent,
 }
 
 //--------------------------------------------------------------------------------------------------

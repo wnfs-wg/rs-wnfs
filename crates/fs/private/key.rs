@@ -1,18 +1,24 @@
-//--------------------------------------------------------------------------------------------------
-// Type Definitions
-//--------------------------------------------------------------------------------------------------
-
 use std::fmt::Debug;
 
 use aes_gcm::aead::{Aead, NewAead};
 use aes_gcm::{Aes256Gcm, Key as AesKey, Nonce};
-use anyhow::{anyhow, Result};
+use anyhow::Result;
+use serde::{Deserialize, Serialize};
 
-#[derive(Clone)]
-pub struct Key {
-    bytes: Vec<u8>,
-    cipher: Aes256Gcm,
-}
+use crate::FsError;
+
+//--------------------------------------------------------------------------------------------------
+// Contants
+//--------------------------------------------------------------------------------------------------
+
+pub(crate) const NONCE_SIZE: usize = 12;
+
+//--------------------------------------------------------------------------------------------------
+// Type Definitions
+//--------------------------------------------------------------------------------------------------
+
+#[derive(Clone, Serialize, Deserialize)]
+pub struct Key(pub(super) Vec<u8>);
 
 //--------------------------------------------------------------------------------------------------
 // Implementations
@@ -20,31 +26,30 @@ pub struct Key {
 
 impl Key {
     pub fn new(bytes: Vec<u8>) -> Self {
-        Self {
-            cipher: Aes256Gcm::new(AesKey::from_slice(&bytes)),
-            bytes,
-        }
+        Self(bytes)
     }
 
-    pub fn encrypt(&self, nonce: &[u8], data: &[u8]) -> Result<Vec<u8>> {
-        self.cipher
-            .encrypt(Nonce::from_slice(nonce), data)
-            .map_err(|e| anyhow!(e))
+    pub fn encrypt(&self, nonce_bytes: &[u8; NONCE_SIZE], data: &[u8]) -> Result<Vec<u8>> {
+        let nonce = Nonce::from_slice(nonce_bytes);
+
+        let cipher_text = Aes256Gcm::new(AesKey::from_slice(&self.0))
+            .encrypt(nonce, data)
+            .map_err(|e| FsError::UnableToEncrypt(format!("{}", e)))?;
+
+        Ok([cipher_text, nonce_bytes.to_vec()].concat())
     }
 
-    pub fn decrypt(&self, nonce: &[u8], data: &[u8]) -> Result<Vec<u8>> {
-        self.cipher
-            .decrypt(Nonce::from_slice(nonce), data)
-            .map_err(|e| anyhow!(e))
-    }
+    pub fn decrypt(&self, cipher_text: &[u8]) -> Result<Vec<u8>> {
+        let (data, nonce_bytes) = cipher_text.split_at(cipher_text.len() - NONCE_SIZE);
 
-    pub fn as_bytes(&self) -> &[u8] {
-        &self.bytes
+        Ok(Aes256Gcm::new(AesKey::from_slice(&self.0))
+            .decrypt(Nonce::from_slice(nonce_bytes), data)
+            .map_err(|e| FsError::UnableToDecrypt(format!("{}", e)))?)
     }
 }
 
 impl Debug for Key {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Key(0x{:02X?})", &self.bytes[..5])
+        write!(f, "Key(0x{:02X?})", &self.0[..5])
     }
 }
