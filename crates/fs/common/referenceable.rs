@@ -17,13 +17,13 @@ use crate::AsyncSerialize;
 /// This data structure is backed by a [ReferenceableStore](crate::ReferenceableStore) which is used to resolve the reference to the actual value.
 #[derive(Debug)]
 pub enum Referenceable<R, V> {
-    /// A variant of `Resolvable` that starts out as a value of R.
+    /// A variant of `Referenceable` that starts out as a value of R.
     /// It supports converting a reference to a value of `V` by caching it only once in `value_cache`.
     Encoded {
         reference: R,
         value_cache: OnceCell<V>,
     },
-    /// A variant of `Resolvable` that starts out as a value of `V.`.
+    /// A variant of `Referenceable` that starts out as a value of `V.`.
     /// It supports converting the value of `V` to a reference by caching it only once in `reference_cache`.
     Decoded {
         value: V,

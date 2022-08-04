@@ -4,9 +4,17 @@ use wnfs::{public::PublicNode as WnfsPublicNode, Id};
 
 use crate::fs::{JsResult, PublicDirectory};
 
+//--------------------------------------------------------------------------------------------------
+// Type Definitions
+//--------------------------------------------------------------------------------------------------
+
 /// Wraps a wnfs PublicNode.
 #[wasm_bindgen]
 pub struct PublicNode(pub(crate) WnfsPublicNode);
+
+//--------------------------------------------------------------------------------------------------
+// Implementations
+//--------------------------------------------------------------------------------------------------
 
 #[wasm_bindgen]
 impl PublicNode {

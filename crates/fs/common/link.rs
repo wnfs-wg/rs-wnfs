@@ -39,6 +39,14 @@ impl<T> Link<T> {
         self.resolve_reference(store).await
     }
 
+    /// Gets the cid data stored in type.
+    ///
+    /// NOTE: This does not attempt to get it from the store if it does not exist..
+    #[inline]
+    pub fn get_cid(&self) -> Option<&Cid> {
+        self.get_reference()
+    }
+
     /// Checks if there is a Cid stored in link.
     #[inline]
     pub fn has_cid(&self) -> bool {

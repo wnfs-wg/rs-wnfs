@@ -19,7 +19,7 @@ use super::{
 // Type Definitions
 //--------------------------------------------------------------------------------------------------
 
-pub type INumber = Vec<u8>;
+pub type INumber = HashOutput;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct PrivateNodeHeader {

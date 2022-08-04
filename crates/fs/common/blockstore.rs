@@ -14,7 +14,10 @@ use libipld::{
 use multihash::{Code, MultihashDigest};
 use serde::{de::DeserializeOwned, Serialize};
 
-use crate::{AsyncSerialize, ReferenceableStore};
+use crate::{
+    private::{Key, Rng, NONCE_SIZE},
+    AsyncSerialize, ReferenceableStore,
+};
 
 use super::FsError;
 
@@ -37,6 +40,18 @@ pub trait BlockStore {
         self.put_block(bytes, IpldCodec::DagCbor).await
     }
 
+    async fn put_private_serializable<V, R>(&mut self, value: &V, key: &Key) -> Result<Cid>
+    where
+        V: Serialize,
+        R: Rng,
+    {
+        let ipld = ipld_serde::to_ipld(value)?;
+        let mut bytes = Vec::new();
+        ipld.encode(DagCborCodec, &mut bytes)?;
+        let enc_bytes = key.encrypt(&R::random_bytes::<NONCE_SIZE>(), &bytes)?;
+        self.put_block(enc_bytes, IpldCodec::DagCbor).await
+    }
+
     async fn put_async_serializable<V: AsyncSerialize<StoreRef = Cid>>(
         &mut self,
         value: &V,
@@ -52,6 +67,17 @@ pub trait BlockStore {
     async fn get_deserializable<'a, V: DeserializeOwned>(&'a self, cid: &Cid) -> Result<V> {
         let bytes = self.get_block(cid).await?;
         let ipld = Ipld::decode(DagCborCodec, &mut Cursor::new(bytes.as_ref()))?;
+        Ok(ipld_serde::from_ipld::<V>(ipld)?)
+    }
+
+    async fn get_private_deserializable<'a, V: DeserializeOwned>(
+        &'a self,
+        cid: &Cid,
+        key: &Key,
+    ) -> Result<V> {
+        let enc_bytes = self.get_block(cid).await?;
+        let bytes = key.decrypt(enc_bytes.as_ref())?;
+        let ipld = Ipld::decode(DagCborCodec, &mut Cursor::new(bytes))?;
         Ok(ipld_serde::from_ipld::<V>(ipld)?)
     }
 }

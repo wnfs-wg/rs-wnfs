@@ -18,6 +18,10 @@ use wnfs::{
 use crate::fs::{BlockStore, ForeignBlockStore, JsResult, PublicNode};
 use crate::value;
 
+//--------------------------------------------------------------------------------------------------
+// Type Definitions
+//--------------------------------------------------------------------------------------------------
+
 /// A directory in a WNFS public file system.
 #[wasm_bindgen]
 pub struct PublicDirectory(pub(crate) Rc<WnfsPublicDirectory>);

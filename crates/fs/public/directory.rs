@@ -3,8 +3,8 @@
 use std::{collections::BTreeMap, rc::Rc};
 
 use crate::{
-    error, AsyncSerialize, BlockStore, FsError, Id, Metadata, OpResult, ReferenceableStore,
-    UnixFsNodeKind,
+    error, AsyncSerialize, BlockStore, FsError, Id, Metadata, OpResult, PathNodes,
+    PathNodesReconstruct, PathNodesResult, ReferenceableStore, UnixFsNodeKind,
 };
 use anyhow::{bail, ensure, Result};
 use async_recursion::async_recursion;
@@ -21,7 +21,9 @@ use super::{PublicFile, PublicLink, PublicNode};
 // Type Definitions
 //--------------------------------------------------------------------------------------------------
 
-pub type PublicOpResult<T> = OpResult<Rc<PublicDirectory>, T>;
+pub type PublicOpResult<T> = OpResult<PublicDirectory, T>;
+pub type PublicPathNodes = PathNodes<PublicDirectory>;
+pub type PublicPathNodesResult = PathNodesResult<PublicDirectory>;
 
 /// A directory in a WNFS public file system.
 ///
@@ -49,167 +51,9 @@ struct PublicDirectorySerde {
     previous: Option<Cid>,
 }
 
-/// Represents the directory nodes along a path.
-///
-/// # Examples
-///
-/// ```
-/// use wnfs::public::{PublicDirectory, PathNodes};
-/// use std::rc::Rc;
-/// use chrono::Utc;
-///
-/// let nodes = PathNodes::new(
-///     Utc::now(),
-///     &["movies".into(), "anime".into()],
-///     Rc::new(PublicDirectory::new(Utc::now())),
-/// );
-///
-/// println!("path nodes = {:?}", nodes);
-/// ```
-#[derive(Debug, Clone, PartialEq)]
-pub struct PathNodes {
-    pub path: Vec<(Rc<PublicDirectory>, String)>,
-    pub tail: Rc<PublicDirectory>,
-}
-
-/// The kinds of outcome from getting a `PathNodes`.
-///
-/// # Examples
-///
-/// ```
-/// use wnfs::{public::{PublicDirectory, PublicOpResult}, MemoryBlockStore};
-/// use std::rc::Rc;
-/// use chrono::Utc;
-///
-/// #[async_std::main]
-/// async fn main() {
-///     let time = Utc::now();
-///     let dir = Rc::new(PublicDirectory::new(time));
-///     let store = MemoryBlockStore::default();
-///
-///     let PublicOpResult { root_dir, result } = dir
-///         .ls(&[], &store)
-///         .await
-///         .unwrap();
-///
-///     println!("ls = {:?}", result);
-/// }
-/// ```
-#[derive(Debug, Clone, PartialEq)]
-pub enum PathNodesResult {
-    Complete(PathNodes),
-    MissingLink(PathNodes, String),
-    NotADirectory(PathNodes, String),
-}
-
 //--------------------------------------------------------------------------------------------------
 // Implementations
 //--------------------------------------------------------------------------------------------------
-
-impl PathNodes {
-    /// Creates a new `PathNodes` that is not based on an existing file tree.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use wnfs::public::{PublicDirectory, PathNodes};
-    /// use std::rc::Rc;
-    /// use chrono::Utc;
-    ///
-    /// let nodes = PathNodes::new(
-    ///     Utc::now(),
-    ///     &["movies".into(), "anime".into()],
-    ///     Rc::new(PublicDirectory::new(Utc::now())),
-    /// );
-    ///
-    /// println!("path nodes = {:?}", nodes);
-    /// ```
-    pub fn new(time: DateTime<Utc>, path_segments: &[String], tail: Rc<PublicDirectory>) -> Self {
-        let path: Vec<(Rc<PublicDirectory>, String)> = path_segments
-            .iter()
-            .map(|segment| (Rc::new(PublicDirectory::new(time)), segment.clone()))
-            .collect();
-
-        Self { path, tail }
-    }
-
-    /// Constructs a diverged path nodes by fixing up links in a `PathNodes` and returning the resulting root node.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use wnfs::public::{PublicDirectory, PathNodes};
-    /// use std::rc::Rc;
-    /// use chrono::Utc;
-    ///
-    /// let nodes = PathNodes::new(
-    ///     Utc::now(),
-    ///     &["movies".into(), "anime".into()],
-    ///     Rc::new(PublicDirectory::new(Utc::now())),
-    /// );
-    ///
-    /// let new_root = nodes.reconstruct();
-    ///
-    /// println!("new_root = {:?}", new_root);
-    /// ```
-    pub fn reconstruct(self) -> Rc<PublicDirectory> {
-        if self.path.is_empty() {
-            return self.tail;
-        }
-
-        let mut working_dir = self.tail;
-        for (dir, segment) in self.path.iter().rev() {
-            let mut dir = (**dir).clone();
-            let link = PublicLink::with_dir(working_dir);
-            dir.userland.insert(segment.clone(), link);
-            working_dir = Rc::new(dir);
-        }
-
-        working_dir
-    }
-
-    /// Returns the length of the path nodes.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use wnfs::public::{PublicDirectory, PathNodes};
-    /// use std::rc::Rc;
-    /// use chrono::Utc;
-    ///
-    /// let nodes = PathNodes::new(
-    ///     Utc::now(),
-    ///     &["movies".into(), "anime".into()],
-    ///     Rc::new(PublicDirectory::new(Utc::now())),
-    /// );
-    ///
-    /// assert_eq!(nodes.len(), 2);
-    /// ```
-    pub fn len(&self) -> usize {
-        self.path.len()
-    }
-
-    /// Checks if the path nodes are empty.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use wnfs::public::{PublicDirectory, PathNodes};
-    /// use std::rc::Rc;
-    /// use chrono::Utc;
-    ///
-    /// let nodes = PathNodes::new(
-    ///     Utc::now(),
-    ///     &["movies".into(), "anime".into()],
-    ///     Rc::new(PublicDirectory::new(Utc::now())),
-    /// );
-    ///
-    /// assert!(!nodes.is_empty());
-    /// ```
-    pub fn is_empty(&self) -> bool {
-        self.path.is_empty()
-    }
-}
 
 impl PublicDirectory {
     /// Creates a new directory with provided time.
@@ -238,14 +82,30 @@ impl PublicDirectory {
         self.previous
     }
 
-    /// Gets the directory nodes along specified path.
+    /// Creates a new `PublicPathNodes` that is not based on an existing file tree.
+    pub(crate) fn create_path_nodes(
+        time: DateTime<Utc>,
+        path_segments: &[String],
+    ) -> PublicPathNodes {
+        let path: Vec<(Rc<PublicDirectory>, String)> = path_segments
+            .iter()
+            .map(|segment| (Rc::new(PublicDirectory::new(time)), segment.clone()))
+            .collect();
+
+        PublicPathNodes {
+            path,
+            tail: Rc::new(PublicDirectory::new(time)),
+        }
+    }
+
+    /// Uses specified path segments and their existence in the file tree to generate `PathNodes`.
     ///
     /// Supports cases where the entire path does not exist.
     pub(crate) async fn get_path_nodes<B: BlockStore>(
         self: Rc<Self>,
         path_segments: &[String],
         store: &B,
-    ) -> Result<PathNodesResult> {
+    ) -> Result<PublicPathNodesResult> {
         use PathNodesResult::*;
         let mut working_node = self;
         let mut path_nodes = Vec::with_capacity(path_segments.len());
@@ -275,29 +135,28 @@ impl PublicDirectory {
             }
         }
 
-        Ok(Complete(PathNodes {
+        Ok(Complete(PublicPathNodes {
             path: path_nodes,
             tail: Rc::clone(&working_node),
         }))
     }
 
-    /// Gets the directory nodes along a path and also supports creating missing intermediate directories.
-    pub(crate) async fn get_path_nodes_or_create<B: BlockStore>(
+    /// Uses specified path segments to generate `PathNodes`. Creates missing directories as needed.
+    pub(crate) async fn get_or_create_path_nodes<B: BlockStore>(
         self: Rc<Self>,
         path_segments: &[String],
         time: DateTime<Utc>,
         store: &B,
-    ) -> Result<PathNodes> {
+    ) -> Result<PublicPathNodes> {
         use PathNodesResult::*;
         match self.get_path_nodes(path_segments, store).await? {
             Complete(path_nodes) => Ok(path_nodes),
             NotADirectory(_, _) => error(FsError::InvalidPath),
             MissingLink(path_so_far, missing_link) => {
                 let missing_path = path_segments.split_at(path_so_far.path.len() + 1).1;
-                let missing_path_nodes =
-                    PathNodes::new(time, missing_path, Rc::new(PublicDirectory::new(time)));
+                let missing_path_nodes = Self::create_path_nodes(time, missing_path);
 
-                Ok(PathNodes {
+                Ok(PublicPathNodes {
                     path: [
                         path_so_far.path,
                         vec![(path_so_far.tail, missing_link)],
@@ -521,7 +380,7 @@ impl PublicDirectory {
 
         // This will create directories if they don't exist yet
         let mut directory_path_nodes = self
-            .get_path_nodes_or_create(directory_path, time, store)
+            .get_or_create_path_nodes(directory_path, time, store)
             .await?;
 
         let mut directory = (*directory_path_nodes.tail).clone();
@@ -546,7 +405,7 @@ impl PublicDirectory {
 
         // reconstruct the file path
         Ok(PublicOpResult {
-            root_dir: directory_path_nodes.reconstruct(),
+            root_dir: Self::reconstruct(directory_path_nodes),
             result: (),
         })
     }
@@ -579,16 +438,16 @@ impl PublicDirectory {
         store: &B,
     ) -> Result<PublicOpResult<()>> {
         let path_nodes = self
-            .get_path_nodes_or_create(path_segments, time, store)
+            .get_or_create_path_nodes(path_segments, time, store)
             .await?;
 
         Ok(PublicOpResult {
-            root_dir: path_nodes.reconstruct(),
+            root_dir: Self::reconstruct(path_nodes),
             result: (),
         })
     }
 
-    /// Returns the name and metadata of the direct children of a directory.
+    /// Returns names and metadata of directory's immediate children.
     ///
     /// # Examples
     ///
@@ -695,7 +554,7 @@ impl PublicDirectory {
         let (directory_path, node_name) = utils::split_last(path_segments)?;
 
         let mut directory_node_path = match self.get_path_nodes(directory_path, store).await? {
-            PathNodesResult::Complete(node_path) => node_path,
+            PublicPathNodesResult::Complete(node_path) => node_path,
             _ => bail!(FsError::NotFound),
         };
 
@@ -710,7 +569,7 @@ impl PublicDirectory {
         directory_node_path.tail = Rc::new(directory);
 
         Ok(PublicOpResult {
-            root_dir: directory_node_path.reconstruct(),
+            root_dir: Self::reconstruct(directory_node_path),
             result: removed_node,
         })
     }
@@ -777,7 +636,7 @@ impl PublicDirectory {
         } = root_dir.rm(path_segments_from, store).await?;
 
         let mut path_nodes = match root_dir.get_path_nodes(directory_path_nodes, store).await? {
-            PathNodesResult::Complete(node_path) => node_path,
+            PublicPathNodesResult::Complete(node_path) => node_path,
             _ => bail!(FsError::NotFound),
         };
 
@@ -797,7 +656,7 @@ impl PublicDirectory {
         path_nodes.tail = Rc::new(directory);
 
         Ok(PublicOpResult {
-            root_dir: path_nodes.reconstruct(),
+            root_dir: Self::reconstruct(path_nodes),
             result: (),
         })
     }
@@ -984,6 +843,26 @@ impl PublicDirectory {
                 yield cid;
             }
         }
+    }
+}
+
+impl PathNodesReconstruct for PublicDirectory {
+    type NodeType = Self;
+
+    fn reconstruct(path_nodes: PathNodes<Self::NodeType>) -> Rc<Self::NodeType> {
+        if path_nodes.path.is_empty() {
+            return path_nodes.tail;
+        }
+
+        let mut working_dir = path_nodes.tail;
+        for (dir, segment) in path_nodes.path.iter().rev() {
+            let mut dir = (**dir).clone();
+            let link = PublicLink::with_dir(working_dir);
+            dir.userland.insert(segment.clone(), link);
+            working_dir = Rc::new(dir);
+        }
+
+        working_dir
     }
 }
 
@@ -1271,14 +1150,10 @@ mod public_directory_tests {
         let store = MemoryBlockStore::default();
         let now = Utc::now();
 
-        let path_nodes = PathNodes::new(
-            now,
-            &["Documents".into(), "Apps".into()],
-            Rc::new(PublicDirectory::new(now)),
-        );
+        let path_nodes =
+            PublicDirectory::create_path_nodes(now, &["Documents".into(), "Apps".into()]);
 
-        let reconstructed = path_nodes.clone().reconstruct();
-
+        let reconstructed = PublicDirectory::reconstruct(path_nodes.clone());
         let result = reconstructed
             .get_path_nodes(&["Documents".into(), "Apps".into()], &store)
             .await

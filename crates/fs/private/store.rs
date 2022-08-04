@@ -11,7 +11,7 @@ use super::{Hamt, Key, Namefilter, PrivateNode, PrivateRef, NONCE_SIZE};
 // Type Definitions
 //--------------------------------------------------------------------------------------------------
 
-pub type EncryptedPrivateNode = (Option<Vec<u8>>, Cid); // TODO(appcypher): Use Link<Vec<u8>> instead of Cid?
+pub type EncryptedPrivateNode = (Option<Vec<u8>>, Cid); // TODO(appcypher): Use PrivateLink<Vec<u8>> instead of Cid?
 pub type PrivateRoot = Hamt<Namefilter, EncryptedPrivateNode>;
 
 #[derive(Debug)]
@@ -42,11 +42,6 @@ impl<'a, B: BlockStore, R: Rng> HamtStore<'a, B, R> {
     /// Encrypts supplied bytes with a random nonce and AES key.
     pub(crate) fn encrypt(key: &Key, data: &[u8]) -> Result<Vec<u8>> {
         key.encrypt(&R::random_bytes::<NONCE_SIZE>(), data)
-    }
-
-    /// Decrypts supplied bytes with a random nonce and AES key.
-    pub(crate) fn decrypt(key: &Key, cipher_text: &[u8]) -> Result<Vec<u8>> {
-        key.decrypt(cipher_text)
     }
 
     /// Sets a new value at the given key.
@@ -93,14 +88,10 @@ impl<'a, B: BlockStore, R: Rng> HamtStore<'a, B, R> {
         let enc_content_bytes = self.store.get_block(content_cid).await?;
 
         // Decrypt header and content section.
-        let content_bytes = Self::decrypt(&private_ref.content_key, &enc_content_bytes)?;
-        let header_bytes = if enc_header_bytes.is_some() & private_ref.ratchet_key.bare.is_some() {
-            Some(Self::decrypt(
-                private_ref.ratchet_key.bare.as_ref().unwrap(),
-                enc_header_bytes.as_ref().unwrap(),
-            )?)
-        } else {
-            None
+        let content_bytes = private_ref.content_key.decrypt(&enc_content_bytes)?;
+        let header_bytes = match (enc_header_bytes, &private_ref.ratchet_key.bare) {
+            (Some(enc_header_bytes), Some(key)) => Some(key.decrypt(&enc_header_bytes)?),
+            _ => None,
         };
 
         // Deserialize header and content section.
