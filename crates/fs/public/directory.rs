@@ -3,8 +3,8 @@
 use std::{collections::BTreeMap, rc::Rc};
 
 use crate::{
-    error, AsyncSerialize, BlockStore, FsError, Id, Metadata, OpResult, PathNodes,
-    PathNodesReconstruct, PathNodesResult, ReferenceableStore, UnixFsNodeKind,
+    error, AsyncSerialize, BlockStore, FsError, Id, Metadata, OpResult, PathNodes, PathNodesResult,
+    ReferenceableStore, UnixFsNodeKind, utils,
 };
 use anyhow::{bail, ensure, Result};
 use async_recursion::async_recursion;
@@ -167,6 +167,23 @@ impl PublicDirectory {
                 })
             }
         }
+    }
+
+    /// Fix up `PathNodes` so that parents refer to the newly updated children.
+    fn fix_up_path_nodes(path_nodes: PublicPathNodes) -> Rc<Self> {
+        if path_nodes.path.is_empty() {
+            return path_nodes.tail;
+        }
+
+        let mut working_dir = path_nodes.tail;
+        for (dir, segment) in path_nodes.path.iter().rev() {
+            let mut dir = (**dir).clone();
+            let link = PublicLink::with_dir(working_dir);
+            dir.userland.insert(segment.clone(), link);
+            working_dir = Rc::new(dir);
+        }
+
+        working_dir
     }
 
     /// Follows a path and fetches the node at the end of the path.
@@ -403,9 +420,9 @@ impl PublicDirectory {
             .insert(filename.to_string(), PublicLink::with_file(Rc::new(file)));
         directory_path_nodes.tail = Rc::new(directory);
 
-        // reconstruct the file path
+        // Fix up the file path
         Ok(PublicOpResult {
-            root_dir: Self::reconstruct(directory_path_nodes),
+            root_dir: Self::fix_up_path_nodes(directory_path_nodes),
             result: (),
         })
     }
@@ -442,7 +459,7 @@ impl PublicDirectory {
             .await?;
 
         Ok(PublicOpResult {
-            root_dir: Self::reconstruct(path_nodes),
+            root_dir: Self::fix_up_path_nodes(path_nodes),
             result: (),
         })
     }
@@ -569,7 +586,7 @@ impl PublicDirectory {
         directory_node_path.tail = Rc::new(directory);
 
         Ok(PublicOpResult {
-            root_dir: Self::reconstruct(directory_node_path),
+            root_dir: Self::fix_up_path_nodes(directory_node_path),
             result: removed_node,
         })
     }
@@ -656,7 +673,7 @@ impl PublicDirectory {
         path_nodes.tail = Rc::new(directory);
 
         Ok(PublicOpResult {
-            root_dir: Self::reconstruct(path_nodes),
+            root_dir: Self::fix_up_path_nodes(path_nodes),
             result: (),
         })
     }
@@ -846,26 +863,6 @@ impl PublicDirectory {
     }
 }
 
-impl PathNodesReconstruct for PublicDirectory {
-    type NodeType = Self;
-
-    fn reconstruct(path_nodes: PathNodes<Self::NodeType>) -> Rc<Self::NodeType> {
-        if path_nodes.path.is_empty() {
-            return path_nodes.tail;
-        }
-
-        let mut working_dir = path_nodes.tail;
-        for (dir, segment) in path_nodes.path.iter().rev() {
-            let mut dir = (**dir).clone();
-            let link = PublicLink::with_dir(working_dir);
-            dir.userland.insert(segment.clone(), link);
-            working_dir = Rc::new(dir);
-        }
-
-        working_dir
-    }
-}
-
 impl Id for PublicDirectory {
     fn get_id(&self) -> String {
         format!("{:p}", &self.metadata)
@@ -926,23 +923,6 @@ impl<'de> Deserialize<'de> for PublicDirectory {
             userland: decoded_userland,
             previous,
         })
-    }
-}
-
-//--------------------------------------------------------------------------------------------------
-// Utilities
-//--------------------------------------------------------------------------------------------------
-
-mod utils {
-    use anyhow::Result;
-
-    use crate::{error, FsError};
-
-    pub(super) fn split_last(path_segments: &[String]) -> Result<(&[String], &String)> {
-        match path_segments.split_last() {
-            Some((last, rest)) => Ok((rest, last)),
-            None => error(FsError::InvalidPath),
-        }
     }
 }
 
@@ -1153,8 +1133,8 @@ mod public_directory_tests {
         let path_nodes =
             PublicDirectory::create_path_nodes(now, &["Documents".into(), "Apps".into()]);
 
-        let reconstructed = PublicDirectory::reconstruct(path_nodes.clone());
-        let result = reconstructed
+        let fixed = PublicDirectory::fix_up_path_nodes(path_nodes.clone());
+        let result = fixed
             .get_path_nodes(&["Documents".into(), "Apps".into()], &store)
             .await
             .unwrap();

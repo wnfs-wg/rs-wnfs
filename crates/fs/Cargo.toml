@@ -31,7 +31,7 @@ async-recursion = "1.0.0"
 futures = "0.3.21"
 async-stream = "0.3.3"
 futures-util = "0.3.21"
-skip_ratchet = { git = "https://github.com/WebNativeFileSystem/rs-skip-ratchet", rev = "d14863f8d26497a167bef8ad13ac0dde366bdce9", version = "0.1.0", features = ["serde"] }
+skip_ratchet = { git = "https://github.com/wnfs-wg/rs-skip-ratchet", rev = "0e92647be09fb04f55e7f160d65696109279c7b6", version = "0.1.0", features = ["serde"] }
 bitvec = { version = "1.0.0", features = ["serde"] }
 async-once-cell = "0.4.0"
 sha3 = "0.10.0"

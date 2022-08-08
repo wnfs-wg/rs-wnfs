@@ -1,7 +1,7 @@
 use std::{fmt::Debug, marker::PhantomData, rc::Rc};
 
 use crate::{
-    private::HAMT_VALUES_BUCKET_SIZE, AsyncSerialize, BlockStore, HashOutput, Link,
+    private::hamt::HAMT_VALUES_BUCKET_SIZE, AsyncSerialize, BlockStore, HashOutput, Link,
     ReferenceableStore,
 };
 use anyhow::{bail, Result};

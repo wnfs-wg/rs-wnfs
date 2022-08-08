@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{HashOutput, Id, Metadata, UnixFsNodeKind};
 
-use super::{INumber, Namefilter, PrivateNodeHeader};
+use super::{namefilter::Namefilter, INumber, PrivateNodeHeader};
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions

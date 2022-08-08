@@ -7,6 +7,7 @@ mod metadata;
 mod pathnodes;
 mod referenceable;
 mod result;
+pub mod utils;
 
 pub use async_serialize::*;
 pub use blockstore::*;

@@ -5,13 +5,15 @@ use libipld::Cid;
 
 use crate::{BlockStore, HashOutput};
 
-use super::{Hamt, Key, Namefilter, PrivateNode, PrivateRef, NONCE_SIZE};
+use super::{
+    hamt::Hamt, namefilter::Namefilter, Key, PrivateNode, PrivateRef, NONCE_SIZE,
+};
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
 //--------------------------------------------------------------------------------------------------
 
-pub type EncryptedPrivateNode = (Option<Vec<u8>>, Cid); // TODO(appcypher): Use PrivateLink<Vec<u8>> instead of Cid?
+pub type EncryptedPrivateNode = (Option<Vec<u8>>, Cid); // TODO(appcypher): Change to PrivateLink<PrivateNode>.
 pub type PrivateRoot = Hamt<Namefilter, EncryptedPrivateNode>;
 
 #[derive(Debug)]
@@ -57,10 +59,13 @@ impl<'a, B: BlockStore, R: Rng> HamtStore<'a, B, R> {
 
         // Encrypt header and content section.
         let enc_content_bytes = Self::encrypt(&private_ref.content_key, &content_bytes)?;
-        let enc_header_bytes = if let Some(key) = &private_ref.ratchet_key.bare {
-            Some(Self::encrypt(key, &header_bytes)?)
-        } else {
-            None
+        let enc_header_bytes = match private_ref
+            .ratchet_key
+            .as_ref()
+            .and_then(|key| key.bare.as_ref())
+        {
+            Some(key) => Some(Self::encrypt(key, &header_bytes)?),
+            None => None,
         };
 
         // Store content section in blockstore and get Cid.
@@ -89,7 +94,13 @@ impl<'a, B: BlockStore, R: Rng> HamtStore<'a, B, R> {
 
         // Decrypt header and content section.
         let content_bytes = private_ref.content_key.decrypt(&enc_content_bytes)?;
-        let header_bytes = match (enc_header_bytes, &private_ref.ratchet_key.bare) {
+        let header_bytes = match (
+            enc_header_bytes,
+            private_ref
+                .ratchet_key
+                .as_ref()
+                .and_then(|key| key.bare.as_ref()),
+        ) {
             (Some(enc_header_bytes), Some(key)) => Some(key.decrypt(&enc_header_bytes)?),
             _ => None,
         };

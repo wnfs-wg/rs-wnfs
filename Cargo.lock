@@ -1643,7 +1643,7 @@ dependencies = [
 [[package]]
 name = "skip_ratchet"
 version = "0.1.0"
-source = "git+https://github.com/WebNativeFileSystem/rs-skip-ratchet?rev=d14863f8d26497a167bef8ad13ac0dde366bdce9#d14863f8d26497a167bef8ad13ac0dde366bdce9"
+source = "git+https://github.com/wnfs-wg/rs-skip-ratchet?rev=0e92647be09fb04f55e7f160d65696109279c7b6#0e92647be09fb04f55e7f160d65696109279c7b6"
 dependencies = [
  "base64",
  "hex",

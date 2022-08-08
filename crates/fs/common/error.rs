@@ -43,6 +43,9 @@ pub enum FsError {
 
     #[error("Invalid deserialization: {0}")]
     InvalidDeserialization(String),
+
+    #[error("Cannot access header data necessary for operation")]
+    MissingHeader,
 }
 
 pub fn error<T>(err: impl std::error::Error + Send + Sync + 'static) -> Result<T> {

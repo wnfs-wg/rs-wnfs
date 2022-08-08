@@ -7,6 +7,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::FsError;
 
+use super::Rng;
+
 //--------------------------------------------------------------------------------------------------
 // Contants
 //--------------------------------------------------------------------------------------------------
@@ -25,10 +27,6 @@ pub struct Key(pub(super) Vec<u8>);
 //--------------------------------------------------------------------------------------------------
 
 impl Key {
-    pub fn new(bytes: Vec<u8>) -> Self {
-        Self(bytes)
-    }
-
     pub fn encrypt(&self, nonce_bytes: &[u8; NONCE_SIZE], data: &[u8]) -> Result<Vec<u8>> {
         let nonce = Nonce::from_slice(nonce_bytes);
 
@@ -45,6 +43,28 @@ impl Key {
         Ok(Aes256Gcm::new(AesKey::from_slice(&self.0))
             .decrypt(Nonce::from_slice(nonce_bytes), data)
             .map_err(|e| FsError::UnableToDecrypt(format!("{}", e)))?)
+    }
+
+    #[inline]
+    pub fn generate_nonce<R>() -> [u8; NONCE_SIZE]
+    where
+        R: Rng,
+    {
+        R::random_bytes::<NONCE_SIZE>()
+    }
+
+    pub fn bytes(self) -> Vec<u8> {
+        self.0
+    }
+
+    pub fn as_bytes(&self) -> &[u8] {
+        &self.0
+    }
+}
+
+impl<T: AsRef<[u8]>> From<T> for Key {
+    fn from(bytes: T) -> Self {
+        Self(bytes.as_ref().to_vec())
     }
 }
 

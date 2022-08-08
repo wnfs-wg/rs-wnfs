@@ -3,11 +3,16 @@ use std::{collections::BTreeMap, rc::Rc};
 use anyhow::{bail, Result};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use sha3::Sha3_256;
+use skip_ratchet::Ratchet;
 
-use super::{HamtStore, INumber, Key, Namefilter, PrivateNode, PrivateNodeHeader, Rng};
+use super::{
+    namefilter::Namefilter, HamtStore, INumber, Key, PrivateFile, PrivateNode, PrivateNodeHeader,
+    Rng,
+};
 use crate::{
-    error, BlockStore, FsError, HashOutput, Id, Metadata, OpResult, PathNodes,
-    PathNodesReconstruct, PathNodesResult, UnixFsNodeKind, HASH_BYTE_SIZE,
+    error, private::hamt::Hasher, utils, BlockStore, FsError, HashOutput, Id,
+    Metadata, OpResult, PathNodes, PathNodesResult, UnixFsNodeKind, HASH_BYTE_SIZE,
 };
 
 //--------------------------------------------------------------------------------------------------
@@ -17,6 +22,7 @@ use crate::{
 pub type PrivateOpResult<T> = OpResult<PrivateDirectory, T>;
 pub type PrivatePathNodes = PathNodes<PrivateDirectory>;
 pub type PrivatePathNodesResult = PathNodesResult<PrivateDirectory>;
+pub type ContentKey = Key;
 
 #[derive(Debug, Clone)]
 pub struct RatchetKey {
@@ -27,8 +33,8 @@ pub struct RatchetKey {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PrivateRef {
     pub(crate) saturated_name_hash: HashOutput, // Sha3-256 hash of saturated namefilter
-    pub(crate) content_key: Key,                // A hash or parent skip ratchet.
-    pub(crate) ratchet_key: RatchetKey,         // Ratchet key.
+    pub(crate) content_key: ContentKey,         // A hash of ratchet key.
+    pub(crate) ratchet_key: Option<RatchetKey>, // Encrypted ratchet key.
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -216,6 +222,115 @@ impl PrivateDirectory {
         }
     }
 
+    /// Fix up `PathNodes` so that parents refer to the newly updated children.
+    async fn fix_up_path_nodes<'a, B, R>(
+        path_nodes: PrivatePathNodes,
+        hamt: &mut HamtStore<'a, B, R>,
+    ) -> Result<Rc<Self>>
+    where
+        B: BlockStore,
+        R: Rng,
+    {
+        // Need to update hamt. Hamt.set(private_ref)
+        if path_nodes.path.is_empty() {
+            return Ok(path_nodes.tail);
+        }
+
+        let mut working_dir = path_nodes.tail;
+        for (dir, segment) in path_nodes.path.iter().rev() {
+            let mut dir = (**dir).clone();
+            let _private_ref = match dir.content.entries.get(segment) {
+                None => {
+                    let private_ref =
+                        Self::generate_child_private_ref::<R>(&dir.header, &working_dir.header)?;
+
+                    dir.content
+                        .entries
+                        .insert(segment.clone(), private_ref.clone());
+
+                    private_ref
+                }
+                Some(private_ref) => private_ref.clone(),
+            };
+
+            let dir = Rc::new(dir);
+
+            // TODO(appcypher)
+            // Update possibly cached values in hamt store.
+            // hamt.set(
+            //     working_dir
+            //         .header
+            //         .as_ref()
+            //         .ok_or(FsError::MissingHeader)?
+            //         .bare_name
+            //         .clone(),
+            //     &private_ref,
+            //     &PrivateNode::Dir(Rc::clone(&dir)),
+            // )
+            // .await?;
+
+            working_dir = dir;
+        }
+
+        Ok(working_dir)
+    }
+
+    /// Generates a child entry `PrivateRef`.
+    fn generate_child_private_ref<R>(
+        parent_header: &Option<PrivateNodeHeader>,
+        child_header: &Option<PrivateNodeHeader>,
+    ) -> Result<PrivateRef>
+    where
+        R: Rng,
+    {
+        match (parent_header, child_header) {
+            (Some(parent_header), Some(child_header)) => {
+                let saturated_name_hash = {
+                    let mut name = child_header.bare_name.clone();
+                    name.saturate();
+                    Sha3_256::hash(&name.as_bytes())
+                };
+
+                let (ratchet_key, content_key) =
+                    Self::generate_child_keys::<R>(&parent_header.ratchet, &child_header.ratchet)?;
+
+                Ok(PrivateRef {
+                    saturated_name_hash,
+                    content_key,
+                    ratchet_key: Some(ratchet_key),
+                })
+            }
+            _ => bail!(FsError::MissingHeader),
+        }
+    }
+
+    /// Generates a child entry ratchet key and content key.
+    fn generate_child_keys<R>(
+        parent_ratchet: &Ratchet,
+        child_ratchet: &Ratchet,
+    ) -> Result<(RatchetKey, ContentKey)>
+    where
+        R: Rng,
+    {
+        let child_ratchet_key_bare = Key::from(child_ratchet.derive_key());
+        let child_content_key = Key::from(Sha3_256::hash(&child_ratchet_key_bare.as_bytes()));
+        let child_ratchet_key_encrypted = {
+            let parent_ratchet_key = Key::from(parent_ratchet.derive_key());
+            parent_ratchet_key.encrypt(
+                &Key::generate_nonce::<R>(),
+                child_ratchet_key_bare.as_bytes(),
+            )?
+        };
+
+        Ok((
+            RatchetKey {
+                encrypted: child_ratchet_key_encrypted,
+                bare: Some(child_ratchet_key_bare),
+            },
+            child_content_key,
+        ))
+    }
+
     /// Follows a path and fetches the node at the end of the path.
     pub async fn get_node<'a, B, R>(
         self: Rc<Self>,
@@ -250,9 +365,97 @@ impl PrivateDirectory {
         })
     }
 
+    /// Reads specified file content from the directory.
+    pub async fn read<'a, B, R>(
+        self: Rc<Self>,
+        path_segments: &[String],
+        hamt: &HamtStore<'a, B, R>,
+    ) -> Result<PrivateOpResult<Vec<u8>>>
+    where
+        B: BlockStore,
+        R: Rng,
+    {
+        let root_dir = Rc::clone(&self);
+        let (path, filename) = utils::split_last(path_segments)?;
+
+        match self.get_path_nodes(path, hamt).await? {
+            PathNodesResult::Complete(node_path) => {
+                match node_path.tail.lookup_node(filename, hamt).await? {
+                    Some(PrivateNode::File(file)) => Ok(PrivateOpResult {
+                        root_dir,
+                        result: file.content.content.clone(),
+                    }),
+                    Some(PrivateNode::Dir(_)) => error(FsError::NotAFile),
+                    None => error(FsError::NotFound),
+                }
+            }
+            _ => error(FsError::NotFound),
+        }
+    }
+
+    /// Writes a file to the directory.
+    pub async fn write<'a, B, R>(
+        self: Rc<Self>,
+        path_segments: &[String],
+        inumber: INumber,
+        ratchet_seed: HashOutput,
+        time: DateTime<Utc>,
+        content: Vec<u8>,
+        hamt: &mut HamtStore<'a, B, R>,
+    ) -> Result<PrivateOpResult<()>>
+    where
+        B: BlockStore,
+        R: Rng,
+    {
+        let (directory_path, filename) = utils::split_last(path_segments)?;
+
+        // This will create directories if they don't exist yet
+        let mut directory_path_nodes = self
+            .get_or_create_path_nodes(directory_path, time, hamt)
+            .await?;
+
+        let mut directory = (*directory_path_nodes.tail).clone();
+
+        // Modify the file if it already exists, otherwise create a new file with expected content
+        let file = match directory.lookup_node(filename, hamt).await? {
+            Some(PrivateNode::File(file_before)) => {
+                let mut file = (*file_before).clone();
+                file.content.content = content;
+                file.content.metadata = Metadata::new(time, UnixFsNodeKind::File);
+                file
+            }
+            Some(PrivateNode::Dir(_)) => bail!(FsError::DirectoryAlreadyExists),
+            None => PrivateFile::new(
+                directory.header.as_ref().map(|h| h.bare_name.clone()),
+                inumber,
+                ratchet_seed,
+                time,
+                content,
+            ),
+        };
+
+        // Insert the file into its parent directory
+        let private_ref = Self::generate_child_private_ref::<R>(&directory.header, &file.header)?;
+
+        directory
+            .content
+            .entries
+            .insert(filename.to_string(), private_ref);
+
+        // TODO(appcypher): Hamt.set
+
+        directory_path_nodes.tail = Rc::new(directory);
+
+        // Fix up the file path
+        Ok(PrivateOpResult {
+            root_dir: Self::fix_up_path_nodes(directory_path_nodes, hamt).await?,
+            result: (),
+        })
+    }
+
     /// Looks up a node by its path name in the current directory.
     pub async fn lookup_node<'a, B, R>(
-        self: &Rc<Self>,
+        &self,
         path_segment: &str,
         hamt: &HamtStore<'a, B, R>,
     ) -> Result<Option<PrivateNode>>
@@ -267,47 +470,55 @@ impl PrivateDirectory {
     }
 
     /// Creates a new directory at the specified path.
-    pub fn mkdir<'a, B, R>(
-        self: &Rc<Self>,
-        path_segment: &str,
-        hamt: &HamtStore<'a, B, R>,
+    pub async fn mkdir<'a, B, R>(
+        self: Rc<Self>,
+        path_segments: &[String],
+        time: DateTime<Utc>,
+        hamt: &mut HamtStore<'a, B, R>,
     ) -> Result<PrivateOpResult<()>>
     where
         B: BlockStore,
         R: Rng,
     {
+        let path_nodes = self
+            .get_or_create_path_nodes(path_segments, time, hamt)
+            .await?;
+
         Ok(PrivateOpResult {
-            root_dir: self.clone(),
+            root_dir: Self::fix_up_path_nodes(path_nodes, hamt).await?,
             result: (),
         })
     }
 
     /// Returns names and metadata of directory's immediate children.
-    pub fn ls() {
-        unimplemented!()
-    }
-
-}
-
-impl PathNodesReconstruct for PrivateDirectory {
-    type NodeType = Self;
-
-    fn reconstruct(path_nodes: PathNodes<Self::NodeType>) -> Rc<Self::NodeType> {
-        if path_nodes.path.is_empty() {
-            return path_nodes.tail;
+    pub async fn ls<'a, B, R>(
+        self: Rc<Self>,
+        path_segments: &[String],
+        hamt: &HamtStore<'a, B, R>,
+    ) -> Result<PrivateOpResult<Vec<(String, Metadata)>>>
+    where
+        B: BlockStore,
+        R: Rng,
+    {
+        let root_dir = Rc::clone(&self);
+        match self.get_path_nodes(path_segments, hamt).await? {
+            PathNodesResult::Complete(path_nodes) => {
+                let mut result = vec![];
+                for (name, private_ref) in path_nodes.tail.content.entries.iter() {
+                    match hamt.get(private_ref).await? {
+                        Some(PrivateNode::File(file)) => {
+                            result.push((name.clone(), file.content.metadata.clone()));
+                        }
+                        Some(PrivateNode::Dir(dir)) => {
+                            result.push((name.clone(), dir.content.metadata.clone()));
+                        }
+                        _ => bail!(FsError::NotFound),
+                    }
+                }
+                Ok(PrivateOpResult { root_dir, result })
+            }
+            _ => bail!(FsError::NotFound),
         }
-
-        let mut working_dir = path_nodes.tail;
-        for (dir, segment) in path_nodes.path.iter().rev() {
-            let mut dir = (**dir).clone();
-            // TODO(appcypher): Fix
-            // Create private ref for link
-            // Set in hamt store.
-            // Then set private_ref in directory.
-            working_dir = Rc::new(dir);
-        }
-
-        working_dir
     }
 }
 
@@ -345,7 +556,7 @@ impl<'de> Deserialize<'de> for RatchetKey {
 
 #[cfg(test)]
 mod private_directory_tests {
-    use super::*;
+    // use super::*;
     use proptest::prelude::*;
 
     proptest! {

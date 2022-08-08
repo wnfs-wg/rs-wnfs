@@ -24,13 +24,6 @@ pub enum PathNodesResult<T> {
     NotADirectory(PathNodes<T>, String),
 }
 
-pub trait PathNodesReconstruct {
-    type NodeType;
-
-    /// Constructs a diverged path nodes by fixing up links in a `PathNodes` and returning the resulting root node.
-    fn reconstruct(path_nodes: PathNodes<Self::NodeType>) -> Rc<Self::NodeType>;
-}
-
 //--------------------------------------------------------------------------------------------------
 // Implementations
 //--------------------------------------------------------------------------------------------------

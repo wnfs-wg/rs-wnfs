@@ -12,7 +12,8 @@ use skip_ratchet::Ratchet;
 use crate::{FsError, HashOutput, Id, Metadata};
 
 use super::{
-    Namefilter, PrivateDirectory, PrivateDirectoryContent, PrivateFile, PrivateFileContent,
+    namefilter::Namefilter, PrivateDirectory, PrivateDirectoryContent, PrivateFile,
+    PrivateFileContent,
 };
 
 //--------------------------------------------------------------------------------------------------
@@ -58,6 +59,14 @@ impl PrivateNodeHeader {
 }
 
 impl PrivateNode {
+    // Gets the node header.
+    pub fn header(&self) -> &Option<PrivateNodeHeader> {
+        match self {
+            Self::File(file) => &file.header,
+            Self::Dir(dir) => &dir.header,
+        }
+    }
+
     pub fn serialize_header<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             PrivateNode::File(file) => file.header.serialize(serializer),
