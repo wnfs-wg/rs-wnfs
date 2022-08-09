@@ -1,6 +1,6 @@
 use std::{collections::BTreeMap, rc::Rc};
 
-use anyhow::{bail, Result};
+use anyhow::{bail, ensure, Result};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use sha3::Sha3_256;
@@ -11,8 +11,8 @@ use super::{
     Rng,
 };
 use crate::{
-    error, private::hamt::Hasher, utils, BlockStore, FsError, HashOutput, Id,
-    Metadata, OpResult, PathNodes, PathNodesResult, UnixFsNodeKind, HASH_BYTE_SIZE,
+    error, private::hamt::Hasher, utils, BlockStore, FsError, HashOutput, Id, Metadata, OpResult,
+    PathNodes, PathNodesResult, UnixFsNodeKind, HASH_BYTE_SIZE,
 };
 
 //--------------------------------------------------------------------------------------------------
@@ -85,10 +85,17 @@ impl PrivateDirectory {
         (first, second)
     }
 
+    ///  Advances the ratchet.
+    pub(crate) fn advance_ratchet(&mut self) {
+        self.header.as_mut().map(|header| {
+            header.advance_ratchet();
+        });
+    }
+
     /// Creates a new `PathNodes` that is not based on an existing file tree.
     pub(crate) fn create_path_nodes<'a, B, R>(
-        time: DateTime<Utc>,
         path_segments: &[String],
+        time: DateTime<Utc>,
         parent_bare_name: Option<Namefilter>,
         _: &HamtStore<'a, B, R>,
     ) -> PrivatePathNodes
@@ -207,7 +214,7 @@ impl PrivateDirectory {
 
                 // Create missing directories.
                 let missing_path_nodes =
-                    Self::create_path_nodes(time, missing_path, parent_bare_name, hamt);
+                    Self::create_path_nodes(missing_path, time, parent_bare_name, hamt);
 
                 Ok(PrivatePathNodes {
                     path: [
@@ -231,48 +238,35 @@ impl PrivateDirectory {
         B: BlockStore,
         R: Rng,
     {
-        // Need to update hamt. Hamt.set(private_ref)
-        if path_nodes.path.is_empty() {
-            return Ok(path_nodes.tail);
+        let mut working_child_dir = {
+            let mut tmp = (*path_nodes.tail).clone();
+            tmp.advance_ratchet();
+            Rc::new(tmp)
+        };
+
+        for (parent_dir, segment) in path_nodes.path.iter().rev() {
+            let mut parent_dir = (**parent_dir).clone();
+
+            parent_dir.advance_ratchet();
+
+            let private_ref = Self::generate_child_private_ref::<R>(
+                &parent_dir.header,
+                &working_child_dir.header,
+            )?;
+
+            parent_dir
+                .content
+                .entries
+                .insert(segment.clone(), private_ref);
+
+            let parent_dir = Rc::new(parent_dir);
+
+            // TODO(appcypher): Hamt set.
+
+            working_child_dir = parent_dir;
         }
 
-        let mut working_dir = path_nodes.tail;
-        for (dir, segment) in path_nodes.path.iter().rev() {
-            let mut dir = (**dir).clone();
-            let _private_ref = match dir.content.entries.get(segment) {
-                None => {
-                    let private_ref =
-                        Self::generate_child_private_ref::<R>(&dir.header, &working_dir.header)?;
-
-                    dir.content
-                        .entries
-                        .insert(segment.clone(), private_ref.clone());
-
-                    private_ref
-                }
-                Some(private_ref) => private_ref.clone(),
-            };
-
-            let dir = Rc::new(dir);
-
-            // TODO(appcypher)
-            // Update possibly cached values in hamt store.
-            // hamt.set(
-            //     working_dir
-            //         .header
-            //         .as_ref()
-            //         .ok_or(FsError::MissingHeader)?
-            //         .bare_name
-            //         .clone(),
-            //     &private_ref,
-            //     &PrivateNode::Dir(Rc::clone(&dir)),
-            // )
-            // .await?;
-
-            working_dir = dir;
-        }
-
-        Ok(working_dir)
+        Ok(working_child_dir)
     }
 
     /// Generates a child entry `PrivateRef`.
@@ -519,6 +513,94 @@ impl PrivateDirectory {
             }
             _ => bail!(FsError::NotFound),
         }
+    }
+
+    /// Removes a file or directory from the directory.
+    pub async fn rm<'a, B, R>(
+        self: Rc<Self>,
+        path_segments: &[String],
+        hamt: &mut HamtStore<'a, B, R>,
+    ) -> Result<PrivateOpResult<PrivateNode>>
+    where
+        B: BlockStore,
+        R: Rng,
+    {
+        let (directory_path, node_name) = utils::split_last(path_segments)?;
+
+        let mut directory_path_nodes = match self.get_path_nodes(directory_path, hamt).await? {
+            PrivatePathNodesResult::Complete(node_path) => node_path,
+            _ => bail!(FsError::NotFound),
+        };
+
+        let mut directory = (*directory_path_nodes.tail).clone();
+
+        // Remove the entry from its parent directory
+        let removed_node = match directory.content.entries.remove(node_name) {
+            Some(ref private_ref) => hamt.get(private_ref).await?.unwrap(),
+            None => bail!(FsError::NotFound),
+        };
+
+        directory_path_nodes.tail = Rc::new(directory);
+
+        Ok(PrivateOpResult {
+            root_dir: Self::fix_up_path_nodes(directory_path_nodes, hamt).await?,
+            result: removed_node,
+        })
+    }
+
+    /// Moves a file or directory from one path to another.
+    ///
+    /// This function requires stating the destination name explicitly.
+    pub async fn basic_mv<'a, B, R>(
+        self: Rc<Self>,
+        path_segments_from: &[String],
+        path_segments_to: &[String],
+        time: DateTime<Utc>,
+        hamt: &mut HamtStore<'a, B, R>,
+    ) -> Result<PrivateOpResult<()>>
+    where
+        B: BlockStore,
+        R: Rng,
+    {
+        let root_dir = Rc::clone(&self);
+        let (path_segments_to, filename) = utils::split_last(path_segments_to)?;
+
+        let PrivateOpResult {
+            root_dir,
+            result: removed_node,
+        } = root_dir.rm(path_segments_from, hamt).await?;
+
+        let mut path_nodes = match root_dir.get_path_nodes(path_segments_to, hamt).await? {
+            PrivatePathNodesResult::Complete(node_path) => node_path,
+            _ => bail!(FsError::NotFound),
+        };
+
+        let mut directory = (*path_nodes.tail).clone();
+
+        ensure!(
+            !directory.content.entries.contains_key(filename),
+            FsError::FileAlreadyExists
+        );
+
+        let removed_node = removed_node.update_mtime(time);
+
+        // Insert the removed node into its parent directory
+        let private_ref =
+            Self::generate_child_private_ref::<R>(&directory.header, removed_node.header())?;
+
+        // TODO(appcypher): Hamt.set.
+
+        directory
+            .content
+            .entries
+            .insert(filename.to_string(), private_ref);
+
+        path_nodes.tail = Rc::new(directory);
+
+        Ok(PrivateOpResult {
+            root_dir: Self::fix_up_path_nodes(path_nodes, hamt).await?,
+            result: (),
+        })
     }
 }
 

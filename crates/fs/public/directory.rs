@@ -3,8 +3,8 @@
 use std::{collections::BTreeMap, rc::Rc};
 
 use crate::{
-    error, AsyncSerialize, BlockStore, FsError, Id, Metadata, OpResult, PathNodes, PathNodesResult,
-    ReferenceableStore, UnixFsNodeKind, utils,
+    error, utils, AsyncSerialize, BlockStore, FsError, Id, Metadata, OpResult, PathNodes,
+    PathNodesResult, ReferenceableStore, UnixFsNodeKind,
 };
 use anyhow::{bail, ensure, Result};
 use async_recursion::async_recursion;
@@ -84,8 +84,8 @@ impl PublicDirectory {
 
     /// Creates a new `PublicPathNodes` that is not based on an existing file tree.
     pub(crate) fn create_path_nodes(
-        time: DateTime<Utc>,
         path_segments: &[String],
+        time: DateTime<Utc>,
     ) -> PublicPathNodes {
         let path: Vec<(Rc<PublicDirectory>, String)> = path_segments
             .iter()
@@ -154,7 +154,7 @@ impl PublicDirectory {
             NotADirectory(_, _) => error(FsError::InvalidPath),
             MissingLink(path_so_far, missing_link) => {
                 let missing_path = path_segments.split_at(path_so_far.path.len() + 1).1;
-                let missing_path_nodes = Self::create_path_nodes(time, missing_path);
+                let missing_path_nodes = Self::create_path_nodes(missing_path, time);
 
                 Ok(PublicPathNodes {
                     path: [
@@ -577,7 +577,7 @@ impl PublicDirectory {
 
         let mut directory = (*directory_node_path.tail).clone();
 
-        // remove the entry from its parent directory
+        // Remove the entry from its parent directory
         let removed_node = match directory.userland.remove(node_name) {
             Some(link) => link.get_owned_value(store).await?,
             None => bail!(FsError::NotFound),
@@ -1131,7 +1131,7 @@ mod public_directory_tests {
         let now = Utc::now();
 
         let path_nodes =
-            PublicDirectory::create_path_nodes(now, &["Documents".into(), "Apps".into()]);
+            PublicDirectory::create_path_nodes(&["Documents".into(), "Apps".into()], now);
 
         let fixed = PublicDirectory::fix_up_path_nodes(path_nodes.clone());
         let result = fixed

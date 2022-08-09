@@ -34,15 +34,17 @@ impl<T> PathNodes<T> {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::public::{PublicDirectory, PathNodes};
+    /// use wnfs::{PathNodes, public::PublicDirectory};
     /// use std::rc::Rc;
     /// use chrono::Utc;
     ///
-    /// let nodes = PathNodes::new(
-    ///     Utc::now(),
-    ///     &["movies".into(), "anime".into()],
-    ///     Rc::new(PublicDirectory::new(Utc::now())),
-    /// );
+    /// let nodes = PathNodes::<PublicDirectory> {
+    ///     path: vec![
+    ///         (Rc::new(PublicDirectory::new(Utc::now())), "music".to_string()),
+    ///         (Rc::new(PublicDirectory::new(Utc::now())), "rock".to_string()),
+    ///     ],
+    ///     tail: Rc::new(PublicDirectory::new(Utc::now())),
+    /// };
     ///
     /// assert_eq!(nodes.len(), 2);
     /// ```
@@ -55,15 +57,17 @@ impl<T> PathNodes<T> {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::public::{PublicDirectory, PathNodes};
+    /// use wnfs::{PathNodes, public::PublicDirectory};
     /// use std::rc::Rc;
     /// use chrono::Utc;
     ///
-    /// let nodes = PathNodes::new(
-    ///     Utc::now(),
-    ///     &["movies".into(), "anime".into()],
-    ///     Rc::new(PublicDirectory::new(Utc::now())),
-    /// );
+    /// let nodes = PathNodes::<PublicDirectory> {
+    ///     path: vec![
+    ///         (Rc::new(PublicDirectory::new(Utc::now())), "music".to_string()),
+    ///         (Rc::new(PublicDirectory::new(Utc::now())), "rock".to_string()),
+    ///     ],
+    ///     tail: Rc::new(PublicDirectory::new(Utc::now())),
+    /// };
     ///
     /// assert!(!nodes.is_empty());
     /// ```

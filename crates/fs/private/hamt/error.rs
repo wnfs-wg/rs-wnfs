@@ -7,7 +7,7 @@ pub enum HamtError {
 
     #[error("Cannot canonicalize a link pointer to a node with zero pointer")]
     NonCanonicalizablePointer,
-    
+
     #[error("Values pointer expected")]
     ValuesPointerExpected,
 }

@@ -5,9 +5,7 @@ use libipld::Cid;
 
 use crate::{BlockStore, HashOutput};
 
-use super::{
-    hamt::Hamt, namefilter::Namefilter, Key, PrivateNode, PrivateRef, NONCE_SIZE,
-};
+use super::{hamt::Hamt, namefilter::Namefilter, Key, PrivateNode, PrivateRef, NONCE_SIZE};
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions

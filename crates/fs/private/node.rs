@@ -1,6 +1,7 @@
 use std::{io::Cursor, rc::Rc};
 
 use anyhow::{anyhow, bail, Result};
+use chrono::{DateTime, Utc};
 use libipld::{
     cbor::DagCborCodec,
     codec::{Decode, Encode},
@@ -56,10 +57,30 @@ impl PrivateNodeHeader {
             inumber,
         }
     }
+
+    /// Advances the ratchet.
+    pub fn advance_ratchet(&mut self) {
+        self.ratchet.inc();
+    }
 }
 
 impl PrivateNode {
-    // Gets the node header.
+    /// Creates node with updated modified time.
+    pub fn update_mtime(&self, time: DateTime<Utc>) -> Self {
+        match self {
+            Self::File(file) => {
+                let mut file = (**file).clone();
+                file.content.metadata.unix_fs.modified = time.timestamp();
+                Self::File(Rc::new(file))
+            }
+            Self::Dir(dir) => {
+                let mut dir = (**dir).clone();
+                dir.content.metadata.unix_fs.modified = time.timestamp();
+                Self::Dir(Rc::new(dir))
+            }
+        }
+    }
+
     pub fn header(&self) -> &Option<PrivateNodeHeader> {
         match self {
             Self::File(file) => &file.header,
