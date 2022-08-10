@@ -10,7 +10,7 @@ use crate::AsyncSerialize;
 //--------------------------------------------------------------------------------------------------
 
 /// This is an abstract data structure that can be used to cache reference to some data and vice versa.
-/// Basically it is allows some "reference" of type `R` to some addressable value of `T`.
+/// Basically it allows some "reference" of type `R` to some addressable value of `T`.
 ///
 /// It supports representing the data as its reference or the value itself.
 ///

@@ -7,14 +7,14 @@ use libipld::{
     codec::{Decode, Encode},
     serde as ipld_serde, Ipld,
 };
-use serde::{Deserialize, Serialize, Serializer};
+use serde::{ser::Error as SerError, Deserialize, Deserializer, Serialize, Serializer};
 use skip_ratchet::Ratchet;
 
 use crate::{FsError, HashOutput, Id, Metadata};
 
 use super::{
-    namefilter::Namefilter, PrivateDirectory, PrivateDirectoryContent, PrivateFile,
-    PrivateFileContent,
+    namefilter::Namefilter, Key, PrivateDirectory, PrivateDirectoryContent,
+    PrivateFile, PrivateFileContent,
 };
 
 //--------------------------------------------------------------------------------------------------
@@ -22,6 +22,7 @@ use super::{
 //--------------------------------------------------------------------------------------------------
 
 pub type INumber = HashOutput;
+pub type ContentKey = Key;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct PrivateNodeHeader {
@@ -36,9 +37,43 @@ pub enum PrivateNode {
     Dir(Rc<PrivateDirectory>),
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PrivateRef {
+    pub(crate) saturated_name_hash: HashOutput, // Sha3-256 hash of saturated namefilter
+    pub(crate) content_key: ContentKey,         // A hash of ratchet key.
+    pub(crate) ratchet_key: Option<RatchetKey>,                  // Encrypted ratchet key.
+}
+
+#[derive(Debug, Clone)]
+pub struct EncryptedRatchetKey {
+    pub(crate) encrypted: Vec<u8>,
+    pub(crate) bare: Option<Key>,
+}
+
+#[derive(Debug, Clone)]
+pub enum RatchetKey {
+    Bare(Key),
+    Encrypted(EncryptedRatchetKey),
+}
+
 //--------------------------------------------------------------------------------------------------
 // Implementations
 //--------------------------------------------------------------------------------------------------
+
+impl RatchetKey {
+    pub(crate) fn get_bare_key(&self) -> Result<Key> {
+        match self {
+            RatchetKey::Bare(key) => Ok(key.clone()),
+            RatchetKey::Encrypted(encrypted) => {
+                if let Some(key) = &encrypted.bare {
+                    Ok(key.clone())
+                } else {
+                    bail!(FsError::ExpectBareRatchetKey)
+                }
+            }
+        }
+    }
+}
 
 impl PrivateNodeHeader {
     /// Creates a new PrivateNodeHeader.
@@ -186,8 +221,40 @@ impl From<PrivateDirectory> for PrivateNode {
     }
 }
 
+impl Serialize for RatchetKey {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        use RatchetKey::*;
+
+        if let Encrypted(EncryptedRatchetKey { encrypted, .. }) = self {
+            serializer.serialize_bytes(encrypted.as_slice())
+        } else {
+            Err(FsError::ExpectEncryptedRatchetKey).map_err(SerError::custom)
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for RatchetKey {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        use RatchetKey::*;
+
+        let bytes = Vec::deserialize(deserializer)?;
+        Ok(Encrypted(EncryptedRatchetKey {
+            encrypted: bytes,
+            bare: None,
+        }))
+    }
+}
+
 //--------------------------------------------------------------------------------------------------
 // Tests
 //--------------------------------------------------------------------------------------------------
 
-mod private_node_tests {}
+mod private_node_tests {
+
+}

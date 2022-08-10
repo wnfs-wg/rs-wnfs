@@ -1,7 +1,5 @@
 //! File system errors.
 
-// use std::error::Error;
-
 use anyhow::Result;
 use thiserror::Error;
 
@@ -46,6 +44,12 @@ pub enum FsError {
 
     #[error("Cannot access header data necessary for operation")]
     MissingHeader,
+
+    #[error("Expected encrypted ratchet key")]
+    ExpectEncryptedRatchetKey,
+
+    #[error("Expected bare ratchet key")]
+    ExpectBareRatchetKey,
 }
 
 pub fn error<T>(err: impl std::error::Error + Send + Sync + 'static) -> Result<T> {

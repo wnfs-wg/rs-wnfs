@@ -60,9 +60,9 @@ impl<'a, B: BlockStore, R: Rng> HamtStore<'a, B, R> {
         let enc_header_bytes = match private_ref
             .ratchet_key
             .as_ref()
-            .and_then(|key| key.bare.as_ref())
+            .map(|key| key.get_bare_key())
         {
-            Some(key) => Some(Self::encrypt(key, &header_bytes)?),
+            Some(key) => Some(Self::encrypt(&key?, &header_bytes)?),
             None => None,
         };
 
@@ -97,9 +97,9 @@ impl<'a, B: BlockStore, R: Rng> HamtStore<'a, B, R> {
             private_ref
                 .ratchet_key
                 .as_ref()
-                .and_then(|key| key.bare.as_ref()),
+                .map(|key| key.get_bare_key()),
         ) {
-            (Some(enc_header_bytes), Some(key)) => Some(key.decrypt(&enc_header_bytes)?),
+            (Some(enc_header_bytes), Some(key)) => Some(key?.decrypt(&enc_header_bytes)?),
             _ => None,
         };
 
