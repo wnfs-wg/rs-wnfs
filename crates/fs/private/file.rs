@@ -17,7 +17,7 @@ pub struct PrivateFileContent {
 
 #[derive(Debug, Clone)]
 pub struct PrivateFile {
-    pub(crate) header: Option<PrivateNodeHeader>,
+    pub(crate) header: PrivateNodeHeader,
     pub(crate) content: PrivateFileContent,
 }
 
@@ -27,18 +27,14 @@ pub struct PrivateFile {
 
 impl PrivateFile {
     pub fn new(
-        parent_bare_name: Option<Namefilter>,
+        parent_bare_name: Namefilter,
         inumber: INumber,
         ratchet_seed: HashOutput,
         time: DateTime<Utc>,
         content: Vec<u8>,
     ) -> Self {
         Self {
-            header: Some(PrivateNodeHeader::new(
-                parent_bare_name,
-                inumber,
-                ratchet_seed,
-            )),
+            header: PrivateNodeHeader::new(parent_bare_name, inumber, ratchet_seed),
             content: PrivateFileContent {
                 metadata: Metadata::new(time, UnixFsNodeKind::File),
                 content,

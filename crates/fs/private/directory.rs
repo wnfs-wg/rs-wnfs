@@ -12,7 +12,7 @@ use super::{
 };
 
 use crate::{
-    error, private::{hamt::Hasher, EncryptedRatchetKey}, utils, BlockStore, FsError, HashOutput, Id, Metadata, OpResult,
+    error, private::hamt::Hasher, utils, BlockStore, FsError, HashOutput, Id, Metadata, OpResult,
     PathNodes, PathNodesResult, UnixFsNodeKind, HASH_BYTE_SIZE,
 };
 
@@ -32,7 +32,7 @@ pub struct PrivateDirectoryContent {
 
 #[derive(Debug, Clone)]
 pub struct PrivateDirectory {
-    pub(crate) header: Option<PrivateNodeHeader>,
+    pub(crate) header: PrivateNodeHeader,
     pub(crate) content: PrivateDirectoryContent,
 }
 
@@ -43,17 +43,13 @@ pub struct PrivateDirectory {
 impl PrivateDirectory {
     /// Creates a new directory with provided details.
     pub fn new(
-        parent_bare_name: Option<Namefilter>,
+        parent_bare_name: Namefilter,
         inumber: INumber,
         ratchet_seed: HashOutput,
         time: DateTime<Utc>,
     ) -> Self {
         Self {
-            header: Some(PrivateNodeHeader::new(
-                parent_bare_name,
-                inumber,
-                ratchet_seed,
-            )),
+            header: PrivateNodeHeader::new(parent_bare_name, inumber, ratchet_seed),
             content: PrivateDirectoryContent {
                 metadata: Metadata::new(time, UnixFsNodeKind::Dir),
                 entries: BTreeMap::new(),
@@ -74,16 +70,14 @@ impl PrivateDirectory {
 
     ///  Advances the ratchet.
     pub(crate) fn advance_ratchet(&mut self) {
-        self.header.as_mut().map(|header| {
-            header.advance_ratchet();
-        });
+        self.header.advance_ratchet();
     }
 
     /// Creates a new `PathNodes` that is not based on an existing file tree.
     pub(crate) fn create_path_nodes<'a, B, R>(
         path_segments: &[String],
         time: DateTime<Utc>,
-        parent_bare_name: Option<Namefilter>,
+        parent_bare_name: Namefilter,
         _: &HamtStore<'a, B, R>,
     ) -> PrivatePathNodes
     where
@@ -106,10 +100,7 @@ impl PrivateDirectory {
 
                 // Update seeds and the working parent bare name.
                 (inumber, ratchet_seed) = Self::generate_double_random::<R>();
-                working_parent_bare_name = directory
-                    .header
-                    .as_ref()
-                    .map(|header| header.bare_name.clone());
+                working_parent_bare_name = directory.header.bare_name.clone();
 
                 (directory, segment.clone())
             })
@@ -193,11 +184,7 @@ impl PrivateDirectory {
                 let missing_path = path_segments.split_at(path_so_far.path.len() + 1).1;
 
                 // Get tail bare name from `path_so_far`.
-                let parent_bare_name = path_so_far
-                    .tail
-                    .header
-                    .as_ref()
-                    .map(|header| header.bare_name.clone());
+                let parent_bare_name = path_so_far.tail.header.bare_name.clone();
 
                 // Create missing directories.
                 let missing_path_nodes =
@@ -218,7 +205,6 @@ impl PrivateDirectory {
 
     /// Fix up `PathNodes` so that parents refer to the newly updated children.
     async fn fix_up_path_nodes<'a, B, R>(
-        private_ref: &PrivateRef,
         path_nodes: PrivatePathNodes,
         hamt: &mut HamtStore<'a, B, R>,
     ) -> Result<Rc<Self>>
@@ -234,13 +220,8 @@ impl PrivateDirectory {
 
         for (parent_dir, segment) in path_nodes.path.iter().rev() {
             let mut parent_dir = (**parent_dir).clone();
-
             parent_dir.advance_ratchet();
-
-            let child_private_ref = Self::generate_child_private_ref::<R>(
-                &parent_dir.header,
-                &working_child_dir.header,
-            )?;
+            let child_private_ref = working_child_dir.header.get_private_ref()?;
 
             parent_dir
                 .content
@@ -250,12 +231,7 @@ impl PrivateDirectory {
             let parent_dir = Rc::new(parent_dir);
 
             hamt.set(
-                working_child_dir
-                    .header
-                    .as_ref()
-                    .ok_or(FsError::MissingHeader)?
-                    .bare_name
-                    .clone(),
+                working_child_dir.header.get_saturated_name(),
                 &child_private_ref,
                 &PrivateNode::Dir(Rc::clone(&working_child_dir)),
             )
@@ -265,71 +241,13 @@ impl PrivateDirectory {
         }
 
         hamt.set(
-            working_child_dir
-                .header
-                .as_ref()
-                .ok_or(FsError::MissingHeader)?
-                .bare_name
-                .clone(),
-            &private_ref,
+            working_child_dir.header.get_saturated_name(),
+            &working_child_dir.header.get_private_ref()?,
             &PrivateNode::Dir(Rc::clone(&working_child_dir)),
         )
         .await?;
 
         Ok(working_child_dir)
-    }
-
-    /// Generates a child entry `PrivateRef`.
-    fn generate_child_private_ref<R>(
-        parent_header: &Option<PrivateNodeHeader>,
-        child_header: &Option<PrivateNodeHeader>,
-    ) -> Result<PrivateRef>
-    where
-        R: Rng,
-    {
-        match (parent_header, child_header) {
-            (Some(parent_header), Some(child_header)) => {
-                let (ratchet_key, content_key) =
-                    Self::generate_keys::<R>(&parent_header.ratchet, &child_header.ratchet)?;
-
-                let saturated_name_hash = {
-                    let mut name = child_header.bare_name.clone();
-                    name.add(&ratchet_key.get_bare_key()?.as_bytes());
-                    name.saturate();
-                    Sha3_256::hash(&name.as_bytes())
-                };
-
-                Ok(PrivateRef {
-                    saturated_name_hash,
-                    content_key,
-                    ratchet_key: Some(ratchet_key),
-                })
-            }
-            _ => bail!(FsError::MissingHeader),
-        }
-    }
-
-    /// Generates a child entry ratchet key and content key.
-    fn generate_keys<R>(
-        parent_ratchet: &Ratchet,
-        child_ratchet: &Ratchet,
-    ) -> Result<(RatchetKey, ContentKey)>
-    where
-        R: Rng,
-    {
-        use RatchetKey::*;
-
-        let child_ratchet_key_bare = Key::from(child_ratchet.derive_key());
-        let child_content_key = Key::from(Sha3_256::hash(&child_ratchet_key_bare.as_bytes()));
-        let parent_ratchet_key = Key::from(parent_ratchet.derive_key());
-
-        Ok((Encrypted(EncryptedRatchetKey {
-            encrypted: parent_ratchet_key.encrypt(
-                &Key::generate_nonce::<R>(),
-                child_ratchet_key_bare.as_bytes(),
-            )?,
-            bare: Some(child_ratchet_key_bare),
-        }), child_content_key))
     }
 
     /// Follows a path and fetches the node at the end of the path.
@@ -398,7 +316,6 @@ impl PrivateDirectory {
     pub async fn write<'a, B, R>(
         self: Rc<Self>,
         path_segments: &[String],
-        private_ref: &PrivateRef,
         time: DateTime<Utc>,
         content: Vec<u8>,
         hamt: &mut HamtStore<'a, B, R>,
@@ -428,7 +345,7 @@ impl PrivateDirectory {
             None => {
                 let (inumber, ratchet_seed) = Self::generate_double_random::<R>();
                 PrivateFile::new(
-                    directory.header.as_ref().map(|h| h.bare_name.clone()),
+                    directory.header.bare_name.clone(),
                     inumber,
                     ratchet_seed,
                     time,
@@ -437,9 +354,15 @@ impl PrivateDirectory {
             }
         };
 
-        // Insert the file into its parent directory
-        let child_private_ref = Self::generate_child_private_ref::<R>(&directory.header, &file.header)?;
+        let child_private_ref = file.header.get_private_ref()?;
+        hamt.set(
+            file.header.get_saturated_name(),
+            &child_private_ref,
+            &PrivateNode::File(Rc::new(file)),
+        )
+        .await?;
 
+        // Insert the file into its parent directory
         directory
             .content
             .entries
@@ -449,7 +372,7 @@ impl PrivateDirectory {
 
         // Fix up the file path
         Ok(PrivateOpResult {
-            root_dir: Self::fix_up_path_nodes(private_ref, directory_path_nodes, hamt).await?, //
+            root_dir: Self::fix_up_path_nodes(directory_path_nodes, hamt).await?,
             result: (),
         })
     }
@@ -474,7 +397,6 @@ impl PrivateDirectory {
     pub async fn mkdir<'a, B, R>(
         self: Rc<Self>,
         path_segments: &[String],
-        private_ref: &PrivateRef,
         time: DateTime<Utc>,
         hamt: &mut HamtStore<'a, B, R>,
     ) -> Result<PrivateOpResult<()>>
@@ -487,7 +409,7 @@ impl PrivateDirectory {
             .await?;
 
         Ok(PrivateOpResult {
-            root_dir: Self::fix_up_path_nodes(private_ref, path_nodes, hamt).await?,
+            root_dir: Self::fix_up_path_nodes(path_nodes, hamt).await?,
             result: (),
         })
     }
@@ -527,7 +449,6 @@ impl PrivateDirectory {
     pub async fn rm<'a, B, R>(
         self: Rc<Self>,
         path_segments: &[String],
-        private_ref: &PrivateRef,
         hamt: &mut HamtStore<'a, B, R>,
     ) -> Result<PrivateOpResult<PrivateNode>>
     where
@@ -552,7 +473,7 @@ impl PrivateDirectory {
         directory_path_nodes.tail = Rc::new(directory);
 
         Ok(PrivateOpResult {
-            root_dir: Self::fix_up_path_nodes(private_ref, directory_path_nodes, hamt).await?,
+            root_dir: Self::fix_up_path_nodes(directory_path_nodes, hamt).await?,
             result: removed_node,
         })
     }
@@ -570,16 +491,48 @@ impl Id for PrivateDirectory {
 
 #[cfg(test)]
 mod private_directory_tests {
-    // use super::*;
-    use proptest::prelude::*;
+    use super::*;
+    use crate::private::Rng;
+    use crate::{MemoryBlockStore, HASH_BYTE_SIZE};
+    use log::debug;
+    use test_log::test;
 
-    proptest! {
-        #[test]
-        fn i64_abs_is_never_negative(a: i64) {
-            // This actually fails if a == i64::MIN, but randomly picking one
-            // specific value out of 2⁶⁴ is overwhelmingly unlikely.
-            assert!(a.abs() >= 0);
-            println!("{}", a);
+    struct Rand;
+    impl Rng for Rand {
+        fn random_bytes<const N: usize>() -> [u8; N] {
+            use rand::RngCore;
+            let mut bytes = [0u8; N];
+            rand::thread_rng().fill_bytes(&mut bytes);
+            bytes
         }
+    }
+
+    #[test(async_std::test)]
+    async fn look_up_can_fetch_file_added_to_directory() {
+        debug!("test!");
+        let inumber = Rand::random_bytes::<HASH_BYTE_SIZE>();
+        let ratchet_seed = Rand::random_bytes::<HASH_BYTE_SIZE>();
+
+        let root_dir = Rc::new(PrivateDirectory::new(
+            Namefilter::default(),
+            inumber,
+            ratchet_seed,
+            Utc::now(),
+        ));
+        let store = &mut MemoryBlockStore::default();
+        let hamt = &mut HamtStore::<_, Rand>::new(store);
+
+        let time = Utc::now();
+        let content = b"Hello, World!".to_vec();
+
+        let PrivateOpResult { root_dir, .. } = root_dir
+            .write(&["text.txt".into()], time, content.clone(), hamt)
+            .await
+            .unwrap();
+
+        let PrivateOpResult { result, .. } =
+            root_dir.read(&["text.txt".into()], hamt).await.unwrap();
+
+        assert_eq!(result, content);
     }
 }

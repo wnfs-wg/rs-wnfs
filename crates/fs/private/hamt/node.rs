@@ -96,6 +96,7 @@ where
         hash: &HashOutput,
         store: &B,
     ) -> Result<Option<&'a V>> {
+        debug!("get_by_hash: hash = {:02x?}", hash);
         Ok(self
             .get_value(&mut HashNibbles::new(hash), store)
             .await?

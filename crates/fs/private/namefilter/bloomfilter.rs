@@ -1,6 +1,6 @@
 use std::ops::Index;
 
-use bitvec::prelude::BitArray;
+use bitvec::{order::Lsb0, prelude::BitArray};
 use serde::{Deserialize, Serialize};
 use xxhash_rust::xxh3;
 
@@ -13,7 +13,7 @@ use xxhash_rust::xxh3;
 /// `N` is the size of the bloom filter in bytes.
 ///
 /// `K` is the number of bits to be set with each add operation.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, PartialOrd)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd)]
 pub struct BloomFilter<const N: usize, const K: usize> {
     pub(super) bits: BitArray<[u8; N]>,
 }
@@ -122,12 +122,54 @@ impl<const N: usize, const K: usize> Default for BloomFilter<N, K> {
     }
 }
 
+impl<const N: usize, const K: usize> Serialize for BloomFilter<N, K> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_bytes(&self.bits.as_raw_slice())
+    }
+}
+
+impl<'de, const N: usize, const K: usize> Deserialize<'de> for BloomFilter<N, K> {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        use serde::de::Visitor;
+        use std::fmt;
+
+        struct ByteArray<const N: usize>();
+
+        impl<'de, const N: usize> Visitor<'de> for ByteArray<N> {
+            type Value = [u8; N];
+
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                write!(formatter, "a byte array of length {}", N)
+            }
+
+            fn visit_bytes<E>(self, v: &[u8]) -> Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                let bytes: [u8; N] = v.try_into().map_err(E::custom)?;
+                Ok(bytes)
+            }
+        }
+
+        Ok(BloomFilter::<N, K> {
+            bits: BitArray::<[u8; N]>::new(deserializer.deserialize_bytes(ByteArray::<N>())?),
+        })
+    }
+}
+
 //------------------------------------------------------------------------------
 // Tests
 //------------------------------------------------------------------------------
 
 #[cfg(test)]
 mod bloomfilter_tests {
+    use libipld::serde as ipld_serde;
     use rand::{thread_rng, Rng};
 
     use super::*;
@@ -163,5 +205,19 @@ mod bloomfilter_tests {
         for (indices, count) in indices {
             assert_eq!(indices.len(), count);
         }
+    }
+
+    #[test]
+    fn serde_roundtrips() {
+        let mut bloom = BloomFilter::<256, 30>::new();
+        let items: Vec<String> = vec!["first".into(), "second".into(), "third".into()];
+        items.iter().for_each(|item| {
+            bloom.add(item);
+        });
+
+        let ipld = ipld_serde::to_ipld(&bloom.clone()).unwrap();
+        let deserialized: BloomFilter<256, 30> = ipld_serde::from_ipld(ipld).unwrap();
+
+        assert_eq!(deserialized, bloom);
     }
 }

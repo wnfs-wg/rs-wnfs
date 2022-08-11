@@ -20,7 +20,7 @@ pub(crate) const NONCE_SIZE: usize = 12;
 //--------------------------------------------------------------------------------------------------
 
 #[derive(Clone, Serialize, Deserialize)]
-pub struct Key(pub(super) Vec<u8>);
+pub struct Key(pub(super) Vec<u8>); // TODO(appcypher): Make this [u8; 32];
 
 //--------------------------------------------------------------------------------------------------
 // Implementations

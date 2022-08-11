@@ -2,6 +2,7 @@ use std::marker::PhantomData;
 
 use anyhow::Result;
 use libipld::Cid;
+use log::debug;
 
 use crate::{BlockStore, HashOutput};
 
@@ -52,19 +53,13 @@ impl<'a, B: BlockStore, R: Rng> HamtStore<'a, B, R> {
         private_ref: &PrivateRef,
         value: &PrivateNode,
     ) -> Result<()> {
+        debug!("\n\nhamt store set: PrivateRef: {:?}", private_ref);
         // Serialize header and content section as dag-cbor bytes.
         let (header_bytes, content_bytes) = value.serialize_as_cbor()?;
 
         // Encrypt header and content section.
-        let enc_content_bytes = Self::encrypt(&private_ref.content_key, &content_bytes)?;
-        let enc_header_bytes = match private_ref
-            .ratchet_key
-            .as_ref()
-            .map(|key| key.get_bare_key())
-        {
-            Some(key) => Some(Self::encrypt(&key?, &header_bytes)?),
-            None => None,
-        };
+        let enc_content_bytes = Self::encrypt(&private_ref.content_key.0, &content_bytes)?;
+        let enc_header_bytes = Some(Self::encrypt(&private_ref.ratchet_key.0, &header_bytes)?);
 
         // Store content section in blockstore and get Cid.
         let content_cid = self
@@ -80,6 +75,8 @@ impl<'a, B: BlockStore, R: Rng> HamtStore<'a, B, R> {
     /// Gets the value at the given key.
     #[inline]
     pub async fn get(&self, private_ref: &PrivateRef) -> Result<Option<PrivateNode>> {
+        debug!("\n\nhamt store get: PrivateRef: {:?}", private_ref);
+
         // Fetch encrypted header and Cid from root node.
         let (enc_header_bytes, content_cid) =
             match self.get_encrypted(&private_ref.saturated_name_hash).await? {
@@ -91,15 +88,9 @@ impl<'a, B: BlockStore, R: Rng> HamtStore<'a, B, R> {
         let enc_content_bytes = self.store.get_block(content_cid).await?;
 
         // Decrypt header and content section.
-        let content_bytes = private_ref.content_key.decrypt(&enc_content_bytes)?;
-        let header_bytes = match (
-            enc_header_bytes,
-            private_ref
-                .ratchet_key
-                .as_ref()
-                .map(|key| key.get_bare_key()),
-        ) {
-            (Some(enc_header_bytes), Some(key)) => Some(key?.decrypt(&enc_header_bytes)?),
+        let content_bytes = private_ref.content_key.0.decrypt(&enc_content_bytes)?;
+        let header_bytes = match enc_header_bytes {
+            Some(enc_header_bytes) => Some(private_ref.ratchet_key.0.decrypt(&enc_header_bytes)?),
             _ => None,
         };
 

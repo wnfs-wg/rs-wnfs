@@ -7,22 +7,29 @@ use libipld::{
     codec::{Decode, Encode},
     serde as ipld_serde, Ipld,
 };
-use serde::{ser::Error as SerError, Deserialize, Deserializer, Serialize, Serializer};
+use serde::{Deserialize, Serialize, Serializer};
+use sha3::Sha3_256;
 use skip_ratchet::Ratchet;
 
 use crate::{FsError, HashOutput, Id, Metadata};
 
 use super::{
-    namefilter::Namefilter, Key, PrivateDirectory, PrivateDirectoryContent,
+    hamt::Hasher, namefilter::Namefilter, Key, PrivateDirectory, PrivateDirectoryContent,
     PrivateFile, PrivateFileContent,
 };
+
+use log::debug;
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
 //--------------------------------------------------------------------------------------------------
 
 pub type INumber = HashOutput;
-pub type ContentKey = Key;
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ContentKey(pub Key);
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RatchetKey(pub Key);
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct PrivateNodeHeader {
@@ -41,50 +48,19 @@ pub enum PrivateNode {
 pub struct PrivateRef {
     pub(crate) saturated_name_hash: HashOutput, // Sha3-256 hash of saturated namefilter
     pub(crate) content_key: ContentKey,         // A hash of ratchet key.
-    pub(crate) ratchet_key: Option<RatchetKey>,                  // Encrypted ratchet key.
-}
-
-#[derive(Debug, Clone)]
-pub struct EncryptedRatchetKey {
-    pub(crate) encrypted: Vec<u8>,
-    pub(crate) bare: Option<Key>,
-}
-
-#[derive(Debug, Clone)]
-pub enum RatchetKey {
-    Bare(Key),
-    Encrypted(EncryptedRatchetKey),
+    pub(crate) ratchet_key: RatchetKey,         // Encrypted ratchet key.
 }
 
 //--------------------------------------------------------------------------------------------------
 // Implementations
 //--------------------------------------------------------------------------------------------------
 
-impl RatchetKey {
-    pub(crate) fn get_bare_key(&self) -> Result<Key> {
-        match self {
-            RatchetKey::Bare(key) => Ok(key.clone()),
-            RatchetKey::Encrypted(encrypted) => {
-                if let Some(key) = &encrypted.bare {
-                    Ok(key.clone())
-                } else {
-                    bail!(FsError::ExpectBareRatchetKey)
-                }
-            }
-        }
-    }
-}
-
 impl PrivateNodeHeader {
     /// Creates a new PrivateNodeHeader.
-    pub fn new(
-        parent_bare_name: Option<Namefilter>,
-        inumber: INumber,
-        ratchet_seed: HashOutput,
-    ) -> Self {
+    pub fn new(parent_bare_name: Namefilter, inumber: INumber, ratchet_seed: HashOutput) -> Self {
         Self {
             bare_name: {
-                let mut namefilter = parent_bare_name.unwrap_or_default();
+                let mut namefilter = parent_bare_name;
                 namefilter.add(&inumber);
                 namefilter
             },
@@ -96,6 +72,32 @@ impl PrivateNodeHeader {
     /// Advances the ratchet.
     pub fn advance_ratchet(&mut self) {
         self.ratchet.inc();
+    }
+
+    /// Gets the private ref of the current header.
+    pub fn get_private_ref(&self) -> Result<PrivateRef> {
+        let ratchet_key = Key::from(self.ratchet.derive_key());
+        let saturated_name_hash = {
+            let mut name = self.bare_name.clone();
+            name.add(&ratchet_key.as_bytes());
+            name.saturate();
+            Sha3_256::hash(&name.as_bytes())
+        };
+
+        Ok(PrivateRef {
+            saturated_name_hash,
+            content_key: ContentKey(Key::from(Sha3_256::hash(&ratchet_key.as_bytes()))),
+            ratchet_key: RatchetKey(ratchet_key),
+        })
+    }
+
+    /// Gets the saturated namefilter for this node.
+    pub fn get_saturated_name(&self) -> Namefilter {
+        let ratchet_key = Key::from(self.ratchet.derive_key());
+        let mut name = self.bare_name.clone();
+        name.add(&ratchet_key.as_bytes());
+        name.saturate();
+        name
     }
 }
 
@@ -116,7 +118,7 @@ impl PrivateNode {
         }
     }
 
-    pub fn header(&self) -> &Option<PrivateNodeHeader> {
+    pub fn header(&self) -> &PrivateNodeHeader {
         match self {
             Self::File(file) => &file.header,
             Self::Dir(dir) => &dir.header,
@@ -141,6 +143,9 @@ impl PrivateNode {
         let header_ipld = self.serialize_header(ipld_serde::Serializer)?;
         let content_ipld = self.serialize_content(ipld_serde::Serializer)?;
 
+        debug!("serialize: header_ipld: {:?}", header_ipld);
+        debug!("serialize: content_ipld: {:?}", content_ipld);
+
         let mut header_bytes = Vec::new();
         let mut content_bytes = Vec::new();
 
@@ -155,25 +160,24 @@ impl PrivateNode {
         content_bytes: &[u8],
     ) -> Result<Self> {
         let header_ipld = match header_bytes {
-            Some(bytes) => Some(Ipld::decode(DagCborCodec, &mut Cursor::new(bytes))?),
-            None => None,
+            Some(bytes) => Ipld::decode(DagCborCodec, &mut Cursor::new(bytes))?,
+            None => bail!(FsError::MissingHeader),
         };
 
-        let header: Option<PrivateNodeHeader> = match header_ipld {
-            Some(ipld) => Some(ipld_serde::from_ipld(ipld)?),
-            None => None,
-        };
+        debug!("deserialize: header_ipld: {:?}", header_ipld);
+
+        let header: PrivateNodeHeader = ipld_serde::from_ipld(header_ipld)?;
+
+        debug!("deserialize: header: {:?}", header);
 
         let content_ipld = Ipld::decode(DagCborCodec, &mut Cursor::new(content_bytes))?;
-        Ipld::deserialize(content_ipld)
-            .and_then(|ipld| Ok(Self::deserialize_content(ipld, header).unwrap()))
-            .map_err(|e| anyhow!(e))
+
+        debug!("deserialize: content_ipld: {:?}", content_ipld);
+
+        Self::deserialize_content(content_ipld, header)
     }
 
-    pub fn deserialize_content(
-        content_ipld: Ipld,
-        header: Option<PrivateNodeHeader>,
-    ) -> Result<Self> {
+    pub fn deserialize_content(content_ipld: Ipld, header: PrivateNodeHeader) -> Result<Self> {
         match content_ipld {
             Ipld::Map(map) => {
                 let metadata_ipld = map
@@ -181,8 +185,11 @@ impl PrivateNode {
                     .ok_or("Missing metadata field")
                     .map_err(|e| anyhow!(e))?;
 
+                debug!("map: metadata: {:?}", metadata_ipld);
                 let metadata: Metadata =
                     metadata_ipld.try_into().map_err(|e: String| anyhow!(e))?;
+
+                debug!("map: map: {:?}", map);
 
                 Ok(if metadata.is_file() {
                     let content = PrivateFileContent::deserialize(Ipld::Map(map))?;
@@ -221,40 +228,8 @@ impl From<PrivateDirectory> for PrivateNode {
     }
 }
 
-impl Serialize for RatchetKey {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        use RatchetKey::*;
-
-        if let Encrypted(EncryptedRatchetKey { encrypted, .. }) = self {
-            serializer.serialize_bytes(encrypted.as_slice())
-        } else {
-            Err(FsError::ExpectEncryptedRatchetKey).map_err(SerError::custom)
-        }
-    }
-}
-
-impl<'de> Deserialize<'de> for RatchetKey {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        use RatchetKey::*;
-
-        let bytes = Vec::deserialize(deserializer)?;
-        Ok(Encrypted(EncryptedRatchetKey {
-            encrypted: bytes,
-            bare: None,
-        }))
-    }
-}
-
 //--------------------------------------------------------------------------------------------------
 // Tests
 //--------------------------------------------------------------------------------------------------
 
-mod private_node_tests {
-
-}
+mod private_node_tests {}
