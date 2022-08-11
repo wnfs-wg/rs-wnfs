@@ -3,17 +3,15 @@ use std::{collections::BTreeMap, rc::Rc};
 use anyhow::{bail, Result};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use sha3::Sha3_256;
-use skip_ratchet::Ratchet;
 
 use super::{
-    namefilter::Namefilter, ContentKey, HamtStore, INumber, Key, PrivateFile, PrivateNode,
-    PrivateNodeHeader, PrivateRef, RatchetKey, Rng,
+    namefilter::Namefilter, HamtStore, INumber, PrivateFile, PrivateNode, PrivateNodeHeader,
+    PrivateRef, Rng,
 };
 
 use crate::{
-    error, private::hamt::Hasher, utils, BlockStore, FsError, HashOutput, Id, Metadata, OpResult,
-    PathNodes, PathNodesResult, UnixFsNodeKind, HASH_BYTE_SIZE,
+    error, utils, BlockStore, FsError, HashOutput, Id, Metadata, OpResult, PathNodes,
+    PathNodesResult, UnixFsNodeKind, HASH_BYTE_SIZE,
 };
 
 //--------------------------------------------------------------------------------------------------
@@ -494,7 +492,6 @@ mod private_directory_tests {
     use super::*;
     use crate::private::Rng;
     use crate::{MemoryBlockStore, HASH_BYTE_SIZE};
-    use log::debug;
     use test_log::test;
 
     struct Rand;
@@ -509,24 +506,19 @@ mod private_directory_tests {
 
     #[test(async_std::test)]
     async fn look_up_can_fetch_file_added_to_directory() {
-        debug!("test!");
-        let inumber = Rand::random_bytes::<HASH_BYTE_SIZE>();
-        let ratchet_seed = Rand::random_bytes::<HASH_BYTE_SIZE>();
-
         let root_dir = Rc::new(PrivateDirectory::new(
             Namefilter::default(),
-            inumber,
-            ratchet_seed,
+            Rand::random_bytes::<HASH_BYTE_SIZE>(),
+            Rand::random_bytes::<HASH_BYTE_SIZE>(),
             Utc::now(),
         ));
         let store = &mut MemoryBlockStore::default();
         let hamt = &mut HamtStore::<_, Rand>::new(store);
 
-        let time = Utc::now();
         let content = b"Hello, World!".to_vec();
 
         let PrivateOpResult { root_dir, .. } = root_dir
-            .write(&["text.txt".into()], time, content.clone(), hamt)
+            .write(&["text.txt".into()], Utc::now(), content.clone(), hamt)
             .await
             .unwrap();
 
@@ -534,5 +526,195 @@ mod private_directory_tests {
             root_dir.read(&["text.txt".into()], hamt).await.unwrap();
 
         assert_eq!(result, content);
+    }
+
+    #[test(async_std::test)]
+    async fn look_up_cannot_fetch_file_not_added_to_directory() {
+        let root_dir = Rc::new(PrivateDirectory::new(
+            Namefilter::default(),
+            Rand::random_bytes::<HASH_BYTE_SIZE>(),
+            Rand::random_bytes::<HASH_BYTE_SIZE>(),
+            Utc::now(),
+        ));
+        let store = &mut MemoryBlockStore::default();
+        let hamt = &mut HamtStore::<_, Rand>::new(store);
+
+        let node = root_dir.lookup_node("Unknown", hamt).await.unwrap();
+
+        assert!(node.is_none());
+    }
+
+    #[test(async_std::test)]
+    async fn mkdir_can_create_new_directory() {
+        let root_dir = Rc::new(PrivateDirectory::new(
+            Namefilter::default(),
+            Rand::random_bytes::<HASH_BYTE_SIZE>(),
+            Rand::random_bytes::<HASH_BYTE_SIZE>(),
+            Utc::now(),
+        ));
+        let store = &mut MemoryBlockStore::default();
+        let hamt = &mut HamtStore::<_, Rand>::new(store);
+
+        let PrivateOpResult { root_dir, .. } = root_dir
+            .mkdir(&["tamedun".into(), "pictures".into()], Utc::now(), hamt)
+            .await
+            .unwrap();
+
+        let PrivateOpResult { result, .. } = root_dir
+            .get_node(&["tamedun".into(), "pictures".into()], hamt)
+            .await
+            .unwrap();
+
+        assert!(result.is_some());
+    }
+
+    #[test(async_std::test)]
+    async fn ls_can_list_children_under_directory() {
+        let root_dir = Rc::new(PrivateDirectory::new(
+            Namefilter::default(),
+            Rand::random_bytes::<HASH_BYTE_SIZE>(),
+            Rand::random_bytes::<HASH_BYTE_SIZE>(),
+            Utc::now(),
+        ));
+        let store = &mut MemoryBlockStore::default();
+        let hamt = &mut HamtStore::<_, Rand>::new(store);
+
+        let PrivateOpResult { root_dir, .. } = root_dir
+            .mkdir(&["tamedun".into(), "pictures".into()], Utc::now(), hamt)
+            .await
+            .unwrap();
+
+        let PrivateOpResult { root_dir, .. } = root_dir
+            .write(
+                &["tamedun".into(), "pictures".into(), "puppy.jpg".into()],
+                Utc::now(),
+                b"puppy".to_vec(),
+                hamt,
+            )
+            .await
+            .unwrap();
+
+        let PrivateOpResult { root_dir, .. } = root_dir
+            .mkdir(
+                &["tamedun".into(), "pictures".into(), "cats".into()],
+                Utc::now(),
+                hamt,
+            )
+            .await
+            .unwrap();
+
+        let PrivateOpResult { result, .. } = root_dir
+            .ls(&["tamedun".into(), "pictures".into()], hamt)
+            .await
+            .unwrap();
+
+        assert_eq!(result.len(), 2);
+        assert_eq!(result[0].0, String::from("cats"));
+        assert_eq!(result[1].0, String::from("puppy.jpg"));
+        assert_eq!(result[0].1.unix_fs.kind, UnixFsNodeKind::Dir);
+        assert_eq!(result[1].1.unix_fs.kind, UnixFsNodeKind::File);
+    }
+
+    #[test(async_std::test)]
+    async fn rm_can_remove_children_from_directory() {
+        let root_dir = Rc::new(PrivateDirectory::new(
+            Namefilter::default(),
+            Rand::random_bytes::<HASH_BYTE_SIZE>(),
+            Rand::random_bytes::<HASH_BYTE_SIZE>(),
+            Utc::now(),
+        ));
+        let store = &mut MemoryBlockStore::default();
+        let hamt = &mut HamtStore::<_, Rand>::new(store);
+
+        let PrivateOpResult { root_dir, .. } = root_dir
+            .mkdir(&["tamedun".into(), "pictures".into()], Utc::now(), hamt)
+            .await
+            .unwrap();
+
+        let PrivateOpResult { root_dir, .. } = root_dir
+            .write(
+                &["tamedun".into(), "pictures".into(), "puppy.jpg".into()],
+                Utc::now(),
+                b"puppy".to_vec(),
+                hamt,
+            )
+            .await
+            .unwrap();
+
+        let PrivateOpResult { root_dir, .. } = root_dir
+            .mkdir(
+                &["tamedun".into(), "pictures".into(), "cats".into()],
+                Utc::now(),
+                hamt,
+            )
+            .await
+            .unwrap();
+
+        let result = root_dir
+            .rm(&["tamedun".into(), "pictures".into()], hamt)
+            .await;
+
+        assert!(result.is_ok());
+
+        let result = result
+            .unwrap()
+            .root_dir
+            .rm(&["tamedun".into(), "pictures".into()], hamt)
+            .await;
+
+        assert!(result.is_err());
+    }
+
+    #[async_std::test]
+    async fn read_can_fetch_userland_of_file_added_to_directory() {
+        let root_dir = Rc::new(PrivateDirectory::new(
+            Namefilter::default(),
+            Rand::random_bytes::<HASH_BYTE_SIZE>(),
+            Rand::random_bytes::<HASH_BYTE_SIZE>(),
+            Utc::now(),
+        ));
+        let store = &mut MemoryBlockStore::default();
+        let hamt = &mut HamtStore::<_, Rand>::new(store);
+
+        let PrivateOpResult { root_dir, .. } = root_dir
+            .write(&["text.txt".into()], Utc::now(), b"text".to_vec(), hamt)
+            .await
+            .unwrap();
+
+        let PrivateOpResult { result, .. } =
+            root_dir.read(&["text.txt".into()], hamt).await.unwrap();
+
+        assert_eq!(result, b"text".to_vec());
+    }
+
+    #[async_std::test]
+    async fn path_nodes_can_generates_new_path_nodes() {
+        let store = &mut MemoryBlockStore::default();
+        let hamt = &mut HamtStore::<_, Rand>::new(store);
+
+        let path_nodes = PrivateDirectory::create_path_nodes(
+            &["Documents".into(), "Apps".into()],
+            Utc::now(),
+            Namefilter::default(),
+            hamt,
+        );
+
+        let fixed = PrivateDirectory::fix_up_path_nodes(path_nodes.clone(), hamt)
+            .await
+            .unwrap();
+        let result = fixed
+            .get_path_nodes(&["Documents".into(), "Apps".into()], hamt)
+            .await
+            .unwrap();
+
+        match result {
+            PathNodesResult::MissingLink(_, segment) => panic!("MissingLink {segment}"),
+            PathNodesResult::NotADirectory(_, segment) => panic!("NotADirectory {segment}"),
+            PathNodesResult::Complete(path_nodes_2) => {
+                assert_eq!(path_nodes.path.len(), path_nodes_2.path.len());
+                assert_eq!(path_nodes.path[0].1, path_nodes_2.path[0].1);
+                assert_eq!(path_nodes.path[1].1, path_nodes_2.path[1].1);
+            }
+        }
     }
 }

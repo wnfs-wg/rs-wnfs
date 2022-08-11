@@ -76,7 +76,7 @@ impl PrivateNodeHeader {
 
     /// Gets the private ref of the current header.
     pub fn get_private_ref(&self) -> Result<PrivateRef> {
-        let ratchet_key = Key::from(self.ratchet.derive_key());
+        let ratchet_key = Key::new(self.ratchet.derive_key());
         let saturated_name_hash = {
             let mut name = self.bare_name.clone();
             name.add(&ratchet_key.as_bytes());
@@ -86,14 +86,14 @@ impl PrivateNodeHeader {
 
         Ok(PrivateRef {
             saturated_name_hash,
-            content_key: ContentKey(Key::from(Sha3_256::hash(&ratchet_key.as_bytes()))),
+            content_key: ContentKey(Key::new(Sha3_256::hash(&ratchet_key.as_bytes()))),
             ratchet_key: RatchetKey(ratchet_key),
         })
     }
 
     /// Gets the saturated namefilter for this node.
     pub fn get_saturated_name(&self) -> Namefilter {
-        let ratchet_key = Key::from(self.ratchet.derive_key());
+        let ratchet_key = Key::new(self.ratchet.derive_key());
         let mut name = self.bare_name.clone();
         name.add(&ratchet_key.as_bytes());
         name.saturate();

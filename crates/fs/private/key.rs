@@ -20,13 +20,19 @@ pub(crate) const NONCE_SIZE: usize = 12;
 //--------------------------------------------------------------------------------------------------
 
 #[derive(Clone, Serialize, Deserialize)]
-pub struct Key(pub(super) Vec<u8>); // TODO(appcypher): Make this [u8; 32];
+pub struct Key(pub(super) [u8; 32]);
 
 //--------------------------------------------------------------------------------------------------
 // Implementations
 //--------------------------------------------------------------------------------------------------
 
 impl Key {
+    /// Creates a new key from [u8; 32].
+    pub fn new(bytes: [u8; 32]) -> Self {
+        Self(bytes)
+    }
+
+    /// Encrypts the given plaintext using the key.
     pub fn encrypt(&self, nonce_bytes: &[u8; NONCE_SIZE], data: &[u8]) -> Result<Vec<u8>> {
         let nonce = Nonce::from_slice(nonce_bytes);
 
@@ -37,6 +43,7 @@ impl Key {
         Ok([cipher_text, nonce_bytes.to_vec()].concat())
     }
 
+    /// Decrypts the given ciphertext using the key.
     pub fn decrypt(&self, cipher_text: &[u8]) -> Result<Vec<u8>> {
         let (data, nonce_bytes) = cipher_text.split_at(cipher_text.len() - NONCE_SIZE);
 
@@ -45,6 +52,7 @@ impl Key {
             .map_err(|e| FsError::UnableToDecrypt(format!("{}", e)))?)
     }
 
+    /// Generates a nonce that can be used to encrypt data.
     #[inline]
     pub fn generate_nonce<R>() -> [u8; NONCE_SIZE]
     where
@@ -53,23 +61,53 @@ impl Key {
         R::random_bytes::<NONCE_SIZE>()
     }
 
-    pub fn bytes(self) -> Vec<u8> {
+    /// Grabs the bytes of the key.
+    pub fn bytes(self) -> [u8; 32] {
         self.0
     }
 
+    /// Gets the bytes of the key.
     pub fn as_bytes(&self) -> &[u8] {
         &self.0
-    }
-}
-
-impl<T: AsRef<[u8]>> From<T> for Key {
-    fn from(bytes: T) -> Self {
-        Self(bytes.as_ref().to_vec())
     }
 }
 
 impl Debug for Key {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "Key(0x{:02X?})", &self.0[..5])
+    }
+}
+
+//--------------------------------------------------------------------------------------------------
+// Tests
+//--------------------------------------------------------------------------------------------------
+
+#[cfg(test)]
+mod key_tests {
+    use crate::private::Rng;
+
+    use super::*;
+    use proptest::prelude::*;
+
+    struct Rand;
+    impl Rng for Rand {
+        fn random_bytes<const N: usize>() -> [u8; N] {
+            let mut bytes = [0u8; N];
+            rand::thread_rng().fill_bytes(&mut bytes);
+            bytes
+        }
+    }
+
+    proptest! {
+        #[test]
+        fn key_can_encrypt_and_decrypt_data(data in "[A-Za-z0-9 ]{1,50}", key_bytes in Just(Rand::random_bytes::<32>())) {
+            let key = Key::new(key_bytes);
+            let data = data.as_bytes();
+
+            let encrypted = key.encrypt(&Key::generate_nonce::<Rand>(), data).unwrap();
+            let decrypted = key.decrypt(&encrypted).unwrap();
+
+            assert_eq!(decrypted, data);
+        }
     }
 }

@@ -1,8 +1,10 @@
 use std::ops::Index;
 
-use bitvec::{order::Lsb0, prelude::BitArray};
+use bitvec::prelude::BitArray;
 use serde::{Deserialize, Serialize};
 use xxhash_rust::xxh3;
+
+use crate::utils::ByteArrayVisitor;
 
 //------------------------------------------------------------------------------
 // Type Definitions
@@ -136,29 +138,8 @@ impl<'de, const N: usize, const K: usize> Deserialize<'de> for BloomFilter<N, K>
     where
         D: serde::Deserializer<'de>,
     {
-        use serde::de::Visitor;
-        use std::fmt;
-
-        struct ByteArray<const N: usize>();
-
-        impl<'de, const N: usize> Visitor<'de> for ByteArray<N> {
-            type Value = [u8; N];
-
-            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-                write!(formatter, "a byte array of length {}", N)
-            }
-
-            fn visit_bytes<E>(self, v: &[u8]) -> Result<Self::Value, E>
-            where
-                E: serde::de::Error,
-            {
-                let bytes: [u8; N] = v.try_into().map_err(E::custom)?;
-                Ok(bytes)
-            }
-        }
-
         Ok(BloomFilter::<N, K> {
-            bits: BitArray::<[u8; N]>::new(deserializer.deserialize_bytes(ByteArray::<N>())?),
+            bits: BitArray::<[u8; N]>::new(deserializer.deserialize_bytes(ByteArrayVisitor::<N>)?),
         })
     }
 }
@@ -208,7 +189,7 @@ mod bloomfilter_tests {
     }
 
     #[test]
-    fn serde_roundtrips() {
+    fn serialized_bloom_filter_can_be_deserialized_correctly() {
         let mut bloom = BloomFilter::<256, 30>::new();
         let items: Vec<String> = vec!["first".into(), "second".into(), "third".into()];
         items.iter().for_each(|item| {
