@@ -83,21 +83,22 @@ impl Debug for Key {
 //--------------------------------------------------------------------------------------------------
 
 #[cfg(test)]
-mod key_tests {
+mod key_prop_tests {
     use crate::utils::Rand;
 
     use super::*;
+    use proptest::collection::vec;
+    use proptest::prelude::any;
     use test_strategy::proptest;
 
     #[proptest(cases = 50)]
     fn key_can_encrypt_and_decrypt_data(
-        #[strategy("[A-Za-z0-9 ]{1,50}")] data: String,
+        #[strategy(vec(any::<u8>(), 1..50))] data: Vec<u8>,
         key_bytes: [u8; 32],
     ) {
         let key = Key::new(key_bytes);
-        let data = data.as_bytes();
 
-        let encrypted = key.encrypt(&Key::generate_nonce::<Rand>(), data).unwrap();
+        let encrypted = key.encrypt(&Key::generate_nonce::<Rand>(), &data).unwrap();
         let decrypted = key.decrypt(&encrypted).unwrap();
 
         assert_eq!(decrypted, data);

@@ -82,12 +82,10 @@ where
         self: &Rc<Self>,
         key: &K,
         store: &B,
-    ) -> Result<(Rc<Self>, Option<V>)> {
+    ) -> Result<(Rc<Self>, Option<Pair<K, V>>)> {
         let hash = &H::hash(key);
         debug!("remove: hash = {:02x?}", hash);
-        self.remove_value(&mut HashNibbles::new(hash), store)
-            .await
-            .map(|(node, pair)| (node, pair.map(|pair| pair.value)))
+        self.remove_value(&mut HashNibbles::new(hash), store).await
     }
 
     /// Gets the value at the key matching the provided hash.
@@ -258,6 +256,10 @@ where
             Pointer::Values(values) => {
                 let mut node = (**self).clone();
                 let value = if values.len() == 1 {
+                    // If the key doesn't match, return without removing.
+                    if &H::hash(&values[0].key) != hashnibbles.digest {
+                        return Ok((Rc::clone(self), None));
+                    }
                     // If there is only one value, we can remove the entire pointer.
                     node.bitmask.set(bit_index, false);
                     match node.pointers.remove(value_index) {
@@ -409,7 +411,7 @@ where
 //--------------------------------------------------------------------------------------------------
 
 #[cfg(test)]
-mod hamt_node_tests {
+mod hamt_node_unit_tests {
     use super::*;
     use crate::{dagcbor, HashOutput, MemoryBlockStore};
     use lazy_static::lazy_static;
@@ -626,5 +628,121 @@ mod hamt_node_tests {
         let decoded_node = dagcbor::decode::<Node<String, i32>>(encoded_node.as_ref()).unwrap();
 
         assert_eq!(*node, decoded_node);
+    }
+
+    #[test(async_std::test)]
+    async fn node_is_same_with_irrelevant_remove() {
+        // These two keys' hashes have the same first nibble (7)
+        let insert_key: String = "GL59 Tg4phDb  bv".into();
+        let remove_key: String = "hK i3b4V4152EPOdA".into();
+
+        let store = &mut MemoryBlockStore::default();
+        let mut node0: Rc<Node<String, u64>> = Rc::new(Node::default());
+
+        node0 = node0.set(insert_key.clone(), 0, store).await.unwrap();
+        (node0, _) = node0.remove(&remove_key, store).await.unwrap();
+
+        assert_eq!(node0.count_values().unwrap(), 1);
+    }
+}
+
+#[cfg(test)]
+mod hamt_node_prop_tests {
+    use proptest::collection::*;
+    use proptest::prelude::*;
+    use test_strategy::proptest;
+
+    use crate::MemoryBlockStore;
+
+    use super::*;
+
+    #[proptest]
+    fn test_inserts_forwards_backwards(
+        #[strategy(vec(any::<String>(), 0..100))] inserts: Vec<String>,
+    ) {
+        async_std::task::block_on(async move {
+            let store = &mut MemoryBlockStore::default();
+            let mut node: Rc<Node<String, u64>> = Rc::new(Node::default());
+
+            for insert in inserts.iter() {
+                node = node.set(insert.clone(), 0, store).await.unwrap();
+            }
+
+            let mut node_rev: Rc<Node<String, u64>> = Rc::new(Node::default());
+
+            for insert in inserts.iter().rev() {
+                node_rev = node_rev.set(insert.clone(), 0, store).await.unwrap();
+            }
+
+            let cid = store.put_async_serializable(&node).await.unwrap();
+            let cid_rev = store.put_async_serializable(&node_rev).await.unwrap();
+
+            assert_eq!(cid, cid_rev);
+        })
+    }
+
+    #[derive(Debug)]
+    enum Operation {
+        Insert(String),
+        Remove(String),
+    }
+
+    type Operations = Vec<TreeOperation>;
+
+    enum TreeOperation {
+        Insert(String),
+        InsertRemove { key: String, in_between: Operations },
+    }
+
+    // insert "x" insert "y" remove "x" remove "y"
+
+    // Operations -> Vec<Operation>
+
+    fn generate_operation() -> impl Strategy<Value = Operation> {
+        (any::<bool>(), "[A-Za-z0-9 ]{1,20}").prop_map(|(is_insert, key)| {
+            if is_insert {
+                Operation::Insert(key)
+            } else {
+                Operation::Remove(key)
+            }
+        })
+    }
+
+    #[proptest]
+    fn test_inserts_removes(
+        #[strategy(vec(generate_operation(), 0..50))] operations: Vec<Operation>,
+    ) {
+        async_std::task::block_on(async move {
+            let store = &mut MemoryBlockStore::default();
+            let mut node: Rc<Node<String, u64>> = Rc::new(Node::default());
+
+            for op in operations.iter() {
+                match op {
+                    Operation::Insert(key) => {
+                        node = node.set(key.clone(), 0, store).await.unwrap();
+                    }
+                    Operation::Remove(key) => {
+                        (node, _) = node.remove(&key, store).await.unwrap();
+                    }
+                };
+            }
+
+            let mut node_rev: Rc<Node<String, u64>> = Rc::new(Node::default());
+            for op in operations.iter().rev() {
+                match op {
+                    Operation::Insert(key) => {
+                        node_rev = node_rev.set(key.clone(), 0, store).await.unwrap();
+                    }
+                    Operation::Remove(key) => {
+                        (node_rev, _) = node_rev.remove(&key, store).await.unwrap();
+                    }
+                };
+            }
+
+            let cid = store.put_async_serializable(&node).await.unwrap();
+            let cid_rev = store.put_async_serializable(&node_rev).await.unwrap();
+
+            assert_eq!(cid, cid_rev);
+        })
     }
 }
