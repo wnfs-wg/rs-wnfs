@@ -687,16 +687,57 @@ mod hamt_node_prop_tests {
         Remove(String),
     }
 
-    type Operations = Vec<TreeOperation>;
+    type Operations = Vec<TreeOfOperations>;
 
-    enum TreeOperation {
+    #[derive(Debug, Clone)]
+    enum TreeOfOperations {
         Insert(String),
         InsertRemove { key: String, in_between: Operations },
     }
 
-    // insert "x" insert "y" remove "x" remove "y"
+    fn operations() -> impl Strategy<Value = Operations> {
+        vec(treeOfOperations(), 0..16)
+    }
 
-    // Operations -> Vec<Operation>
+    fn treeOfOperations() -> impl Strategy<Value = TreeOfOperations> {
+        let insert = "[A-Za-z0-9 ]{1,20}".prop_map(|key| TreeOfOperations::Insert(key));
+        insert.prop_recursive(2, 2, 3, |insert_strategy| {
+            ("[A-Za-z0-9 ]{1,20}", vec(insert_strategy, 0..16))
+                .prop_map(|(key, in_between)| TreeOfOperations::InsertRemove { key, in_between })
+        })
+    }
+
+    fn reverseTree(ops: Operations) -> Operations {
+        let mut vec = Vec::with_capacity(ops.len());
+        for op in ops.into_iter().rev() {
+            match op {
+                TreeOfOperations::InsertRemove { key, in_between } => {
+                    vec.extend(reverseTree(in_between));
+                }
+                op => {
+                    vec.push(op);
+                }
+            }
+        }
+        vec
+    }
+
+    fn linearizeOperationsTree(ops: Operations) -> Vec<Operation> {
+        let mut vec = Vec::new();
+        for tree in ops {
+            match tree {
+                TreeOfOperations::Insert(key) => {
+                    vec.push(Operation::Insert(key));
+                }
+                TreeOfOperations::InsertRemove { key, in_between } => {
+                    vec.push(Operation::Insert(key.clone()));
+                    vec.extend(linearizeOperationsTree(in_between));
+                    vec.push(Operation::Remove(key));
+                }
+            }
+        }
+        vec
+    }
 
     fn generate_operation() -> impl Strategy<Value = Operation> {
         (any::<bool>(), "[A-Za-z0-9 ]{1,20}").prop_map(|(is_insert, key)| {
@@ -708,15 +749,13 @@ mod hamt_node_prop_tests {
         })
     }
 
-    #[proptest]
-    fn test_inserts_removes(
-        #[strategy(vec(generate_operation(), 0..50))] operations: Vec<Operation>,
-    ) {
+    #[proptest(ProptestConfig{ cases: 50, max_shrink_iters: 1_000_000, ..ProptestConfig::default() })]
+    fn test_inserts_removes(#[strategy(operations())] operations: Operations) {
         async_std::task::block_on(async move {
             let store = &mut MemoryBlockStore::default();
             let mut node: Rc<Node<String, u64>> = Rc::new(Node::default());
 
-            for op in operations.iter() {
+            for op in linearizeOperationsTree(operations.clone()).iter() {
                 match op {
                     Operation::Insert(key) => {
                         node = node.set(key.clone(), 0, store).await.unwrap();
@@ -728,7 +767,7 @@ mod hamt_node_prop_tests {
             }
 
             let mut node_rev: Rc<Node<String, u64>> = Rc::new(Node::default());
-            for op in operations.iter().rev() {
+            for op in linearizeOperationsTree(reverseTree(operations)).iter() {
                 match op {
                     Operation::Insert(key) => {
                         node_rev = node_rev.set(key.clone(), 0, store).await.unwrap();
