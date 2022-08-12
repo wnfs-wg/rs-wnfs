@@ -49,7 +49,7 @@ impl<'a, B: BlockStore, R: Rng> HamtStore<'a, B, R> {
     #[inline]
     pub async fn set(
         &mut self,
-        name: Namefilter,
+        saturated_name: Namefilter,
         private_ref: &PrivateRef,
         value: &PrivateNode,
     ) -> Result<()> {
@@ -68,7 +68,7 @@ impl<'a, B: BlockStore, R: Rng> HamtStore<'a, B, R> {
             .await?;
 
         // Store header and Cid in root node.
-        self.set_encrypted(name, (enc_header_bytes, content_cid))
+        self.set_encrypted(saturated_name, (enc_header_bytes, content_cid))
             .await
     }
 
@@ -130,5 +130,44 @@ impl<'a, B: BlockStore, R: Rng> HamtStore<'a, B, R> {
         let (root, value) = self.root.root.remove_by_hash(name_hash, self.store).await?;
         self.root.root = root;
         Ok(value)
+    }
+}
+
+//--------------------------------------------------------------------------------------------------
+// Tests
+//--------------------------------------------------------------------------------------------------
+
+#[cfg(test)]
+mod hamt_store_tests {
+    use std::rc::Rc;
+    use test_log::test;
+
+    use chrono::Utc;
+
+    use super::*;
+    use crate::{private::PrivateDirectory, utils::Rand, MemoryBlockStore};
+
+    #[test(async_std::test)]
+    async fn inserted_items_can_be_fetched() {
+        let store = &mut MemoryBlockStore::new();
+        let hamt = &mut HamtStore::<_, Rand>::new(store);
+
+        let dir = Rc::new(PrivateDirectory::new(
+            Namefilter::default(),
+            Rand::random_bytes::<32>(),
+            Rand::random_bytes::<32>(),
+            Utc::now(),
+        ));
+
+        let private_ref = dir.header.get_private_ref().unwrap();
+        let saturated_name = dir.header.get_saturated_name();
+        let private_node = PrivateNode::Dir(dir.clone());
+
+        hamt.set(saturated_name, &private_ref, &private_node)
+            .await
+            .unwrap();
+        let retrieved = hamt.get(&private_ref).await.unwrap().unwrap();
+
+        assert_eq!(retrieved, private_node);
     }
 }

@@ -9,13 +9,13 @@ use super::{namefilter::Namefilter, INumber, PrivateNodeHeader};
 // Type Definitions
 //--------------------------------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct PrivateFileContent {
     pub(crate) metadata: Metadata,
     pub(crate) content: Vec<u8>, // Inlined file content. // TODO(appcypher): Support linked file content.
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct PrivateFile {
     pub(crate) header: PrivateNodeHeader,
     pub(crate) content: PrivateFileContent,

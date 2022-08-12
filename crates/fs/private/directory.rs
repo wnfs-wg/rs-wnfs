@@ -22,13 +22,13 @@ pub type PrivateOpResult<T> = OpResult<PrivateDirectory, T>;
 pub type PrivatePathNodes = PathNodes<PrivateDirectory>;
 pub type PrivatePathNodesResult = PathNodesResult<PrivateDirectory>;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct PrivateDirectoryContent {
     pub(crate) metadata: Metadata,
     pub(crate) entries: BTreeMap<String, PrivateRef>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct PrivateDirectory {
     pub(crate) header: PrivateNodeHeader,
     pub(crate) content: PrivateDirectoryContent,
@@ -490,19 +490,8 @@ impl Id for PrivateDirectory {
 #[cfg(test)]
 mod private_directory_tests {
     use super::*;
-    use crate::private::Rng;
-    use crate::{MemoryBlockStore, HASH_BYTE_SIZE};
+    use crate::{utils::Rand, MemoryBlockStore, HASH_BYTE_SIZE};
     use test_log::test;
-
-    struct Rand;
-    impl Rng for Rand {
-        fn random_bytes<const N: usize>() -> [u8; N] {
-            use rand::RngCore;
-            let mut bytes = [0u8; N];
-            rand::thread_rng().fill_bytes(&mut bytes);
-            bytes
-        }
-    }
 
     #[test(async_std::test)]
     async fn look_up_can_fetch_file_added_to_directory() {

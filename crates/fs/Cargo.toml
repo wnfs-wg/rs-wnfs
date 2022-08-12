@@ -41,7 +41,7 @@ lazy_static = "1.4.0"
 thiserror = "1.0.31"
 aes-gcm = "0.9.4"
 proptest = "1.0.0"
-serde-big-array = "0.4.1"
+test-strategy = "0.2.0"
 
 [dev-dependencies]
 env_logger = "0.9.0"

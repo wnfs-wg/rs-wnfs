@@ -18,17 +18,16 @@ use super::{
     PrivateFile, PrivateFileContent,
 };
 
-use log::debug;
-
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
 //--------------------------------------------------------------------------------------------------
 
 pub type INumber = HashOutput;
-#[derive(Debug, Clone, Serialize, Deserialize)]
+
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub struct ContentKey(pub Key);
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub struct RatchetKey(pub Key);
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -38,13 +37,13 @@ pub struct PrivateNodeHeader {
     pub(crate) inumber: INumber,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum PrivateNode {
     File(Rc<PrivateFile>),
     Dir(Rc<PrivateDirectory>),
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct PrivateRef {
     pub(crate) saturated_name_hash: HashOutput, // Sha3-256 hash of saturated namefilter
     pub(crate) content_key: ContentKey,         // A hash of ratchet key.
@@ -143,9 +142,6 @@ impl PrivateNode {
         let header_ipld = self.serialize_header(ipld_serde::Serializer)?;
         let content_ipld = self.serialize_content(ipld_serde::Serializer)?;
 
-        debug!("serialize: header_ipld: {:?}", header_ipld);
-        debug!("serialize: content_ipld: {:?}", content_ipld);
-
         let mut header_bytes = Vec::new();
         let mut content_bytes = Vec::new();
 
@@ -164,15 +160,9 @@ impl PrivateNode {
             None => bail!(FsError::MissingHeader),
         };
 
-        debug!("deserialize: header_ipld: {:?}", header_ipld);
-
         let header: PrivateNodeHeader = ipld_serde::from_ipld(header_ipld)?;
 
-        debug!("deserialize: header: {:?}", header);
-
         let content_ipld = Ipld::decode(DagCborCodec, &mut Cursor::new(content_bytes))?;
-
-        debug!("deserialize: content_ipld: {:?}", content_ipld);
 
         Self::deserialize_content(content_ipld, header)
     }
@@ -185,11 +175,8 @@ impl PrivateNode {
                     .ok_or("Missing metadata field")
                     .map_err(|e| anyhow!(e))?;
 
-                debug!("map: metadata: {:?}", metadata_ipld);
                 let metadata: Metadata =
                     metadata_ipld.try_into().map_err(|e: String| anyhow!(e))?;
-
-                debug!("map: map: {:?}", map);
 
                 Ok(if metadata.is_file() {
                     let content = PrivateFileContent::deserialize(Ipld::Map(map))?;
@@ -232,4 +219,26 @@ impl From<PrivateDirectory> for PrivateNode {
 // Tests
 //--------------------------------------------------------------------------------------------------
 
-mod private_node_tests {}
+#[cfg(test)]
+mod private_node_tests {
+    use crate::{private::Rng, utils::Rand};
+
+    use super::*;
+
+    #[test]
+    fn serialized_private_node_can_be_deserialized() {
+        let original_file = PrivateNode::File(Rc::new(PrivateFile::new(
+            Namefilter::default(),
+            Rand::random_bytes::<32>(),
+            Rand::random_bytes::<32>(),
+            Utc::now(),
+            b"Lorem ipsum dolor sit amet".to_vec(),
+        )));
+
+        let (header_bytes, content_bytes) = original_file.serialize_as_cbor().unwrap();
+        let deserialized_node =
+            PrivateNode::deserialize_from_cbor(&Some(header_bytes), &content_bytes).unwrap();
+
+        assert_eq!(original_file, deserialized_node);
+    }
+}

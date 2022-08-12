@@ -1051,7 +1051,7 @@ dependencies = [
  "digest",
  "multihash-derive",
  "serde",
- "serde-big-array 0.3.3",
+ "serde-big-array",
  "sha2",
  "sha3",
  "unsigned-varint",
@@ -1578,15 +1578,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "serde-big-array"
-version = "0.4.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3323f09a748af288c3dc2474ea6803ee81f118321775bffa3ac8f7e65c5e90e7"
-dependencies = [
- "serde",
-]
-
-[[package]]
 name = "serde_bytes"
 version = "0.11.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1684,6 +1675,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "structmeta"
+version = "0.1.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1bd9c2155aa89fb2c2cb87d99a610c689e7c47099b3e9f1c8a8f53faf4e3d2e3"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "structmeta-derive",
+ "syn",
+]
+
+[[package]]
+name = "structmeta-derive"
+version = "0.1.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bafede0d0a2f21910f36d47b1558caae3076ed80f6f3ad0fc85a91e6ba7e5938"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "subtle"
 version = "2.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1749,6 +1763,18 @@ checksum = "4235dbf7ea878b3ef12dea20a59c134b405a66aafc4fc2c7b9935916e289e735"
 dependencies = [
  "proc-macro2",
  "quote",
+ "syn",
+]
+
+[[package]]
+name = "test-strategy"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c18b325ca048e49683d5cb9166a50191fc862e36020706bbd7723c22a05d4ffa"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "structmeta",
  "syn",
 ]
 
@@ -2126,11 +2152,11 @@ dependencies = [
  "rand 0.8.5",
  "semver",
  "serde",
- "serde-big-array 0.4.1",
  "serde_repr",
  "sha3",
  "skip_ratchet",
  "test-log",
+ "test-strategy",
  "thiserror",
  "xxhash-rust",
 ]

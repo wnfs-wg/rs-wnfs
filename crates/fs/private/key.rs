@@ -19,7 +19,7 @@ pub(crate) const NONCE_SIZE: usize = 12;
 // Type Definitions
 //--------------------------------------------------------------------------------------------------
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct Key(pub(super) [u8; 32]);
 
 //--------------------------------------------------------------------------------------------------
@@ -84,30 +84,22 @@ impl Debug for Key {
 
 #[cfg(test)]
 mod key_tests {
-    use crate::private::Rng;
+    use crate::utils::Rand;
 
     use super::*;
-    use proptest::prelude::*;
+    use test_strategy::proptest;
 
-    struct Rand;
-    impl Rng for Rand {
-        fn random_bytes<const N: usize>() -> [u8; N] {
-            let mut bytes = [0u8; N];
-            rand::thread_rng().fill_bytes(&mut bytes);
-            bytes
-        }
-    }
+    #[proptest(cases = 50)]
+    fn key_can_encrypt_and_decrypt_data(
+        #[strategy("[A-Za-z0-9 ]{1,50}")] data: String,
+        key_bytes: [u8; 32],
+    ) {
+        let key = Key::new(key_bytes);
+        let data = data.as_bytes();
 
-    proptest! {
-        #[test]
-        fn key_can_encrypt_and_decrypt_data(data in "[A-Za-z0-9 ]{1,50}", key_bytes in Just(Rand::random_bytes::<32>())) {
-            let key = Key::new(key_bytes);
-            let data = data.as_bytes();
+        let encrypted = key.encrypt(&Key::generate_nonce::<Rand>(), data).unwrap();
+        let decrypted = key.decrypt(&encrypted).unwrap();
 
-            let encrypted = key.encrypt(&Key::generate_nonce::<Rand>(), data).unwrap();
-            let decrypted = key.decrypt(&encrypted).unwrap();
-
-            assert_eq!(decrypted, data);
-        }
+        assert_eq!(decrypted, data);
     }
 }

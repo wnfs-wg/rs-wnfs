@@ -8,7 +8,10 @@ use crate::{error, FsError};
 // Type Definitions
 //--------------------------------------------------------------------------------------------------
 
-pub struct ByteArrayVisitor<const N: usize>;
+pub(crate) struct ByteArrayVisitor<const N: usize>;
+
+#[cfg(test)]
+pub(crate) struct Rand;
 
 //--------------------------------------------------------------------------------------------------
 // Implementations
@@ -27,6 +30,16 @@ impl<'de, const N: usize> Visitor<'de> for ByteArrayVisitor<N> {
     {
         let bytes: [u8; N] = v.try_into().map_err(E::custom)?;
         Ok(bytes)
+    }
+}
+
+#[cfg(test)]
+impl crate::private::Rng for Rand {
+    fn random_bytes<const N: usize>() -> [u8; N] {
+        use rand::RngCore;
+        let mut bytes = [0u8; N];
+        rand::thread_rng().fill_bytes(&mut bytes);
+        bytes
     }
 }
 
