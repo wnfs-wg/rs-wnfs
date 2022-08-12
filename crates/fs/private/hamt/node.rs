@@ -617,20 +617,6 @@ mod hamt_node_unit_tests {
     }
 
     #[test(async_std::test)]
-    async fn node_can_encode_decode_as_cbor() {
-        let store = &mut MemoryBlockStore::default();
-        let node: Rc<Node<String, i32>> = Rc::new(Node::default());
-
-        let node = node.set("James".into(), 4500, store).await.unwrap();
-        let node = node.set("Peter".into(), 2000, store).await.unwrap();
-
-        let encoded_node = dagcbor::async_encode(&node, store).await.unwrap();
-        let decoded_node = dagcbor::decode::<Node<String, i32>>(encoded_node.as_ref()).unwrap();
-
-        assert_eq!(*node, decoded_node);
-    }
-
-    #[test(async_std::test)]
     async fn node_is_same_with_irrelevant_remove() {
         // These two keys' hashes have the same first nibble (7)
         let insert_key: String = "GL59 Tg4phDb  bv".into();
@@ -652,6 +638,7 @@ mod hamt_node_prop_tests {
     use proptest::prelude::*;
     use test_strategy::proptest;
 
+    use crate::dagcbor;
     use crate::MemoryBlockStore;
 
     use super::*;
@@ -682,106 +669,113 @@ mod hamt_node_prop_tests {
     }
 
     #[derive(Debug)]
-    enum Operation {
-        Insert(String),
-        Remove(String),
+    enum Operation<K, V> {
+        Insert(K, V),
+        Remove(K),
     }
 
-    type Operations = Vec<TreeOfOperations>;
-
-    #[derive(Debug, Clone)]
-    enum TreeOfOperations {
-        Insert(String),
-        InsertRemove { key: String, in_between: Operations },
-    }
-
-    fn operations() -> impl Strategy<Value = Operations> {
-        vec(treeOfOperations(), 0..16)
-    }
-
-    fn treeOfOperations() -> impl Strategy<Value = TreeOfOperations> {
-        let insert = "[A-Za-z0-9 ]{1,20}".prop_map(|key| TreeOfOperations::Insert(key));
-        insert.prop_recursive(2, 2, 3, |insert_strategy| {
-            ("[A-Za-z0-9 ]{1,20}", vec(insert_strategy, 0..16))
-                .prop_map(|(key, in_between)| TreeOfOperations::InsertRemove { key, in_between })
-        })
-    }
-
-    fn reverseTree(ops: Operations) -> Operations {
-        let mut vec = Vec::with_capacity(ops.len());
-        for op in ops.into_iter().rev() {
-            match op {
-                TreeOfOperations::InsertRemove { key, in_between } => {
-                    vec.extend(reverseTree(in_between));
-                }
-                op => {
-                    vec.push(op);
-                }
-            }
-        }
-        vec
-    }
-
-    fn linearizeOperationsTree(ops: Operations) -> Vec<Operation> {
-        let mut vec = Vec::new();
-        for tree in ops {
-            match tree {
-                TreeOfOperations::Insert(key) => {
-                    vec.push(Operation::Insert(key));
-                }
-                TreeOfOperations::InsertRemove { key, in_between } => {
-                    vec.push(Operation::Insert(key.clone()));
-                    vec.extend(linearizeOperationsTree(in_between));
-                    vec.push(Operation::Remove(key));
-                }
-            }
-        }
-        vec
-    }
-
-    fn generate_operation() -> impl Strategy<Value = Operation> {
-        (any::<bool>(), "[A-Za-z0-9 ]{1,20}").prop_map(|(is_insert, key)| {
+    fn operation<K: Debug, V: Debug>(
+        key: impl Strategy<Value = K>,
+        value: impl Strategy<Value = V>,
+    ) -> impl Strategy<Value = Operation<K, V>> {
+        (any::<bool>(), key, value).prop_map(|(is_insert, key, value)| {
             if is_insert {
-                Operation::Insert(key)
+                Operation::Insert(key, value)
             } else {
                 Operation::Remove(key)
             }
         })
     }
 
-    #[proptest(ProptestConfig{ cases: 50, max_shrink_iters: 1_000_000, ..ProptestConfig::default() })]
-    fn test_inserts_removes(#[strategy(operations())] operations: Operations) {
+    async fn node_from_operations<K, V, B: BlockStore>(
+        operations: Vec<Operation<K, V>>,
+        store: &mut B,
+    ) -> Result<Rc<Node<K, V>>>
+    where
+        K: DeserializeOwned + Serialize + Clone + Debug + AsRef<[u8]>,
+        V: DeserializeOwned + Serialize + Clone + Debug,
+    {
+        let mut node: Rc<Node<K, V>> = Rc::new(Node::default());
+        for op in operations {
+            match op {
+                Operation::Insert(key, value) => {
+                    node = node.set(key.clone(), value, store).await?;
+                }
+                Operation::Remove(key) => {
+                    (node, _) = node.remove(&key, store).await?;
+                }
+            };
+        }
+
+        Ok(node)
+    }
+
+    fn small_key() -> impl Strategy<Value = String> {
+        (0..1000).prop_map(|i| format!("key {i}"))
+    }
+
+    #[proptest(cases = 50)]
+    fn test_insert_idempotence(
+        #[strategy(vec(operation(small_key(), 0u64..1000), 0..100))] operations: Vec<
+            Operation<String, u64>,
+        >,
+        #[strategy((small_key(), 0..1000u64))] pair: (String, u64),
+    ) {
         async_std::task::block_on(async move {
             let store = &mut MemoryBlockStore::default();
-            let mut node: Rc<Node<String, u64>> = Rc::new(Node::default());
+            let node = node_from_operations(operations, store).await.unwrap();
+            let (key, value) = pair;
 
-            for op in linearizeOperationsTree(operations.clone()).iter() {
-                match op {
-                    Operation::Insert(key) => {
-                        node = node.set(key.clone(), 0, store).await.unwrap();
-                    }
-                    Operation::Remove(key) => {
-                        (node, _) = node.remove(&key, store).await.unwrap();
-                    }
-                };
-            }
+            node.set(key.clone(), value, store).await.unwrap();
+            let cid1 = store.put_async_serializable(&node).await.unwrap();
 
-            let mut node_rev: Rc<Node<String, u64>> = Rc::new(Node::default());
-            for op in linearizeOperationsTree(reverseTree(operations)).iter() {
-                match op {
-                    Operation::Insert(key) => {
-                        node_rev = node_rev.set(key.clone(), 0, store).await.unwrap();
-                    }
-                    Operation::Remove(key) => {
-                        (node_rev, _) = node_rev.remove(&key, store).await.unwrap();
-                    }
-                };
-            }
+            node.set(key, value, store).await.unwrap();
+            let cid2 = store.put_async_serializable(&node).await.unwrap();
 
-            let cid = store.put_async_serializable(&node).await.unwrap();
-            let cid_rev = store.put_async_serializable(&node_rev).await.unwrap();
-
-            assert_eq!(cid, cid_rev);
+            assert_eq!(cid1, cid2);
         })
     }
+
+    #[proptest(cases = 50)]
+    fn test_remove_idempotence(
+        #[strategy(vec(operation(small_key(), 0u64..1000), 0..100))] operations: Vec<
+            Operation<String, u64>,
+        >,
+        #[strategy(small_key())] key: String,
+    ) {
+        async_std::task::block_on(async move {
+            let store = &mut MemoryBlockStore::default();
+            let mut node = node_from_operations(operations, store).await.unwrap();
+
+            node.remove(&key, store).await.unwrap();
+            let cid1 = store.put_async_serializable(&node).await.unwrap();
+
+            node.remove(&key, store).await.unwrap();
+            let cid2 = store.put_async_serializable(&node).await.unwrap();
+
+            assert_eq!(cid1, cid2);
+        })
+    }
+
+    #[proptest(cases = 100)]
+    fn node_can_encode_decode_as_cbor(
+        #[strategy(vec(operation(small_key(), 0u64..1000), 0..1000))] operations: Vec<
+            Operation<String, u64>,
+        >,
+    ) {
+        async_std::task::block_on(async move {
+            let store = &mut MemoryBlockStore::default();
+            let node = node_from_operations(operations, store).await.unwrap();
+
+            let encoded_node = dagcbor::async_encode(&node, store).await.unwrap();
+            let decoded_node = dagcbor::decode::<Node<String, u64>>(encoded_node.as_ref()).unwrap();
+
+            assert_eq!(*node, decoded_node);
+        })
+    }
+
+    // gen operations
+    // operations -> HAMT
+    // operations -> HashMap -> HAMT
+    // check HAMTs' CID eq
 }
