@@ -56,9 +56,19 @@ impl PublicFile {
         }
     }
 
-    // Gets the previous value of the file.
+    /// Gets the previous value of the file.
     pub fn get_previous(self: &Rc<Self>) -> Option<Cid> {
         self.previous
+    }
+
+    /// Gets the metadata of the file
+    pub fn get_metadata<'a>(self: &'a Rc<Self>) -> &'a Metadata {
+        &self.metadata
+    }
+
+    /// Gets the content cid of a file
+    pub fn get_content_cid(self: &Rc<Self>) -> Cid {
+        self.userland
     }
 
     /// Stores file in provided block store.

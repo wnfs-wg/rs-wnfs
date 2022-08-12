@@ -15,7 +15,7 @@ use wnfs::{
     BlockStore as WnfsBlockStore, Id,
 };
 
-use crate::fs::{BlockStore, ForeignBlockStore, JsResult, PublicNode};
+use crate::fs::{metadata::JsMetadata, BlockStore, ForeignBlockStore, JsResult, PublicNode};
 use crate::value;
 
 /// A directory in a WNFS public file system.
@@ -250,6 +250,23 @@ impl PublicDirectory {
 
             Ok(utils::create_op_result(root_dir, JsValue::NULL)?)
         }))
+    }
+
+    /// Gets the previous cid of the directory or null if it doesn't have a previous cid.
+    #[wasm_bindgen(js_name = "previousCid")]
+    pub fn previous_cid(&self) -> JsValue {
+        match self.0.get_previous() {
+            Some(cid) => {
+                let cid_u8array = Uint8Array::from(&cid.to_bytes()[..]);
+                value!(cid_u8array)
+            }
+            None => JsValue::NULL,
+        }
+    }
+
+    /// Gets the metadata of the directory
+    pub fn metadata(&self) -> JsResult<JsValue> {
+        JsMetadata(self.0.get_metadata()).try_into()
     }
 
     /// Converts directory to a node.
