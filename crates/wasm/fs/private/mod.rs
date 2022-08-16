@@ -1,9 +1,9 @@
 mod directory;
 mod file;
 mod node;
-mod store;
+mod rng;
 
 pub use directory::*;
 pub use file::*;
 pub use node::*;
-pub use store::*;
+pub use rng::*;

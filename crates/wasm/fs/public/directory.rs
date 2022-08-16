@@ -15,7 +15,7 @@ use wnfs::{
     Id,
 };
 
-use crate::fs::{BlockStore, ForeignBlockStore, JsResult, PublicNode};
+use crate::fs::{utils, BlockStore, ForeignBlockStore, JsResult, PublicNode};
 use crate::value;
 
 //--------------------------------------------------------------------------------------------------
@@ -52,7 +52,10 @@ impl PublicDirectory {
                 .await
                 .map_err(|e| Error::new(&format!("Cannot get node: {e}")))?;
 
-            Ok(utils::create_op_result(root_dir, result.map(PublicNode))?)
+            Ok(utils::create_op_result(
+                PublicDirectory(root_dir),
+                result.map(PublicNode),
+            )?)
         }))
     }
 
@@ -102,7 +105,10 @@ impl PublicDirectory {
                 .await
                 .map_err(|e| Error::new(&format!("Cannot read from directory: {e}")))?;
 
-            Ok(utils::create_op_result(root_dir, result.to_string())?)
+            Ok(utils::create_op_result(
+                PublicDirectory(root_dir),
+                result.to_string(),
+            )?)
         }))
     }
 
@@ -123,7 +129,7 @@ impl PublicDirectory {
                 .map(|(name, _)| value!(name))
                 .collect::<Array>();
 
-            Ok(utils::create_op_result(root_dir, result)?)
+            Ok(utils::create_op_result(PublicDirectory(root_dir), result)?)
         }))
     }
 
@@ -142,7 +148,10 @@ impl PublicDirectory {
                 .await
                 .map_err(|e| Error::new(&format!("Cannot remove from directory: {e}")))?;
 
-            Ok(utils::create_op_result(root_dir, PublicNode(node))?)
+            Ok(utils::create_op_result(
+                PublicDirectory(root_dir),
+                PublicNode(node),
+            )?)
         }))
     }
 
@@ -168,7 +177,10 @@ impl PublicDirectory {
                 .await
                 .map_err(|e| Error::new(&format!("Cannot write to directory: {e}")))?;
 
-            Ok(utils::create_op_result(root_dir, JsValue::NULL)?)
+            Ok(utils::create_op_result(
+                PublicDirectory(root_dir),
+                JsValue::NULL,
+            )?)
         }))
     }
 
@@ -192,7 +204,10 @@ impl PublicDirectory {
                 .await
                 .map_err(|e| Error::new(&format!("Cannot create directory: {e}")))?;
 
-            Ok(utils::create_op_result(root_dir, JsValue::NULL)?)
+            Ok(utils::create_op_result(
+                PublicDirectory(root_dir),
+                JsValue::NULL,
+            )?)
         }))
     }
 
@@ -216,7 +231,10 @@ impl PublicDirectory {
                 .await
                 .map_err(|e| Error::new(&format!("Cannot create directory: {e}")))?;
 
-            Ok(utils::create_op_result(root_dir, JsValue::NULL)?)
+            Ok(utils::create_op_result(
+                PublicDirectory(root_dir),
+                JsValue::NULL,
+            )?)
         }))
     }
 
@@ -230,51 +248,5 @@ impl PublicDirectory {
     #[wasm_bindgen(js_name = "getId")]
     pub fn get_id(&self) -> String {
         self.0.get_id()
-    }
-}
-
-//--------------------------------------------------------------------------------------------------
-// Utilities
-//--------------------------------------------------------------------------------------------------
-
-mod utils {
-    use std::rc::Rc;
-
-    use crate::{fs::JsResult, value};
-    use js_sys::{Array, Error, Object, Reflect};
-    use wasm_bindgen::JsValue;
-    use wnfs::public::PublicDirectory as WnfsPublicDirectory;
-
-    use super::PublicDirectory;
-
-    pub(crate) fn map_to_rust_vec<T, F: FnMut(JsValue) -> JsResult<T>>(
-        array: &Array,
-        f: F,
-    ) -> JsResult<Vec<T>> {
-        array
-            .to_vec()
-            .into_iter()
-            .map(f)
-            .collect::<JsResult<Vec<_>>>()
-    }
-
-    pub(crate) fn convert_path_segments(path_segments: &Array) -> JsResult<Vec<String>> {
-        map_to_rust_vec(path_segments, |v| {
-            v.as_string()
-                .ok_or_else(|| Error::new("Invalid path segments: Expected an array of strings"))
-        })
-    }
-
-    pub(crate) fn create_op_result<T: Into<JsValue>>(
-        root_dir: Rc<WnfsPublicDirectory>,
-        result: T,
-    ) -> JsResult<JsValue> {
-        let op_result = Object::new();
-        let root_dir = PublicDirectory(root_dir);
-
-        Reflect::set(&op_result, &value!("rootDir"), &value!(root_dir))?;
-        Reflect::set(&op_result, &value!("result"), &result.into())?;
-
-        Ok(value!(op_result))
     }
 }

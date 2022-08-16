@@ -2,6 +2,7 @@ mod blockstore;
 mod private;
 mod public;
 mod types;
+mod utils;
 
 pub use blockstore::*;
 pub use private::*;

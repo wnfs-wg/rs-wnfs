@@ -5,14 +5,14 @@ use std::rc::Rc;
 //--------------------------------------------------------------------------------------------------
 
 /// Represents the directory nodes along a path.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PathNodes<T> {
     pub path: Vec<(Rc<T>, String)>,
     pub tail: Rc<T>,
 }
 
 /// The kinds of outcome from getting a `PathNodes`.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PathNodesResult<T> {
     /// The complete path exists.
     Complete(PathNodes<T>),

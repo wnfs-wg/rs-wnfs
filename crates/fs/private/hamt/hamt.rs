@@ -25,7 +25,7 @@ pub struct Hamt<K, V> {
     pub structure: Structure,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Structure {
     HAMT,
 }

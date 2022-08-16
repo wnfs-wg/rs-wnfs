@@ -24,26 +24,26 @@ use super::{
 
 pub type INumber = HashOutput;
 
-#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct ContentKey(pub Key);
 
-#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct RatchetKey(pub Key);
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PrivateNodeHeader {
     pub(crate) bare_name: Namefilter,
     pub(crate) ratchet: Ratchet,
     pub(crate) inumber: INumber,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PrivateNode {
     File(Rc<PrivateFile>),
     Dir(Rc<PrivateDirectory>),
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PrivateRef {
     pub(crate) saturated_name_hash: HashOutput, // Sha3-256 hash of saturated namefilter
     pub(crate) content_key: ContentKey,         // A hash of ratchet key.
@@ -117,6 +117,7 @@ impl PrivateNode {
         }
     }
 
+    /// Gets the header of the node.
     pub fn header(&self) -> &PrivateNodeHeader {
         match self {
             Self::File(file) => &file.header,
@@ -124,6 +125,7 @@ impl PrivateNode {
         }
     }
 
+    /// Serializes the node header section.
     pub fn serialize_header<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             PrivateNode::File(file) => file.header.serialize(serializer),
@@ -131,6 +133,7 @@ impl PrivateNode {
         }
     }
 
+    /// Serializes the node content section.
     pub fn serialize_content<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         match self {
             PrivateNode::File(file) => file.content.serialize(serializer),
@@ -138,6 +141,7 @@ impl PrivateNode {
         }
     }
 
+    /// Serializes the node into dag-cbor bytes.
     pub fn serialize_as_cbor(&self) -> Result<(Vec<u8>, Vec<u8>)> {
         let header_ipld = self.serialize_header(ipld_serde::Serializer)?;
         let content_ipld = self.serialize_content(ipld_serde::Serializer)?;
@@ -151,6 +155,7 @@ impl PrivateNode {
         Ok((header_bytes, content_bytes))
     }
 
+    /// Deserializes the node from dag-cbor bytes.
     pub fn deserialize_from_cbor(
         header_bytes: &Option<Vec<u8>>,
         content_bytes: &[u8],
@@ -167,6 +172,7 @@ impl PrivateNode {
         Self::deserialize_content(content_ipld, header)
     }
 
+    /// Deserializes the node content from IPLD form.
     pub fn deserialize_content(content_ipld: Ipld, header: PrivateNodeHeader) -> Result<Self> {
         match content_ipld {
             Ipld::Map(map) => {
@@ -191,6 +197,35 @@ impl PrivateNode {
                 other
             ))),
         }
+    }
+
+    /// Casts a node to a directory.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the node is not a directory.
+    pub fn as_dir(&self) -> Result<Rc<PrivateDirectory>> {
+        Ok(match self {
+            Self::Dir(dir) => Rc::clone(dir),
+            _ => bail!(FsError::NotADirectory),
+        })
+    }
+
+    /// Casts a node to a file.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the node is not a file.
+    pub fn as_file(&self) -> Result<Rc<PrivateFile>> {
+        Ok(match self {
+            Self::File(file) => Rc::clone(file),
+            _ => bail!(FsError::NotAFile),
+        })
+    }
+
+    /// Returns true if underlying node is a directory.
+    pub fn is_dir(&self) -> bool {
+        matches!(self, Self::Dir(_))
     }
 }
 

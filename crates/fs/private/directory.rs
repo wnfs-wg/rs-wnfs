@@ -22,13 +22,13 @@ pub type PrivateOpResult<T> = OpResult<PrivateDirectory, T>;
 pub type PrivatePathNodes = PathNodes<PrivateDirectory>;
 pub type PrivatePathNodesResult = PathNodesResult<PrivateDirectory>;
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PrivateDirectoryContent {
     pub(crate) metadata: Metadata,
     pub(crate) entries: BTreeMap<String, PrivateRef>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PrivateDirectory {
     pub(crate) header: PrivateNodeHeader,
     pub(crate) content: PrivateDirectoryContent,

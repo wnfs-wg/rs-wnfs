@@ -53,7 +53,7 @@ impl<'a, B: BlockStore, R: Rng> HamtStore<'a, B, R> {
         private_ref: &PrivateRef,
         value: &PrivateNode,
     ) -> Result<()> {
-        debug!("\n\nhamt store set: PrivateRef: {:?}", private_ref);
+        debug!("hamt store set: PrivateRef: {:?}", private_ref);
         // Serialize header and content section as dag-cbor bytes.
         let (header_bytes, content_bytes) = value.serialize_as_cbor()?;
 
@@ -75,7 +75,7 @@ impl<'a, B: BlockStore, R: Rng> HamtStore<'a, B, R> {
     /// Gets the value at the given key.
     #[inline]
     pub async fn get(&self, private_ref: &PrivateRef) -> Result<Option<PrivateNode>> {
-        debug!("\n\nhamt store get: PrivateRef: {:?}", private_ref);
+        debug!("hamt store get: PrivateRef: {:?}", private_ref);
 
         // Fetch encrypted header and Cid from root node.
         let (enc_header_bytes, content_cid) =
@@ -90,7 +90,7 @@ impl<'a, B: BlockStore, R: Rng> HamtStore<'a, B, R> {
         // Decrypt header and content section.
         let content_bytes = private_ref.content_key.0.decrypt(&enc_content_bytes)?;
         let header_bytes = match enc_header_bytes {
-            Some(enc_header_bytes) => Some(private_ref.ratchet_key.0.decrypt(&enc_header_bytes)?),
+            Some(enc_header_bytes) => Some(private_ref.ratchet_key.0.decrypt(enc_header_bytes)?),
             _ => None,
         };
 

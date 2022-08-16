@@ -19,7 +19,7 @@ pub(crate) const NONCE_SIZE: usize = 12;
 // Type Definitions
 //--------------------------------------------------------------------------------------------------
 
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Key(pub(super) [u8; 32]);
 
 //--------------------------------------------------------------------------------------------------

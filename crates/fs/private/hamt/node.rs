@@ -413,7 +413,7 @@ where
 #[cfg(test)]
 mod hamt_node_unit_tests {
     use super::*;
-    use crate::{dagcbor, HashOutput, MemoryBlockStore};
+    use crate::{HashOutput, MemoryBlockStore};
     use lazy_static::lazy_static;
     use test_log::test;
 
@@ -745,7 +745,7 @@ mod hamt_node_prop_tests {
     ) {
         async_std::task::block_on(async move {
             let store = &mut MemoryBlockStore::default();
-            let mut node = node_from_operations(operations, store).await.unwrap();
+            let node = node_from_operations(operations, store).await.unwrap();
 
             node.remove(&key, store).await.unwrap();
             let cid1 = store.put_async_serializable(&node).await.unwrap();

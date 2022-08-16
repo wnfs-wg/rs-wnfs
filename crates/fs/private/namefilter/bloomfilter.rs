@@ -1,5 +1,6 @@
 use std::ops::Index;
 
+use anyhow::anyhow;
 use bitvec::prelude::BitArray;
 use serde::{Deserialize, Serialize};
 use xxhash_rust::xxh3;
@@ -109,6 +110,19 @@ impl<const N: usize, const K: usize> BloomFilter<N, K> {
     }
 }
 
+impl<const N: usize, const K: usize> TryFrom<Vec<u8>> for BloomFilter<N, K> {
+    type Error = anyhow::Error;
+
+    fn try_from(bytes: Vec<u8>) -> Result<Self, Self::Error> {
+        let bits = BitArray::<[u8; N]>::new(
+            bytes
+                .try_into()
+                .map_err(|_| anyhow!("Cannot convert vec to fixed-size array"))?,
+        );
+        Ok(Self { bits })
+    }
+}
+
 impl<const N: usize, const K: usize> Index<usize> for BloomFilter<N, K> {
     type Output = bool;
 
@@ -129,7 +143,7 @@ impl<const N: usize, const K: usize> Serialize for BloomFilter<N, K> {
     where
         S: serde::Serializer,
     {
-        serializer.serialize_bytes(&self.bits.as_raw_slice())
+        serializer.serialize_bytes(self.bits.as_raw_slice())
     }
 }
 
