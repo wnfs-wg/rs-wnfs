@@ -630,12 +630,44 @@ mod hamt_node_unit_tests {
 
         assert_eq!(node0.count_values().unwrap(), 1);
     }
+
+    #[test(async_std::test)]
+    async fn node_history_independence_regression() {
+        let store = &mut MemoryBlockStore::default();
+
+        let mut node1: Rc<Node<String, u64>> = Rc::new(Node::default());
+        let mut node2: Rc<Node<String, u64>> = Rc::new(Node::default());
+
+        node1 = node1.set("key 17".into(), 508, store).await.unwrap();
+        node1 = node1.set("key 81".into(), 971, store).await.unwrap();
+        node1 = node1.set("key 997".into(), 365, store).await.unwrap();
+        (node1, _) = node1.remove(&"key 17".into(), store).await.unwrap();
+        node1 = node1.set("key 68".into(), 870, store).await.unwrap();
+        node1 = node1.set("key 304".into(), 331, store).await.unwrap();
+
+        node2 = node2.set("key 81".into(), 971, store).await.unwrap();
+        node2 = node2.set("key 17".into(), 508, store).await.unwrap();
+        node2 = node2.set("key 997".into(), 365, store).await.unwrap();
+        node2 = node2.set("key 304".into(), 331, store).await.unwrap();
+        node2 = node2.set("key 68".into(), 870, store).await.unwrap();
+        (node2, _) = node2.remove(&"key 17".into(), store).await.unwrap();
+
+        let cid1 = store.put_async_serializable(&node1).await.unwrap();
+        let cid2 = store.put_async_serializable(&node2).await.unwrap();
+
+        assert_eq!(cid1, cid2);
+    }
 }
 
 #[cfg(test)]
 mod hamt_node_prop_tests {
+
+    use std::collections::HashMap;
+    use std::hash::Hash;
+
     use proptest::collection::*;
     use proptest::prelude::*;
+    use proptest::strategy::Shuffleable;
     use test_strategy::proptest;
 
     use crate::dagcbor;
@@ -643,35 +675,138 @@ mod hamt_node_prop_tests {
 
     use super::*;
 
-    #[proptest]
-    fn test_inserts_forwards_backwards(
-        #[strategy(vec(any::<String>(), 0..100))] inserts: Vec<String>,
-    ) {
-        async_std::task::block_on(async move {
-            let store = &mut MemoryBlockStore::default();
-            let mut node: Rc<Node<String, u64>> = Rc::new(Node::default());
-
-            for insert in inserts.iter() {
-                node = node.set(insert.clone(), 0, store).await.unwrap();
-            }
-
-            let mut node_rev: Rc<Node<String, u64>> = Rc::new(Node::default());
-
-            for insert in inserts.iter().rev() {
-                node_rev = node_rev.set(insert.clone(), 0, store).await.unwrap();
-            }
-
-            let cid = store.put_async_serializable(&node).await.unwrap();
-            let cid_rev = store.put_async_serializable(&node_rev).await.unwrap();
-
-            assert_eq!(cid, cid_rev);
-        })
-    }
-
-    #[derive(Debug)]
+    #[derive(Debug, Clone)]
     enum Operation<K, V> {
         Insert(K, V),
         Remove(K),
+    }
+
+    impl<K, V> Operation<K, V> {
+        pub fn can_be_swapped_with(&self, other: &Operation<K, V>) -> bool
+        where
+            K: PartialEq,
+            V: PartialEq,
+        {
+            match (self, other) {
+                (Operation::Insert(key_a, val_a), Operation::Insert(key_b, val_b)) => {
+                    // We can't swap if the keys are the same and values different.
+                    // Because in those cases operation order matters.
+                    // E.g. insert "a" 10, insert "a" 11 != insert "a" 11, insert "a" 10
+                    // But insert "a" 10, insert "b" 11 == insert "b" 11, insert "a" 10
+                    // Or insert "a" 10, insert "a" 10 == insert "a" 10, insert "a" 10 ('swapped')
+                    key_a != key_b || val_a == val_b
+                }
+                (Operation::Insert(key_i, _), Operation::Remove(key_r)) => {
+                    // We can only swap if these two operations are unrelated.
+                    // Otherwise order matters.
+                    // E.g. insert "a" 10, remove "a" != remove "a", insert "a" 10
+                    key_i != key_r
+                }
+                (Operation::Remove(key_r), Operation::Insert(key_i, _)) => {
+                    // same as above
+                    key_i != key_r
+                }
+                (Operation::Remove(_), Operation::Remove(_)) => {
+                    // Removes can always be swapped
+                    true
+                }
+            }
+        }
+    }
+
+    #[derive(Debug, Clone)]
+    struct Operations<K, V>(Vec<Operation<K, V>>);
+
+    impl<K: PartialEq, V: PartialEq> Shuffleable for Operations<K, V> {
+        fn shuffle_len(&self) -> usize {
+            self.0.len()
+        }
+
+        /// Swaps the values if that wouldn't change the semantics.
+        /// Otherwise it's a no-op.
+        fn shuffle_swap(&mut self, a: usize, b: usize) {
+            use std::cmp;
+            if a == b {
+                return;
+            }
+            let min = cmp::min(a, b);
+            let max = cmp::max(a, b);
+            let left = &self.0[min];
+            let right = &self.0[max];
+
+            for i in min..=max {
+                let neighbor = &self.0[i];
+                if !left.can_be_swapped_with(neighbor) {
+                    return;
+                }
+                if !right.can_be_swapped_with(neighbor) {
+                    return;
+                }
+            }
+
+            // The reasoning for why this works now, is following:
+            // Let's look at an example. We checked that we can do all of these swaps:
+            // a x y z b
+            // x a y z b
+            // x y a z b
+            // x y z a b
+            // x y z b a
+            // x y b z a
+            // x b y z a
+            // b x y z a
+            // Observe how a moves to the right
+            // and b moves to the left.
+            // The end result is the same as
+            // just swapping a and b.
+            // With all calls to `can_be_swapped_with` above
+            // we've made sure that this operation is now safe.
+
+            self.0.swap(a, b);
+        }
+    }
+
+    async fn node_from_operations<K, V, B: BlockStore>(
+        operations: Operations<K, V>,
+        store: &mut B,
+    ) -> Result<Rc<Node<K, V>>>
+    where
+        K: DeserializeOwned + Serialize + Clone + Debug + AsRef<[u8]>,
+        V: DeserializeOwned + Serialize + Clone + Debug,
+    {
+        let mut node: Rc<Node<K, V>> = Rc::new(Node::default());
+        for op in operations.0 {
+            match op {
+                Operation::Insert(key, value) => {
+                    node = node.set(key.clone(), value, store).await?;
+                }
+                Operation::Remove(key) => {
+                    (node, _) = node.remove(&key, store).await?;
+                }
+            };
+        }
+
+        Ok(node)
+    }
+
+    fn hash_map_from_operations<K: Debug + Clone + Hash + Eq, V: Debug + Clone + Eq>(
+        operations: Operations<K, V>,
+    ) -> HashMap<K, V> {
+        let mut map = HashMap::default();
+        for op in operations.0 {
+            match op {
+                Operation::Insert(key, value) => {
+                    map.insert(key, value);
+                }
+                Operation::Remove(key) => {
+                    map.remove(&key);
+                }
+            }
+        }
+        map
+    }
+
+    fn small_key() -> impl Strategy<Value = String> {
+        (0..1000).prop_map(|i| format!("key {i}"))
     }
 
     fn operation<K: Debug, V: Debug>(
@@ -687,44 +822,35 @@ mod hamt_node_prop_tests {
         })
     }
 
-    async fn node_from_operations<K, V, B: BlockStore>(
-        operations: Vec<Operation<K, V>>,
-        store: &mut B,
-    ) -> Result<Rc<Node<K, V>>>
-    where
-        K: DeserializeOwned + Serialize + Clone + Debug + AsRef<[u8]>,
-        V: DeserializeOwned + Serialize + Clone + Debug,
-    {
-        let mut node: Rc<Node<K, V>> = Rc::new(Node::default());
-        for op in operations {
-            match op {
-                Operation::Insert(key, value) => {
-                    node = node.set(key.clone(), value, store).await?;
-                }
-                Operation::Remove(key) => {
-                    (node, _) = node.remove(&key, store).await?;
-                }
-            };
-        }
-
-        Ok(node)
+    fn operations<K: Debug, V: Debug>(
+        key: impl Strategy<Value = K>,
+        value: impl Strategy<Value = V>,
+        size: impl Into<SizeRange>,
+    ) -> impl Strategy<Value = Operations<K, V>> {
+        vec(operation(key, value), size).prop_map(|vec| Operations(vec))
     }
 
-    fn small_key() -> impl Strategy<Value = String> {
-        (0..1000).prop_map(|i| format!("key {i}"))
+    fn operations_and_shuffled<K: PartialEq + Clone + Debug, V: PartialEq + Clone + Debug>(
+        key: impl Strategy<Value = K>,
+        value: impl Strategy<Value = V>,
+        size: impl Into<SizeRange>,
+    ) -> impl Strategy<Value = (Operations<K, V>, Operations<K, V>)> {
+        operations(key, value, size)
+            .prop_flat_map(|operations| (Just(operations.clone()), Just(operations).prop_shuffle()))
     }
 
     #[proptest(cases = 50)]
     fn test_insert_idempotence(
-        #[strategy(vec(operation(small_key(), 0u64..1000), 0..100))] operations: Vec<
-            Operation<String, u64>,
+        #[strategy(operations(small_key(), 0u64..1000, 0..100))] operations: Operations<
+            String,
+            u64,
         >,
-        #[strategy((small_key(), 0..1000u64))] pair: (String, u64),
+        #[strategy(small_key())] key: String,
+        #[strategy(0..1000u64)] value: u64,
     ) {
         async_std::task::block_on(async move {
             let store = &mut MemoryBlockStore::default();
             let node = node_from_operations(operations, store).await.unwrap();
-            let (key, value) = pair;
 
             node.set(key.clone(), value, store).await.unwrap();
             let cid1 = store.put_async_serializable(&node).await.unwrap();
@@ -738,8 +864,9 @@ mod hamt_node_prop_tests {
 
     #[proptest(cases = 50)]
     fn test_remove_idempotence(
-        #[strategy(vec(operation(small_key(), 0u64..1000), 0..100))] operations: Vec<
-            Operation<String, u64>,
+        #[strategy(operations(small_key(), 0u64..1000, 0..100))] operations: Operations<
+            String,
+            u64,
         >,
         #[strategy(small_key())] key: String,
     ) {
@@ -759,8 +886,9 @@ mod hamt_node_prop_tests {
 
     #[proptest(cases = 100)]
     fn node_can_encode_decode_as_cbor(
-        #[strategy(vec(operation(small_key(), 0u64..1000), 0..1000))] operations: Vec<
-            Operation<String, u64>,
+        #[strategy(operations(small_key(), 0u64..1000, 0..1000))] operations: Operations<
+            String,
+            u64,
         >,
     ) {
         async_std::task::block_on(async move {
@@ -774,8 +902,44 @@ mod hamt_node_prop_tests {
         })
     }
 
-    // gen operations
-    // operations -> HAMT
-    // operations -> HashMap -> HAMT
-    // check HAMTs' CID eq
+    #[proptest(cases = 1000, max_shrink_iters = 10_000)]
+    fn node_operations_are_history_independent(
+        #[strategy(operations_and_shuffled(small_key(), 0u64..1000, 0..100))] pair: (
+            Operations<String, u64>,
+            Operations<String, u64>,
+        ),
+    ) {
+        async_std::task::block_on(async move {
+            let (original, shuffled) = pair;
+
+            let store = &mut MemoryBlockStore::default();
+
+            let node1 = node_from_operations(original, store).await.unwrap();
+            let node2 = node_from_operations(shuffled, store).await.unwrap();
+
+            println!("{:#?}", node1);
+            println!("{:#?}", node2);
+
+            let cid1 = store.put_async_serializable(&node1).await.unwrap();
+            let cid2 = store.put_async_serializable(&node2).await.unwrap();
+
+            assert_eq!(cid1, cid2);
+        })
+    }
+
+    // This is sort of a "control group" for making sure that operations_and_shuffled is correct.
+    #[proptest(cases = 200, max_shrink_iters = 10_000)]
+    fn hash_map_is_history_independent(
+        #[strategy(operations_and_shuffled(small_key(), 0u64..1000, 0..1000))] pair: (
+            Operations<String, u64>,
+            Operations<String, u64>,
+        ),
+    ) {
+        let (original, shuffled) = pair;
+
+        let map1 = hash_map_from_operations(original);
+        let map2 = hash_map_from_operations(shuffled);
+
+        assert_eq!(map1, map2);
+    }
 }
