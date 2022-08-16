@@ -917,9 +917,6 @@ mod hamt_node_prop_tests {
             let node1 = node_from_operations(original, store).await.unwrap();
             let node2 = node_from_operations(shuffled, store).await.unwrap();
 
-            println!("{:#?}", node1);
-            println!("{:#?}", node2);
-
             let cid1 = store.put_async_serializable(&node1).await.unwrap();
             let cid2 = store.put_async_serializable(&node2).await.unwrap();
 
