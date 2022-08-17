@@ -72,6 +72,11 @@ impl<K, V, H: Hasher> Pointer<K, V, H> {
                             .flatten()
                             .collect::<Vec<_>>();
 
+                        // Bail if it's more values that we can fit into a bucket
+                        if values.len() > HAMT_VALUES_BUCKET_SIZE {
+                            return Ok(Some(Pointer::Link(Link::from(node))));
+                        }
+
                         values.sort_unstable_by(|a, b| {
                             H::hash(&a.key).partial_cmp(&H::hash(&b.key)).unwrap()
                         });
