@@ -442,7 +442,6 @@ mod hamt_node_unit_tests {
                 .find(|(_, v)| s == *v)
                 .unwrap()
                 .0
-                .clone()
         }
     }
 
@@ -453,7 +452,7 @@ mod hamt_node_unit_tests {
         // Insert 4 values to trigger the creation of a linked node.
         let mut working_node = Rc::new(Node::<String, String, MockHasher>::default());
         for (digest, kv) in HASH_KV_PAIRS.iter() {
-            let hashnibbles = &mut HashNibbles::new(&digest);
+            let hashnibbles = &mut HashNibbles::new(digest);
             working_node = working_node
                 .set_value(hashnibbles, kv.to_string(), kv.to_string(), store)
                 .await
@@ -462,7 +461,7 @@ mod hamt_node_unit_tests {
 
         // Get the values.
         for (digest, kv) in HASH_KV_PAIRS.iter() {
-            let hashnibbles = &mut HashNibbles::new(&digest);
+            let hashnibbles = &mut HashNibbles::new(digest);
             let value = working_node.get_value(hashnibbles, store).await.unwrap();
 
             assert_eq!(value, Some(&Pair::new(kv.to_string(), kv.to_string())));
@@ -476,7 +475,7 @@ mod hamt_node_unit_tests {
         // Insert 4 values to trigger the creation of a linked node.
         let mut working_node = Rc::new(Node::<String, String, MockHasher>::default());
         for (digest, kv) in HASH_KV_PAIRS.iter() {
-            let hashnibbles = &mut HashNibbles::new(&digest);
+            let hashnibbles = &mut HashNibbles::new(digest);
             working_node = working_node
                 .set_value(hashnibbles, kv.to_string(), kv.to_string(), store)
                 .await
@@ -517,7 +516,7 @@ mod hamt_node_unit_tests {
         let mut working_node = Rc::new(Node::<String, String, MockHasher>::default());
         for (idx, (digest, kv)) in HASH_KV_PAIRS.iter().take(3).enumerate() {
             let kv = kv.to_string();
-            let hashnibbles = &mut HashNibbles::new(&digest);
+            let hashnibbles = &mut HashNibbles::new(digest);
             working_node = working_node
                 .set_value(hashnibbles, kv.clone(), kv.clone(), store)
                 .await
@@ -611,7 +610,7 @@ mod hamt_node_unit_tests {
             .await
             .unwrap();
 
-        let value = node.get(&"pill".into(), &mut store).await.unwrap().unwrap();
+        let value = node.get(&"pill".into(), &store).await.unwrap().unwrap();
 
         assert_eq!(value, &(10, 0.315));
     }

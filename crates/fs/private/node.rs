@@ -256,16 +256,17 @@ impl From<PrivateDirectory> for PrivateNode {
 
 #[cfg(test)]
 mod private_node_tests {
-    use crate::{private::Rng, utils::Rand};
+    use crate::{private::Rng, utils::TestRng};
 
     use super::*;
 
     #[test]
     fn serialized_private_node_can_be_deserialized() {
+        let rng = &TestRng();
         let original_file = PrivateNode::File(Rc::new(PrivateFile::new(
             Namefilter::default(),
-            Rand::random_bytes::<32>(),
-            Rand::random_bytes::<32>(),
+            rng.random_bytes::<32>(),
+            rng.random_bytes::<32>(),
             Utc::now(),
             b"Lorem ipsum dolor sit amet".to_vec(),
         )));

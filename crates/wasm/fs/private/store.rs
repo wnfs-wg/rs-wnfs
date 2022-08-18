@@ -1,5 +1,5 @@
 use wasm_bindgen::prelude::wasm_bindgen;
-use wnfs::private::HamtStore as WnfsHamtStore;
+use wnfs::private::PrivateForest as WnfsPrivateForest;
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
@@ -7,8 +7,7 @@ use wnfs::private::HamtStore as WnfsHamtStore;
 
 /// A directory in a WNFS public file system.
 #[wasm_bindgen]
-pub struct HamtStore();
-// HamtStore(HamtStore);
+pub struct PrivateForest(WnfsPrivateForest);
 
 //--------------------------------------------------------------------------------------------------
 // Implementations

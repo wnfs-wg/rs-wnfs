@@ -210,7 +210,7 @@ mod bloomfilter_tests {
             bloom.add(item);
         });
 
-        let ipld = ipld_serde::to_ipld(&bloom.clone()).unwrap();
+        let ipld = ipld_serde::to_ipld(&bloom).unwrap();
         let deserialized: BloomFilter<256, 30> = ipld_serde::from_ipld(ipld).unwrap();
 
         assert_eq!(deserialized, bloom);
