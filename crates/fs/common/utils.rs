@@ -11,7 +11,7 @@ use crate::{error, FsError};
 pub(crate) struct ByteArrayVisitor<const N: usize>;
 
 #[cfg(test)]
-pub(crate) struct Rand;
+pub(crate) struct TestRng();
 
 //--------------------------------------------------------------------------------------------------
 // Implementations
@@ -34,8 +34,8 @@ impl<'de, const N: usize> Visitor<'de> for ByteArrayVisitor<N> {
 }
 
 #[cfg(test)]
-impl crate::private::Rng for Rand {
-    fn random_bytes<const N: usize>() -> [u8; N] {
+impl crate::private::Rng for TestRng {
+    fn random_bytes<const N: usize>(&self) -> [u8; N] {
         use rand::RngCore;
         let mut bytes = [0u8; N];
         rand::thread_rng().fill_bytes(&mut bytes);

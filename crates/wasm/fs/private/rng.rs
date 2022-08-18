@@ -7,19 +7,19 @@ use wnfs::private::Rng as WnfsRng;
 
 #[wasm_bindgen]
 extern "C" {
-    #[wasm_bindgen(typescript_type = "ExternRng")]
-    pub type ExternRng;
+    #[wasm_bindgen(typescript_type = "Rng")]
+    pub type Rng;
 
-    #[wasm_bindgen(static_method_of = ExternRng, js_name = "randomBytes")]
-    pub fn extern_random_bytes(count: usize) -> Vec<u8>;
+    #[wasm_bindgen(method, js_name = "randomBytes")]
+    pub fn random_bytes(this: &Rng, count: usize) -> Vec<u8>;
 }
 
 //--------------------------------------------------------------------------------------------------
 // Implementations
 //--------------------------------------------------------------------------------------------------
 
-impl WnfsRng for ExternRng {
-    fn random_bytes<const N: usize>() -> [u8; N] {
-        ExternRng::extern_random_bytes(N).try_into().unwrap()
+impl WnfsRng for Rng {
+    fn random_bytes<const N: usize>(&self) -> [u8; N] {
+        self.random_bytes(N).try_into().unwrap()
     }
 }

@@ -18,7 +18,7 @@ use wnfs::{
 use crate::{
     fs::{
         utils::{self, error},
-        BlockStore, ExternRng, ForeignBlockStore, JsResult, PrivateNode,
+        BlockStore, ForeignBlockStore, JsResult, PrivateNode, Rng,
     },
     value,
 };
@@ -72,7 +72,7 @@ impl PrivateDirectory {
         let path_segments = utils::convert_path_segments(path_segments)?;
 
         Ok(future_to_promise(async move {
-            let hamt = HamtStore::<_, ExternRng>::new(&mut store);
+            let hamt = HamtStore::new(&mut store);
             let WnfsPrivateOpResult { root_dir, result } = directory
                 .get_node(&path_segments, &hamt)
                 .await
@@ -93,7 +93,7 @@ impl PrivateDirectory {
         let path_segment = path_segment.to_string();
 
         Ok(future_to_promise(async move {
-            let hamt = HamtStore::<_, ExternRng>::new(&mut store);
+            let hamt = HamtStore::new(&mut store);
             let found_node = directory
                 .lookup_node(&path_segment, &hamt)
                 .await
@@ -110,7 +110,7 @@ impl PrivateDirectory {
         let path_segments = utils::convert_path_segments(path_segments)?;
 
         Ok(future_to_promise(async move {
-            let hamt = HamtStore::<_, ExternRng>::new(&mut store);
+            let hamt = HamtStore::new(&mut store);
             let WnfsPrivateOpResult { root_dir, result } = directory
                 .read(&path_segments, &hamt)
                 .await
@@ -124,18 +124,18 @@ impl PrivateDirectory {
     }
 
     /// Removes a file or directory from the directory.
-    pub fn rm(&self, path_segments: &Array, store: BlockStore) -> JsResult<Promise> {
+    pub fn rm(&self, path_segments: &Array, store: BlockStore, rng: Rng) -> JsResult<Promise> {
         let directory = Rc::clone(&self.0);
         let mut store = ForeignBlockStore(store);
         let path_segments = utils::convert_path_segments(path_segments)?;
 
         Ok(future_to_promise(async move {
-            let mut hamt = HamtStore::<_, ExternRng>::new(&mut store);
+            let mut hamt = HamtStore::new(&mut store);
             let WnfsPrivateOpResult {
                 root_dir,
                 result: node,
             } = directory
-                .rm(&path_segments, &mut hamt)
+                .rm(&path_segments, &mut hamt, &rng)
                 .await
                 .map_err(error("Cannot remove from directory"))?;
 
@@ -153,6 +153,7 @@ impl PrivateDirectory {
         content: Vec<u8>,
         time: &Date,
         store: BlockStore,
+        rng: Rng,
     ) -> JsResult<Promise> {
         let directory = Rc::clone(&self.0);
         let mut store = ForeignBlockStore(store);
@@ -160,9 +161,9 @@ impl PrivateDirectory {
         let path_segments = utils::convert_path_segments(path_segments)?;
 
         Ok(future_to_promise(async move {
-            let mut hamt = HamtStore::<_, ExternRng>::new(&mut store);
+            let mut hamt = HamtStore::new(&mut store);
             let WnfsPrivateOpResult { root_dir, .. } = directory
-                .write(&path_segments, time, content, &mut hamt)
+                .write(&path_segments, time, content, &mut hamt, &rng)
                 .await
                 .map_err(error("Cannot write to directory"))?;
 
@@ -181,6 +182,7 @@ impl PrivateDirectory {
         path_segments: &Array,
         time: &Date,
         store: BlockStore,
+        rng: Rng,
     ) -> JsResult<Promise> {
         let directory = self.0.clone();
         let mut store = ForeignBlockStore(store);
@@ -188,9 +190,9 @@ impl PrivateDirectory {
         let path_segments = utils::convert_path_segments(path_segments)?;
 
         Ok(future_to_promise(async move {
-            let mut hamt = HamtStore::<_, ExternRng>::new(&mut store);
+            let mut hamt = HamtStore::new(&mut store);
             let WnfsPrivateOpResult { root_dir, .. } = directory
-                .mkdir(&path_segments, time, &mut hamt)
+                .mkdir(&path_segments, time, &mut hamt, &rng)
                 .await
                 .map_err(error("Cannot create directory: {e}"))?;
 

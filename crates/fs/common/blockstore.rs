@@ -40,7 +40,7 @@ pub trait BlockStore {
         self.put_block(bytes, IpldCodec::DagCbor).await
     }
 
-    async fn put_private_serializable<V, R>(&mut self, value: &V, key: &Key) -> Result<Cid>
+    async fn put_private_serializable<V, R>(&mut self, value: &V, key: &Key, rng: &R) -> Result<Cid>
     where
         V: Serialize,
         R: Rng,
@@ -48,7 +48,7 @@ pub trait BlockStore {
         let ipld = ipld_serde::to_ipld(value)?;
         let mut bytes = Vec::new();
         ipld.encode(DagCborCodec, &mut bytes)?;
-        let enc_bytes = key.encrypt(&R::random_bytes::<NONCE_SIZE>(), &bytes)?;
+        let enc_bytes = key.encrypt(&rng.random_bytes::<NONCE_SIZE>(), &bytes)?;
         self.put_block(enc_bytes, IpldCodec::DagCbor).await
     }
 

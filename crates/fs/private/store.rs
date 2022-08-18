@@ -1,5 +1,3 @@
-use std::marker::PhantomData;
-
 use anyhow::Result;
 use libipld::Cid;
 use log::debug;
@@ -16,50 +14,53 @@ pub type EncryptedPrivateNode = (Option<Vec<u8>>, Cid); // TODO(appcypher): Chan
 pub type PrivateRoot = Hamt<Namefilter, EncryptedPrivateNode>;
 
 #[derive(Debug)]
-pub struct HamtStore<'a, B: BlockStore, R: Rng> {
+pub struct HamtStore<'a, B: BlockStore> {
     pub root: PrivateRoot,
     pub store: &'a mut B,
-    pub rng: PhantomData<R>,
 }
 
 pub trait Rng {
-    fn random_bytes<const N: usize>() -> [u8; N];
+    fn random_bytes<const N: usize>(&self) -> [u8; N];
 }
 
 //--------------------------------------------------------------------------------------------------
 // Implementations
 //--------------------------------------------------------------------------------------------------
 
-impl<'a, B: BlockStore, R: Rng> HamtStore<'a, B, R> {
+impl<'a, B: BlockStore> HamtStore<'a, B> {
     /// Creates a new HamtStore.
     pub fn new(store: &'a mut B) -> Self {
         Self {
             root: Hamt::default(),
-            rng: PhantomData,
             store,
         }
     }
 
     /// Encrypts supplied bytes with a random nonce and AES key.
-    pub(crate) fn encrypt(key: &Key, data: &[u8]) -> Result<Vec<u8>> {
-        key.encrypt(&R::random_bytes::<NONCE_SIZE>(), data)
+    pub(crate) fn encrypt<R: Rng>(key: &Key, data: &[u8], rng: &R) -> Result<Vec<u8>> {
+        key.encrypt(&rng.random_bytes::<NONCE_SIZE>(), data)
     }
 
     /// Sets a new value at the given key.
     #[inline]
-    pub async fn set(
+    pub async fn set<R: Rng>(
         &mut self,
         saturated_name: Namefilter,
         private_ref: &PrivateRef,
         value: &PrivateNode,
+        rng: &R,
     ) -> Result<()> {
         debug!("hamt store set: PrivateRef: {:?}", private_ref);
         // Serialize header and content section as dag-cbor bytes.
         let (header_bytes, content_bytes) = value.serialize_as_cbor()?;
 
         // Encrypt header and content section.
-        let enc_content_bytes = Self::encrypt(&private_ref.content_key.0, &content_bytes)?;
-        let enc_header_bytes = Some(Self::encrypt(&private_ref.ratchet_key.0, &header_bytes)?);
+        let enc_content_bytes = Self::encrypt(&private_ref.content_key.0, &content_bytes, rng)?;
+        let enc_header_bytes = Some(Self::encrypt(
+            &private_ref.ratchet_key.0,
+            &header_bytes,
+            rng,
+        )?);
 
         // Store content section in blockstore and get Cid.
         let content_cid = self

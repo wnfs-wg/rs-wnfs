@@ -1,11 +1,11 @@
 //! The bindgen API for PublicFile.
 
 use chrono::{DateTime, Utc};
-use js_sys::{Error, Uint8Array};
+use js_sys::Uint8Array;
 use wasm_bindgen::prelude::wasm_bindgen;
 use wnfs::{ipld::Cid, public::PublicFile as WnfsPublicFile, Id};
 
-use crate::fs::JsResult;
+use crate::fs::{utils::error, JsResult};
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
@@ -25,9 +25,7 @@ impl PublicFile {
     #[wasm_bindgen(constructor)]
     pub fn new(time: &js_sys::Date, cid: Uint8Array) -> JsResult<PublicFile> {
         let time = DateTime::<Utc>::from(time);
-
-        let cid = Cid::try_from(&cid.to_vec()[..])
-            .map_err(|e| Error::new(&format!("Invalid CID: {e}")))?;
+        let cid = Cid::try_from(&cid.to_vec()[..]).map_err(error("Invalid CID"))?;
 
         Ok(PublicFile(WnfsPublicFile::new(time, cid)))
     }

@@ -54,11 +54,11 @@ impl Key {
 
     /// Generates a nonce that can be used to encrypt data.
     #[inline]
-    pub fn generate_nonce<R>() -> [u8; NONCE_SIZE]
+    pub fn generate_nonce<R>(rng: &R) -> [u8; NONCE_SIZE]
     where
         R: Rng,
     {
-        R::random_bytes::<NONCE_SIZE>()
+        rng.random_bytes::<NONCE_SIZE>()
     }
 
     /// Grabs the bytes of the key.
@@ -84,7 +84,7 @@ impl Debug for Key {
 
 #[cfg(test)]
 mod key_prop_tests {
-    use crate::utils::Rand;
+    use crate::utils::TestRng;
 
     use super::*;
     use proptest::collection::vec;
@@ -98,7 +98,9 @@ mod key_prop_tests {
     ) {
         let key = Key::new(key_bytes);
 
-        let encrypted = key.encrypt(&Key::generate_nonce::<Rand>(), &data).unwrap();
+        let encrypted = key
+            .encrypt(&Key::generate_nonce(&TestRng()), &data)
+            .unwrap();
         let decrypted = key.decrypt(&encrypted).unwrap();
 
         assert_eq!(decrypted, data);

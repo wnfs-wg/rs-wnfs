@@ -3,7 +3,7 @@
 use std::rc::Rc;
 
 use chrono::{DateTime, Utc};
-use js_sys::{Array, Date, Error, Promise, Uint8Array};
+use js_sys::{Array, Date, Promise, Uint8Array};
 use wasm_bindgen::{prelude::wasm_bindgen, JsValue};
 use wasm_bindgen_futures::future_to_promise;
 use wnfs::{
@@ -15,7 +15,10 @@ use wnfs::{
     Id,
 };
 
-use crate::fs::{utils, BlockStore, ForeignBlockStore, JsResult, PublicNode};
+use crate::fs::{
+    utils::{self, error},
+    BlockStore, ForeignBlockStore, JsResult, PublicNode,
+};
 use crate::value;
 
 //--------------------------------------------------------------------------------------------------
@@ -50,7 +53,7 @@ impl PublicDirectory {
             let WnfsOpResult { root_dir, result } = directory
                 .get_node(&path_segments, &store)
                 .await
-                .map_err(|e| Error::new(&format!("Cannot get node: {e}")))?;
+                .map_err(error("Cannot get node"))?;
 
             Ok(utils::create_op_result(
                 PublicDirectory(root_dir),
@@ -70,7 +73,7 @@ impl PublicDirectory {
             let found_node = directory
                 .lookup_node(&path_segment, &store)
                 .await
-                .map_err(|e| Error::new(&format!("Cannot lookup node: {e}")))?;
+                .map_err(error("Cannot lookup node"))?;
 
             Ok(value!(found_node.map(PublicNode)))
         }))
@@ -85,7 +88,7 @@ impl PublicDirectory {
             let cid = directory
                 .store(&mut store)
                 .await
-                .map_err(|e| Error::new(&format!("Cannot add to store: {e}")))?;
+                .map_err(error("Cannot add to store"))?;
 
             let cid_u8array = Uint8Array::from(&cid.to_bytes()[..]);
 
@@ -103,7 +106,7 @@ impl PublicDirectory {
             let WnfsOpResult { root_dir, result } = directory
                 .read(&path_segments, &mut store)
                 .await
-                .map_err(|e| Error::new(&format!("Cannot read from directory: {e}")))?;
+                .map_err(error("Cannot read from directory"))?;
 
             Ok(utils::create_op_result(
                 PublicDirectory(root_dir),
@@ -122,7 +125,7 @@ impl PublicDirectory {
             let WnfsOpResult { root_dir, result } = directory
                 .ls(&path_segments, &store)
                 .await
-                .map_err(|e| Error::new(&format!("Cannot list directory children: {e}")))?;
+                .map_err(error("Cannot list directory children"))?;
 
             let result = result
                 .iter()
@@ -146,7 +149,7 @@ impl PublicDirectory {
             } = directory
                 .rm(&path_segments, &store)
                 .await
-                .map_err(|e| Error::new(&format!("Cannot remove from directory: {e}")))?;
+                .map_err(error("Cannot remove from directory"))?;
 
             Ok(utils::create_op_result(
                 PublicDirectory(root_dir),
@@ -166,8 +169,7 @@ impl PublicDirectory {
         let directory = Rc::clone(&self.0);
         let store = ForeignBlockStore(store);
 
-        let cid =
-            Cid::try_from(content_cid).map_err(|e| Error::new(&format!("Invalid CID: {e}")))?;
+        let cid = Cid::try_from(content_cid).map_err(error("Invalid CID"))?;
         let time = DateTime::<Utc>::from(time);
         let path_segments = utils::convert_path_segments(path_segments)?;
 
@@ -175,7 +177,7 @@ impl PublicDirectory {
             let WnfsOpResult { root_dir, .. } = directory
                 .write(&path_segments, cid, time, &store)
                 .await
-                .map_err(|e| Error::new(&format!("Cannot write to directory: {e}")))?;
+                .map_err(error("Cannot write to directory"))?;
 
             Ok(utils::create_op_result(
                 PublicDirectory(root_dir),
@@ -202,7 +204,7 @@ impl PublicDirectory {
             let WnfsOpResult { root_dir, .. } = directory
                 .basic_mv(&path_segments_from, &path_segments_to, time, &store)
                 .await
-                .map_err(|e| Error::new(&format!("Cannot create directory: {e}")))?;
+                .map_err(error("Cannot create directory"))?;
 
             Ok(utils::create_op_result(
                 PublicDirectory(root_dir),
@@ -229,7 +231,7 @@ impl PublicDirectory {
             let WnfsOpResult { root_dir, .. } = directory
                 .mkdir(&path_segments, time, &store)
                 .await
-                .map_err(|e| Error::new(&format!("Cannot create directory: {e}")))?;
+                .map_err(error("Cannot create directory"))?;
 
             Ok(utils::create_op_result(
                 PublicDirectory(root_dir),

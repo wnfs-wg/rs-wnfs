@@ -90,7 +90,12 @@ impl<V> PrivateLink<V> {
     }
 
     /// Gets the cid data stored in type. It attempts to get it from the store if it is not present in type.
-    pub async fn resolve_cid<'a, 'b, B, R>(&'a self, store: &mut B, key: &Key) -> Result<&'a Cid>
+    pub async fn resolve_cid<'a, 'b, B, R>(
+        &'a self,
+        store: &mut B,
+        key: &Key,
+        rng: &R,
+    ) -> Result<&'a Cid>
     where
         B: BlockStore,
         R: Rng,
@@ -104,7 +109,9 @@ impl<V> PrivateLink<V> {
             } => {
                 reference_cache
                     .get_or_try_init(async {
-                        store.put_private_serializable::<_, R>(value, key).await
+                        store
+                            .put_private_serializable::<_, R>(value, key, rng)
+                            .await
                     })
                     .await
             }
