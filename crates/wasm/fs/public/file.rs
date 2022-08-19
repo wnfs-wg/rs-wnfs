@@ -18,11 +18,10 @@ pub struct PublicFile(pub(crate) Rc<WnfsPublicFile>);
 impl PublicFile {
     /// Creates a new file in a WNFS public file system.
     #[wasm_bindgen(constructor)]
-    pub fn new(time: &js_sys::Date, cid: Uint8Array) -> JsResult<PublicFile> {
+    pub fn new(time: &js_sys::Date, cid: Vec<u8>) -> JsResult<PublicFile> {
         let time = DateTime::<Utc>::from(time);
 
-        let cid = Cid::try_from(&cid.to_vec()[..])
-            .map_err(|e| Error::new(&format!("Invalid CID: {e}")))?;
+        let cid = Cid::try_from(&cid[..]).map_err(|e| Error::new(&format!("Invalid CID: {e}")))?;
 
         Ok(PublicFile(Rc::new(WnfsPublicFile::new(time, cid))))
     }
@@ -53,8 +52,7 @@ impl PublicFile {
     /// Loads a file given its CID from the block store.
     pub fn load(cid: Vec<u8>, store: BlockStore) -> JsResult<Promise> {
         let store = ForeignBlockStore(store);
-        let cid = Cid::try_from(cid)
-            .map_err(|e| Error::new(&format!("Cannot parse cid: {e}")))?;
+        let cid = Cid::try_from(cid).map_err(|e| Error::new(&format!("Cannot parse cid: {e}")))?;
         Ok(future_to_promise(async move {
             let file: WnfsPublicFile = store
                 .get_deserializable(&cid)
