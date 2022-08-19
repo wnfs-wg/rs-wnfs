@@ -51,9 +51,9 @@ impl PublicFile {
     }
 
     /// Loads a file given its CID from the block store.
-    pub fn load(cid: Uint8Array, store: BlockStore) -> JsResult<Promise> {
+    pub fn load(cid: Vec<u8>, store: BlockStore) -> JsResult<Promise> {
         let store = ForeignBlockStore(store);
-        let cid = Cid::read_bytes(cid.to_vec().as_slice())
+        let cid = Cid::try_from(cid)
             .map_err(|e| Error::new(&format!("Cannot parse cid: {e}")))?;
         Ok(future_to_promise(async move {
             let file: WnfsPublicFile = store
