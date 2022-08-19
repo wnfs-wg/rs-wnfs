@@ -1,5 +1,6 @@
 mod blockstore;
 mod private;
+mod metadata;
 mod public;
 mod types;
 mod utils;
