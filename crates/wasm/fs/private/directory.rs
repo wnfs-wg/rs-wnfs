@@ -143,6 +143,36 @@ impl PrivateDirectory {
         }))
     }
 
+    /// Returns names and metadata of the direct children of a directory.
+    pub fn ls(
+        &self,
+        path_segments: &Array,
+        hamt: PrivateForest,
+        store: BlockStore,
+    ) -> JsResult<Promise> {
+        let directory = Rc::clone(&self.0);
+        let store = ForeignBlockStore(store);
+        let path_segments = utils::convert_path_segments(path_segments)?;
+
+        Ok(future_to_promise(async move {
+            let WnfsPrivateOpResult {
+                root_dir,
+                hamt,
+                result,
+            } = directory
+                .ls(&path_segments, hamt.0, &store)
+                .await
+                .map_err(error("Cannot list directory children"))?;
+
+            let result = result
+                .iter()
+                .flat_map(|(name, metadata)| utils::create_ls_entry(name, metadata))
+                .collect::<Array>();
+
+            Ok(utils::create_private_op_result(root_dir, hamt, result)?)
+        }))
+    }
+
     /// Removes a file or directory from the directory.
     pub fn rm(
         &self,

@@ -6,9 +6,10 @@ use wasm_bindgen::JsValue;
 use wnfs::{
     private::{PrivateDirectory as WnfsPrivateDirectory, PrivateForest as WnfsPrivateForest},
     public::PublicDirectory as WnfsPublicDirectory,
+    Metadata,
 };
 
-use super::{PrivateDirectory, PrivateForest, PublicDirectory};
+use super::{metadata::JsMetadata, PrivateDirectory, PrivateForest, PublicDirectory};
 
 //--------------------------------------------------------------------------------------------------
 // Functions
@@ -66,9 +67,22 @@ pub(crate) fn create_private_op_result<T: Into<JsValue>>(
     Ok(value!(op_result))
 }
 
-pub fn error<E>(message: &str) -> impl FnOnce(E) -> js_sys::Error + '_
+pub(crate) fn error<E>(message: &str) -> impl FnOnce(E) -> js_sys::Error + '_
 where
     E: Debug,
 {
     move |e| Error::new(&format!("{message}: {e:?}"))
+}
+
+pub(crate) fn create_ls_entry(name: &String, metadata: &Metadata) -> JsResult<JsValue> {
+    let entry = Object::new();
+
+    Reflect::set(&entry, &value!("name"), &value!(name))?;
+    Reflect::set(
+        &entry,
+        &value!("metadata"),
+        &JsMetadata(metadata).try_into()?,
+    )?;
+
+    Ok(value!(entry))
 }

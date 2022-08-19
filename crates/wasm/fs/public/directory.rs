@@ -3,16 +3,16 @@
 use std::rc::Rc;
 
 use chrono::{DateTime, Utc};
-use js_sys::{Array, Date, Object, Promise, Reflect, Uint8Array};
+use js_sys::{Array, Date, Promise, Uint8Array};
 use wasm_bindgen::{prelude::wasm_bindgen, JsValue};
 use wasm_bindgen_futures::future_to_promise;
 use wnfs::{
     ipld::Cid,
     public::{
         PublicDirectory as WnfsPublicDirectory, PublicNode as WnfsPublicNode,
-        PublicOpResult as WnfsOpResult,
+        PublicOpResult as WnfsPublicOpResult,
     },
-    BlockStore as WnfsBlockStore, Id, Metadata,
+    BlockStore as WnfsBlockStore, Id,
 };
 
 use crate::fs::{
@@ -51,7 +51,7 @@ impl PublicDirectory {
         let path_segments = utils::convert_path_segments(path_segments)?;
 
         Ok(future_to_promise(async move {
-            let WnfsOpResult { root_dir, result } = directory
+            let WnfsPublicOpResult { root_dir, result } = directory
                 .get_node(&path_segments, &store)
                 .await
                 .map_err(error("Cannot get node"))?;
@@ -119,7 +119,7 @@ impl PublicDirectory {
         let path_segments = utils::convert_path_segments(path_segments)?;
 
         Ok(future_to_promise(async move {
-            let WnfsOpResult { root_dir, result } = directory
+            let WnfsPublicOpResult { root_dir, result } = directory
                 .read(&path_segments, &mut store)
                 .await
                 .map_err(error("Cannot read from directory"))?;
@@ -130,21 +130,21 @@ impl PublicDirectory {
         }))
     }
 
-    /// Returns the name and metadata of the direct children of a directory.
+    /// Returns names and metadata of the direct children of a directory.
     pub fn ls(&self, path_segments: &Array, store: BlockStore) -> JsResult<Promise> {
         let directory = Rc::clone(&self.0);
         let store = ForeignBlockStore(store);
         let path_segments = utils::convert_path_segments(path_segments)?;
 
         Ok(future_to_promise(async move {
-            let WnfsOpResult { root_dir, result } = directory
+            let WnfsPublicOpResult { root_dir, result } = directory
                 .ls(&path_segments, &store)
                 .await
                 .map_err(error("Cannot list directory children"))?;
 
             let result = result
                 .iter()
-                .flat_map(|(name, metadata)| Self::create_ls_entry(name, metadata))
+                .flat_map(|(name, metadata)| utils::create_ls_entry(name, metadata))
                 .collect::<Array>();
 
             Ok(utils::create_public_op_result(root_dir, result)?)
@@ -158,7 +158,7 @@ impl PublicDirectory {
         let path_segments = utils::convert_path_segments(path_segments)?;
 
         Ok(future_to_promise(async move {
-            let WnfsOpResult {
+            let WnfsPublicOpResult {
                 root_dir,
                 result: node,
             } = directory
@@ -186,7 +186,7 @@ impl PublicDirectory {
         let path_segments = utils::convert_path_segments(path_segments)?;
 
         Ok(future_to_promise(async move {
-            let WnfsOpResult { root_dir, .. } = directory
+            let WnfsPublicOpResult { root_dir, .. } = directory
                 .write(&path_segments, cid, time, &store)
                 .await
                 .map_err(error("Cannot write to directory"))?;
@@ -211,7 +211,7 @@ impl PublicDirectory {
         let path_segments_to = utils::convert_path_segments(path_segments_to)?;
 
         Ok(future_to_promise(async move {
-            let WnfsOpResult { root_dir, .. } = directory
+            let WnfsPublicOpResult { root_dir, .. } = directory
                 .basic_mv(&path_segments_from, &path_segments_to, time, &store)
                 .await
                 .map_err(error("Cannot create directory"))?;
@@ -235,7 +235,7 @@ impl PublicDirectory {
         let path_segments = utils::convert_path_segments(path_segments)?;
 
         Ok(future_to_promise(async move {
-            let WnfsOpResult { root_dir, .. } = directory
+            let WnfsPublicOpResult { root_dir, .. } = directory
                 .mkdir(&path_segments, time, &store)
                 .await
                 .map_err(error("Cannot create directory"))?;
@@ -251,11 +251,10 @@ impl PublicDirectory {
         let mut store = ForeignBlockStore(store);
 
         Ok(future_to_promise(async move {
-            let WnfsOpResult { root_dir, .. } =
-                directory
-                    .base_history_on(base, &mut store)
-                    .await
-                    .map_err(error("Cannot do history rebase (base_history_on)"))?;
+            let WnfsPublicOpResult { root_dir, .. } = directory
+                .base_history_on(base, &mut store)
+                .await
+                .map_err(error("Cannot do history rebase (base_history_on)"))?;
 
             Ok(utils::create_public_op_result(root_dir, JsValue::NULL)?)
         }))
@@ -288,18 +287,5 @@ impl PublicDirectory {
     #[wasm_bindgen(js_name = "getId")]
     pub fn get_id(&self) -> String {
         self.0.get_id()
-    }
-
-    fn create_ls_entry(name: &String, metadata: &Metadata) -> JsResult<JsValue> {
-        let entry = Object::new();
-
-        Reflect::set(&entry, &value!("name"), &value!(name))?;
-        Reflect::set(
-            &entry,
-            &value!("metadata"),
-            &JsMetadata(metadata).try_into()?,
-        )?;
-
-        Ok(value!(entry))
     }
 }
