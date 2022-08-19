@@ -36,7 +36,7 @@ pub struct PrivateDirectory(pub(crate) Rc<WnfsPrivateDirectory>);
 
 #[wasm_bindgen]
 impl PrivateDirectory {
-    /// Creates a new directory using the given metadata.
+    /// Creates a new private directory.
     #[wasm_bindgen(constructor)]
     pub fn new(
         parent_bare_name: Namefilter,
