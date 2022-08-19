@@ -4,6 +4,8 @@ use crate::{fs::JsResult, value};
 use js_sys::{Array, Error, Object, Reflect};
 use wasm_bindgen::JsValue;
 
+use super::{PublicDirectory, PrivateForest, PrivateDirectory};
+
 //--------------------------------------------------------------------------------------------------
 // Functions
 //--------------------------------------------------------------------------------------------------
@@ -26,13 +28,27 @@ pub(crate) fn convert_path_segments(path_segments: &Array) -> JsResult<Vec<Strin
     })
 }
 
-pub(crate) fn create_op_result<T: Into<JsValue>, U: Into<JsValue>>(
-    root_dir: T,
-    result: U,
+pub(crate) fn create_public_op_result<T: Into<JsValue>>(
+    root_dir: PublicDirectory,
+    result: T,
 ) -> JsResult<JsValue> {
     let op_result = Object::new();
 
     Reflect::set(&op_result, &value!("rootDir"), &root_dir.into())?;
+    Reflect::set(&op_result, &value!("result"), &result.into())?;
+
+    Ok(value!(op_result))
+}
+
+pub(crate) fn create_private_op_result<T: Into<JsValue>>(
+    root_dir: PrivateDirectory,
+    hamt: PrivateForest,
+    result: T,
+) -> JsResult<JsValue> {
+    let op_result = Object::new();
+
+    Reflect::set(&op_result, &value!("rootDir"), &root_dir.into())?;
+    Reflect::set(&op_result, &value!("hamt"), &hamt.into())?;
     Reflect::set(&op_result, &value!("result"), &result.into())?;
 
     Ok(value!(op_result))

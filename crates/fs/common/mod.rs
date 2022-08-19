@@ -6,7 +6,6 @@ mod link;
 mod metadata;
 mod pathnodes;
 mod referenceable;
-mod result;
 pub mod utils;
 
 pub use async_serialize::*;
@@ -17,7 +16,6 @@ pub use link::*;
 pub use metadata::*;
 pub use pathnodes::*;
 pub use referenceable::*;
-pub use result::*;
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions

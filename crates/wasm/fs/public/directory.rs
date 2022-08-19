@@ -55,7 +55,7 @@ impl PublicDirectory {
                 .await
                 .map_err(error("Cannot get node"))?;
 
-            Ok(utils::create_op_result(
+            Ok(utils::create_public_op_result(
                 PublicDirectory(root_dir),
                 result.map(PublicNode),
             )?)
@@ -108,7 +108,7 @@ impl PublicDirectory {
                 .await
                 .map_err(error("Cannot read from directory"))?;
 
-            Ok(utils::create_op_result(
+            Ok(utils::create_public_op_result(
                 PublicDirectory(root_dir),
                 result.to_string(),
             )?)
@@ -132,7 +132,7 @@ impl PublicDirectory {
                 .map(|(name, _)| value!(name))
                 .collect::<Array>();
 
-            Ok(utils::create_op_result(PublicDirectory(root_dir), result)?)
+            Ok(utils::create_public_op_result(PublicDirectory(root_dir), result)?)
         }))
     }
 
@@ -151,7 +151,7 @@ impl PublicDirectory {
                 .await
                 .map_err(error("Cannot remove from directory"))?;
 
-            Ok(utils::create_op_result(
+            Ok(utils::create_public_op_result(
                 PublicDirectory(root_dir),
                 PublicNode(node),
             )?)
@@ -179,7 +179,7 @@ impl PublicDirectory {
                 .await
                 .map_err(error("Cannot write to directory"))?;
 
-            Ok(utils::create_op_result(
+            Ok(utils::create_public_op_result(
                 PublicDirectory(root_dir),
                 JsValue::NULL,
             )?)
@@ -206,7 +206,7 @@ impl PublicDirectory {
                 .await
                 .map_err(error("Cannot create directory"))?;
 
-            Ok(utils::create_op_result(
+            Ok(utils::create_public_op_result(
                 PublicDirectory(root_dir),
                 JsValue::NULL,
             )?)
@@ -233,7 +233,7 @@ impl PublicDirectory {
                 .await
                 .map_err(error("Cannot create directory"))?;
 
-            Ok(utils::create_op_result(
+            Ok(utils::create_public_op_result(
                 PublicDirectory(root_dir),
                 JsValue::NULL,
             )?)

@@ -3,8 +3,8 @@
 use std::{collections::BTreeMap, rc::Rc};
 
 use crate::{
-    error, utils, AsyncSerialize, BlockStore, FsError, Id, Metadata, OpResult, PathNodes,
-    PathNodesResult, ReferenceableStore, UnixFsNodeKind,
+    error, utils, AsyncSerialize, BlockStore, FsError, Id, Metadata, PathNodes, PathNodesResult,
+    ReferenceableStore, UnixFsNodeKind,
 };
 use anyhow::{bail, ensure, Result};
 use async_recursion::async_recursion;
@@ -21,7 +21,6 @@ use super::{PublicFile, PublicLink, PublicNode};
 // Type Definitions
 //--------------------------------------------------------------------------------------------------
 
-pub type PublicOpResult<T> = OpResult<PublicDirectory, T>;
 pub type PublicPathNodes = PathNodes<PublicDirectory>;
 pub type PublicPathNodesResult = PathNodesResult<PublicDirectory>;
 
@@ -49,6 +48,15 @@ struct PublicDirectorySerde {
     metadata: Metadata,
     userland: BTreeMap<String, Cid>,
     previous: Option<Cid>,
+}
+
+/// The result of an operation applied to a directory.
+#[derive(Debug, Clone, PartialEq)]
+pub struct PublicOpResult<T> {
+    /// The root directory.
+    pub root_dir: Rc<PublicDirectory>,
+    /// Implementation dependent but it usually the last leaf node operated on.
+    pub result: T,
 }
 
 //--------------------------------------------------------------------------------------------------

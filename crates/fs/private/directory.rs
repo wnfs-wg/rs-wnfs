@@ -10,15 +10,14 @@ use super::{
 };
 
 use crate::{
-    error, utils, BlockStore, FsError, HashOutput, Id, Metadata, OpResult, PathNodes,
-    PathNodesResult, UnixFsNodeKind, HASH_BYTE_SIZE,
+    error, utils, BlockStore, FsError, HashOutput, Id, Metadata, PathNodes, PathNodesResult,
+    UnixFsNodeKind, HASH_BYTE_SIZE,
 };
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
 //--------------------------------------------------------------------------------------------------
 
-pub type PrivateOpResult<T> = OpResult<PrivateDirectory, T>;
 pub type PrivatePathNodes = PathNodes<PrivateDirectory>;
 pub type PrivatePathNodesResult = PathNodesResult<PrivateDirectory>;
 
@@ -32,6 +31,17 @@ pub struct PrivateDirectoryContent {
 pub struct PrivateDirectory {
     pub(crate) header: PrivateNodeHeader,
     pub(crate) content: PrivateDirectoryContent,
+}
+
+/// The result of an operation applied to a directory.
+#[derive(Debug, Clone, PartialEq)]
+pub struct PrivateOpResult<T> {
+    /// The root directory.
+    pub root_dir: Rc<PrivateDirectory>,
+    /// The hamt forest.
+    pub hamt: Rc<PrivateForest>,
+    /// Implementation dependent but it usually the last leaf node operated on.
+    pub result: T,
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -160,7 +170,7 @@ impl PrivateDirectory {
         self: Rc<Self>,
         path_segments: &[String],
         time: DateTime<Utc>,
-        hamt: &mut PrivateForest,
+        hamt: &PrivateForest,
         store: &mut B,
         rng: &R,
     ) -> Result<PrivatePathNodes> {
@@ -195,10 +205,11 @@ impl PrivateDirectory {
     /// Fix up `PathNodes` so that parents refer to the newly updated children.
     async fn fix_up_path_nodes<B: BlockStore, R: Rng>(
         path_nodes: PrivatePathNodes,
-        hamt: &mut PrivateForest,
+        hamt: Rc<PrivateForest>,
         store: &mut B,
         rng: &R,
-    ) -> Result<Rc<Self>> {
+    ) -> Result<(Rc<Self>, Rc<PrivateForest>)> {
+        let mut working_hamt = Rc::clone(&hamt);
         let mut working_child_dir = {
             let mut tmp = (*path_nodes.tail).clone();
             tmp.advance_ratchet();
@@ -217,35 +228,37 @@ impl PrivateDirectory {
 
             let parent_dir = Rc::new(parent_dir);
 
-            hamt.set(
+            working_hamt = working_hamt
+                .set(
+                    working_child_dir.header.get_saturated_name(),
+                    &child_private_ref,
+                    &PrivateNode::Dir(Rc::clone(&working_child_dir)),
+                    store,
+                    rng,
+                )
+                .await?;
+
+            working_child_dir = parent_dir;
+        }
+
+        working_hamt = working_hamt
+            .set(
                 working_child_dir.header.get_saturated_name(),
-                &child_private_ref,
+                &working_child_dir.header.get_private_ref()?,
                 &PrivateNode::Dir(Rc::clone(&working_child_dir)),
                 store,
                 rng,
             )
             .await?;
 
-            working_child_dir = parent_dir;
-        }
-
-        hamt.set(
-            working_child_dir.header.get_saturated_name(),
-            &working_child_dir.header.get_private_ref()?,
-            &PrivateNode::Dir(Rc::clone(&working_child_dir)),
-            store,
-            rng,
-        )
-        .await?;
-
-        Ok(working_child_dir)
+        Ok((working_child_dir, working_hamt))
     }
 
     /// Follows a path and fetches the node at the end of the path.
     pub async fn get_node<B: BlockStore>(
         self: Rc<Self>,
         path_segments: &[String],
-        hamt: &PrivateForest,
+        hamt: Rc<PrivateForest>,
         store: &B,
     ) -> Result<PrivateOpResult<Option<PrivateNode>>> {
         use PathNodesResult::*;
@@ -253,20 +266,26 @@ impl PrivateDirectory {
 
         Ok(match path_segments.split_last() {
             Some((path_segment, parent_path)) => {
-                match self.get_path_nodes(parent_path, hamt, store).await? {
-                    Complete(parent_path_nodes) => PrivateOpResult {
-                        root_dir,
-                        result: parent_path_nodes
+                match self.get_path_nodes(parent_path, &hamt, store).await? {
+                    Complete(parent_path_nodes) => {
+                        let result = parent_path_nodes
                             .tail
-                            .lookup_node(path_segment, hamt, store)
-                            .await?,
-                    },
+                            .lookup_node(path_segment, &hamt, store)
+                            .await?;
+
+                        PrivateOpResult {
+                            root_dir,
+                            hamt,
+                            result,
+                        }
+                    }
                     MissingLink(_, _) => bail!(FsError::NotFound),
                     NotADirectory(_, _) => bail!(FsError::NotFound),
                 }
             }
             None => PrivateOpResult {
                 root_dir,
+                hamt,
                 result: Some(PrivateNode::Dir(self)),
             },
         })
@@ -276,17 +295,18 @@ impl PrivateDirectory {
     pub async fn read<B: BlockStore>(
         self: Rc<Self>,
         path_segments: &[String],
-        hamt: &PrivateForest,
+        hamt: Rc<PrivateForest>,
         store: &B,
     ) -> Result<PrivateOpResult<Vec<u8>>> {
         let root_dir = Rc::clone(&self);
         let (path, filename) = utils::split_last(path_segments)?;
 
-        match self.get_path_nodes(path, hamt, store).await? {
+        match self.get_path_nodes(path, &hamt, store).await? {
             PathNodesResult::Complete(node_path) => {
-                match node_path.tail.lookup_node(filename, hamt, store).await? {
+                match node_path.tail.lookup_node(filename, &hamt, store).await? {
                     Some(PrivateNode::File(file)) => Ok(PrivateOpResult {
                         root_dir,
+                        hamt,
                         result: file.content.content.clone(),
                     }),
                     Some(PrivateNode::Dir(_)) => error(FsError::NotAFile),
@@ -303,7 +323,7 @@ impl PrivateDirectory {
         path_segments: &[String],
         time: DateTime<Utc>,
         content: Vec<u8>,
-        hamt: &mut PrivateForest,
+        hamt: Rc<PrivateForest>,
         store: &mut B,
         rng: &R,
     ) -> Result<PrivateOpResult<()>> {
@@ -311,13 +331,13 @@ impl PrivateDirectory {
 
         // This will create directories if they don't exist yet
         let mut directory_path_nodes = self
-            .get_or_create_path_nodes(directory_path, time, hamt, store, rng)
+            .get_or_create_path_nodes(directory_path, time, &hamt, store, rng)
             .await?;
 
         let mut directory = (*directory_path_nodes.tail).clone();
 
         // Modify the file if it already exists, otherwise create a new file with expected content
-        let file = match directory.lookup_node(filename, hamt, store).await? {
+        let file = match directory.lookup_node(filename, &hamt, store).await? {
             Some(PrivateNode::File(file_before)) => {
                 let mut file = (*file_before).clone();
                 file.content.content = content;
@@ -338,14 +358,15 @@ impl PrivateDirectory {
         };
 
         let child_private_ref = file.header.get_private_ref()?;
-        hamt.set(
-            file.header.get_saturated_name(),
-            &child_private_ref,
-            &PrivateNode::File(Rc::new(file)),
-            store,
-            rng,
-        )
-        .await?;
+        let hamt = hamt
+            .set(
+                file.header.get_saturated_name(),
+                &child_private_ref,
+                &PrivateNode::File(Rc::new(file)),
+                store,
+                rng,
+            )
+            .await?;
 
         // Insert the file into its parent directory
         directory
@@ -355,9 +376,13 @@ impl PrivateDirectory {
 
         directory_path_nodes.tail = Rc::new(directory);
 
+        let (root_dir, hamt) =
+            Self::fix_up_path_nodes(directory_path_nodes, hamt, store, rng).await?;
+
         // Fix up the file path
         Ok(PrivateOpResult {
-            root_dir: Self::fix_up_path_nodes(directory_path_nodes, hamt, store, rng).await?,
+            root_dir,
+            hamt,
             result: (),
         })
     }
@@ -380,16 +405,19 @@ impl PrivateDirectory {
         self: Rc<Self>,
         path_segments: &[String],
         time: DateTime<Utc>,
-        hamt: &mut PrivateForest,
+        hamt: Rc<PrivateForest>,
         store: &mut B,
         rng: &R,
     ) -> Result<PrivateOpResult<()>> {
         let path_nodes = self
-            .get_or_create_path_nodes(path_segments, time, hamt, store, rng)
+            .get_or_create_path_nodes(path_segments, time, &hamt, store, rng)
             .await?;
 
+        let (root_dir, hamt) = Self::fix_up_path_nodes(path_nodes, hamt, store, rng).await?;
+
         Ok(PrivateOpResult {
-            root_dir: Self::fix_up_path_nodes(path_nodes, hamt, store, rng).await?,
+            root_dir,
+            hamt,
             result: (),
         })
     }
@@ -398,11 +426,11 @@ impl PrivateDirectory {
     pub async fn ls<B: BlockStore>(
         self: Rc<Self>,
         path_segments: &[String],
-        hamt: &PrivateForest,
+        hamt: Rc<PrivateForest>,
         store: &B,
     ) -> Result<PrivateOpResult<Vec<(String, Metadata)>>> {
         let root_dir = Rc::clone(&self);
-        match self.get_path_nodes(path_segments, hamt, store).await? {
+        match self.get_path_nodes(path_segments, &hamt, store).await? {
             PathNodesResult::Complete(path_nodes) => {
                 let mut result = vec![];
                 for (name, private_ref) in path_nodes.tail.content.entries.iter() {
@@ -416,7 +444,11 @@ impl PrivateDirectory {
                         _ => bail!(FsError::NotFound),
                     }
                 }
-                Ok(PrivateOpResult { root_dir, result })
+                Ok(PrivateOpResult {
+                    root_dir,
+                    hamt,
+                    result,
+                })
             }
             _ => bail!(FsError::NotFound),
         }
@@ -426,14 +458,14 @@ impl PrivateDirectory {
     pub async fn rm<B: BlockStore, R: Rng>(
         self: Rc<Self>,
         path_segments: &[String],
-        hamt: &mut PrivateForest,
+        hamt: Rc<PrivateForest>,
         store: &mut B,
         rng: &R,
     ) -> Result<PrivateOpResult<PrivateNode>> {
         let (directory_path, node_name) = utils::split_last(path_segments)?;
 
         let mut directory_path_nodes =
-            match self.get_path_nodes(directory_path, hamt, store).await? {
+            match self.get_path_nodes(directory_path, &hamt, store).await? {
                 PrivatePathNodesResult::Complete(node_path) => node_path,
                 _ => bail!(FsError::NotFound),
             };
@@ -448,8 +480,12 @@ impl PrivateDirectory {
 
         directory_path_nodes.tail = Rc::new(directory);
 
+        let (root_dir, hamt) =
+            Self::fix_up_path_nodes(directory_path_nodes, hamt, store, rng).await?;
+
         Ok(PrivateOpResult {
-            root_dir: Self::fix_up_path_nodes(directory_path_nodes, hamt, store, rng).await?,
+            root_dir,
+            hamt,
             result: removed_node,
         })
     }
@@ -481,11 +517,11 @@ mod private_directory_tests {
             Utc::now(),
         ));
         let store = &mut MemoryBlockStore::default();
-        let hamt = &mut PrivateForest::new();
+        let hamt = Rc::new(PrivateForest::new());
 
         let content = b"Hello, World!".to_vec();
 
-        let PrivateOpResult { root_dir, .. } = root_dir
+        let PrivateOpResult { root_dir, hamt, .. } = root_dir
             .write(
                 &["text.txt".into()],
                 Utc::now(),
@@ -515,9 +551,9 @@ mod private_directory_tests {
             Utc::now(),
         ));
         let store = &mut MemoryBlockStore::default();
-        let hamt = &mut PrivateForest::new();
+        let hamt = Rc::new(PrivateForest::new());
 
-        let node = root_dir.lookup_node("Unknown", hamt, store).await.unwrap();
+        let node = root_dir.lookup_node("Unknown", &hamt, store).await.unwrap();
 
         assert!(node.is_none());
     }
@@ -532,9 +568,9 @@ mod private_directory_tests {
             Utc::now(),
         ));
         let store = &mut MemoryBlockStore::default();
-        let hamt = &mut PrivateForest::new();
+        let hamt = Rc::new(PrivateForest::new());
 
-        let PrivateOpResult { root_dir, .. } = root_dir
+        let PrivateOpResult { root_dir, hamt, .. } = root_dir
             .mkdir(
                 &["tamedun".into(), "pictures".into()],
                 Utc::now(),
@@ -563,9 +599,9 @@ mod private_directory_tests {
             Utc::now(),
         ));
         let store = &mut MemoryBlockStore::default();
-        let hamt = &mut PrivateForest::new();
+        let hamt = Rc::new(PrivateForest::new());
 
-        let PrivateOpResult { root_dir, .. } = root_dir
+        let PrivateOpResult { root_dir, hamt, .. } = root_dir
             .mkdir(
                 &["tamedun".into(), "pictures".into()],
                 Utc::now(),
@@ -576,7 +612,7 @@ mod private_directory_tests {
             .await
             .unwrap();
 
-        let PrivateOpResult { root_dir, .. } = root_dir
+        let PrivateOpResult { root_dir, hamt, .. } = root_dir
             .write(
                 &["tamedun".into(), "pictures".into(), "puppy.jpg".into()],
                 Utc::now(),
@@ -588,7 +624,7 @@ mod private_directory_tests {
             .await
             .unwrap();
 
-        let PrivateOpResult { root_dir, .. } = root_dir
+        let PrivateOpResult { root_dir, hamt, .. } = root_dir
             .mkdir(
                 &["tamedun".into(), "pictures".into(), "cats".into()],
                 Utc::now(),
@@ -621,9 +657,9 @@ mod private_directory_tests {
             Utc::now(),
         ));
         let store = &mut MemoryBlockStore::default();
-        let hamt = &mut PrivateForest::new();
+        let hamt = Rc::new(PrivateForest::new());
 
-        let PrivateOpResult { root_dir, .. } = root_dir
+        let PrivateOpResult { root_dir, hamt, .. } = root_dir
             .mkdir(
                 &["tamedun".into(), "pictures".into()],
                 Utc::now(),
@@ -634,7 +670,7 @@ mod private_directory_tests {
             .await
             .unwrap();
 
-        let PrivateOpResult { root_dir, .. } = root_dir
+        let PrivateOpResult { root_dir, hamt, .. } = root_dir
             .write(
                 &["tamedun".into(), "pictures".into(), "puppy.jpg".into()],
                 Utc::now(),
@@ -646,7 +682,7 @@ mod private_directory_tests {
             .await
             .unwrap();
 
-        let PrivateOpResult { root_dir, .. } = root_dir
+        let PrivateOpResult { root_dir, hamt, .. } = root_dir
             .mkdir(
                 &["tamedun".into(), "pictures".into(), "cats".into()],
                 Utc::now(),
@@ -657,15 +693,12 @@ mod private_directory_tests {
             .await
             .unwrap();
 
-        let result = root_dir
+        let PrivateOpResult { root_dir, hamt, .. } = root_dir
             .rm(&["tamedun".into(), "pictures".into()], hamt, store, rng)
-            .await;
+            .await
+            .unwrap();
 
-        assert!(result.is_ok());
-
-        let result = result
-            .unwrap()
-            .root_dir
+        let result = root_dir
             .rm(&["tamedun".into(), "pictures".into()], hamt, store, rng)
             .await;
 
@@ -682,9 +715,9 @@ mod private_directory_tests {
             Utc::now(),
         ));
         let store = &mut MemoryBlockStore::default();
-        let hamt = &mut PrivateForest::new();
+        let hamt = Rc::new(PrivateForest::new());
 
-        let PrivateOpResult { root_dir, .. } = root_dir
+        let PrivateOpResult { root_dir, hamt, .. } = root_dir
             .write(
                 &["text.txt".into()],
                 Utc::now(),
@@ -707,7 +740,7 @@ mod private_directory_tests {
     #[async_std::test]
     async fn path_nodes_can_generates_new_path_nodes() {
         let store = &mut MemoryBlockStore::default();
-        let hamt = &mut PrivateForest::new();
+        let hamt = Rc::new(PrivateForest::new());
         let rng = &TestRng();
 
         let path_nodes = PrivateDirectory::create_path_nodes(
@@ -717,11 +750,13 @@ mod private_directory_tests {
             rng,
         );
 
-        let fixed = PrivateDirectory::fix_up_path_nodes(path_nodes.clone(), hamt, store, rng)
-            .await
-            .unwrap();
-        let result = fixed
-            .get_path_nodes(&["Documents".into(), "Apps".into()], hamt, store)
+        let (root_dir, hamt) =
+            PrivateDirectory::fix_up_path_nodes(path_nodes.clone(), hamt, store, rng)
+                .await
+                .unwrap();
+
+        let result = root_dir
+            .get_path_nodes(&["Documents".into(), "Apps".into()], &hamt, store)
             .await
             .unwrap();
 

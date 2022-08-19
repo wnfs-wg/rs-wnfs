@@ -1,3 +1,5 @@
+use std::rc::Rc;
+
 use anyhow::Result;
 use libipld::Cid;
 use log::debug;
@@ -30,13 +32,13 @@ impl PrivateForest {
     /// Sets a new value at the given key.
     #[inline]
     pub async fn set<B: BlockStore, R: Rng>(
-        &mut self,
+        self: Rc<Self>,
         saturated_name: Namefilter,
         private_ref: &PrivateRef,
         value: &PrivateNode,
         store: &mut B,
         rng: &R,
-    ) -> Result<()> {
+    ) -> Result<Rc<Self>> {
         debug!("hamt store set: PrivateRef: {:?}", private_ref);
 
         // Serialize header and content section as dag-cbor bytes.
@@ -98,14 +100,14 @@ impl PrivateForest {
     /// Sets a new encrypted value at the given key.
     #[inline]
     pub async fn set_encrypted<B: BlockStore>(
-        &mut self,
+        self: Rc<Self>,
         name: Namefilter,
         value: EncryptedPrivateNode,
         store: &mut B,
-    ) -> Result<()> {
-        let root = self.root.set(name, value, store).await?;
-        self.root = root;
-        Ok(())
+    ) -> Result<Rc<Self>> {
+        let mut cloned = (*self).clone();
+        cloned.root = self.root.set(name, value, store).await?;
+        Ok(Rc::new(cloned))
     }
 
     /// Gets the encrypted value at the given key.
@@ -120,13 +122,14 @@ impl PrivateForest {
 
     /// Removes the encrypted value at the given key.
     pub async fn remove_encrypted<B: BlockStore>(
-        &mut self,
+        self: Rc<Self>,
         name_hash: &HashOutput,
         store: &mut B,
-    ) -> Result<Option<EncryptedPrivateNode>> {
+    ) -> Result<(Rc<Self>, Option<EncryptedPrivateNode>)> {
+        let mut cloned = (*self).clone();
         let (root, value) = self.root.remove_by_hash(name_hash, store).await?;
-        self.root = root;
-        Ok(value)
+        cloned.root = root;
+        Ok((Rc::new(cloned), value))
     }
 }
 
@@ -147,7 +150,7 @@ mod hamt_store_tests {
     #[test(async_std::test)]
     async fn inserted_items_can_be_fetched() {
         let store = &mut MemoryBlockStore::new();
-        let hamt = &mut PrivateForest::new();
+        let hamt = Rc::new(PrivateForest::new());
         let rng = &TestRng();
 
         let dir = Rc::new(PrivateDirectory::new(
@@ -161,7 +164,8 @@ mod hamt_store_tests {
         let saturated_name = dir.header.get_saturated_name();
         let private_node = PrivateNode::Dir(dir.clone());
 
-        hamt.set(saturated_name, &private_ref, &private_node, store, rng)
+        let hamt = hamt
+            .set(saturated_name, &private_ref, &private_node, store, rng)
             .await
             .unwrap();
 

@@ -2,10 +2,10 @@ mod directory;
 mod file;
 mod node;
 mod rng;
-mod store;
+mod forest;
 
 pub use directory::*;
 pub use file::*;
 pub use node::*;
 pub use rng::*;
-pub use store::*;
+pub use forest::*;
