@@ -84,7 +84,7 @@ impl PublicFile {
 
     /// Gets the content cid of the file.
     #[wasm_bindgen(js_name = "contentCid")]
-    pub fn content_cid(&self) -> Uint8Array {
-        Uint8Array::from(&self.0.get_content_cid().to_bytes()[..])
+    pub fn content_cid(&self) -> Vec<u8> {
+        self.0.get_content_cid().to_bytes()
     }
 }
