@@ -107,6 +107,11 @@ impl PublicNode {
         matches!(self, Self::Dir(_))
     }
 
+    /// Returns true if the underlying node is a file.
+    pub fn is_file(&self) -> bool {
+        matches!(self, Self::File(_))
+    }
+
     /// Gets the node kind.
     pub fn kind(&self) -> UnixFsNodeKind {
         match self {

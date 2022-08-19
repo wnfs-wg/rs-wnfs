@@ -241,6 +241,11 @@ impl PublicDirectory {
         self.previous
     }
 
+    /// Gets the metadata of the directory
+    pub fn get_metadata<'a>(self: &'a Rc<Self>) -> &'a Metadata {
+        &self.metadata
+    }
+
     /// Gets the directory nodes along specified path.
     ///
     /// Supports cases where the entire path does not exist.
