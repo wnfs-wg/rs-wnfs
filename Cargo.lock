@@ -1493,7 +1493,8 @@ dependencies = [
 [[package]]
 name = "skip_ratchet"
 version = "0.1.0"
-source = "git+https://github.com/appcypher/rs-skip-ratchet?branch=appcypher/doc-and-structure#57d1acd0e09b852b1056a32cbdb2e2f5fee02ad1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4d92b3722e0b051481c7f7ea42504415adad19f7426d9729834b3ad2b1252a59"
 dependencies = [
  "base64",
  "hex",
