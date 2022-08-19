@@ -1996,7 +1996,7 @@ dependencies = [
 
 [[package]]
 name = "wasm-wnfs"
-version = "0.1.7-alpha.4"
+version = "0.1.8"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2130,7 +2130,7 @@ checksum = "c811ca4a8c853ef420abd8592ba53ddbbac90410fab6903b3e79972a631f7680"
 
 [[package]]
 name = "wnfs"
-version = "0.1.7-alpha.4"
+version = "0.1.8"
 dependencies = [
  "aes-gcm",
  "anyhow",

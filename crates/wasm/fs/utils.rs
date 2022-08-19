@@ -1,10 +1,14 @@
-use std::fmt::Debug;
+use std::{fmt::Debug, rc::Rc};
 
 use crate::{fs::JsResult, value};
 use js_sys::{Array, Error, Object, Reflect};
 use wasm_bindgen::JsValue;
+use wnfs::{
+    private::{PrivateDirectory as WnfsPrivateDirectory, PrivateForest as WnfsPrivateForest},
+    public::PublicDirectory as WnfsPublicDirectory,
+};
 
-use super::{PublicDirectory, PrivateForest, PrivateDirectory};
+use super::{PrivateDirectory, PrivateForest, PublicDirectory};
 
 //--------------------------------------------------------------------------------------------------
 // Functions
@@ -29,26 +33,34 @@ pub(crate) fn convert_path_segments(path_segments: &Array) -> JsResult<Vec<Strin
 }
 
 pub(crate) fn create_public_op_result<T: Into<JsValue>>(
-    root_dir: PublicDirectory,
+    root_dir: Rc<WnfsPublicDirectory>,
     result: T,
 ) -> JsResult<JsValue> {
     let op_result = Object::new();
 
-    Reflect::set(&op_result, &value!("rootDir"), &root_dir.into())?;
+    Reflect::set(
+        &op_result,
+        &value!("rootDir"),
+        &PublicDirectory(root_dir).into(),
+    )?;
     Reflect::set(&op_result, &value!("result"), &result.into())?;
 
     Ok(value!(op_result))
 }
 
 pub(crate) fn create_private_op_result<T: Into<JsValue>>(
-    root_dir: PrivateDirectory,
-    hamt: PrivateForest,
+    root_dir: Rc<WnfsPrivateDirectory>,
+    hamt: Rc<WnfsPrivateForest>,
     result: T,
 ) -> JsResult<JsValue> {
     let op_result = Object::new();
 
-    Reflect::set(&op_result, &value!("rootDir"), &root_dir.into())?;
-    Reflect::set(&op_result, &value!("hamt"), &hamt.into())?;
+    Reflect::set(
+        &op_result,
+        &value!("rootDir"),
+        &PrivateDirectory(root_dir).into(),
+    )?;
+    Reflect::set(&op_result, &value!("hamt"), &PrivateForest(hamt).into())?;
     Reflect::set(&op_result, &value!("result"), &result.into())?;
 
     Ok(value!(op_result))

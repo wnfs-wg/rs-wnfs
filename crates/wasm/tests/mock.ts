@@ -34,4 +34,14 @@ class MemoryBlockStore {
   }
 }
 
-export { sampleCID, MemoryBlockStore };
+/** A pseudo-random number generator */
+class Rng {
+  /** Returns random bytes of specified length */
+  randomBytes(count: number): Uint8Array {
+    const array = new Uint8Array(count);
+    self.crypto.getRandomValues(array);
+    return array;
+  }
+}
+
+export { sampleCID, MemoryBlockStore, Rng };

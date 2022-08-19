@@ -9,8 +9,7 @@ use wasm_bindgen::JsValue;
 use wasm_bindgen_futures::future_to_promise;
 use wnfs::{
     private::{
-        namefilter::Namefilter, INumber, PrivateDirectory as WnfsPrivateDirectory,
-        PrivateOpResult as WnfsPrivateOpResult,
+        INumber, PrivateDirectory as WnfsPrivateDirectory, PrivateOpResult as WnfsPrivateOpResult,
     },
     HashOutput, Id,
 };
@@ -18,7 +17,7 @@ use wnfs::{
 use crate::{
     fs::{
         utils::{self, error},
-        BlockStore, ForeignBlockStore, JsResult, PrivateNode, Rng, PrivateForest,
+        BlockStore, ForeignBlockStore, JsResult, Namefilter, PrivateForest, PrivateNode, Rng,
     },
     value,
 };
@@ -40,16 +39,15 @@ impl PrivateDirectory {
     /// Creates a new directory using the given metadata.
     #[wasm_bindgen(constructor)]
     pub fn new(
-        parent_bare_name: Vec<u8>, // [u8; 256]
-        inumber: Vec<u8>,          // [u8; 32]
-        ratchet_seed: Vec<u8>,     // [u8; 32]
+        parent_bare_name: Namefilter,
+        inumber: Vec<u8>,      // [u8; 32]
+        ratchet_seed: Vec<u8>, // [u8; 32]
         time: &Date,
     ) -> JsResult<PrivateDirectory> {
-        let parent_bare_name = Namefilter::try_from(parent_bare_name)
-            .map_err(error("Cannot convert parent bare name"))?;
         let inumber: INumber = inumber
             .try_into()
             .map_err(error("Cannot convert inumber"))?;
+
         let ratchet_seed: HashOutput = ratchet_seed
             .try_into()
             .map_err(error("Cannot convert ratchet seed"))?;
@@ -57,7 +55,7 @@ impl PrivateDirectory {
         let time = DateTime::<Utc>::from(time);
 
         Ok(Self(Rc::new(WnfsPrivateDirectory::new(
-            parent_bare_name,
+            parent_bare_name.0,
             inumber,
             ratchet_seed,
             time,
@@ -87,8 +85,8 @@ impl PrivateDirectory {
                 .map_err(error("Cannot get node"))?;
 
             Ok(utils::create_private_op_result(
-                PrivateDirectory(root_dir),
-                PrivateForest(hamt),
+                root_dir,
+                hamt,
                 result.map(PrivateNode),
             )?)
         }))
@@ -138,8 +136,8 @@ impl PrivateDirectory {
                 .map_err(error("Cannot read from directory"))?;
 
             Ok(utils::create_private_op_result(
-                PrivateDirectory(root_dir),
-                PrivateForest(hamt),
+                root_dir,
+                hamt,
                 Uint8Array::from(&result[..]),
             )?)
         }))
@@ -168,8 +166,8 @@ impl PrivateDirectory {
                 .map_err(error("Cannot remove from directory"))?;
 
             Ok(utils::create_private_op_result(
-                PrivateDirectory(root_dir),
-                PrivateForest(hamt),
+                root_dir,
+                hamt,
                 PrivateNode(node),
             )?)
         }))
@@ -197,8 +195,8 @@ impl PrivateDirectory {
                 .map_err(error("Cannot write to directory"))?;
 
             Ok(utils::create_private_op_result(
-                PrivateDirectory(root_dir),
-                PrivateForest(hamt),
+                root_dir,
+                hamt,
                 JsValue::NULL,
             )?)
         }))
@@ -215,7 +213,7 @@ impl PrivateDirectory {
         store: BlockStore,
         rng: Rng,
     ) -> JsResult<Promise> {
-        let directory = self.0.clone();
+        let directory = Rc::clone(&self.0);
         let mut store = ForeignBlockStore(store);
         let time = DateTime::<Utc>::from(time);
         let path_segments = utils::convert_path_segments(path_segments)?;
@@ -227,8 +225,8 @@ impl PrivateDirectory {
                 .map_err(error("Cannot create directory: {e}"))?;
 
             Ok(utils::create_private_op_result(
-                PrivateDirectory(root_dir),
-                PrivateForest(hamt),
+                root_dir,
+                hamt,
                 JsValue::NULL,
             )?)
         }))

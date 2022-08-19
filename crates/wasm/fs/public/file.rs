@@ -7,7 +7,10 @@ use wasm_bindgen::{prelude::wasm_bindgen, JsValue};
 use wasm_bindgen_futures::future_to_promise;
 use wnfs::{ipld::Cid, public::PublicFile as WnfsPublicFile, BlockStore as WnfsBlockStore, Id};
 
-use crate::fs::{utils::error, BlockStore, ForeignBlockStore, JsResult, metadata::JsMetadata, value};
+use crate::{
+    fs::{metadata::JsMetadata, utils::error, BlockStore, ForeignBlockStore, JsResult},
+    value,
+};
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions

@@ -89,12 +89,12 @@ impl PublicDirectory {
     pub fn get_previous(self: &Rc<Self>) -> Option<Cid> {
         self.previous
     }
-    
+
     /// Gets the metadata of the directory
     pub fn get_metadata<'a>(self: &'a Rc<Self>) -> &'a Metadata {
         &self.metadata
     }
-    
+
     /// Creates a new `PublicPathNodes` that is not based on an existing file tree.
     pub(crate) fn create_path_nodes(
         path_segments: &[String],

@@ -437,11 +437,7 @@ mod hamt_node_unit_tests {
     impl Hasher for MockHasher {
         fn hash<K: AsRef<[u8]>>(key: &K) -> HashOutput {
             let s = std::str::from_utf8(key.as_ref()).unwrap();
-            HASH_KV_PAIRS
-                .iter()
-                .find(|(_, v)| s == *v)
-                .unwrap()
-                .0
+            HASH_KV_PAIRS.iter().find(|(_, v)| s == *v).unwrap().0
         }
     }
 
