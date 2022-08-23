@@ -48,5 +48,5 @@ macro_rules! value {
 
 #[macro_export]
 macro_rules! console_log {
-    ($($t:tt)*) => (crate::log(&format_args!($($t)*).to_string()))
+    ($($t:tt)*) => ($crate::log(&format_args!($($t)*).to_string()))
 }

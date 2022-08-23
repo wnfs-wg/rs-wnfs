@@ -2,7 +2,7 @@ use std::rc::Rc;
 
 use anyhow::Result;
 use async_trait::async_trait;
-use libipld::{serde as ipld_serde, Ipld};
+use libipld::{serde as ipld_serde, Cid, Ipld};
 
 use serde::{
     de::{DeserializeOwned, Error as DeError},
@@ -10,7 +10,7 @@ use serde::{
     Deserialize, Deserializer, Serialize, Serializer,
 };
 
-use crate::{error, AsyncSerialize, BlockStore, Link};
+use crate::{error, AsyncSerialize, BlockStore, Link, ReferenceableStore};
 
 use super::{error::HamtError, hash::Hasher, Node, HAMT_VALUES_BUCKET_SIZE};
 
@@ -48,7 +48,7 @@ impl<K, V, H: Hasher> Pointer<K, V, H> {
     /// Converts a Link pointer to a canonical form to ensure consistent tree representation after deletes.
     pub async fn canonicalize<B: BlockStore>(self, store: &B) -> Result<Option<Self>>
     where
-        K: DeserializeOwned + PartialOrd + Clone,
+        K: DeserializeOwned + Clone + AsRef<[u8]>,
         V: DeserializeOwned + Clone,
         H: Clone,
     {
@@ -72,7 +72,14 @@ impl<K, V, H: Hasher> Pointer<K, V, H> {
                             .flatten()
                             .collect::<Vec<_>>();
 
-                        values.sort_unstable_by(|a, b| a.key.partial_cmp(&b.key).unwrap());
+                        // Bail if it's more values that we can fit into a bucket
+                        if values.len() > HAMT_VALUES_BUCKET_SIZE {
+                            return Ok(Some(Pointer::Link(Link::from(node))));
+                        }
+
+                        values.sort_unstable_by(|a, b| {
+                            H::hash(&a.key).partial_cmp(&H::hash(&b.key)).unwrap()
+                        });
 
                         Ok(Some(Pointer::Values(values)))
                     }
@@ -84,7 +91,10 @@ impl<K, V, H: Hasher> Pointer<K, V, H> {
     }
 
     /// Converts a Pointer to an IPLD object.
-    pub async fn to_ipld<B: BlockStore + ?Sized>(&self, store: &mut B) -> Result<Ipld>
+    pub async fn to_ipld<RS: ReferenceableStore<Ref = Cid> + ?Sized>(
+        &self,
+        store: &mut RS,
+    ) -> Result<Ipld>
     where
         K: Serialize,
         V: Serialize,
@@ -102,11 +112,13 @@ where
     K: Serialize,
     V: Serialize,
 {
-    async fn async_serialize<S: Serializer, B: BlockStore + ?Sized>(
-        &self,
-        serializer: S,
-        store: &mut B,
-    ) -> Result<S::Ok, S::Error> {
+    type StoreRef = Cid;
+
+    async fn async_serialize<S, RS>(&self, serializer: S, store: &mut RS) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+        RS: ReferenceableStore<Ref = Self::StoreRef> + ?Sized,
+    {
         match self {
             Pointer::Values(vals) => vals.serialize(serializer),
             Pointer::Link(link) => link

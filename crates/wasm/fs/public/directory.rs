@@ -3,20 +3,28 @@
 use std::rc::Rc;
 
 use chrono::{DateTime, Utc};
-use js_sys::{Array, Date, Error, Promise, Uint8Array};
+use js_sys::{Array, Date, Promise, Uint8Array};
 use wasm_bindgen::{prelude::wasm_bindgen, JsValue};
 use wasm_bindgen_futures::future_to_promise;
 use wnfs::{
     ipld::Cid,
     public::{
-        OpResult as WnfsOpResult, PublicDirectory as WnfsPublicDirectory,
-        PublicNode as WnfsPublicNode,
+        PublicDirectory as WnfsPublicDirectory, PublicNode as WnfsPublicNode,
+        PublicOpResult as WnfsPublicOpResult,
     },
     BlockStore as WnfsBlockStore, Id,
 };
 
-use crate::fs::{metadata::JsMetadata, BlockStore, ForeignBlockStore, JsResult, PublicNode};
+use crate::fs::{
+    metadata::JsMetadata,
+    utils::{self, error},
+    BlockStore, ForeignBlockStore, JsResult, PublicNode,
+};
 use crate::value;
+
+//--------------------------------------------------------------------------------------------------
+// Type Definitions
+//--------------------------------------------------------------------------------------------------
 
 /// A directory in a WNFS public file system.
 #[wasm_bindgen]
@@ -43,12 +51,15 @@ impl PublicDirectory {
         let path_segments = utils::convert_path_segments(path_segments)?;
 
         Ok(future_to_promise(async move {
-            let WnfsOpResult { root_dir, result } = directory
+            let WnfsPublicOpResult { root_dir, result } = directory
                 .get_node(&path_segments, &store)
                 .await
-                .map_err(|e| Error::new(&format!("Cannot get node: {e}")))?;
+                .map_err(error("Cannot get node"))?;
 
-            Ok(utils::create_op_result(root_dir, result.map(PublicNode))?)
+            Ok(utils::create_public_op_result(
+                root_dir,
+                result.map(PublicNode),
+            )?)
         }))
     }
 
@@ -63,7 +74,7 @@ impl PublicDirectory {
             let found_node = directory
                 .lookup_node(&path_segment, &store)
                 .await
-                .map_err(|e| Error::new(&format!("Cannot lookup node: {e}")))?;
+                .map_err(error("Cannot lookup node"))?;
 
             Ok(value!(found_node.map(PublicNode)))
         }))
@@ -78,7 +89,7 @@ impl PublicDirectory {
             let cid = directory
                 .store(&mut store)
                 .await
-                .map_err(|e| Error::new(&format!("Cannot add to store: {e}")))?;
+                .map_err(error("Cannot add to store"))?;
 
             let cid_u8array = Uint8Array::from(&cid.to_bytes()[..]);
 
@@ -89,13 +100,13 @@ impl PublicDirectory {
     /// Loads a directory given its CID from the block store.
     pub fn load(cid: Vec<u8>, store: BlockStore) -> JsResult<Promise> {
         let store = ForeignBlockStore(store);
-        let cid =
-            Cid::read_bytes(&cid[..]).map_err(|e| Error::new(&format!("Cannot parse cid: {e}")))?;
+        let cid = Cid::read_bytes(&cid[..]).map_err(error("Cannot parse cid"))?;
+
         Ok(future_to_promise(async move {
             let directory: WnfsPublicDirectory = store
                 .get_deserializable(&cid)
                 .await
-                .map_err(|e| Error::new(&format!("Couldn't deserialize directory: {e}")))?;
+                .map_err(error("Couldn't deserialize directory"))?;
 
             Ok(value!(PublicDirectory(Rc::new(directory))))
         }))
@@ -108,35 +119,35 @@ impl PublicDirectory {
         let path_segments = utils::convert_path_segments(path_segments)?;
 
         Ok(future_to_promise(async move {
-            let WnfsOpResult { root_dir, result } = directory
+            let WnfsPublicOpResult { root_dir, result } = directory
                 .read(&path_segments, &mut store)
                 .await
-                .map_err(|e| Error::new(&format!("Cannot read from directory: {e}")))?;
+                .map_err(error("Cannot read from directory"))?;
 
-            let cid_u8array = Uint8Array::from(&result.to_bytes()[..]);
+            let result = Uint8Array::from(&result.to_bytes()[..]);
 
-            Ok(utils::create_op_result(root_dir, cid_u8array)?)
+            Ok(utils::create_public_op_result(root_dir, result)?)
         }))
     }
 
-    /// Returns the name and metadata of the direct children of a directory.
+    /// Returns names and metadata of the direct children of a directory.
     pub fn ls(&self, path_segments: &Array, store: BlockStore) -> JsResult<Promise> {
         let directory = Rc::clone(&self.0);
         let store = ForeignBlockStore(store);
         let path_segments = utils::convert_path_segments(path_segments)?;
 
         Ok(future_to_promise(async move {
-            let WnfsOpResult { root_dir, result } = directory
+            let WnfsPublicOpResult { root_dir, result } = directory
                 .ls(&path_segments, &store)
                 .await
-                .map_err(|e| Error::new(&format!("Cannot list directory children: {e}")))?;
+                .map_err(error("Cannot list directory children"))?;
 
             let result = result
                 .iter()
                 .flat_map(|(name, metadata)| utils::create_ls_entry(name, metadata))
                 .collect::<Array>();
 
-            Ok(utils::create_op_result(root_dir, result)?)
+            Ok(utils::create_public_op_result(root_dir, result)?)
         }))
     }
 
@@ -147,15 +158,15 @@ impl PublicDirectory {
         let path_segments = utils::convert_path_segments(path_segments)?;
 
         Ok(future_to_promise(async move {
-            let WnfsOpResult {
+            let WnfsPublicOpResult {
                 root_dir,
                 result: node,
             } = directory
                 .rm(&path_segments, &store)
                 .await
-                .map_err(|e| Error::new(&format!("Cannot remove from directory: {e}")))?;
+                .map_err(error("Cannot remove from directory"))?;
 
-            Ok(utils::create_op_result(root_dir, PublicNode(node))?)
+            Ok(utils::create_public_op_result(root_dir, PublicNode(node))?)
         }))
     }
 
@@ -170,18 +181,17 @@ impl PublicDirectory {
         let directory = Rc::clone(&self.0);
         let store = ForeignBlockStore(store);
 
-        let cid =
-            Cid::try_from(content_cid).map_err(|e| Error::new(&format!("Invalid CID: {e}")))?;
+        let cid = Cid::try_from(content_cid).map_err(error("Invalid CID"))?;
         let time = DateTime::<Utc>::from(time);
         let path_segments = utils::convert_path_segments(path_segments)?;
 
         Ok(future_to_promise(async move {
-            let WnfsOpResult { root_dir, .. } = directory
+            let WnfsPublicOpResult { root_dir, .. } = directory
                 .write(&path_segments, cid, time, &store)
                 .await
-                .map_err(|e| Error::new(&format!("Cannot write to directory: {e}")))?;
+                .map_err(error("Cannot write to directory"))?;
 
-            Ok(utils::create_op_result(root_dir, JsValue::NULL)?)
+            Ok(utils::create_public_op_result(root_dir, JsValue::NULL)?)
         }))
     }
 
@@ -194,19 +204,19 @@ impl PublicDirectory {
         time: &Date,
         store: BlockStore,
     ) -> JsResult<Promise> {
-        let directory = self.0.clone();
+        let directory = Rc::clone(&self.0);
         let store = ForeignBlockStore(store);
         let time = DateTime::<Utc>::from(time);
         let path_segments_from = utils::convert_path_segments(path_segments_from)?;
         let path_segments_to = utils::convert_path_segments(path_segments_to)?;
 
         Ok(future_to_promise(async move {
-            let WnfsOpResult { root_dir, .. } = directory
+            let WnfsPublicOpResult { root_dir, .. } = directory
                 .basic_mv(&path_segments_from, &path_segments_to, time, &store)
                 .await
-                .map_err(|e| Error::new(&format!("Cannot create directory: {e}")))?;
+                .map_err(error("Cannot create directory"))?;
 
-            Ok(utils::create_op_result(root_dir, JsValue::NULL)?)
+            Ok(utils::create_public_op_result(root_dir, JsValue::NULL)?)
         }))
     }
 
@@ -219,36 +229,34 @@ impl PublicDirectory {
         time: &Date,
         store: BlockStore,
     ) -> JsResult<Promise> {
-        let directory = self.0.clone();
+        let directory = Rc::clone(&self.0);
         let store = ForeignBlockStore(store);
         let time = DateTime::<Utc>::from(time);
         let path_segments = utils::convert_path_segments(path_segments)?;
 
         Ok(future_to_promise(async move {
-            let WnfsOpResult { root_dir, .. } = directory
+            let WnfsPublicOpResult { root_dir, .. } = directory
                 .mkdir(&path_segments, time, &store)
                 .await
-                .map_err(|e| Error::new(&format!("Cannot create directory: {e}")))?;
+                .map_err(error("Cannot create directory"))?;
 
-            Ok(utils::create_op_result(root_dir, JsValue::NULL)?)
+            Ok(utils::create_public_op_result(root_dir, JsValue::NULL)?)
         }))
     }
 
     #[wasm_bindgen(js_name = "baseHistoryOn")]
     pub fn base_history_on(&self, base: &PublicDirectory, store: BlockStore) -> JsResult<Promise> {
-        let directory = self.0.clone();
+        let directory = Rc::clone(&self.0);
         let base = base.0.clone();
         let mut store = ForeignBlockStore(store);
 
         Ok(future_to_promise(async move {
-            let WnfsOpResult { root_dir, .. } = directory
+            let WnfsPublicOpResult { root_dir, .. } = directory
                 .base_history_on(base, &mut store)
                 .await
-                .map_err(|e| {
-                Error::new(&format!("Cannot do history rebase (base_history_on): {e}"))
-            })?;
+                .map_err(error("Cannot do history rebase (base_history_on)"))?;
 
-            Ok(utils::create_op_result(root_dir, JsValue::NULL)?)
+            Ok(utils::create_public_op_result(root_dir, JsValue::NULL)?)
         }))
     }
 
@@ -272,71 +280,12 @@ impl PublicDirectory {
     /// Converts directory to a node.
     #[wasm_bindgen(js_name = "asNode")]
     pub fn as_node(&self) -> PublicNode {
-        PublicNode(WnfsPublicNode::Dir(self.0.clone()))
+        PublicNode(WnfsPublicNode::Dir(Rc::clone(&self.0)))
     }
 
     /// Gets a unique id for node.
     #[wasm_bindgen(js_name = "getId")]
     pub fn get_id(&self) -> String {
         self.0.get_id()
-    }
-}
-
-//--------------------------------------------------------------------------------------------------
-// Utilities
-//--------------------------------------------------------------------------------------------------
-
-mod utils {
-    use std::rc::Rc;
-
-    use crate::{fs::metadata::JsMetadata, fs::JsResult, value};
-    use js_sys::{Array, Error, Object, Reflect};
-    use wasm_bindgen::JsValue;
-    use wnfs::{public::PublicDirectory as WnfsPublicDirectory, Metadata};
-
-    use super::PublicDirectory;
-
-    pub(crate) fn map_to_rust_vec<T, F: FnMut(JsValue) -> JsResult<T>>(
-        array: &Array,
-        f: F,
-    ) -> JsResult<Vec<T>> {
-        array
-            .to_vec()
-            .into_iter()
-            .map(f)
-            .collect::<JsResult<Vec<_>>>()
-    }
-
-    pub(crate) fn convert_path_segments(path_segments: &Array) -> JsResult<Vec<String>> {
-        map_to_rust_vec(path_segments, |v| {
-            v.as_string()
-                .ok_or_else(|| Error::new("Invalid path segments: Expected an array of strings"))
-        })
-    }
-
-    pub(crate) fn create_op_result<T: Into<JsValue>>(
-        root_dir: Rc<WnfsPublicDirectory>,
-        result: T,
-    ) -> JsResult<JsValue> {
-        let op_result = Object::new();
-        let root_dir = PublicDirectory(root_dir);
-
-        Reflect::set(&op_result, &value!("rootDir"), &value!(root_dir))?;
-        Reflect::set(&op_result, &value!("result"), &result.into())?;
-
-        Ok(value!(op_result))
-    }
-
-    pub(crate) fn create_ls_entry(name: &String, metadata: &Metadata) -> JsResult<JsValue> {
-        let entry = Object::new();
-
-        Reflect::set(&entry, &value!("name"), &value!(name))?;
-        Reflect::set(
-            &entry,
-            &value!("metadata"),
-            &JsMetadata(metadata).try_into()?,
-        )?;
-
-        Ok(value!(entry))
     }
 }

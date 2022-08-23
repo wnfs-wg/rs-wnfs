@@ -1,12 +1,15 @@
 use std::{fmt::Debug, marker::PhantomData, rc::Rc};
 
-use crate::{private::HAMT_VALUES_BUCKET_SIZE, AsyncSerialize, BlockStore, Link};
+use crate::{
+    private::hamt::HAMT_VALUES_BUCKET_SIZE, AsyncSerialize, BlockStore, HashOutput, Link,
+    ReferenceableStore,
+};
 use anyhow::{bail, Result};
 use async_recursion::async_recursion;
 use async_trait::async_trait;
 use bitvec::array::BitArray;
 
-use libipld::{serde as ipld_serde, Ipld};
+use libipld::{serde as ipld_serde, Cid, Ipld};
 use log::debug;
 use serde::{
     de::{Deserialize, DeserializeOwned},
@@ -43,20 +46,20 @@ where
 
 impl<K, V, H> Node<K, V, H>
 where
-    K: DeserializeOwned + Serialize + AsRef<[u8]> + Clone + Eq + PartialOrd + Debug,
+    K: DeserializeOwned + Serialize + Clone + Debug + AsRef<[u8]>,
     V: DeserializeOwned + Serialize + Clone + Debug,
     H: Hasher + Clone + Debug,
 {
     /// Sets a new value at the given key.
     pub async fn set<B: BlockStore>(
-        self: Rc<Self>,
+        self: &Rc<Self>,
         key: K,
         value: V,
         store: &mut B,
     ) -> Result<Rc<Self>> {
         let hash = &H::hash(&key);
         debug!("set: hash = {:02x?}", hash);
-        self.modify_value(&mut HashNibbles::new(hash), key, value, store)
+        self.set_value(&mut HashNibbles::new(hash), key, value, store)
             .await
     }
 
@@ -69,20 +72,42 @@ where
         let hash = &H::hash(key);
         debug!("get: hash = {:02x?}", hash);
         Ok(self
-            .get_value(&mut HashNibbles::new(hash), key, store)
+            .get_value(&mut HashNibbles::new(hash), store)
             .await?
             .map(|pair| &pair.value))
     }
 
     /// Removes the value at the given key.
     pub async fn remove<'a, B: BlockStore>(
-        self: Rc<Self>,
+        self: &Rc<Self>,
         key: &K,
         store: &B,
-    ) -> Result<(Rc<Self>, Option<V>)> {
+    ) -> Result<(Rc<Self>, Option<Pair<K, V>>)> {
         let hash = &H::hash(key);
         debug!("remove: hash = {:02x?}", hash);
-        self.remove_value(&mut HashNibbles::new(hash), key, store)
+        self.remove_value(&mut HashNibbles::new(hash), store).await
+    }
+
+    /// Gets the value at the key matching the provided hash.
+    pub async fn get_by_hash<'a, B: BlockStore>(
+        self: &'a Rc<Self>,
+        hash: &HashOutput,
+        store: &B,
+    ) -> Result<Option<&'a V>> {
+        debug!("get_by_hash: hash = {:02x?}", hash);
+        Ok(self
+            .get_value(&mut HashNibbles::new(hash), store)
+            .await?
+            .map(|pair| &pair.value))
+    }
+
+    /// Removes the value at the key matching the provided hash.
+    pub async fn remove_by_hash<'a, B: BlockStore>(
+        self: &Rc<Self>,
+        hash: &HashOutput,
+        store: &B,
+    ) -> Result<(Rc<Self>, Option<V>)> {
+        self.remove_value(&mut HashNibbles::new(hash), store)
             .await
             .map(|(node, pair)| (node, pair.map(|pair| pair.value)))
     }
@@ -107,7 +132,7 @@ where
     }
 
     #[async_recursion(?Send)]
-    pub(super) async fn modify_value<'a, 'b, B: BlockStore>(
+    pub async fn set_value<'a, 'b, B: BlockStore>(
         self: &'a Rc<Self>,
         hashnibbles: &'b mut HashNibbles,
         key: K,
@@ -118,7 +143,7 @@ where
         let value_index = self.get_value_index(bit_index);
 
         debug!(
-            "modify_value: bit_index = {}, value_index = {}",
+            "set_value: bit_index = {}, value_index = {}",
             bit_index, value_index
         );
 
@@ -139,7 +164,10 @@ where
                 let mut node = (**self).clone();
                 let pointers: Pointer<_, _, H> = {
                     let mut values = (*values).clone();
-                    if let Some(i) = values.iter().position(|p| p.key == key) {
+                    if let Some(i) = values
+                        .iter()
+                        .position(|p| &H::hash(&p.key) == hashnibbles.digest)
+                    {
                         // If the key is already present, update the value.
                         values[i] = Pair::new(key, value);
                         Pointer::Values(values)
@@ -149,7 +177,7 @@ where
                             // Insert in order of key.
                             let index = values
                                 .iter()
-                                .position(|p| p.key > key)
+                                .position(|p| &H::hash(&p.key) > hashnibbles.digest)
                                 .unwrap_or(values.len());
                             values.insert(index, Pair::new(key, value));
                             Pointer::Values(values)
@@ -162,9 +190,8 @@ where
                             {
                                 let hash = &H::hash(&key);
                                 let hashnibbles = &mut HashNibbles::with_cursor(hash, cursor);
-                                sub_node = sub_node
-                                    .modify_value(hashnibbles, key, value, store)
-                                    .await?;
+                                sub_node =
+                                    sub_node.set_value(hashnibbles, key, value, store).await?;
                             }
                             Pointer::Link(Link::from(sub_node))
                         }
@@ -176,7 +203,7 @@ where
             }
             Pointer::Link(link) => {
                 let child = Rc::clone(link.resolve_value(store).await?);
-                let child = child.modify_value(hashnibbles, key, value, store).await?;
+                let child = child.set_value(hashnibbles, key, value, store).await?;
                 let mut node = (**self).clone();
                 node.pointers[value_index] = Pointer::Link(Link::from(child));
                 Rc::new(node)
@@ -185,10 +212,9 @@ where
     }
 
     #[async_recursion(?Send)]
-    pub(super) async fn get_value<'a, 'b, B: BlockStore>(
+    pub async fn get_value<'a, 'b, B: BlockStore>(
         self: &'a Rc<Self>,
         hashnibbles: &'b mut HashNibbles,
-        key: &K,
         store: &B,
     ) -> Result<Option<&'a Pair<K, V>>> {
         let bit_index = hashnibbles.try_next()?;
@@ -200,19 +226,22 @@ where
 
         let value_index = self.get_value_index(bit_index);
         match &self.pointers[value_index] {
-            Pointer::Values(values) => Ok(values.iter().find(|kv| key.eq(&kv.key))),
+            Pointer::Values(values) => Ok({
+                values
+                    .iter()
+                    .find(|p| &H::hash(&p.key) == hashnibbles.digest)
+            }),
             Pointer::Link(link) => {
                 let child = link.resolve_value(store).await?;
-                child.get_value(hashnibbles, key, store).await
+                child.get_value(hashnibbles, store).await
             }
         }
     }
 
     #[async_recursion(?Send)]
-    pub(super) async fn remove_value<'a, 'b, B: BlockStore>(
+    pub async fn remove_value<'a, 'b, B: BlockStore>(
         self: &'a Rc<Self>,
         hashnibbles: &'b mut HashNibbles,
-        key: &K,
         store: &B,
     ) -> Result<(Rc<Self>, Option<Pair<K, V>>)> {
         let bit_index = hashnibbles.try_next()?;
@@ -227,6 +256,10 @@ where
             Pointer::Values(values) => {
                 let mut node = (**self).clone();
                 let value = if values.len() == 1 {
+                    // If the key doesn't match, return without removing.
+                    if &H::hash(&values[0].key) != hashnibbles.digest {
+                        return Ok((Rc::clone(self), None));
+                    }
                     // If there is only one value, we can remove the entire pointer.
                     node.bitmask.set(bit_index, false);
                     match node.pointers.remove(value_index) {
@@ -236,18 +269,21 @@ where
                 } else {
                     // Otherwise, remove just the value.
                     let mut values = (*values).clone();
-                    values.iter().position(|p| p.key == *key).map(|i| {
-                        let value = values.remove(i);
-                        node.pointers[value_index] = Pointer::Values(values);
-                        value
-                    })
+                    values
+                        .iter()
+                        .position(|p| &H::hash(&p.key) == hashnibbles.digest)
+                        .map(|i| {
+                            let value = values.remove(i);
+                            node.pointers[value_index] = Pointer::Values(values);
+                            value
+                        })
                 };
 
                 (Rc::new(node), value)
             }
             Pointer::Link(link) => {
                 let child = Rc::clone(link.resolve_value(store).await?);
-                let (child, value) = child.remove_value(hashnibbles, key, store).await?;
+                let (child, value) = child.remove_value(hashnibbles, store).await?;
 
                 let mut node = (**self).clone();
                 if value.is_some() {
@@ -288,7 +324,10 @@ impl<K, V, H: Hasher> Node<K, V, H> {
     }
 
     /// Converts a Node to an IPLD object.
-    pub async fn to_ipld<B: BlockStore + ?Sized>(&self, store: &mut B) -> Result<Ipld>
+    pub async fn to_ipld<RS: ReferenceableStore<Ref = Cid> + ?Sized>(
+        &self,
+        store: &mut RS,
+    ) -> Result<Ipld>
     where
         K: Serialize,
         V: Serialize,
@@ -323,11 +362,13 @@ where
     V: Serialize,
     H: Hasher,
 {
-    async fn async_serialize<S: Serializer, B: BlockStore + ?Sized>(
-        &self,
-        serializer: S,
-        store: &mut B,
-    ) -> Result<S::Ok, S::Error> {
+    type StoreRef = Cid;
+
+    async fn async_serialize<S, RS>(&self, serializer: S, store: &mut RS) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+        RS: ReferenceableStore<Ref = Self::StoreRef> + ?Sized,
+    {
         self.to_ipld(store)
             .await
             .map_err(SerError::custom)?
@@ -370,9 +411,9 @@ where
 //--------------------------------------------------------------------------------------------------
 
 #[cfg(test)]
-mod hamt_node_tests {
+mod hamt_node_unit_tests {
     use super::*;
-    use crate::{dagcbor, HashOutput, MemoryBlockStore};
+    use crate::{HashOutput, MemoryBlockStore};
     use lazy_static::lazy_static;
     use test_log::test;
 
@@ -396,12 +437,7 @@ mod hamt_node_tests {
     impl Hasher for MockHasher {
         fn hash<K: AsRef<[u8]>>(key: &K) -> HashOutput {
             let s = std::str::from_utf8(key.as_ref()).unwrap();
-            HASH_KV_PAIRS
-                .iter()
-                .find(|(_, v)| s == *v)
-                .unwrap()
-                .0
-                .clone()
+            HASH_KV_PAIRS.iter().find(|(_, v)| s == *v).unwrap().0
         }
     }
 
@@ -412,20 +448,17 @@ mod hamt_node_tests {
         // Insert 4 values to trigger the creation of a linked node.
         let mut working_node = Rc::new(Node::<String, String, MockHasher>::default());
         for (digest, kv) in HASH_KV_PAIRS.iter() {
-            let hashnibbles = &mut HashNibbles::new(&digest);
+            let hashnibbles = &mut HashNibbles::new(digest);
             working_node = working_node
-                .modify_value(hashnibbles, kv.to_string(), kv.to_string(), store)
+                .set_value(hashnibbles, kv.to_string(), kv.to_string(), store)
                 .await
                 .unwrap();
         }
 
         // Get the values.
         for (digest, kv) in HASH_KV_PAIRS.iter() {
-            let hashnibbles = &mut HashNibbles::new(&digest);
-            let value = working_node
-                .get_value(hashnibbles, &kv.to_string(), store)
-                .await
-                .unwrap();
+            let hashnibbles = &mut HashNibbles::new(digest);
+            let value = working_node.get_value(hashnibbles, store).await.unwrap();
 
             assert_eq!(value, Some(&Pair::new(kv.to_string(), kv.to_string())));
         }
@@ -438,9 +471,9 @@ mod hamt_node_tests {
         // Insert 4 values to trigger the creation of a linked node.
         let mut working_node = Rc::new(Node::<String, String, MockHasher>::default());
         for (digest, kv) in HASH_KV_PAIRS.iter() {
-            let hashnibbles = &mut HashNibbles::new(&digest);
+            let hashnibbles = &mut HashNibbles::new(digest);
             working_node = working_node
-                .modify_value(hashnibbles, kv.to_string(), kv.to_string(), store)
+                .set_value(hashnibbles, kv.to_string(), kv.to_string(), store)
                 .await
                 .unwrap();
         }
@@ -450,7 +483,7 @@ mod hamt_node_tests {
         // Remove the third value.
         let third_hashnibbles = &mut HashNibbles::new(&HASH_KV_PAIRS[2].0);
         working_node = working_node
-            .remove_value(third_hashnibbles, &"third".to_string(), store)
+            .remove_value(third_hashnibbles, store)
             .await
             .unwrap()
             .0;
@@ -464,7 +497,7 @@ mod hamt_node_tests {
         }
 
         let value = working_node
-            .get_value(third_hashnibbles, &"third".to_string(), store)
+            .get_value(third_hashnibbles, store)
             .await
             .unwrap();
 
@@ -472,16 +505,16 @@ mod hamt_node_tests {
     }
 
     #[test(async_std::test)]
-    async fn modify_value_splits_when_bucket_threshold_reached() {
+    async fn set_value_splits_when_bucket_threshold_reached() {
         let store = &mut MemoryBlockStore::default();
 
         // Insert 3 values into the HAMT.
         let mut working_node = Rc::new(Node::<String, String, MockHasher>::default());
         for (idx, (digest, kv)) in HASH_KV_PAIRS.iter().take(3).enumerate() {
             let kv = kv.to_string();
-            let hashnibbles = &mut HashNibbles::new(&digest);
+            let hashnibbles = &mut HashNibbles::new(digest);
             working_node = working_node
-                .modify_value(hashnibbles, kv.clone(), kv.clone(), store)
+                .set_value(hashnibbles, kv.clone(), kv.clone(), store)
                 .await
                 .unwrap();
 
@@ -497,7 +530,7 @@ mod hamt_node_tests {
 
         // Inserting the fourth value should introduce a link indirection.
         working_node = working_node
-            .modify_value(
+            .set_value(
                 &mut HashNibbles::new(&HASH_KV_PAIRS[3].0),
                 "fourth".to_string(),
                 "fourth".to_string(),
@@ -544,7 +577,7 @@ mod hamt_node_tests {
             let hashnibbles = &mut HashNibbles::new(&bytes);
 
             working_node = working_node
-                .modify_value(
+                .set_value(
                     hashnibbles,
                     expected_idx.to_string(),
                     expected_idx.to_string(),
@@ -573,22 +606,332 @@ mod hamt_node_tests {
             .await
             .unwrap();
 
-        let value = node.get(&"pill".into(), &mut store).await.unwrap().unwrap();
+        let value = node.get(&"pill".into(), &store).await.unwrap().unwrap();
 
         assert_eq!(value, &(10, 0.315));
     }
 
     #[test(async_std::test)]
-    async fn node_can_encode_decode_as_cbor() {
+    async fn node_is_same_with_irrelevant_remove() {
+        // These two keys' hashes have the same first nibble (7)
+        let insert_key: String = "GL59 Tg4phDb  bv".into();
+        let remove_key: String = "hK i3b4V4152EPOdA".into();
+
         let store = &mut MemoryBlockStore::default();
-        let node: Rc<Node<String, i32>> = Rc::new(Node::default());
+        let mut node0: Rc<Node<String, u64>> = Rc::new(Node::default());
 
-        let node = node.set("James".into(), 4500, store).await.unwrap();
-        let node = node.set("Peter".into(), 2000, store).await.unwrap();
+        node0 = node0.set(insert_key.clone(), 0, store).await.unwrap();
+        (node0, _) = node0.remove(&remove_key, store).await.unwrap();
 
-        let encoded_node = dagcbor::async_encode(&node, store).await.unwrap();
-        let decoded_node = dagcbor::decode::<Node<String, i32>>(encoded_node.as_ref()).unwrap();
+        assert_eq!(node0.count_values().unwrap(), 1);
+    }
 
-        assert_eq!(*node, decoded_node);
+    #[test(async_std::test)]
+    async fn node_history_independence_regression() {
+        let store = &mut MemoryBlockStore::default();
+
+        let mut node1: Rc<Node<String, u64>> = Rc::new(Node::default());
+        let mut node2: Rc<Node<String, u64>> = Rc::new(Node::default());
+
+        node1 = node1.set("key 17".into(), 508, store).await.unwrap();
+        node1 = node1.set("key 81".into(), 971, store).await.unwrap();
+        node1 = node1.set("key 997".into(), 365, store).await.unwrap();
+        (node1, _) = node1.remove(&"key 17".into(), store).await.unwrap();
+        node1 = node1.set("key 68".into(), 870, store).await.unwrap();
+        node1 = node1.set("key 304".into(), 331, store).await.unwrap();
+
+        node2 = node2.set("key 81".into(), 971, store).await.unwrap();
+        node2 = node2.set("key 17".into(), 508, store).await.unwrap();
+        node2 = node2.set("key 997".into(), 365, store).await.unwrap();
+        node2 = node2.set("key 304".into(), 331, store).await.unwrap();
+        node2 = node2.set("key 68".into(), 870, store).await.unwrap();
+        (node2, _) = node2.remove(&"key 17".into(), store).await.unwrap();
+
+        let cid1 = store.put_async_serializable(&node1).await.unwrap();
+        let cid2 = store.put_async_serializable(&node2).await.unwrap();
+
+        assert_eq!(cid1, cid2);
+    }
+}
+
+#[cfg(test)]
+mod hamt_node_prop_tests {
+
+    use std::collections::HashMap;
+    use std::hash::Hash;
+
+    use proptest::collection::*;
+    use proptest::prelude::*;
+    use proptest::strategy::Shuffleable;
+    use test_strategy::proptest;
+
+    use crate::dagcbor;
+    use crate::MemoryBlockStore;
+
+    use super::*;
+
+    #[derive(Debug, Clone)]
+    enum Operation<K, V> {
+        Insert(K, V),
+        Remove(K),
+    }
+
+    impl<K, V> Operation<K, V> {
+        pub fn can_be_swapped_with(&self, other: &Operation<K, V>) -> bool
+        where
+            K: PartialEq,
+            V: PartialEq,
+        {
+            match (self, other) {
+                (Operation::Insert(key_a, val_a), Operation::Insert(key_b, val_b)) => {
+                    // We can't swap if the keys are the same and values different.
+                    // Because in those cases operation order matters.
+                    // E.g. insert "a" 10, insert "a" 11 != insert "a" 11, insert "a" 10
+                    // But insert "a" 10, insert "b" 11 == insert "b" 11, insert "a" 10
+                    // Or insert "a" 10, insert "a" 10 == insert "a" 10, insert "a" 10 ('swapped')
+                    key_a != key_b || val_a == val_b
+                }
+                (Operation::Insert(key_i, _), Operation::Remove(key_r)) => {
+                    // We can only swap if these two operations are unrelated.
+                    // Otherwise order matters.
+                    // E.g. insert "a" 10, remove "a" != remove "a", insert "a" 10
+                    key_i != key_r
+                }
+                (Operation::Remove(key_r), Operation::Insert(key_i, _)) => {
+                    // same as above
+                    key_i != key_r
+                }
+                (Operation::Remove(_), Operation::Remove(_)) => {
+                    // Removes can always be swapped
+                    true
+                }
+            }
+        }
+    }
+
+    #[derive(Debug, Clone)]
+    struct Operations<K, V>(Vec<Operation<K, V>>);
+
+    impl<K: PartialEq, V: PartialEq> Shuffleable for Operations<K, V> {
+        fn shuffle_len(&self) -> usize {
+            self.0.len()
+        }
+
+        /// Swaps the values if that wouldn't change the semantics.
+        /// Otherwise it's a no-op.
+        fn shuffle_swap(&mut self, a: usize, b: usize) {
+            use std::cmp;
+            if a == b {
+                return;
+            }
+            let min = cmp::min(a, b);
+            let max = cmp::max(a, b);
+            let left = &self.0[min];
+            let right = &self.0[max];
+
+            for i in min..=max {
+                let neighbor = &self.0[i];
+                if !left.can_be_swapped_with(neighbor) {
+                    return;
+                }
+                if !right.can_be_swapped_with(neighbor) {
+                    return;
+                }
+            }
+
+            // The reasoning for why this works now, is following:
+            // Let's look at an example. We checked that we can do all of these swaps:
+            // a x y z b
+            // x a y z b
+            // x y a z b
+            // x y z a b
+            // x y z b a
+            // x y b z a
+            // x b y z a
+            // b x y z a
+            // Observe how a moves to the right
+            // and b moves to the left.
+            // The end result is the same as
+            // just swapping a and b.
+            // With all calls to `can_be_swapped_with` above
+            // we've made sure that this operation is now safe.
+
+            self.0.swap(a, b);
+        }
+    }
+
+    async fn node_from_operations<K, V, B: BlockStore>(
+        operations: Operations<K, V>,
+        store: &mut B,
+    ) -> Result<Rc<Node<K, V>>>
+    where
+        K: DeserializeOwned + Serialize + Clone + Debug + AsRef<[u8]>,
+        V: DeserializeOwned + Serialize + Clone + Debug,
+    {
+        let mut node: Rc<Node<K, V>> = Rc::new(Node::default());
+        for op in operations.0 {
+            match op {
+                Operation::Insert(key, value) => {
+                    node = node.set(key.clone(), value, store).await?;
+                }
+                Operation::Remove(key) => {
+                    (node, _) = node.remove(&key, store).await?;
+                }
+            };
+        }
+
+        Ok(node)
+    }
+
+    fn hash_map_from_operations<K: Debug + Clone + Hash + Eq, V: Debug + Clone + Eq>(
+        operations: Operations<K, V>,
+    ) -> HashMap<K, V> {
+        let mut map = HashMap::default();
+        for op in operations.0 {
+            match op {
+                Operation::Insert(key, value) => {
+                    map.insert(key, value);
+                }
+                Operation::Remove(key) => {
+                    map.remove(&key);
+                }
+            }
+        }
+        map
+    }
+
+    fn small_key() -> impl Strategy<Value = String> {
+        (0..1000).prop_map(|i| format!("key {i}"))
+    }
+
+    fn operation<K: Debug, V: Debug>(
+        key: impl Strategy<Value = K>,
+        value: impl Strategy<Value = V>,
+    ) -> impl Strategy<Value = Operation<K, V>> {
+        (any::<bool>(), key, value).prop_map(|(is_insert, key, value)| {
+            if is_insert {
+                Operation::Insert(key, value)
+            } else {
+                Operation::Remove(key)
+            }
+        })
+    }
+
+    fn operations<K: Debug, V: Debug>(
+        key: impl Strategy<Value = K>,
+        value: impl Strategy<Value = V>,
+        size: impl Into<SizeRange>,
+    ) -> impl Strategy<Value = Operations<K, V>> {
+        vec(operation(key, value), size).prop_map(|vec| Operations(vec))
+    }
+
+    fn operations_and_shuffled<K: PartialEq + Clone + Debug, V: PartialEq + Clone + Debug>(
+        key: impl Strategy<Value = K>,
+        value: impl Strategy<Value = V>,
+        size: impl Into<SizeRange>,
+    ) -> impl Strategy<Value = (Operations<K, V>, Operations<K, V>)> {
+        operations(key, value, size)
+            .prop_flat_map(|operations| (Just(operations.clone()), Just(operations).prop_shuffle()))
+    }
+
+    #[proptest(cases = 50)]
+    fn test_insert_idempotence(
+        #[strategy(operations(small_key(), 0u64..1000, 0..100))] operations: Operations<
+            String,
+            u64,
+        >,
+        #[strategy(small_key())] key: String,
+        #[strategy(0..1000u64)] value: u64,
+    ) {
+        async_std::task::block_on(async move {
+            let store = &mut MemoryBlockStore::default();
+            let node = node_from_operations(operations, store).await.unwrap();
+
+            node.set(key.clone(), value, store).await.unwrap();
+            let cid1 = store.put_async_serializable(&node).await.unwrap();
+
+            node.set(key, value, store).await.unwrap();
+            let cid2 = store.put_async_serializable(&node).await.unwrap();
+
+            assert_eq!(cid1, cid2);
+        })
+    }
+
+    #[proptest(cases = 50)]
+    fn test_remove_idempotence(
+        #[strategy(operations(small_key(), 0u64..1000, 0..100))] operations: Operations<
+            String,
+            u64,
+        >,
+        #[strategy(small_key())] key: String,
+    ) {
+        async_std::task::block_on(async move {
+            let store = &mut MemoryBlockStore::default();
+            let node = node_from_operations(operations, store).await.unwrap();
+
+            node.remove(&key, store).await.unwrap();
+            let cid1 = store.put_async_serializable(&node).await.unwrap();
+
+            node.remove(&key, store).await.unwrap();
+            let cid2 = store.put_async_serializable(&node).await.unwrap();
+
+            assert_eq!(cid1, cid2);
+        })
+    }
+
+    #[proptest(cases = 100)]
+    fn node_can_encode_decode_as_cbor(
+        #[strategy(operations(small_key(), 0u64..1000, 0..1000))] operations: Operations<
+            String,
+            u64,
+        >,
+    ) {
+        async_std::task::block_on(async move {
+            let store = &mut MemoryBlockStore::default();
+            let node = node_from_operations(operations, store).await.unwrap();
+
+            let encoded_node = dagcbor::async_encode(&node, store).await.unwrap();
+            let decoded_node = dagcbor::decode::<Node<String, u64>>(encoded_node.as_ref()).unwrap();
+
+            assert_eq!(*node, decoded_node);
+        })
+    }
+
+    #[proptest(cases = 1000, max_shrink_iters = 10_000)]
+    fn node_operations_are_history_independent(
+        #[strategy(operations_and_shuffled(small_key(), 0u64..1000, 0..100))] pair: (
+            Operations<String, u64>,
+            Operations<String, u64>,
+        ),
+    ) {
+        async_std::task::block_on(async move {
+            let (original, shuffled) = pair;
+
+            let store = &mut MemoryBlockStore::default();
+
+            let node1 = node_from_operations(original, store).await.unwrap();
+            let node2 = node_from_operations(shuffled, store).await.unwrap();
+
+            let cid1 = store.put_async_serializable(&node1).await.unwrap();
+            let cid2 = store.put_async_serializable(&node2).await.unwrap();
+
+            assert_eq!(cid1, cid2);
+        })
+    }
+
+    // This is sort of a "control group" for making sure that operations_and_shuffled is correct.
+    #[proptest(cases = 200, max_shrink_iters = 10_000)]
+    fn hash_map_is_history_independent(
+        #[strategy(operations_and_shuffled(small_key(), 0u64..1000, 0..1000))] pair: (
+            Operations<String, u64>,
+            Operations<String, u64>,
+        ),
+    ) {
+        let (original, shuffled) = pair;
+
+        let map1 = hash_map_from_operations(original);
+        let map2 = hash_map_from_operations(shuffled);
+
+        assert_eq!(map1, map2);
     }
 }

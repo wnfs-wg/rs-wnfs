@@ -1,0 +1,8 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 1b041fdc46a495f11fb7eb853eaf58b5fdfdc31c81568f0ea15c5840fe3398a8 # shrinks to input = _TestInsertsRemovesArgs { operations: [Insert("1"), Remove("1")] }
+cc 4a1bfa405c3bf3cc84a6c0e48bd6e96cce48d99c5c28341a842bc2a5e6d99c30 # shrinks to input = _NodeOperationsAreHistoryIndependentArgs { pair: (Operations([Insert("key 17", 508), Insert("key 81", 971), Insert("key 997", 365), Remove("key 17"), Insert("key 68", 870), Insert("key 304", 331)]), Operations([Insert("key 81", 971), Insert("key 17", 508), Insert("key 997", 365), Insert("key 304", 331), Insert("key 68", 870), Remove("key 17")])) }

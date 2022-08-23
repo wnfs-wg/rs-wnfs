@@ -11,5 +11,6 @@ mod pointer;
 pub(crate) use constants::*;
 
 pub use hamt::*;
+pub use hash::*;
 pub use node::*;
 pub use pointer::*;

@@ -1,6 +1,5 @@
 //! The bindgen API for PublicFile.
 
-use crate::{fs::metadata::JsMetadata, value};
 use chrono::{DateTime, Utc};
 use js_sys::{Error, Promise, Uint8Array};
 use std::rc::Rc;
@@ -8,11 +7,22 @@ use wasm_bindgen::{prelude::wasm_bindgen, JsValue};
 use wasm_bindgen_futures::future_to_promise;
 use wnfs::{ipld::Cid, public::PublicFile as WnfsPublicFile, BlockStore as WnfsBlockStore, Id};
 
-use crate::fs::{BlockStore, ForeignBlockStore, JsResult};
+use crate::{
+    fs::{metadata::JsMetadata, utils::error, BlockStore, ForeignBlockStore, JsResult},
+    value,
+};
+
+//--------------------------------------------------------------------------------------------------
+// Type Definitions
+//--------------------------------------------------------------------------------------------------
 
 /// A file in a WNFS public file system.
 #[wasm_bindgen]
 pub struct PublicFile(pub(crate) Rc<WnfsPublicFile>);
+
+//--------------------------------------------------------------------------------------------------
+// Implementations
+//--------------------------------------------------------------------------------------------------
 
 #[wasm_bindgen]
 impl PublicFile {
@@ -20,8 +30,7 @@ impl PublicFile {
     #[wasm_bindgen(constructor)]
     pub fn new(time: &js_sys::Date, cid: Vec<u8>) -> JsResult<PublicFile> {
         let time = DateTime::<Utc>::from(time);
-
-        let cid = Cid::try_from(&cid[..]).map_err(|e| Error::new(&format!("Invalid CID: {e}")))?;
+        let cid = Cid::try_from(&cid[..]).map_err(error("Invalid CID"))?;
 
         Ok(PublicFile(Rc::new(WnfsPublicFile::new(time, cid))))
     }
