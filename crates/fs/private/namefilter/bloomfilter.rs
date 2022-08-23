@@ -114,11 +114,12 @@ impl<const N: usize, const K: usize> TryFrom<Vec<u8>> for BloomFilter<N, K> {
     type Error = anyhow::Error;
 
     fn try_from(bytes: Vec<u8>) -> Result<Self, Self::Error> {
-        let bits = BitArray::<[u8; N]>::new(
-            bytes
-                .try_into()
-                .map_err(|_| anyhow!("Cannot convert vec to fixed-size array"))?,
-        );
+        let bits = BitArray::<[u8; N]>::new(bytes.try_into().map_err(|e: Vec<u8>| {
+            anyhow!(
+                "Cannot convert vector to BloomFilter: Expected length {}",
+                e.len()
+            )
+        })?);
         Ok(Self { bits })
     }
 }

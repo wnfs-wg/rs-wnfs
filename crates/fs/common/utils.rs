@@ -13,6 +13,9 @@ pub(crate) struct ByteArrayVisitor<const N: usize>;
 #[cfg(test)]
 pub(crate) struct TestRng();
 
+#[cfg(test)]
+pub(crate) struct ProptestRng(proptest::test_runner::TestRng);
+
 //--------------------------------------------------------------------------------------------------
 // Implementations
 //--------------------------------------------------------------------------------------------------
@@ -35,6 +38,23 @@ impl<'de, const N: usize> Visitor<'de> for ByteArrayVisitor<N> {
 
 #[cfg(test)]
 impl crate::private::Rng for TestRng {
+    fn random_bytes<const N: usize>(&self) -> [u8; N] {
+        use rand::RngCore;
+        let mut bytes = [0u8; N];
+        rand::thread_rng().fill_bytes(&mut bytes);
+        bytes
+    }
+}
+
+#[cfg(test)]
+impl ProptestRng {
+    pub(crate) fn from_seed(algorithm: proptest::test_runner::RngAlgorithm, seed: &[u8]) -> Self {
+        Self(proptest::test_runner::TestRng::from_seed(algorithm, seed))
+    }
+}
+
+#[cfg(test)]
+impl crate::private::Rng for ProptestRng {
     fn random_bytes<const N: usize>(&self) -> [u8; N] {
         use rand::RngCore;
         let mut bytes = [0u8; N];

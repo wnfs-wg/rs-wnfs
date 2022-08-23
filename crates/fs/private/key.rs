@@ -40,12 +40,12 @@ impl Key {
             .encrypt(nonce, data)
             .map_err(|e| FsError::UnableToEncrypt(format!("{}", e)))?;
 
-        Ok([cipher_text, nonce_bytes.to_vec()].concat())
+        Ok([nonce_bytes.to_vec(), cipher_text].concat())
     }
 
     /// Decrypts the given ciphertext using the key.
     pub fn decrypt(&self, cipher_text: &[u8]) -> Result<Vec<u8>> {
-        let (data, nonce_bytes) = cipher_text.split_at(cipher_text.len() - NONCE_SIZE);
+        let (nonce_bytes, data) = cipher_text.split_at(NONCE_SIZE);
 
         Ok(Aes256Gcm::new(AesKey::from_slice(&self.0))
             .decrypt(Nonce::from_slice(nonce_bytes), data)
@@ -84,23 +84,23 @@ impl Debug for Key {
 
 #[cfg(test)]
 mod key_prop_tests {
-    use crate::utils::TestRng;
+    use crate::utils::ProptestRng;
 
     use super::*;
-    use proptest::collection::vec;
     use proptest::prelude::any;
+    use proptest::test_runner::RngAlgorithm;
     use test_strategy::proptest;
 
     #[proptest(cases = 50)]
     fn key_can_encrypt_and_decrypt_data(
-        #[strategy(vec(any::<u8>(), 1..50))] data: Vec<u8>,
+        #[strategy(any::<Vec<u8>>())] data: Vec<u8>,
+        #[strategy(any::<[u8; 32]>())] rng_seed: [u8; 32],
         key_bytes: [u8; 32],
     ) {
         let key = Key::new(key_bytes);
+        let rng = ProptestRng::from_seed(RngAlgorithm::ChaCha, &rng_seed);
 
-        let encrypted = key
-            .encrypt(&Key::generate_nonce(&TestRng()), &data)
-            .unwrap();
+        let encrypted = key.encrypt(&Key::generate_nonce(&rng), &data).unwrap();
         let decrypted = key.decrypt(&encrypted).unwrap();
 
         assert_eq!(decrypted, data);

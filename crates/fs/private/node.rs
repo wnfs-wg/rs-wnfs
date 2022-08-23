@@ -45,9 +45,12 @@ pub enum PrivateNode {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PrivateRef {
-    pub(crate) saturated_name_hash: HashOutput, // Sha3-256 hash of saturated namefilter
-    pub(crate) content_key: ContentKey,         // A hash of ratchet key.
-    pub(crate) ratchet_key: RatchetKey,         // Encrypted ratchet key.
+    /// Sha3-256 hash of saturated namefilter.
+    pub(crate) saturated_name_hash: HashOutput,
+    /// Content key; Sha3-256 hash of the ratchet key.
+    pub(crate) content_key: ContentKey,
+    /// Ratchet key; namefilter-derived key.
+    pub(crate) ratchet_key: RatchetKey,
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -76,12 +79,7 @@ impl PrivateNodeHeader {
     /// Gets the private ref of the current header.
     pub fn get_private_ref(&self) -> Result<PrivateRef> {
         let ratchet_key = Key::new(self.ratchet.derive_key());
-        let saturated_name_hash = {
-            let mut name = self.bare_name.clone();
-            name.add(&ratchet_key.as_bytes());
-            name.saturate();
-            Sha3_256::hash(&name.as_bytes())
-        };
+        let saturated_name_hash = Sha3_256::hash(&self.get_saturated_name_with_key(&ratchet_key));
 
         Ok(PrivateRef {
             saturated_name_hash,
@@ -90,13 +88,19 @@ impl PrivateNodeHeader {
         })
     }
 
-    /// Gets the saturated namefilter for this node.
-    pub fn get_saturated_name(&self) -> Namefilter {
-        let ratchet_key = Key::new(self.ratchet.derive_key());
+    /// Gets the saturated namefilter for this node using the provided ratchet key.
+    pub fn get_saturated_name_with_key(&self, ratchet_key: &Key) -> Namefilter {
         let mut name = self.bare_name.clone();
         name.add(&ratchet_key.as_bytes());
         name.saturate();
         name
+    }
+
+    /// Gets the saturated namefilter for this node.
+    #[inline]
+    pub fn get_saturated_name(&self) -> Namefilter {
+        let ratchet_key = Key::new(self.ratchet.derive_key());
+        self.get_saturated_name_with_key(&ratchet_key)
     }
 }
 
