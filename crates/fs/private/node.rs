@@ -47,9 +47,9 @@ pub enum PrivateNode {
 pub struct PrivateRef {
     /// Sha3-256 hash of saturated namefilter.
     pub(crate) saturated_name_hash: HashOutput,
-    /// Content key; Sha3-256 hash of the ratchet key.
+    /// Sha3-256 hash of the ratchet key.
     pub(crate) content_key: ContentKey,
-    /// Ratchet key; namefilter-derived key.
+    /// Skip-ratchet-derived key.
     pub(crate) ratchet_key: RatchetKey,
 }
 
@@ -266,7 +266,7 @@ mod private_node_tests {
 
     #[test]
     fn serialized_private_node_can_be_deserialized() {
-        let rng = &TestRng();
+        let rng = &mut TestRng();
         let original_file = PrivateNode::File(Rc::new(PrivateFile::new(
             Namefilter::default(),
             rng.random_bytes::<32>(),

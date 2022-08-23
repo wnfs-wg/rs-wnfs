@@ -38,7 +38,7 @@ impl<'de, const N: usize> Visitor<'de> for ByteArrayVisitor<N> {
 
 #[cfg(test)]
 impl crate::private::Rng for TestRng {
-    fn random_bytes<const N: usize>(&self) -> [u8; N] {
+    fn random_bytes<const N: usize>(&mut self) -> [u8; N] {
         use rand::RngCore;
         let mut bytes = [0u8; N];
         rand::thread_rng().fill_bytes(&mut bytes);
@@ -55,10 +55,10 @@ impl ProptestRng {
 
 #[cfg(test)]
 impl crate::private::Rng for ProptestRng {
-    fn random_bytes<const N: usize>(&self) -> [u8; N] {
+    fn random_bytes<const N: usize>(&mut self) -> [u8; N] {
         use rand::RngCore;
         let mut bytes = [0u8; N];
-        rand::thread_rng().fill_bytes(&mut bytes);
+        self.0.fill_bytes(&mut bytes);
         bytes
     }
 }

@@ -40,7 +40,12 @@ pub trait BlockStore {
         self.put_block(bytes, IpldCodec::DagCbor).await
     }
 
-    async fn put_private_serializable<V, R>(&mut self, value: &V, key: &Key, rng: &R) -> Result<Cid>
+    async fn put_private_serializable<V, R>(
+        &mut self,
+        value: &V,
+        key: &Key,
+        rng: &mut R,
+    ) -> Result<Cid>
     where
         V: Serialize,
         R: Rng,

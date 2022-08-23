@@ -11,7 +11,7 @@ extern "C" {
     pub type Rng;
 
     #[wasm_bindgen(method, js_name = "randomBytes")]
-    pub fn random_bytes(this: &Rng, count: usize) -> Vec<u8>;
+    pub fn get_random_bytes(this: &Rng, count: usize) -> Vec<u8>;
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -19,7 +19,7 @@ extern "C" {
 //--------------------------------------------------------------------------------------------------
 
 impl WnfsRng for Rng {
-    fn random_bytes<const N: usize>(&self) -> [u8; N] {
-        self.random_bytes(N).try_into().unwrap()
+    fn random_bytes<const N: usize>(&mut self) -> [u8; N] {
+        self.get_random_bytes(N).try_into().unwrap()
     }
 }

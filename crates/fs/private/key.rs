@@ -54,7 +54,7 @@ impl Key {
 
     /// Generates a nonce that can be used to encrypt data.
     #[inline]
-    pub fn generate_nonce<R>(rng: &R) -> [u8; NONCE_SIZE]
+    pub fn generate_nonce<R>(rng: &mut R) -> [u8; NONCE_SIZE]
     where
         R: Rng,
     {
@@ -98,9 +98,9 @@ mod key_prop_tests {
         key_bytes: [u8; 32],
     ) {
         let key = Key::new(key_bytes);
-        let rng = ProptestRng::from_seed(RngAlgorithm::ChaCha, &rng_seed);
+        let rng = &mut ProptestRng::from_seed(RngAlgorithm::ChaCha, &rng_seed);
 
-        let encrypted = key.encrypt(&Key::generate_nonce(&rng), &data).unwrap();
+        let encrypted = key.encrypt(&Key::generate_nonce(rng), &data).unwrap();
         let decrypted = key.decrypt(&encrypted).unwrap();
 
         assert_eq!(decrypted, data);

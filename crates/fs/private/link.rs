@@ -94,7 +94,7 @@ impl<V> PrivateLink<V> {
         &'a self,
         store: &mut B,
         key: &Key,
-        rng: &R,
+        rng: &mut R,
     ) -> Result<&'a Cid>
     where
         B: BlockStore,

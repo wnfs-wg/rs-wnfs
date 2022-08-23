@@ -179,7 +179,7 @@ impl PrivateDirectory {
         path_segments: &Array,
         hamt: PrivateForest,
         store: BlockStore,
-        rng: Rng,
+        mut rng: Rng,
     ) -> JsResult<Promise> {
         let directory = Rc::clone(&self.0);
         let mut store = ForeignBlockStore(store);
@@ -191,7 +191,7 @@ impl PrivateDirectory {
                 hamt,
                 result: node,
             } = directory
-                .rm(&path_segments, hamt.0, &mut store, &rng)
+                .rm(&path_segments, hamt.0, &mut store, &mut rng)
                 .await
                 .map_err(error("Cannot remove from directory"))?;
 
@@ -211,7 +211,7 @@ impl PrivateDirectory {
         time: &Date,
         hamt: PrivateForest,
         store: BlockStore,
-        rng: Rng,
+        mut rng: Rng,
     ) -> JsResult<Promise> {
         let directory = Rc::clone(&self.0);
         let mut store = ForeignBlockStore(store);
@@ -220,7 +220,7 @@ impl PrivateDirectory {
 
         Ok(future_to_promise(async move {
             let WnfsPrivateOpResult { root_dir, hamt, .. } = directory
-                .write(&path_segments, time, content, hamt.0, &mut store, &rng)
+                .write(&path_segments, time, content, hamt.0, &mut store, &mut rng)
                 .await
                 .map_err(error("Cannot write to directory"))?;
 
@@ -241,7 +241,7 @@ impl PrivateDirectory {
         time: &Date,
         hamt: PrivateForest,
         store: BlockStore,
-        rng: Rng,
+        mut rng: Rng,
     ) -> JsResult<Promise> {
         let directory = Rc::clone(&self.0);
         let mut store = ForeignBlockStore(store);
@@ -250,7 +250,7 @@ impl PrivateDirectory {
 
         Ok(future_to_promise(async move {
             let WnfsPrivateOpResult { root_dir, hamt, .. } = directory
-                .mkdir(&path_segments, time, hamt.0, &mut store, &rng)
+                .mkdir(&path_segments, time, hamt.0, &mut store, &mut rng)
                 .await
                 .map_err(error("Cannot create directory: {e}"))?;
 

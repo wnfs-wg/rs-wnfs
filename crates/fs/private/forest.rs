@@ -16,7 +16,7 @@ pub type EncryptedPrivateNode = (Option<Vec<u8>>, Cid); // TODO(appcypher): Chan
 pub type PrivateForest = Hamt<Namefilter, EncryptedPrivateNode>;
 
 pub trait Rng {
-    fn random_bytes<const N: usize>(&self) -> [u8; N];
+    fn random_bytes<const N: usize>(&mut self) -> [u8; N];
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -25,7 +25,7 @@ pub trait Rng {
 
 impl PrivateForest {
     /// Encrypts supplied bytes with a random nonce and AES key.
-    pub(crate) fn encrypt<R: Rng>(key: &Key, data: &[u8], rng: &R) -> Result<Vec<u8>> {
+    pub(crate) fn encrypt<R: Rng>(key: &Key, data: &[u8], rng: &mut R) -> Result<Vec<u8>> {
         key.encrypt(&rng.random_bytes::<NONCE_SIZE>(), data)
     }
 
@@ -37,7 +37,7 @@ impl PrivateForest {
         private_ref: &PrivateRef,
         value: &PrivateNode,
         store: &mut B,
-        rng: &R,
+        rng: &mut R,
     ) -> Result<Rc<Self>> {
         debug!("hamt store set: PrivateRef: {:?}", private_ref);
 
@@ -151,7 +151,7 @@ mod hamt_store_tests {
     async fn inserted_items_can_be_fetched() {
         let store = &mut MemoryBlockStore::new();
         let hamt = Rc::new(PrivateForest::new());
-        let rng = &TestRng();
+        let rng = &mut TestRng();
 
         let dir = Rc::new(PrivateDirectory::new(
             Namefilter::default(),

@@ -66,7 +66,7 @@ impl PrivateDirectory {
     }
 
     /// Generates two random set of bytes.
-    pub fn generate_double_random<R: Rng>(rng: &R) -> (HashOutput, HashOutput) {
+    pub fn generate_double_random<R: Rng>(rng: &mut R) -> (HashOutput, HashOutput) {
         const _DOUBLE_SIZE: usize = HASH_BYTE_SIZE * 2;
         let [first, second] = unsafe {
             std::mem::transmute::<[u8; _DOUBLE_SIZE], [[u8; HASH_BYTE_SIZE]; 2]>(
@@ -86,7 +86,7 @@ impl PrivateDirectory {
         path_segments: &[String],
         time: DateTime<Utc>,
         parent_bare_name: Namefilter,
-        rng: &R,
+        rng: &mut R,
     ) -> PrivatePathNodes {
         let mut working_parent_bare_name = parent_bare_name;
         let (mut inumber, mut ratchet_seed) = Self::generate_double_random(rng);
@@ -172,7 +172,7 @@ impl PrivateDirectory {
         time: DateTime<Utc>,
         hamt: &PrivateForest,
         store: &mut B,
-        rng: &R,
+        rng: &mut R,
     ) -> Result<PrivatePathNodes> {
         use PathNodesResult::*;
         match self.get_path_nodes(path_segments, hamt, store).await? {
@@ -207,7 +207,7 @@ impl PrivateDirectory {
         path_nodes: PrivatePathNodes,
         hamt: Rc<PrivateForest>,
         store: &mut B,
-        rng: &R,
+        rng: &mut R,
     ) -> Result<(Rc<Self>, Rc<PrivateForest>)> {
         let mut working_hamt = Rc::clone(&hamt);
         let mut working_child_dir = {
@@ -325,7 +325,7 @@ impl PrivateDirectory {
         content: Vec<u8>,
         hamt: Rc<PrivateForest>,
         store: &mut B,
-        rng: &R,
+        rng: &mut R,
     ) -> Result<PrivateOpResult<()>> {
         let (directory_path, filename) = utils::split_last(path_segments)?;
 
@@ -407,7 +407,7 @@ impl PrivateDirectory {
         time: DateTime<Utc>,
         hamt: Rc<PrivateForest>,
         store: &mut B,
-        rng: &R,
+        rng: &mut R,
     ) -> Result<PrivateOpResult<()>> {
         let path_nodes = self
             .get_or_create_path_nodes(path_segments, time, &hamt, store, rng)
@@ -460,7 +460,7 @@ impl PrivateDirectory {
         path_segments: &[String],
         hamt: Rc<PrivateForest>,
         store: &mut B,
-        rng: &R,
+        rng: &mut R,
     ) -> Result<PrivateOpResult<PrivateNode>> {
         let (directory_path, node_name) = utils::split_last(path_segments)?;
 
@@ -509,7 +509,7 @@ mod private_directory_tests {
 
     #[test(async_std::test)]
     async fn look_up_can_fetch_file_added_to_directory() {
-        let rng = &TestRng();
+        let rng = &mut TestRng();
         let root_dir = Rc::new(PrivateDirectory::new(
             Namefilter::default(),
             rng.random_bytes::<HASH_BYTE_SIZE>(),
@@ -543,7 +543,7 @@ mod private_directory_tests {
 
     #[test(async_std::test)]
     async fn look_up_cannot_fetch_file_not_added_to_directory() {
-        let rng = &TestRng();
+        let rng = &mut TestRng();
         let root_dir = Rc::new(PrivateDirectory::new(
             Namefilter::default(),
             rng.random_bytes::<HASH_BYTE_SIZE>(),
@@ -560,7 +560,7 @@ mod private_directory_tests {
 
     #[test(async_std::test)]
     async fn mkdir_can_create_new_directory() {
-        let rng = &TestRng();
+        let rng = &mut TestRng();
         let root_dir = Rc::new(PrivateDirectory::new(
             Namefilter::default(),
             rng.random_bytes::<HASH_BYTE_SIZE>(),
@@ -591,7 +591,7 @@ mod private_directory_tests {
 
     #[test(async_std::test)]
     async fn ls_can_list_children_under_directory() {
-        let rng = &TestRng();
+        let rng = &mut TestRng();
         let root_dir = Rc::new(PrivateDirectory::new(
             Namefilter::default(),
             rng.random_bytes::<HASH_BYTE_SIZE>(),
@@ -649,7 +649,7 @@ mod private_directory_tests {
 
     #[test(async_std::test)]
     async fn rm_can_remove_children_from_directory() {
-        let rng = &TestRng();
+        let rng = &mut TestRng();
         let root_dir = Rc::new(PrivateDirectory::new(
             Namefilter::default(),
             rng.random_bytes::<HASH_BYTE_SIZE>(),
@@ -707,7 +707,7 @@ mod private_directory_tests {
 
     #[async_std::test]
     async fn read_can_fetch_userland_of_file_added_to_directory() {
-        let rng = &TestRng();
+        let rng = &mut TestRng();
         let root_dir = Rc::new(PrivateDirectory::new(
             Namefilter::default(),
             rng.random_bytes::<HASH_BYTE_SIZE>(),
@@ -741,7 +741,7 @@ mod private_directory_tests {
     async fn path_nodes_can_generates_new_path_nodes() {
         let store = &mut MemoryBlockStore::default();
         let hamt = Rc::new(PrivateForest::new());
-        let rng = &TestRng();
+        let rng = &mut TestRng();
 
         let path_nodes = PrivateDirectory::create_path_nodes(
             &["Documents".into(), "Apps".into()],
