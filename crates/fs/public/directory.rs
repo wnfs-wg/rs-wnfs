@@ -1,6 +1,6 @@
 //! Public fs directory node.
 
-use std::{collections::BTreeMap, rc::Rc};
+use std::{cmp, collections::BTreeMap, rc::Rc};
 
 use crate::{
     error, utils, AsyncSerialize, BlockStore, FsError, Id, Metadata, PathNodes, PathNodesResult,
@@ -874,6 +874,90 @@ impl PublicDirectory {
             }
         }
     }
+
+    pub async fn basic_merge<B: BlockStore>(
+        self: Rc<Self>,
+        other: Rc<Self>,
+        store: &mut B,
+    ) -> Result<Rc<Self>> {
+        let mut result: BTreeMap<String, PublicLink> = BTreeMap::new();
+
+        for diff_item in MapDiff::new(self.userland.iter(), other.userland.iter()) {
+            match diff_item {
+                DiffItem::InLeft(key, value) => result.insert(key.clone(), value.clone()),
+                DiffItem::InRight(key, value) => result.insert(key.clone(), value.clone()),
+                DiffItem::InBoth(key, l_value, r_value) => {
+                    let merged =
+                        Self::basic_merge_links(l_value.clone(), r_value.clone(), store).await?;
+                    result.insert(key.clone(), merged)
+                }
+            };
+        }
+
+        Ok(Rc::new(Self {
+            // TODO commutative metadata merge
+            metadata: self.metadata.clone(),
+            // TODO does the previous link have to be equal? Or do we figure out which one is the longer hash-chain?
+            previous: self.previous,
+            userland: result,
+        }))
+    }
+
+    #[async_recursion(?Send)]
+    async fn basic_merge_links<B: BlockStore>(
+        left: PublicLink,
+        right: PublicLink,
+        store: &mut B,
+    ) -> Result<PublicLink> {
+        if left.deep_eq(&right, store).await? {
+            return Ok(left);
+        }
+
+        async fn tie_break<B: BlockStore>(
+            left: PublicLink,
+            right: PublicLink,
+            store: &mut B,
+        ) -> Result<PublicLink> {
+            let left_cid = left.resolve_cid(store).await?;
+            let right_cid = right.resolve_cid(store).await?;
+            if left_cid < right_cid {
+                Ok(left)
+            } else {
+                Ok(right)
+            }
+        }
+
+        match (
+            left.resolve_value(store).await?,
+            right.resolve_value(store).await?,
+        ) {
+            (PublicNode::File(_), PublicNode::File(_)) => tie_break(left, right, store).await,
+            (PublicNode::File(_), PublicNode::Dir(_)) => Ok(right),
+            (PublicNode::Dir(_), PublicNode::File(_)) => Ok(left),
+            (PublicNode::Dir(left_dir), PublicNode::Dir(right_dir)) => {
+                let mut result: BTreeMap<String, PublicLink> = BTreeMap::new();
+                for diff_item in MapDiff::new(left_dir.userland.iter(), right_dir.userland.iter()) {
+                    match diff_item {
+                        DiffItem::InLeft(key, value) => result.insert(key.clone(), value.clone()),
+                        DiffItem::InRight(key, value) => result.insert(key.clone(), value.clone()),
+                        DiffItem::InBoth(key, l_value, r_value) => {
+                            let merged =
+                                Self::basic_merge_links(l_value.clone(), r_value.clone(), store)
+                                    .await?;
+                            result.insert(key.clone(), merged)
+                        }
+                    };
+                }
+                Ok(PublicLink::from(PublicNode::Dir(Rc::new(
+                    PublicDirectory {
+                        metadata: left_dir.metadata.clone(),
+                        previous: left_dir.previous,
+                        userland: result,
+                    },
+                ))))
+            }
+        }
+    }
 }
 
 impl Id for PublicDirectory {
@@ -936,6 +1020,74 @@ impl<'de> Deserialize<'de> for PublicDirectory {
             userland: decoded_userland,
             previous,
         })
+    }
+}
+
+struct MapDiff<K, V, I> {
+    left_item: Option<(K, V)>,
+    left_iter: I,
+    right_item: Option<(K, V)>,
+    right_iter: I,
+}
+
+impl<K, V, I> MapDiff<K, V, I>
+where
+    I: Iterator<Item = (K, V)>,
+{
+    fn new(mut left: I, mut right: I) -> Self {
+        let left_item = left.next();
+        let right_item = right.next();
+        Self {
+            left_item,
+            left_iter: left,
+            right_item,
+            right_iter: right,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum DiffItem<K, V> {
+    InLeft(K, V),
+    InRight(K, V),
+    InBoth(K, V, V),
+}
+
+impl<K, V, I> Iterator for MapDiff<K, V, I>
+where
+    I: Iterator<Item = (K, V)>,
+    K: Clone + Ord,
+    V: Clone,
+{
+    type Item = DiffItem<K, V>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match (self.left_item.clone(), self.right_item.clone()) {
+            (None, None) => None,
+            (None, Some((key, value))) => {
+                self.right_item = self.right_iter.next();
+                Some(DiffItem::InRight(key, value))
+            }
+            (Some((key, value)), None) => {
+                self.left_item = self.left_iter.next();
+                Some(DiffItem::InLeft(key, value))
+            }
+            (Some((l_key, l_value)), Some((r_key, r_value))) => match l_key.cmp(&r_key) {
+                cmp::Ordering::Less => {
+                    self.left_item = self.left_iter.next();
+                    Some(DiffItem::InLeft(l_key, l_value))
+                }
+                cmp::Ordering::Equal => {
+                    self.left_item = self.left_iter.next();
+                    self.right_item = self.right_iter.next();
+                    Some(DiffItem::InBoth(l_key, l_value, r_value))
+                }
+                cmp::Ordering::Greater => {
+                    self.right_item = self.right_iter.next();
+                    Some(DiffItem::InRight(r_key, r_value))
+                }
+            },
+        }
     }
 }
 
@@ -1391,5 +1543,91 @@ mod public_directory_tests {
             .await;
 
         assert!(result.is_err());
+    }
+
+    #[async_std::test]
+    async fn basic_merge_example() {
+        let time = Utc::now();
+        let store = &mut MemoryBlockStore::default();
+        let root_dir = Rc::new(PublicDirectory::new(time));
+
+        let PublicOpResult { root_dir, .. } = root_dir
+            .mkdir(&["movies".into(), "ghibli".into()], time, store)
+            .await
+            .unwrap();
+
+        let PublicOpResult { root_dir, .. } = root_dir
+            .write(&["file.txt".into()], Cid::default(), time, store)
+            .await
+            .unwrap();
+
+        let PublicOpResult {
+            root_dir: root_left,
+            ..
+        } = Rc::clone(&root_dir)
+            .write(&["file2.txt".into()], Cid::default(), time, store)
+            .await
+            .unwrap();
+
+        let PublicOpResult {
+            root_dir: root_right,
+            ..
+        } = root_dir
+            .write(
+                &["movies".into(), "action.txt".into()],
+                Cid::default(),
+                time,
+                store,
+            )
+            .await
+            .unwrap();
+
+        let merged = root_left.basic_merge(root_right, store).await.unwrap();
+
+        let PublicOpResult {
+            result: read_action,
+            ..
+        } = Rc::clone(&merged)
+            .read(&["movies".into(), "action.txt".into()], store)
+            .await
+            .unwrap();
+
+        let PublicOpResult {
+            result: read_file, ..
+        } = Rc::clone(&merged)
+            .read(&["file.txt".into()], store)
+            .await
+            .unwrap();
+
+        let PublicOpResult {
+            result: read_file2, ..
+        } = merged.read(&["file2.txt".into()], store).await.unwrap();
+
+        assert_eq!(read_action, Cid::default());
+        assert_eq!(read_file, Cid::default());
+        assert_eq!(read_file2, Cid::default());
+    }
+
+    #[test]
+    fn diff_iter_example() {
+        let mut left = BTreeMap::new();
+        let mut right = BTreeMap::new();
+
+        left.insert("Hello", 1);
+        right.insert("Hello", 2);
+
+        left.insert("World", 3);
+        right.insert("James", 4);
+
+        let results: Vec<DiffItem<&&str, &i32>> = MapDiff::new(left.iter(), right.iter()).collect();
+
+        assert_eq!(
+            results,
+            vec![
+                DiffItem::InBoth(&"Hello", &1, &2),
+                DiffItem::InRight(&"James", &4),
+                DiffItem::InLeft(&"World", &3),
+            ]
+        )
     }
 }
