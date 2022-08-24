@@ -1,4 +1,4 @@
-use std::{io::Cursor, rc::Rc};
+use std::{cmp::Ordering, io::Cursor, rc::Rc};
 
 use anyhow::{anyhow, bail, Result};
 use chrono::{DateTime, Utc};
@@ -9,13 +9,13 @@ use libipld::{
 };
 use serde::{Deserialize, Serialize, Serializer};
 use sha3::Sha3_256;
-use skip_ratchet::Ratchet;
+use skip_ratchet::{Ratchet, RatchetExpSearcher};
 
-use crate::{FsError, HashOutput, Id, Metadata};
+use crate::{BlockStore, FsError, HashOutput, Id, Metadata};
 
 use super::{
     hamt::Hasher, namefilter::Namefilter, Key, PrivateDirectory, PrivateDirectoryContent,
-    PrivateFile, PrivateFileContent,
+    PrivateFile, PrivateFileContent, PrivateForest,
 };
 
 //--------------------------------------------------------------------------------------------------
@@ -200,6 +200,71 @@ impl PrivateNode {
                 "Expected `Ipld::Map` got {:?}",
                 other
             ))),
+        }
+    }
+
+    pub fn get_header(&self) -> &PrivateNodeHeader {
+        match self {
+            PrivateNode::File(file) => &file.header,
+            PrivateNode::Dir(dir) => &dir.header,
+        }
+    }
+
+    /// Gets the latest version of the node using exponential search.
+    pub(crate) async fn search_latest<B: BlockStore>(
+        &self,
+        forest: &PrivateForest,
+        store: &B,
+    ) -> Result<PrivateNode> {
+        let header = self.get_header();
+
+        let private_ref = &header.get_private_ref()?;
+        let next_private_ref = &{
+            let mut next_header = header.clone();
+            next_header.advance_ratchet();
+            next_header.get_private_ref()?
+        };
+        if !forest.has(&private_ref, store).await? || !forest.has(&next_private_ref, store).await? {
+            return Ok(self.clone());
+        }
+
+        // Start an exponential search.
+        let mut search = RatchetExpSearcher::from(header.ratchet.clone());
+        let mut current_header = header.clone();
+
+        loop {
+            let current = search.current();
+            current_header.ratchet = current.clone();
+
+            let has_curr = forest
+                .has(&current_header.get_private_ref()?, store)
+                .await?;
+
+            current_header.advance_ratchet();
+
+            let has_next = forest
+                .has(&current_header.get_private_ref()?, store)
+                .await?;
+
+            let ord = match (has_curr, has_next) {
+                (true, false) => Ordering::Equal,
+                (true, true) => Ordering::Less,
+                (false, false) => Ordering::Greater,
+                (false, true) => Ordering::Less,
+            };
+
+            if !search.step(ord) {
+                break;
+            }
+        }
+
+        current_header.ratchet = search.current().clone();
+
+        let latest_private_ref = current_header.get_private_ref()?;
+
+        match forest.get(&latest_private_ref, store).await? {
+            Some(node) => Ok(node),
+            None => unreachable!(),
         }
     }
 

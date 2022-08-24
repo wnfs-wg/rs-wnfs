@@ -97,6 +97,14 @@ impl PrivateForest {
         )?))
     }
 
+    pub async fn has<B: BlockStore>(&self, private_ref: &PrivateRef, store: &B) -> Result<bool> {
+        Ok(self
+            .root
+            .get_by_hash(&private_ref.saturated_name_hash, store)
+            .await?
+            .is_some())
+    }
+
     /// Sets a new encrypted value at the given key.
     #[inline]
     pub async fn set_encrypted<B: BlockStore>(
