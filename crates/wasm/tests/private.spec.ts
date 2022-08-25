@@ -26,9 +26,9 @@ test.describe("PrivateDirectory", () => {
         new Date()
       );
 
-      var { rootDir, hamt } = await root.write(["text.txt"], new Uint8Array([1, 2, 3, 4, 5]), new Date(), initialHamt, store, rng);
+      var { rootDir, hamt } = await root.write(["text.txt"], true, new Uint8Array([1, 2, 3, 4, 5]), new Date(), initialHamt, store, rng);
 
-      return await rootDir.lookupNode("text.txt", hamt, store);
+      return await rootDir.lookupNode("text.txt", true, hamt, store);
     });
 
     expect(result).toBeDefined();
@@ -53,7 +53,7 @@ test.describe("PrivateDirectory", () => {
         new Date()
       );
 
-      return await root.lookupNode("Unknown", initialHamt, store);
+      return await root.lookupNode("Unknown", true, initialHamt, store);
     });
 
     expect(result).toBe(undefined);
@@ -76,10 +76,11 @@ test.describe("PrivateDirectory", () => {
         new Date()
       );
 
-      var { rootDir, hamt } = await root.mkdir(["pictures", "cats"], new Date(), initialHamt, store, rng);
+      var { rootDir, hamt } = await root.mkdir(["pictures", "cats"], true, new Date(), initialHamt, store, rng);
 
       var { rootDir, hamt } = await rootDir.write(
         ["pictures", "cats", "tabby.png"],
+        true,
         new Uint8Array([1, 2, 3, 4, 5]),
         new Date(),
         hamt,
@@ -89,6 +90,7 @@ test.describe("PrivateDirectory", () => {
 
       var { rootDir } = await rootDir.getNode(
         ["pictures", "cats", "tabby.png"],
+        true,
         hamt,
         store
       );
@@ -116,10 +118,11 @@ test.describe("PrivateDirectory", () => {
         new Date()
       );
 
-      var { rootDir, hamt } = await root.mkdir(["pictures", "dogs"], new Date(), initialHamt, store, rng);
+      var { rootDir, hamt } = await root.mkdir(["pictures", "dogs"], true, new Date(), initialHamt, store, rng);
 
       var { rootDir, hamt } = await rootDir.write(
         ["pictures", "cats", "tabby.png"],
+        true,
         new Uint8Array([1, 2, 3, 4, 5]),
         new Date(),
         hamt,
@@ -127,7 +130,7 @@ test.describe("PrivateDirectory", () => {
         rng,
       );
 
-      var { result } = await rootDir.ls(["pictures"], hamt, store);
+      var { result } = await rootDir.ls(["pictures"], true, hamt, store);
 
       return result;
     });
@@ -156,6 +159,7 @@ test.describe("PrivateDirectory", () => {
 
       var { rootDir, hamt } = await root.write(
         ["pictures", "dogs", "billie.jpeg"],
+        true,
         new Uint8Array([1, 2, 3, 4, 5]),
         new Date(),
         initialHamt,
@@ -165,14 +169,15 @@ test.describe("PrivateDirectory", () => {
 
       var { rootDir, hamt } = await rootDir.write(
         ["pictures", "cats", "tabby.png"],
+        true,
         new Uint8Array([1, 2, 3, 4, 5]),
         new Date(),
         hamt,
         store,
         rng,
       );
-      var { rootDir, hamt } = await rootDir.rm(["pictures", "cats"], hamt, store, rng);
-      var { result } = await rootDir.ls(["pictures"], hamt, store);
+      var { rootDir, hamt } = await rootDir.rm(["pictures", "cats"], true, hamt, store, rng);
+      var { result } = await rootDir.ls(["pictures"], true, hamt, store);
 
       return result;
     });

@@ -67,6 +67,7 @@ impl PrivateDirectory {
     pub fn get_node(
         &self,
         path_segments: &Array,
+        search_latest: bool,
         hamt: PrivateForest,
         store: BlockStore,
     ) -> JsResult<Promise> {
@@ -80,7 +81,7 @@ impl PrivateDirectory {
                 hamt,
                 result,
             } = directory
-                .get_node(&path_segments, hamt.0, &store)
+                .get_node(&path_segments, search_latest, hamt.0, &store)
                 .await
                 .map_err(error("Cannot get node"))?;
 
@@ -97,6 +98,7 @@ impl PrivateDirectory {
     pub fn lookup_node(
         &self,
         path_segment: &str,
+        search_latest: bool,
         hamt: PrivateForest,
         store: BlockStore,
     ) -> JsResult<Promise> {
@@ -106,7 +108,7 @@ impl PrivateDirectory {
 
         Ok(future_to_promise(async move {
             let found_node = directory
-                .lookup_node(&path_segment, &hamt.0, &store)
+                .lookup_node(&path_segment, search_latest, &hamt.0, &store)
                 .await
                 .map_err(error("Cannot lookup node"))?;
 
@@ -118,6 +120,7 @@ impl PrivateDirectory {
     pub fn read(
         &self,
         path_segments: &Array,
+        search_latest: bool,
         hamt: PrivateForest,
         store: BlockStore,
     ) -> JsResult<Promise> {
@@ -131,7 +134,7 @@ impl PrivateDirectory {
                 hamt,
                 result,
             } = directory
-                .read(&path_segments, hamt.0, &store)
+                .read(&path_segments, search_latest, hamt.0, &store)
                 .await
                 .map_err(error("Cannot read from directory"))?;
 
@@ -147,6 +150,7 @@ impl PrivateDirectory {
     pub fn ls(
         &self,
         path_segments: &Array,
+        search_latest: bool,
         hamt: PrivateForest,
         store: BlockStore,
     ) -> JsResult<Promise> {
@@ -160,7 +164,7 @@ impl PrivateDirectory {
                 hamt,
                 result,
             } = directory
-                .ls(&path_segments, hamt.0, &store)
+                .ls(&path_segments, search_latest, hamt.0, &store)
                 .await
                 .map_err(error("Cannot list directory children"))?;
 
@@ -177,6 +181,7 @@ impl PrivateDirectory {
     pub fn rm(
         &self,
         path_segments: &Array,
+        search_latest: bool,
         hamt: PrivateForest,
         store: BlockStore,
         mut rng: Rng,
@@ -191,7 +196,7 @@ impl PrivateDirectory {
                 hamt,
                 result: node,
             } = directory
-                .rm(&path_segments, hamt.0, &mut store, &mut rng)
+                .rm(&path_segments, search_latest, hamt.0, &mut store, &mut rng)
                 .await
                 .map_err(error("Cannot remove from directory"))?;
 
@@ -207,6 +212,7 @@ impl PrivateDirectory {
     pub fn write(
         &self,
         path_segments: &Array,
+        search_latest: bool,
         content: Vec<u8>,
         time: &Date,
         hamt: PrivateForest,
@@ -220,7 +226,15 @@ impl PrivateDirectory {
 
         Ok(future_to_promise(async move {
             let WnfsPrivateOpResult { root_dir, hamt, .. } = directory
-                .write(&path_segments, time, content, hamt.0, &mut store, &mut rng)
+                .write(
+                    &path_segments,
+                    search_latest,
+                    time,
+                    content,
+                    hamt.0,
+                    &mut store,
+                    &mut rng,
+                )
                 .await
                 .map_err(error("Cannot write to directory"))?;
 
@@ -238,6 +252,7 @@ impl PrivateDirectory {
     pub fn mkdir(
         &self,
         path_segments: &Array,
+        search_latest: bool,
         time: &Date,
         hamt: PrivateForest,
         store: BlockStore,
@@ -250,7 +265,14 @@ impl PrivateDirectory {
 
         Ok(future_to_promise(async move {
             let WnfsPrivateOpResult { root_dir, hamt, .. } = directory
-                .mkdir(&path_segments, time, hamt.0, &mut store, &mut rng)
+                .mkdir(
+                    &path_segments,
+                    search_latest,
+                    time,
+                    hamt.0,
+                    &mut store,
+                    &mut rng,
+                )
                 .await
                 .map_err(error("Cannot create directory: {e}"))?;
 
