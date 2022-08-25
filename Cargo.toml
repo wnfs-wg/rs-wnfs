@@ -5,4 +5,4 @@ members = [
 ]
 
 [patch.crates-io]
-skip_ratchet = { git = "https://github.com/wnfs-wg/rs-skip-ratchet", branch = "matheus23/seek" }
+# leaving this section header here for further reference.
