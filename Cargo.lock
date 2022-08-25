@@ -472,6 +472,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "cmake"
+version = "0.1.48"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e8ad8cef104ac57b68b89df3208164d228503abbdce70f6880ffa3d970e7443a"
+dependencies = [
+ "cc",
+]
+
+[[package]]
 name = "concurrent-queue"
 version = "1.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -811,12 +820,9 @@ dependencies = [
 
 [[package]]
 name = "heck"
-version = "0.3.3"
+version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6d621efb26863f0e9924c6ac577e8275e5e6b77455db64ffa6c65c904e9e132c"
-dependencies = [
- "unicode-segmentation",
-]
+checksum = "2540771e65fc8cb83cd6e8a237f70c319bd5c29f78ed1084ba5d50eeac86f7f9"
 
 [[package]]
 name = "hermit-abi"
@@ -911,8 +917,9 @@ checksum = "349d5a591cd28b49e1d1037471617a32ddcda5731b99419008085f72d5a53836"
 
 [[package]]
 name = "libipld"
-version = "0.13.1"
-source = "git+https://github.com/appcypher/libipld?branch=appcypher/expose-ipld-serializer#98c4f96ada4ef5eb06271206e9e8e377671f1031"
+version = "0.14.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ac9c3aa309c260aa2f174bac968901eddc546e9d85950c28eae6a7bec402f926"
 dependencies = [
  "async-trait",
  "cached",
@@ -931,8 +938,9 @@ dependencies = [
 
 [[package]]
 name = "libipld-cbor"
-version = "0.13.1"
-source = "git+https://github.com/appcypher/libipld?branch=appcypher/expose-ipld-serializer#98c4f96ada4ef5eb06271206e9e8e377671f1031"
+version = "0.14.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8dd1ab68c9d26f20c7d0dfea6eecbae8c00359875210001b33ca27d4a02f3d09"
 dependencies = [
  "byteorder",
  "libipld-core",
@@ -941,8 +949,9 @@ dependencies = [
 
 [[package]]
 name = "libipld-cbor-derive"
-version = "0.13.1"
-source = "git+https://github.com/appcypher/libipld?branch=appcypher/expose-ipld-serializer#98c4f96ada4ef5eb06271206e9e8e377671f1031"
+version = "0.14.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "69ec2f49393a1347a2d95ebcb248ff75d0d47235919b678036c010a8cd927375"
 dependencies = [
  "proc-macro-crate",
  "proc-macro2",
@@ -953,8 +962,9 @@ dependencies = [
 
 [[package]]
 name = "libipld-core"
-version = "0.13.1"
-source = "git+https://github.com/appcypher/libipld?branch=appcypher/expose-ipld-serializer#98c4f96ada4ef5eb06271206e9e8e377671f1031"
+version = "0.14.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d44790246ec6b7314cba745992c23d479d018073e66d49ae40ae1b64e5dd8eb5"
 dependencies = [
  "anyhow",
  "cid",
@@ -967,8 +977,9 @@ dependencies = [
 
 [[package]]
 name = "libipld-json"
-version = "0.13.1"
-source = "git+https://github.com/appcypher/libipld?branch=appcypher/expose-ipld-serializer#98c4f96ada4ef5eb06271206e9e8e377671f1031"
+version = "0.14.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "18aa481a87f084d98473dd9ece253a9569c762b75f6bbba8217d54e48c9d63b3"
 dependencies = [
  "libipld-core",
  "multihash",
@@ -978,16 +989,18 @@ dependencies = [
 
 [[package]]
 name = "libipld-macro"
-version = "0.13.1"
-source = "git+https://github.com/appcypher/libipld?branch=appcypher/expose-ipld-serializer#98c4f96ada4ef5eb06271206e9e8e377671f1031"
+version = "0.14.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "852c011562ae5059b67c3a917f9f5945af5a68df8e39ede4444fff33274d25e2"
 dependencies = [
  "libipld-core",
 ]
 
 [[package]]
 name = "libipld-pb"
-version = "0.13.1"
-source = "git+https://github.com/appcypher/libipld?branch=appcypher/expose-ipld-serializer#98c4f96ada4ef5eb06271206e9e8e377671f1031"
+version = "0.14.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c003be513496578115256a1b4ac7b80d4ece2462c9869dfb736fd30d8bb1d1c0"
 dependencies = [
  "libipld-core",
  "prost",
@@ -1265,9 +1278,9 @@ dependencies = [
 
 [[package]]
 name = "prost"
-version = "0.9.0"
+version = "0.10.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "444879275cb4fd84958b1a1d5420d15e6fcf7c235fe47f053c9c2a80aceb6001"
+checksum = "71adf41db68aa0daaefc69bb30bcd68ded9b9abaad5d1fbb6304c4fb390e083e"
 dependencies = [
  "bytes",
  "prost-derive",
@@ -1275,11 +1288,13 @@ dependencies = [
 
 [[package]]
 name = "prost-build"
-version = "0.9.0"
+version = "0.10.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "62941722fb675d463659e49c4f3fe1fe792ff24fe5bbaa9c08cd3b98a1c354f5"
+checksum = "8ae5a4388762d5815a9fc0dea33c56b021cdc8dde0c55e0c9ca57197254b0cab"
 dependencies = [
  "bytes",
+ "cfg-if 1.0.0",
+ "cmake",
  "heck",
  "itertools",
  "lazy_static",
@@ -1295,9 +1310,9 @@ dependencies = [
 
 [[package]]
 name = "prost-derive"
-version = "0.9.0"
+version = "0.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f9cc1a3263e07e0bf68e96268f37665207b49560d98739662cdfaae215c720fe"
+checksum = "7b670f45da57fb8542ebdbb6105a925fe571b67f9e7ed9f47a06a84e72b4e7cc"
 dependencies = [
  "anyhow",
  "itertools",
@@ -1308,9 +1323,9 @@ dependencies = [
 
 [[package]]
 name = "prost-types"
-version = "0.9.0"
+version = "0.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "534b7a0e836e3c482d2693070f982e39e7611da9695d4d1f5a4b186b51faef0a"
+checksum = "2d0a014229361011dc8e69c8a1ec6c2e8d0f2af7c91e3ea3f5b2170298461e68"
 dependencies = [
  "bytes",
  "prost",
@@ -1829,12 +1844,6 @@ name = "unicode-ident"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5bd2fe26506023ed7b5e1e315add59d6f584c621d037f9368fea9cfb988f368c"
-
-[[package]]
-name = "unicode-segmentation"
-version = "1.9.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7e8820f5d777f6224dc4be3632222971ac30164d4a258d595640799554ebfd99"
 
 [[package]]
 name = "unicode-xid"
