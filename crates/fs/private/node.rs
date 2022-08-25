@@ -219,12 +219,7 @@ impl PrivateNode {
         let header = self.get_header();
 
         let private_ref = &header.get_private_ref()?;
-        let next_private_ref = &{
-            let mut next_header = header.clone();
-            next_header.advance_ratchet();
-            next_header.get_private_ref()?
-        };
-        if !forest.has(&private_ref, store).await? || !forest.has(&next_private_ref, store).await? {
+        if !forest.has(&private_ref, store).await? {
             return Ok(self.clone());
         }
 
@@ -240,17 +235,10 @@ impl PrivateNode {
                 .has(&current_header.get_private_ref()?, store)
                 .await?;
 
-            current_header.advance_ratchet();
-
-            let has_next = forest
-                .has(&current_header.get_private_ref()?, store)
-                .await?;
-
-            let ord = match (has_curr, has_next) {
-                (true, false) => Ordering::Equal,
-                (true, true) => Ordering::Less,
-                (false, false) => Ordering::Greater,
-                (false, true) => Ordering::Less,
+            let ord = if has_curr {
+                Ordering::Less
+            } else {
+                Ordering::Greater
             };
 
             if !search.step(ord) {
