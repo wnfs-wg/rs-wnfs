@@ -22,7 +22,7 @@ jobs:
       - name: Install dependencies
         run: |
           apt-get update && \
-          apt-get install -y clang libssl-dev llvm libudev-dev libgmp3-dev && \
+          apt-get install -y cmake clang libssl-dev llvm libudev-dev libgmp3-dev && \
           rm -rf /var/lib/apt/lists/*
 
       - name: Cache project

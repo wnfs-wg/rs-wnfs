@@ -5,5 +5,4 @@ members = [
 ]
 
 [patch.crates-io]
-libipld = { git = "https://github.com/appcypher/libipld", branch = "appcypher/expose-ipld-serializer" }
 skip_ratchet = { git = "https://github.com/wnfs-wg/rs-skip-ratchet", branch = "matheus23/seek" }
