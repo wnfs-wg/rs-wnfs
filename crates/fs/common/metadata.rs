@@ -1,22 +1,29 @@
 //! File system metadata.
 
-use std::str::FromStr;
+use std::collections::BTreeMap;
 
-use anyhow::Result;
+use anyhow::{bail, Result};
 use chrono::{DateTime, Utc};
 use libipld::Ipld;
-use semver::Version;
-use serde::{Deserialize, Serialize};
-use serde_repr::{Deserialize_repr, Serialize_repr};
+use serde::{de::Error as DeError, Deserialize, Deserializer, Serialize, Serializer};
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
 //--------------------------------------------------------------------------------------------------
 
+/// The type of node.
+#[derive(Debug, Clone, PartialEq, Eq, Copy)]
+pub enum NodeType {
+    PublicFile,
+    PublicDirectory,
+    PrivateFile,
+    PrivateDirectory,
+}
+
 /// The different types a UnixFS can be.
 ///
 /// See <https://docs.ipfs.io/concepts/file-systems/#unix-file-system-unixfs>
-#[derive(Debug, Clone, PartialEq, Eq, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Copy)]
 pub enum UnixFsNodeKind {
     Raw,
     File,
@@ -31,7 +38,7 @@ pub enum UnixFsNodeKind {
 /// See
 /// - <https://docs.ipfs.io/concepts/file-systems/#unix-file-system-unixfs>
 /// - <https://en.wikipedia.org/wiki/File-system_permissions#Numeric_notation>
-#[derive(Debug, Clone, PartialEq, Eq, Serialize_repr, Deserialize_repr)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 #[repr(u32)]
 pub enum UnixFsMode {
     NoPermissions = 0,
@@ -52,7 +59,7 @@ pub enum UnixFsMode {
 /// The metadata of a node in the UnixFS file system.
 ///
 /// See <https://docs.ipfs.io/concepts/file-systems/#unix-file-system-unixfs>
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UnixFsMetadata {
     pub created: i64,
     pub modified: i64,
@@ -61,11 +68,8 @@ pub struct UnixFsMetadata {
 }
 
 /// The metadata of a node on the WNFS file system.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Metadata {
-    pub unix_fs: UnixFsMetadata,
-    pub version: Version,
-}
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Metadata(BTreeMap<String, Ipld>);
 
 //--------------------------------------------------------------------------------------------------
 // Implementations
@@ -74,137 +78,85 @@ pub struct Metadata {
 impl Metadata {
     /// Creates a new metadata representing a UnixFS node.
     pub fn new(time: DateTime<Utc>, kind: UnixFsNodeKind) -> Self {
+        let time: Ipld = time.timestamp().into();
         let mode =
             if matches!(kind, UnixFsNodeKind::Dir) || matches!(kind, UnixFsNodeKind::HAMTShard) {
-                UnixFsMode::OwnerReadWriteGroupOthersRead
+                (UnixFsMode::OwnerReadWriteGroupOthersRead as u32).into()
             } else {
-                UnixFsMode::OwnerReadWriteExecuteGroupOthersReadExecute
+                (UnixFsMode::OwnerReadWriteExecuteGroupOthersReadExecute as u32).into()
             };
 
-        let time = time.timestamp();
-
-        Self {
-            unix_fs: UnixFsMetadata {
-                created: time,
-                modified: time,
-                mode,
-                kind,
-            },
-            version: Version::new(1, 0, 0),
-        }
+        Self(BTreeMap::from([(
+            "unix_fs".into(),
+            Ipld::Map(BTreeMap::from([
+                ("created".into(), time.clone()),
+                ("modified".into(), time),
+                ("mode".into(), mode),
+                ("kind".into(), String::from(&kind).into()),
+            ])),
+        )]))
     }
 
-    pub fn is_file(&self) -> bool {
-        matches!(self.unix_fs.kind, UnixFsNodeKind::File)
+    /// Updates modified time.
+    pub fn update_mtime(&mut self, time: DateTime<Utc>) {
+        if let Some(Ipld::Map(map)) = self.0.get_mut("unix_fs") {
+            map.insert("modified".into(), time.timestamp().into());
+        }
     }
 }
 
-impl TryFrom<&Ipld> for Metadata {
-    type Error = String;
+impl TryFrom<&Ipld> for NodeType {
+    type Error = anyhow::Error;
 
-    fn try_from(ipld: &Ipld) -> Result<Self, Self::Error> {
+    fn try_from(ipld: &Ipld) -> Result<Self> {
         match ipld {
-            Ipld::Map(map) => {
-                let unix_fs = map.get("unix_fs").ok_or("Missing unix_fs")?.try_into()?;
-
-                let version = match map.get("version").ok_or("Missing version")? {
-                    Ipld::String(v) => Version::from_str(v).map_err(|e| e.to_string())?,
-                    _ => return Err("version is not a string".into()),
-                };
-
-                Ok(Metadata { unix_fs, version })
-            }
-            other => Err(format!("Expected `Ipld::Map` got {:#?}", other)),
+            Ipld::String(s) => NodeType::try_from(s.as_str()),
+            other => bail!("Expected `Ipld::Integer` got {:#?}", other),
         }
     }
 }
 
-impl TryFrom<&Ipld> for UnixFsMetadata {
-    type Error = String;
+impl TryFrom<&str> for NodeType {
+    type Error = anyhow::Error;
 
-    fn try_from(ipld: &Ipld) -> Result<Self, Self::Error> {
-        match ipld {
-            Ipld::Map(map) => {
-                let created = match map.get("created").ok_or("Missing created")? {
-                    Ipld::Integer(i) => *i as i64,
-                    _ => return Err("`created` is not an integer".into()),
-                };
-
-                let modified = match map.get("modified").ok_or("Missing modified")? {
-                    Ipld::Integer(i) => *i as i64,
-                    _ => return Err("`modified` is not an integer".into()),
-                };
-
-                let mode = map.get("mode").ok_or("Missing mode")?.try_into()?;
-                let kind = map.get("kind").ok_or("Missing kind")?.try_into()?;
-
-                Ok(UnixFsMetadata {
-                    created,
-                    modified,
-                    mode,
-                    kind,
-                })
-            }
-            other => Err(format!("Expected `Ipld::Map` got {:#?}", other)),
-        }
-    }
-}
-
-impl TryFrom<&Ipld> for UnixFsMode {
-    type Error = String;
-
-    fn try_from(ipld: &Ipld) -> Result<Self, Self::Error> {
-        match ipld {
-            Ipld::Integer(i) => UnixFsMode::try_from(*i as u32),
-            other => Err(format!("Expected `Ipld::Integer` got {:#?}", other)),
-        }
-    }
-}
-
-impl TryFrom<u32> for UnixFsMode {
-    type Error = String;
-
-    fn try_from(num: u32) -> Result<Self, Self::Error> {
-        Ok(match num {
-            0 => UnixFsMode::NoPermissions,
-            700 => UnixFsMode::OwnerReadWriteExecute,
-            770 => UnixFsMode::OwnerGroupReadWriteExecute,
-            777 => UnixFsMode::AllReadWriteExecute,
-            111 => UnixFsMode::AllExecute,
-            222 => UnixFsMode::AllWrite,
-            333 => UnixFsMode::AllWriteExecute,
-            444 => UnixFsMode::AllRead,
-            555 => UnixFsMode::AllReadExecute,
-            666 => UnixFsMode::AllReadWrite,
-            740 => UnixFsMode::OwnerReadWriteExecuteGroupRead,
-            755 => UnixFsMode::OwnerReadWriteExecuteGroupOthersReadExecute,
-            644 => UnixFsMode::OwnerReadWriteGroupOthersRead,
-            _ => return Err(format!("Unknown UnixFsMode: {}", num)),
-        })
-    }
-}
-
-impl TryFrom<&Ipld> for UnixFsNodeKind {
-    type Error = String;
-
-    fn try_from(ipld: &Ipld) -> Result<Self, Self::Error> {
-        match ipld {
-            Ipld::String(s) => UnixFsNodeKind::try_from(s.as_str()),
-            other => Err(format!("Expected `Ipld::Integer` got {:#?}", other)),
-        }
-    }
-}
-
-impl TryFrom<&str> for UnixFsNodeKind {
-    type Error = String;
-
-    fn try_from(name: &str) -> Result<Self, Self::Error> {
+    fn try_from(name: &str) -> Result<Self> {
         Ok(match name.to_lowercase().as_str() {
-            "file" => UnixFsNodeKind::File,
-            "dir" => UnixFsNodeKind::Dir,
-            "hamt-shard" => UnixFsNodeKind::HAMTShard,
-            _ => return Err(format!("Unknown UnixFsNodeKind: {}", name)),
+            "wnfs/priv/dir" => NodeType::PrivateDirectory,
+            "wnfs/priv/file" => NodeType::PrivateFile,
+            "wnfs/pub/dir" => NodeType::PublicDirectory,
+            "wnfs/pub/file" => NodeType::PublicFile,
+            _ => bail!("Unknown UnixFsNodeKind: {}", name),
         })
+    }
+}
+
+impl From<&NodeType> for String {
+    fn from(r#type: &NodeType) -> Self {
+        match r#type {
+            NodeType::PrivateDirectory => "wnfs/priv/dir".into(),
+            NodeType::PrivateFile => "wnfs/priv/file".into(),
+            NodeType::PublicDirectory => "wnfs/pub/dir".into(),
+            NodeType::PublicFile => "wnfs/pub/file".into(),
+        }
+    }
+}
+
+impl Serialize for NodeType {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_str(&String::from(self))
+    }
+}
+
+impl<'de> Deserialize<'de> for NodeType {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let r#type = String::deserialize(deserializer)?;
+        r#type.as_str().try_into().map_err(DeError::custom)
     }
 }
 

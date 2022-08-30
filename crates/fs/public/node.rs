@@ -10,7 +10,7 @@ use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 
 use super::{PublicDirectory, PublicFile};
 use crate::{
-    common::BlockStore, AsyncSerialize, FsError, Id, Metadata, ReferenceableStore, UnixFsNodeKind,
+    common::BlockStore, AsyncSerialize, FsError, Id, NodeType, ReferenceableStore, UnixFsNodeKind,
 };
 
 //--------------------------------------------------------------------------------------------------
@@ -36,12 +36,12 @@ impl PublicNode {
         match self {
             Self::File(file) => {
                 let mut file = (**file).clone();
-                file.metadata.unix_fs.modified = time.timestamp();
+                file.metadata.update_mtime(time);
                 Self::File(Rc::new(file))
             }
             Self::Dir(dir) => {
                 let mut dir = (**dir).clone();
-                dir.metadata.unix_fs.modified = time.timestamp();
+                dir.metadata.update_mtime(time);
                 Self::Dir(Rc::new(dir))
             }
         }
@@ -156,27 +156,27 @@ impl<'de> Deserialize<'de> for PublicNode {
 }
 
 impl TryFrom<Ipld> for PublicNode {
-    type Error = String;
+    type Error = anyhow::Error;
 
-    fn try_from(ipld: Ipld) -> Result<Self, Self::Error> {
+    fn try_from(ipld: Ipld) -> Result<Self> {
         match ipld {
             Ipld::Map(map) => {
-                let metadata: Metadata = map
-                    .get("metadata")
-                    .ok_or("Missing metadata field")?
+                let r#type: NodeType = map
+                    .get("type")
+                    .ok_or(FsError::MissingNodeType)?
                     .try_into()?;
 
-                Ok(if metadata.is_file() {
-                    PublicNode::from(
-                        PublicFile::deserialize(Ipld::Map(map)).map_err(|e| e.to_string())?,
-                    )
-                } else {
-                    PublicNode::from(
-                        PublicDirectory::deserialize(Ipld::Map(map)).map_err(|e| e.to_string())?,
-                    )
+                Ok(match r#type {
+                    NodeType::PublicFile => {
+                        PublicNode::from(PublicFile::deserialize(Ipld::Map(map))?)
+                    }
+                    NodeType::PublicDirectory => {
+                        PublicNode::from(PublicDirectory::deserialize(Ipld::Map(map))?)
+                    }
+                    other => bail!(FsError::UnexpectedNodeType(other)),
                 })
             }
-            other => Err(format!("Expected `Ipld::Map` got {:#?}", other)),
+            other => bail!("Expected `Ipld::Map` got {:#?}", other),
         }
     }
 }

@@ -1,21 +1,20 @@
 use std::{cmp::Ordering, io::Cursor, rc::Rc};
 
-use anyhow::{anyhow, bail, Result};
+use anyhow::{bail, Result};
 use chrono::{DateTime, Utc};
 use libipld::{
     cbor::DagCborCodec,
-    codec::{Decode, Encode},
+    prelude::{Decode, Encode},
     serde as ipld_serde, Ipld,
 };
-use serde::{Deserialize, Serialize, Serializer};
+use serde::{Deserialize, Serialize};
 use sha3::Sha3_256;
 use skip_ratchet::{Ratchet, RatchetExpSearcher};
 
-use crate::{BlockStore, FsError, HashOutput, Id, Metadata};
+use crate::{BlockStore, FsError, HashOutput, Id, NodeType};
 
 use super::{
-    hamt::Hasher, namefilter::Namefilter, Key, PrivateDirectory, PrivateDirectoryContent,
-    PrivateFile, PrivateFileContent, PrivateForest,
+    hamt::Hasher, namefilter::Namefilter, Key, PrivateDirectory, PrivateFile, PrivateForest, Rng,
 };
 
 //--------------------------------------------------------------------------------------------------
@@ -23,6 +22,12 @@ use super::{
 //--------------------------------------------------------------------------------------------------
 
 pub type INumber = HashOutput;
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum PrivateNode {
+    File(Rc<PrivateFile>),
+    Dir(Rc<PrivateDirectory>),
+}
 
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct ContentKey(pub Key);
@@ -35,12 +40,6 @@ pub struct PrivateNodeHeader {
     pub(crate) bare_name: Namefilter,
     pub(crate) ratchet: Ratchet,
     pub(crate) inumber: INumber,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum PrivateNode {
-    File(Rc<PrivateFile>),
-    Dir(Rc<PrivateDirectory>),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -56,6 +55,179 @@ pub struct PrivateRef {
 //--------------------------------------------------------------------------------------------------
 // Implementations
 //--------------------------------------------------------------------------------------------------
+
+impl PrivateNode {
+    /// Creates node with updated modified time.
+    pub fn update_mtime(&self, time: DateTime<Utc>) -> Self {
+        match self {
+            Self::File(file) => {
+                let mut file = (**file).clone();
+                file.metadata.update_mtime(time);
+                Self::File(Rc::new(file))
+            }
+            Self::Dir(dir) => {
+                let mut dir = (**dir).clone();
+                dir.metadata.update_mtime(time);
+                Self::Dir(Rc::new(dir))
+            }
+        }
+    }
+
+    /// Gets the header of the node.
+    pub fn get_header(&self) -> &PrivateNodeHeader {
+        match self {
+            Self::File(file) => &file.header,
+            Self::Dir(dir) => &dir.header,
+        }
+    }
+
+    /// Casts a node to a directory.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the node is not a directory.
+    pub fn as_dir(&self) -> Result<Rc<PrivateDirectory>> {
+        Ok(match self {
+            Self::Dir(dir) => Rc::clone(dir),
+            _ => bail!(FsError::NotADirectory),
+        })
+    }
+
+    /// Casts a node to a file.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the node is not a file.
+    pub fn as_file(&self) -> Result<Rc<PrivateFile>> {
+        Ok(match self {
+            Self::File(file) => Rc::clone(file),
+            _ => bail!(FsError::NotAFile),
+        })
+    }
+
+    /// Returns true if underlying node is a directory.
+    pub fn is_dir(&self) -> bool {
+        matches!(self, Self::Dir(_))
+    }
+
+    /// Gets the latest version of the node using exponential search.
+    pub(crate) async fn search_latest<B: BlockStore>(
+        &self,
+        forest: &PrivateForest,
+        store: &B,
+    ) -> Result<PrivateNode> {
+        let header = self.get_header();
+
+        let private_ref = &header.get_private_ref()?;
+        if !forest.has(private_ref, store).await? {
+            return Ok(self.clone());
+        }
+
+        // Start an exponential search.
+        let mut search = RatchetExpSearcher::from(header.ratchet.clone());
+        let mut current_header = header.clone();
+
+        loop {
+            let current = search.current();
+            current_header.ratchet = current.clone();
+
+            let has_curr = forest
+                .has(&current_header.get_private_ref()?, store)
+                .await?;
+
+            let ord = if has_curr {
+                Ordering::Less
+            } else {
+                Ordering::Greater
+            };
+
+            if !search.step(ord) {
+                break;
+            }
+        }
+
+        current_header.ratchet = search.current().clone();
+
+        let latest_private_ref = current_header.get_private_ref()?;
+
+        match forest.get(&latest_private_ref, store).await? {
+            Some(node) => Ok(node),
+            None => unreachable!(),
+        }
+    }
+
+    /// Serializes the node with provided Serde serialilzer.
+    pub fn serialize<S, R: Rng>(&self, serializer: S, rng: &mut R) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        match self {
+            PrivateNode::File(file) => file.serialize(serializer, rng),
+            PrivateNode::Dir(dir) => dir.serialize(serializer, rng),
+        }
+    }
+
+    /// Serializes the node to dag-cbor bytes.
+    pub fn serialize_to_cbor<R: Rng>(&self, rng: &mut R) -> Result<Vec<u8>> {
+        let ipld = self.serialize(ipld_serde::Serializer, rng)?;
+        let mut bytes = Vec::new();
+        ipld.encode(DagCborCodec, &mut bytes)?;
+        Ok(bytes)
+    }
+
+    /// Deserializes the node from dag-cbor bytes.
+    pub fn deserialize_from_cbor(bytes: &[u8], key: &RatchetKey) -> Result<Self> {
+        let ipld = Ipld::decode(DagCborCodec, &mut Cursor::new(bytes))?;
+        (ipld, key).try_into()
+    }
+}
+
+impl TryFrom<(Ipld, &RatchetKey)> for PrivateNode {
+    type Error = anyhow::Error;
+
+    fn try_from(pair: (Ipld, &RatchetKey)) -> Result<Self> {
+        match pair {
+            (Ipld::Map(map), key) => {
+                let r#type: NodeType = map
+                    .get("type")
+                    .ok_or(FsError::MissingNodeType)?
+                    .try_into()?;
+
+                Ok(match r#type {
+                    NodeType::PrivateFile => {
+                        PrivateNode::from(PrivateFile::deserialize(Ipld::Map(map), key)?)
+                    }
+                    NodeType::PrivateDirectory => {
+                        PrivateNode::from(PrivateDirectory::deserialize(Ipld::Map(map), key)?)
+                    }
+                    other => bail!(FsError::UnexpectedNodeType(other)),
+                })
+            }
+            other => bail!("Expected `Ipld::Map` got {:#?}", other),
+        }
+    }
+}
+
+impl Id for PrivateNode {
+    fn get_id(&self) -> String {
+        match self {
+            Self::File(file) => file.get_id(),
+            Self::Dir(dir) => dir.get_id(),
+        }
+    }
+}
+
+impl From<PrivateFile> for PrivateNode {
+    fn from(file: PrivateFile) -> Self {
+        Self::File(Rc::new(file))
+    }
+}
+
+impl From<PrivateDirectory> for PrivateNode {
+    fn from(dir: PrivateDirectory) -> Self {
+        Self::Dir(Rc::new(dir))
+    }
+}
 
 impl PrivateNodeHeader {
     /// Creates a new PrivateNodeHeader.
@@ -104,209 +276,6 @@ impl PrivateNodeHeader {
     }
 }
 
-impl PrivateNode {
-    /// Creates node with updated modified time.
-    pub fn update_mtime(&self, time: DateTime<Utc>) -> Self {
-        match self {
-            Self::File(file) => {
-                let mut file = (**file).clone();
-                file.content.metadata.unix_fs.modified = time.timestamp();
-                Self::File(Rc::new(file))
-            }
-            Self::Dir(dir) => {
-                let mut dir = (**dir).clone();
-                dir.content.metadata.unix_fs.modified = time.timestamp();
-                Self::Dir(Rc::new(dir))
-            }
-        }
-    }
-
-    /// Gets the header of the node.
-    pub fn header(&self) -> &PrivateNodeHeader {
-        match self {
-            Self::File(file) => &file.header,
-            Self::Dir(dir) => &dir.header,
-        }
-    }
-
-    /// Serializes the node header section.
-    pub fn serialize_header<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        match self {
-            PrivateNode::File(file) => file.header.serialize(serializer),
-            PrivateNode::Dir(dir) => dir.header.serialize(serializer),
-        }
-    }
-
-    /// Serializes the node content section.
-    pub fn serialize_content<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        match self {
-            PrivateNode::File(file) => file.content.serialize(serializer),
-            PrivateNode::Dir(dir) => dir.content.serialize(serializer),
-        }
-    }
-
-    /// Serializes the node into dag-cbor bytes.
-    pub fn serialize_as_cbor(&self) -> Result<(Vec<u8>, Vec<u8>)> {
-        let header_ipld = self.serialize_header(ipld_serde::Serializer)?;
-        let content_ipld = self.serialize_content(ipld_serde::Serializer)?;
-
-        let mut header_bytes = Vec::new();
-        let mut content_bytes = Vec::new();
-
-        header_ipld.encode(DagCborCodec, &mut header_bytes)?;
-        content_ipld.encode(DagCborCodec, &mut content_bytes)?;
-
-        Ok((header_bytes, content_bytes))
-    }
-
-    /// Deserializes the node from dag-cbor bytes.
-    pub fn deserialize_from_cbor(
-        header_bytes: &Option<Vec<u8>>,
-        content_bytes: &[u8],
-    ) -> Result<Self> {
-        let header_ipld = match header_bytes {
-            Some(bytes) => Ipld::decode(DagCborCodec, &mut Cursor::new(bytes))?,
-            None => bail!(FsError::MissingHeader),
-        };
-
-        let header: PrivateNodeHeader = ipld_serde::from_ipld(header_ipld)?;
-
-        let content_ipld = Ipld::decode(DagCborCodec, &mut Cursor::new(content_bytes))?;
-
-        Self::deserialize_content(content_ipld, header)
-    }
-
-    /// Deserializes the node content from IPLD form.
-    pub fn deserialize_content(content_ipld: Ipld, header: PrivateNodeHeader) -> Result<Self> {
-        match content_ipld {
-            Ipld::Map(map) => {
-                let metadata_ipld = map
-                    .get("metadata")
-                    .ok_or("Missing metadata field")
-                    .map_err(|e| anyhow!(e))?;
-
-                let metadata: Metadata =
-                    metadata_ipld.try_into().map_err(|e: String| anyhow!(e))?;
-
-                Ok(if metadata.is_file() {
-                    let content = PrivateFileContent::deserialize(Ipld::Map(map))?;
-                    PrivateNode::from(PrivateFile { header, content })
-                } else {
-                    let content = PrivateDirectoryContent::deserialize(Ipld::Map(map))?;
-                    PrivateNode::from(PrivateDirectory { header, content })
-                })
-            }
-            other => bail!(FsError::InvalidDeserialization(format!(
-                "Expected `Ipld::Map` got {:?}",
-                other
-            ))),
-        }
-    }
-
-    pub fn get_header(&self) -> &PrivateNodeHeader {
-        match self {
-            PrivateNode::File(file) => &file.header,
-            PrivateNode::Dir(dir) => &dir.header,
-        }
-    }
-
-    /// Gets the latest version of the node using exponential search.
-    pub(crate) async fn search_latest<B: BlockStore>(
-        &self,
-        forest: &PrivateForest,
-        store: &B,
-    ) -> Result<PrivateNode> {
-        let header = self.get_header();
-
-        let private_ref = &header.get_private_ref()?;
-        if !forest.has(&private_ref, store).await? {
-            return Ok(self.clone());
-        }
-
-        // Start an exponential search.
-        let mut search = RatchetExpSearcher::from(header.ratchet.clone());
-        let mut current_header = header.clone();
-
-        loop {
-            let current = search.current();
-            current_header.ratchet = current.clone();
-
-            let has_curr = forest
-                .has(&current_header.get_private_ref()?, store)
-                .await?;
-
-            let ord = if has_curr {
-                Ordering::Less
-            } else {
-                Ordering::Greater
-            };
-
-            if !search.step(ord) {
-                break;
-            }
-        }
-
-        current_header.ratchet = search.current().clone();
-
-        let latest_private_ref = current_header.get_private_ref()?;
-
-        match forest.get(&latest_private_ref, store).await? {
-            Some(node) => Ok(node),
-            None => unreachable!(),
-        }
-    }
-
-    /// Casts a node to a directory.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the node is not a directory.
-    pub fn as_dir(&self) -> Result<Rc<PrivateDirectory>> {
-        Ok(match self {
-            Self::Dir(dir) => Rc::clone(dir),
-            _ => bail!(FsError::NotADirectory),
-        })
-    }
-
-    /// Casts a node to a file.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the node is not a file.
-    pub fn as_file(&self) -> Result<Rc<PrivateFile>> {
-        Ok(match self {
-            Self::File(file) => Rc::clone(file),
-            _ => bail!(FsError::NotAFile),
-        })
-    }
-
-    /// Returns true if underlying node is a directory.
-    pub fn is_dir(&self) -> bool {
-        matches!(self, Self::Dir(_))
-    }
-}
-
-impl Id for PrivateNode {
-    fn get_id(&self) -> String {
-        match self {
-            Self::File(file) => file.get_id(),
-            Self::Dir(dir) => dir.get_id(),
-        }
-    }
-}
-
-impl From<PrivateFile> for PrivateNode {
-    fn from(file: PrivateFile) -> Self {
-        Self::File(Rc::new(file))
-    }
-}
-
-impl From<PrivateDirectory> for PrivateNode {
-    fn from(dir: PrivateDirectory) -> Self {
-        Self::Dir(Rc::new(dir))
-    }
-}
-
 //--------------------------------------------------------------------------------------------------
 // Tests
 //--------------------------------------------------------------------------------------------------
@@ -327,10 +296,11 @@ mod private_node_tests {
             Utc::now(),
             b"Lorem ipsum dolor sit amet".to_vec(),
         )));
+        let private_ref = original_file.get_header().get_private_ref().unwrap();
 
-        let (header_bytes, content_bytes) = original_file.serialize_as_cbor().unwrap();
+        let bytes = original_file.serialize_to_cbor(rng).unwrap();
         let deserialized_node =
-            PrivateNode::deserialize_from_cbor(&Some(header_bytes), &content_bytes).unwrap();
+            PrivateNode::deserialize_from_cbor(&bytes, &private_ref.ratchet_key).unwrap();
 
         assert_eq!(original_file, deserialized_node);
     }

@@ -3,6 +3,8 @@
 use anyhow::Result;
 use thiserror::Error;
 
+use crate::NodeType;
+
 /// File system errors.
 #[derive(Debug, Error)]
 pub enum FsError {
@@ -50,6 +52,15 @@ pub enum FsError {
 
     #[error("Expected bare ratchet key")]
     ExpectBareRatchetKey,
+
+    #[error("Missing unix fs metadata field")]
+    MissingUnixFSMetadata,
+
+    #[error("Missing node type field")]
+    MissingNodeType,
+
+    #[error("Found unexpected node type: {0:?}")]
+    UnexpectedNodeType(NodeType),
 }
 
 pub fn error<T>(err: impl std::error::Error + Send + Sync + 'static) -> Result<T> {

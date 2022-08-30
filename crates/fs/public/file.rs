@@ -6,9 +6,10 @@ use anyhow::Result;
 
 use chrono::{DateTime, Utc};
 use libipld::Cid;
+use semver::Version;
 use serde::{Deserialize, Serialize};
 
-use crate::{BlockStore, Id, Metadata, UnixFsNodeKind};
+use crate::{BlockStore, Id, Metadata, NodeType, UnixFsNodeKind};
 
 /// A file in a WNFS public file system.
 ///
@@ -23,11 +24,13 @@ use crate::{BlockStore, Id, Metadata, UnixFsNodeKind};
 ///
 /// println!("id = {}", file.get_id());
 /// ```
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct PublicFile {
-    pub(crate) metadata: Metadata,
-    pub(crate) userland: Cid,
-    pub(crate) previous: Option<Cid>,
+    pub r#type: NodeType,
+    pub version: Version,
+    pub metadata: Metadata,
+    pub userland: Cid,
+    pub previous: Option<Cid>,
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -50,6 +53,8 @@ impl PublicFile {
     /// ```
     pub fn new(time: DateTime<Utc>, userland: Cid) -> Self {
         Self {
+            r#type: NodeType::PublicFile,
+            version: Version::new(0, 2, 0),
             metadata: Metadata::new(time, UnixFsNodeKind::File),
             userland,
             previous: None,
