@@ -209,6 +209,7 @@ impl PrivateDirectory {
     }
 
     /// Writes a file to the directory.
+    #[allow(clippy::too_many_arguments)]
     pub fn write(
         &self,
         path_segments: &Array,

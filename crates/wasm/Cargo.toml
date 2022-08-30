@@ -17,6 +17,7 @@ homepage = "https://fission.codes"
 authors = ["The Fission Authors"]
 
 [dependencies]
+libipld = "0.14.0"
 wnfs = { path = "../fs", version = "0.1.8" }
 wasm-bindgen = { version = "0.2", optional = true, features = ["serde-serialize"] }
 wasm-bindgen-futures = { version = "0.4", optional = true }

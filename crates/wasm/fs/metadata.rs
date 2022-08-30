@@ -1,34 +1,63 @@
+use std::collections::BTreeMap;
+
 use crate::fs::JsResult;
 use crate::value;
 use js_sys::{Object, Reflect};
+use libipld::Ipld;
 use wasm_bindgen::JsValue;
-use wnfs::{Metadata, UnixFsMetadata};
+use wnfs::Metadata;
+
+use super::utils::error;
 
 pub(crate) struct JsMetadata<'a>(pub(crate) &'a Metadata);
 
-impl TryInto<JsValue> for JsMetadata<'_> {
+impl TryFrom<JsMetadata<'_>> for JsValue {
     type Error = js_sys::Error;
 
-    fn try_into(self) -> JsResult<JsValue> {
+    fn try_from(value: JsMetadata<'_>) -> Result<Self, Self::Error> {
         let metadata = Object::new();
-        let unix_meta = unix_fs_to_js_value(&self.0.unix_fs)?;
-        let version = value!(self.0.version.to_string());
-
-        Reflect::set(&metadata, &value!("unixMeta"), &unix_meta)?;
-        Reflect::set(&metadata, &value!("version"), &version)?;
+        if let Some(unix_fs_meta) = value.0.get_unix_fs() {
+            Reflect::set(
+                &metadata,
+                &value!("unixFsMeta"),
+                &convert_unix_fs_meta(unix_fs_meta)?,
+            )?;
+        }
 
         Ok(value!(metadata))
     }
 }
 
-fn unix_fs_to_js_value(unix_fs: &UnixFsMetadata) -> JsResult<JsValue> {
+fn convert_unix_fs_meta(unix_fs_meta: &BTreeMap<String, Ipld>) -> JsResult<JsValue> {
     let obj = Object::new();
-    let kind = value!(String::from(&unix_fs.kind));
 
-    Reflect::set(&obj, &value!("created"), &value!(unix_fs.created))?;
-    Reflect::set(&obj, &value!("modified"), &value!(unix_fs.modified))?;
-    Reflect::set(&obj, &value!("mode"), &value!(unix_fs.mode.clone() as u32))?;
-    Reflect::set(&obj, &value!("kind"), &kind)?;
+    if let Some(Ipld::Integer(i)) = unix_fs_meta.get("created") {
+        Reflect::set(
+            &obj,
+            &value!("created"),
+            &value!(i64::try_from(*i).map_err(error("Cannot convert created value"))?),
+        )?;
+    }
+
+    if let Some(Ipld::Integer(i)) = unix_fs_meta.get("modified") {
+        Reflect::set(
+            &obj,
+            &value!("modified"),
+            &value!(i64::try_from(*i).map_err(error("Cannot convert modified value"))?),
+        )?;
+    }
+
+    if let Some(Ipld::Integer(i)) = unix_fs_meta.get("mode") {
+        Reflect::set(
+            &obj,
+            &value!("mode"),
+            &value!(u32::try_from(*i).map_err(error("Cannot convert mode value"))?),
+        )?;
+    }
+
+    if let Some(Ipld::String(s)) = unix_fs_meta.get("kind") {
+        Reflect::set(&obj, &value!("kind"), &value!(s))?;
+    }
 
     Ok(value!(obj))
 }

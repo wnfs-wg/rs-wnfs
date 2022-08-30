@@ -56,17 +56,6 @@ pub enum UnixFsMode {
     OwnerReadWriteGroupOthersRead = 644,
 }
 
-/// The metadata of a node in the UnixFS file system.
-///
-/// See <https://docs.ipfs.io/concepts/file-systems/#unix-file-system-unixfs>
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct UnixFsMetadata {
-    pub created: i64,
-    pub modified: i64,
-    pub mode: UnixFsMode,
-    pub kind: UnixFsNodeKind,
-}
-
 /// The metadata of a node on the WNFS file system.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Metadata(BTreeMap<String, Ipld>);
@@ -87,7 +76,7 @@ impl Metadata {
             };
 
         Self(BTreeMap::from([(
-            "unix_fs".into(),
+            "unix_fs_meta".into(),
             Ipld::Map(BTreeMap::from([
                 ("created".into(), time.clone()),
                 ("modified".into(), time),
@@ -97,9 +86,16 @@ impl Metadata {
         )]))
     }
 
+    pub fn get_unix_fs(&self) -> Option<&BTreeMap<String, Ipld>> {
+        match self.0.get("unix_fs_meta") {
+            Some(Ipld::Map(map)) => Some(map),
+            _ => None,
+        }
+    }
+
     /// Updates modified time.
     pub fn update_mtime(&mut self, time: DateTime<Utc>) {
-        if let Some(Ipld::Map(map)) = self.0.get_mut("unix_fs") {
+        if let Some(Ipld::Map(map)) = self.0.get_mut("unix_fs_meta") {
             map.insert("modified".into(), time.timestamp().into());
         }
     }
