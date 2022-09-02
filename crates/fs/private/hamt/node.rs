@@ -46,9 +46,7 @@ where
 
 impl<K, V, H> Node<K, V, H>
 where
-    K: DeserializeOwned + Serialize + Clone + Debug + AsRef<[u8]>,
-    V: DeserializeOwned + Serialize + Clone + Debug,
-    H: Hasher + Clone + Debug,
+    H: Hasher + Clone,
 {
     /// Sets a new value at the given key.
     pub async fn set<B: BlockStore>(
@@ -56,7 +54,11 @@ where
         key: K,
         value: V,
         store: &mut B,
-    ) -> Result<Rc<Self>> {
+    ) -> Result<Rc<Self>>
+    where
+        K: DeserializeOwned + Clone + AsRef<[u8]>,
+        V: DeserializeOwned + Clone,
+    {
         let hash = &H::hash(&key);
         debug!("set: hash = {:02x?}", hash);
         self.set_value(&mut HashNibbles::new(hash), key, value, store)
@@ -68,7 +70,11 @@ where
         self: &'a Rc<Self>,
         key: &K,
         store: &B,
-    ) -> Result<Option<&'a V>> {
+    ) -> Result<Option<&'a V>>
+    where
+        K: DeserializeOwned + AsRef<[u8]>,
+        V: DeserializeOwned,
+    {
         let hash = &H::hash(key);
         debug!("get: hash = {:02x?}", hash);
         Ok(self
@@ -82,7 +88,11 @@ where
         self: &Rc<Self>,
         key: &K,
         store: &B,
-    ) -> Result<(Rc<Self>, Option<Pair<K, V>>)> {
+    ) -> Result<(Rc<Self>, Option<Pair<K, V>>)>
+    where
+        K: DeserializeOwned + Clone + AsRef<[u8]>,
+        V: DeserializeOwned + Clone,
+    {
         let hash = &H::hash(key);
         debug!("remove: hash = {:02x?}", hash);
         self.remove_value(&mut HashNibbles::new(hash), store).await
@@ -93,7 +103,11 @@ where
         self: &'a Rc<Self>,
         hash: &HashOutput,
         store: &B,
-    ) -> Result<Option<&'a V>> {
+    ) -> Result<Option<&'a V>>
+    where
+        K: DeserializeOwned + AsRef<[u8]>,
+        V: DeserializeOwned,
+    {
         debug!("get_by_hash: hash = {:02x?}", hash);
         Ok(self
             .get_value(&mut HashNibbles::new(hash), store)
@@ -106,7 +120,11 @@ where
         self: &Rc<Self>,
         hash: &HashOutput,
         store: &B,
-    ) -> Result<(Rc<Self>, Option<V>)> {
+    ) -> Result<(Rc<Self>, Option<V>)>
+    where
+        K: DeserializeOwned + Clone + AsRef<[u8]>,
+        V: DeserializeOwned + Clone,
+    {
         self.remove_value(&mut HashNibbles::new(hash), store)
             .await
             .map(|(node, pair)| (node, pair.map(|pair| pair.value)))
@@ -138,7 +156,11 @@ where
         key: K,
         value: V,
         store: &B,
-    ) -> Result<Rc<Self>> {
+    ) -> Result<Rc<Self>>
+    where
+        K: DeserializeOwned + Clone + AsRef<[u8]>,
+        V: DeserializeOwned + Clone,
+    {
         let bit_index = hashnibbles.try_next()?;
         let value_index = self.get_value_index(bit_index);
 
@@ -216,7 +238,11 @@ where
         self: &'a Rc<Self>,
         hashnibbles: &'b mut HashNibbles,
         store: &B,
-    ) -> Result<Option<&'a Pair<K, V>>> {
+    ) -> Result<Option<&'a Pair<K, V>>>
+    where
+        K: DeserializeOwned + AsRef<[u8]>,
+        V: DeserializeOwned,
+    {
         let bit_index = hashnibbles.try_next()?;
 
         // If the bit is not set yet, return None.
@@ -243,7 +269,11 @@ where
         self: &'a Rc<Self>,
         hashnibbles: &'b mut HashNibbles,
         store: &B,
-    ) -> Result<(Rc<Self>, Option<Pair<K, V>>)> {
+    ) -> Result<(Rc<Self>, Option<Pair<K, V>>)>
+    where
+        K: DeserializeOwned + Clone + AsRef<[u8]>,
+        V: DeserializeOwned + Clone,
+    {
         let bit_index = hashnibbles.try_next()?;
 
         // If the bit is not set yet, return None.
@@ -323,6 +353,7 @@ impl<K, V, H: Hasher> Node<K, V, H> {
         Ok(len)
     }
 
+    // TODO(appcypher): Do we really need this? Why not use PublicDirectorySerde style instead.
     /// Converts a Node to an IPLD object.
     pub async fn to_ipld<RS: ReferenceableStore<Ref = Cid> + ?Sized>(
         &self,

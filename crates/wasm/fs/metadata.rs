@@ -1,34 +1,35 @@
-use crate::fs::JsResult;
 use crate::value;
 use js_sys::{Object, Reflect};
+use libipld::Ipld;
 use wasm_bindgen::JsValue;
-use wnfs::{Metadata, UnixFsMetadata};
+use wnfs::Metadata;
+
+use super::utils::error;
 
 pub(crate) struct JsMetadata<'a>(pub(crate) &'a Metadata);
 
-impl TryInto<JsValue> for JsMetadata<'_> {
+impl TryFrom<JsMetadata<'_>> for JsValue {
     type Error = js_sys::Error;
 
-    fn try_into(self) -> JsResult<JsValue> {
+    fn try_from(value: JsMetadata<'_>) -> Result<Self, Self::Error> {
         let metadata = Object::new();
-        let unix_meta = unix_fs_to_js_value(&self.0.unix_fs)?;
-        let version = value!(self.0.version.to_string());
 
-        Reflect::set(&metadata, &value!("unixMeta"), &unix_meta)?;
-        Reflect::set(&metadata, &value!("version"), &version)?;
+        if let Some(Ipld::Integer(i)) = value.0 .0.get("created") {
+            Reflect::set(
+                &metadata,
+                &value!("created"),
+                &value!(i64::try_from(*i).map_err(error("Cannot convert created value"))?),
+            )?;
+        }
+
+        if let Some(Ipld::Integer(i)) = value.0 .0.get("modified") {
+            Reflect::set(
+                &metadata,
+                &value!("modified"),
+                &value!(i64::try_from(*i).map_err(error("Cannot convert modified value"))?),
+            )?;
+        }
 
         Ok(value!(metadata))
     }
-}
-
-fn unix_fs_to_js_value(unix_fs: &UnixFsMetadata) -> JsResult<JsValue> {
-    let obj = Object::new();
-    let kind = value!(String::from(&unix_fs.kind));
-
-    Reflect::set(&obj, &value!("created"), &value!(unix_fs.created))?;
-    Reflect::set(&obj, &value!("modified"), &value!(unix_fs.modified))?;
-    Reflect::set(&obj, &value!("mode"), &value!(unix_fs.mode.clone() as u32))?;
-    Reflect::set(&obj, &value!("kind"), &kind)?;
-
-    Ok(value!(obj))
 }

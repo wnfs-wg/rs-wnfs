@@ -3,8 +3,8 @@
 use std::{collections::BTreeMap, rc::Rc};
 
 use crate::{
-    error, utils, AsyncSerialize, BlockStore, FsError, Id, Metadata, PathNodes, PathNodesResult,
-    ReferenceableStore, UnixFsNodeKind,
+    error, utils, AsyncSerialize, BlockStore, FsError, Id, Metadata, NodeType, PathNodes,
+    PathNodesResult, ReferenceableStore,
 };
 use anyhow::{bail, ensure, Result};
 use async_recursion::async_recursion;
@@ -13,6 +13,7 @@ use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use futures::Stream;
 use libipld::Cid;
+use semver::Version;
 use serde::{ser::Error as SerError, Deserialize, Deserializer, Serialize, Serializer};
 
 use super::{PublicFile, PublicLink, PublicNode};
@@ -38,13 +39,16 @@ pub type PublicPathNodesResult = PathNodesResult<PublicDirectory>;
 /// ```
 #[derive(Debug, Clone, PartialEq)]
 pub struct PublicDirectory {
+    pub version: Version,
     pub metadata: Metadata,
-    pub(crate) userland: BTreeMap<String, PublicLink>,
-    pub(crate) previous: Option<Cid>,
+    pub userland: BTreeMap<String, PublicLink>,
+    pub previous: Option<Cid>,
 }
 
 #[derive(Serialize, Deserialize)]
 struct PublicDirectorySerde {
+    r#type: NodeType,
+    version: Version,
     metadata: Metadata,
     userland: BTreeMap<String, Cid>,
     previous: Option<Cid>,
@@ -78,7 +82,8 @@ impl PublicDirectory {
     /// ```
     pub fn new(time: DateTime<Utc>) -> Self {
         Self {
-            metadata: Metadata::new(time, UnixFsNodeKind::Dir),
+            version: Version::new(0, 2, 0),
+            metadata: Metadata::new(time),
             userland: BTreeMap::new(),
             previous: None,
         }
@@ -420,7 +425,7 @@ impl PublicDirectory {
             Some(PublicNode::File(file_before)) => {
                 let mut file = (*file_before).clone();
                 file.userland = content_cid;
-                file.metadata = Metadata::new(time, UnixFsNodeKind::File);
+                file.metadata.upsert_mtime(time);
                 file
             }
             Some(PublicNode::Dir(_)) => bail!(FsError::DirectoryAlreadyExists),
@@ -907,6 +912,8 @@ impl AsyncSerialize for PublicDirectory {
         };
 
         (PublicDirectorySerde {
+            r#type: NodeType::PublicDirectory,
+            version: self.version.clone(),
             metadata: self.metadata.clone(),
             userland: encoded_userland,
             previous: self.previous,
@@ -921,19 +928,22 @@ impl<'de> Deserialize<'de> for PublicDirectory {
         D: Deserializer<'de>,
     {
         let PublicDirectorySerde {
+            version,
             metadata,
             userland,
             previous,
+            ..
         } = PublicDirectorySerde::deserialize(deserializer)?;
 
-        let decoded_userland = userland
+        let userland = userland
             .into_iter()
             .map(|(name, cid)| (name, PublicLink::from_cid(cid)))
             .collect();
 
         Ok(Self {
+            version,
             metadata,
-            userland: decoded_userland,
+            userland,
             previous,
         })
     }
@@ -1068,10 +1078,6 @@ mod public_directory_tests {
         assert_eq!(result[0].0, String::from("cats"));
 
         assert_eq!(result[1].0, String::from("puppy.jpg"));
-
-        assert_eq!(result[0].1.unix_fs.kind, UnixFsNodeKind::Dir);
-
-        assert_eq!(result[1].1.unix_fs.kind, UnixFsNodeKind::File);
     }
 
     #[async_std::test]

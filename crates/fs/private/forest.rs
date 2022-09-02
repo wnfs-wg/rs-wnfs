@@ -6,14 +6,15 @@ use log::debug;
 
 use crate::{BlockStore, HashOutput};
 
-use super::{hamt::Hamt, namefilter::Namefilter, Key, PrivateNode, PrivateRef, NONCE_SIZE};
+use super::{hamt::Hamt, namefilter::Namefilter, Key, PrivateNode, PrivateRef};
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
 //--------------------------------------------------------------------------------------------------
 
-pub type EncryptedPrivateNode = (Option<Vec<u8>>, Cid); // TODO(appcypher): Change to PrivateLink<PrivateNode>.
-pub type PrivateForest = Hamt<Namefilter, EncryptedPrivateNode>;
+// TODO(appcypher): Change Cid to PrivateLink<PrivateNode>.
+// TODO(appcypher): And eventually to BTreeSet<PrivateLink<PrivateNode>>.
+pub type PrivateForest = Hamt<Namefilter, Cid>;
 
 pub trait Rng {
     fn random_bytes<const N: usize>(&mut self) -> [u8; N];
@@ -26,7 +27,7 @@ pub trait Rng {
 impl PrivateForest {
     /// Encrypts supplied bytes with a random nonce and AES key.
     pub(crate) fn encrypt<R: Rng>(key: &Key, data: &[u8], rng: &mut R) -> Result<Vec<u8>> {
-        key.encrypt(&rng.random_bytes::<NONCE_SIZE>(), data)
+        key.encrypt(&Key::generate_nonce(rng), data)
     }
 
     /// Sets a new value at the given key.
@@ -39,27 +40,19 @@ impl PrivateForest {
         store: &mut B,
         rng: &mut R,
     ) -> Result<Rc<Self>> {
-        debug!("hamt store set: PrivateRef: {:?}", private_ref);
+        debug!("Private Forest Set: PrivateRef: {:?}", private_ref);
 
-        // Serialize header and content section as dag-cbor bytes.
-        let (header_bytes, content_bytes) = value.serialize_as_cbor()?;
+        // Serialize node to cbor.
+        let cbor_bytes = value.serialize_to_cbor(rng)?;
 
-        // Encrypt header and content section.
-        let enc_content_bytes = Self::encrypt(&private_ref.content_key.0, &content_bytes, rng)?;
-        let enc_header_bytes = Some(Self::encrypt(
-            &private_ref.ratchet_key.0,
-            &header_bytes,
-            rng,
-        )?);
+        // Encrypt bytes with content key.
+        let enc_bytes = Self::encrypt(&private_ref.content_key.0, &cbor_bytes, rng)?;
 
         // Store content section in blockstore and get Cid.
-        let content_cid = store
-            .put_block(enc_content_bytes, libipld::IpldCodec::Raw)
-            .await?;
+        let content_cid = store.put_block(enc_bytes, libipld::IpldCodec::Raw).await?;
 
         // Store header and Cid in root node.
-        self.set_encrypted(saturated_name, (enc_header_bytes, content_cid), store)
-            .await
+        self.set_encrypted(saturated_name, content_cid, store).await
     }
 
     /// Gets the value at the given key.
@@ -69,10 +62,10 @@ impl PrivateForest {
         private_ref: &PrivateRef,
         store: &B,
     ) -> Result<Option<PrivateNode>> {
-        debug!("hamt store get: PrivateRef: {:?}", private_ref);
+        debug!("Private Forest Get: PrivateRef: {:?}", private_ref);
 
-        // Fetch encrypted header and Cid from root node.
-        let (enc_header_bytes, content_cid) = match self
+        // Fetch Cid from root node.
+        let cid = match self
             .get_encrypted(&private_ref.saturated_name_hash, store)
             .await?
         {
@@ -80,20 +73,16 @@ impl PrivateForest {
             None => return Ok(None),
         };
 
-        // Fetch encrypted content section from blockstore.
-        let enc_content_bytes = store.get_block(content_cid).await?;
+        // Fetch encrypted bytes from blockstore.
+        let enc_bytes = store.get_block(cid).await?;
 
-        // Decrypt header and content section.
-        let content_bytes = private_ref.content_key.0.decrypt(&enc_content_bytes)?;
-        let header_bytes = match enc_header_bytes {
-            Some(enc_header_bytes) => Some(private_ref.ratchet_key.0.decrypt(enc_header_bytes)?),
-            _ => None,
-        };
+        // Decrypt bytes
+        let cbor_bytes = private_ref.content_key.0.decrypt(&enc_bytes)?;
 
-        // Deserialize header and content section.
+        // Deserialize bytes.
         Ok(Some(PrivateNode::deserialize_from_cbor(
-            &header_bytes,
-            &content_bytes,
+            &cbor_bytes,
+            &private_ref.ratchet_key,
         )?))
     }
 
@@ -110,7 +99,7 @@ impl PrivateForest {
     pub async fn set_encrypted<B: BlockStore>(
         self: Rc<Self>,
         name: Namefilter,
-        value: EncryptedPrivateNode,
+        value: Cid,
         store: &mut B,
     ) -> Result<Rc<Self>> {
         let mut cloned = (*self).clone();
@@ -124,7 +113,7 @@ impl PrivateForest {
         &'b self,
         name_hash: &HashOutput,
         store: &B,
-    ) -> Result<Option<&'b EncryptedPrivateNode>> {
+    ) -> Result<Option<&'b Cid>> {
         self.root.get_by_hash(name_hash, store).await
     }
 
@@ -133,7 +122,7 @@ impl PrivateForest {
         self: Rc<Self>,
         name_hash: &HashOutput,
         store: &mut B,
-    ) -> Result<(Rc<Self>, Option<EncryptedPrivateNode>)> {
+    ) -> Result<(Rc<Self>, Option<Cid>)> {
         let mut cloned = (*self).clone();
         let (root, value) = self.root.remove_by_hash(name_hash, store).await?;
         cloned.root = root;

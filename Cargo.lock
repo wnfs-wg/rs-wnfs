@@ -1624,17 +1624,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "serde_repr"
-version = "0.1.8"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a2ad84e47328a31223de7fed7a4f5087f2d6ddfe586cf3ca25b7a165bc0a5aed"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn",
-]
-
-[[package]]
 name = "sha2"
 version = "0.10.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2013,6 +2002,7 @@ dependencies = [
  "chrono",
  "console_error_panic_hook",
  "js-sys",
+ "libipld",
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "wasm-bindgen-test",
@@ -2162,7 +2152,6 @@ dependencies = [
  "rand 0.8.5",
  "semver",
  "serde",
- "serde_repr",
  "sha3",
  "skip_ratchet",
  "test-log",

@@ -2,16 +2,17 @@ use std::{collections::BTreeMap, rc::Rc};
 
 use anyhow::{bail, Result};
 use chrono::{DateTime, Utc};
-use serde::{Deserialize, Serialize};
+use semver::Version;
+use serde::{de::Error as DeError, ser::Error as SerError, Deserialize, Deserializer, Serialize};
 
 use super::{
-    namefilter::Namefilter, INumber, PrivateFile, PrivateForest, PrivateNode, PrivateNodeHeader,
-    PrivateRef, Rng,
+    namefilter::Namefilter, INumber, Key, PrivateFile, PrivateForest, PrivateNode,
+    PrivateNodeHeader, PrivateRef, RatchetKey, Rng,
 };
 
 use crate::{
-    error, utils, BlockStore, FsError, HashOutput, Id, Metadata, PathNodes, PathNodesResult,
-    UnixFsNodeKind, HASH_BYTE_SIZE,
+    dagcbor, error, utils, BlockStore, FsError, HashOutput, Id, Metadata, NodeType, PathNodes,
+    PathNodesResult, HASH_BYTE_SIZE,
 };
 
 //--------------------------------------------------------------------------------------------------
@@ -21,20 +22,25 @@ use crate::{
 pub type PrivatePathNodes = PathNodes<PrivateDirectory>;
 pub type PrivatePathNodesResult = PathNodesResult<PrivateDirectory>;
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct PrivateDirectoryContent {
-    pub(crate) metadata: Metadata,
-    pub(crate) entries: BTreeMap<String, PrivateRef>,
+#[derive(Debug, Clone, PartialEq)]
+pub struct PrivateDirectory {
+    pub version: Version,
+    pub header: PrivateNodeHeader,
+    pub metadata: Metadata,
+    pub entries: BTreeMap<String, PrivateRef>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PrivateDirectory {
-    pub(crate) header: PrivateNodeHeader,
-    pub(crate) content: PrivateDirectoryContent,
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct PrivateDirectorySerde {
+    pub r#type: NodeType,
+    pub version: Version,
+    pub header: Vec<u8>,
+    pub metadata: Metadata,
+    pub entries: BTreeMap<String, PrivateRef>,
 }
 
 /// The result of an operation applied to a directory.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub struct PrivateOpResult<T> {
     /// The root directory.
     pub root_dir: Rc<PrivateDirectory>,
@@ -57,11 +63,10 @@ impl PrivateDirectory {
         time: DateTime<Utc>,
     ) -> Self {
         Self {
+            version: Version::new(0, 2, 0),
             header: PrivateNodeHeader::new(parent_bare_name, inumber, ratchet_seed),
-            content: PrivateDirectoryContent {
-                metadata: Metadata::new(time, UnixFsNodeKind::Dir),
-                entries: BTreeMap::new(),
-            },
+            metadata: Metadata::new(time),
+            entries: BTreeMap::new(),
         }
     }
 
@@ -230,7 +235,6 @@ impl PrivateDirectory {
             let child_private_ref = working_child_dir.header.get_private_ref()?;
 
             parent_dir
-                .content
                 .entries
                 .insert(segment.clone(), child_private_ref.clone());
 
@@ -327,7 +331,7 @@ impl PrivateDirectory {
                     Some(PrivateNode::File(file)) => Ok(PrivateOpResult {
                         root_dir,
                         hamt,
-                        result: file.content.content.clone(),
+                        result: file.content.clone(),
                     }),
                     Some(PrivateNode::Dir(_)) => error(FsError::NotAFile),
                     None => error(FsError::NotFound),
@@ -338,6 +342,7 @@ impl PrivateDirectory {
     }
 
     /// Writes a file to the directory.
+    #[allow(clippy::too_many_arguments)]
     pub async fn write<B: BlockStore, R: Rng>(
         self: Rc<Self>,
         path_segments: &[String],
@@ -364,8 +369,8 @@ impl PrivateDirectory {
         {
             Some(PrivateNode::File(file_before)) => {
                 let mut file = (*file_before).clone();
-                file.content.content = content;
-                file.content.metadata.unix_fs.modified = time.timestamp();
+                file.content = content;
+                file.metadata.upsert_mtime(time);
                 file.header.advance_ratchet();
                 file
             }
@@ -395,7 +400,6 @@ impl PrivateDirectory {
 
         // Insert the file into its parent directory
         directory
-            .content
             .entries
             .insert(filename.to_string(), child_private_ref);
 
@@ -420,7 +424,7 @@ impl PrivateDirectory {
         hamt: &PrivateForest,
         store: &B,
     ) -> Result<Option<PrivateNode>> {
-        Ok(match self.content.entries.get(path_segment) {
+        Ok(match self.entries.get(path_segment) {
             Some(private_ref) => {
                 let private_node = hamt.get(private_ref, store).await?;
                 match (search_latest, private_node) {
@@ -470,13 +474,13 @@ impl PrivateDirectory {
         {
             PathNodesResult::Complete(path_nodes) => {
                 let mut result = vec![];
-                for (name, private_ref) in path_nodes.tail.content.entries.iter() {
+                for (name, private_ref) in path_nodes.tail.entries.iter() {
                     match hamt.get(private_ref, store).await? {
                         Some(PrivateNode::File(file)) => {
-                            result.push((name.clone(), file.content.metadata.clone()));
+                            result.push((name.clone(), file.metadata.clone()));
                         }
                         Some(PrivateNode::Dir(dir)) => {
-                            result.push((name.clone(), dir.content.metadata.clone()));
+                            result.push((name.clone(), dir.metadata.clone()));
                         }
                         _ => bail!(FsError::NotFound),
                     }
@@ -513,7 +517,7 @@ impl PrivateDirectory {
         let mut directory = (*directory_path_nodes.tail).clone();
 
         // Remove the entry from its parent directory
-        let removed_node = match directory.content.entries.remove(node_name) {
+        let removed_node = match directory.entries.remove(node_name) {
             Some(ref private_ref) => hamt.get(private_ref, store).await?.unwrap(),
             None => bail!(FsError::NotFound),
         };
@@ -527,6 +531,56 @@ impl PrivateDirectory {
             root_dir,
             hamt,
             result: removed_node,
+        })
+    }
+
+    /// Serializes the directory with provided Serde serialilzer.
+    pub fn serialize<S, R: Rng>(&self, serializer: S, rng: &mut R) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let key = self
+            .header
+            .get_private_ref()
+            .map_err(SerError::custom)?
+            .ratchet_key;
+
+        (PrivateDirectorySerde {
+            r#type: NodeType::PrivateDirectory,
+            version: self.version.clone(),
+            header: {
+                let cbor_bytes = dagcbor::encode(&self.header).map_err(SerError::custom)?;
+                key.0
+                    .encrypt(&Key::generate_nonce(rng), &cbor_bytes)
+                    .map_err(SerError::custom)?
+            },
+            metadata: self.metadata.clone(),
+            entries: self.entries.clone(),
+        })
+        .serialize(serializer)
+    }
+
+    /// Deserializes the directory with provided Serde deserializer and key.
+    pub fn deserialize<'de, D>(deserializer: D, key: &RatchetKey) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let PrivateDirectorySerde {
+            version,
+            metadata,
+            header,
+            entries,
+            ..
+        } = PrivateDirectorySerde::deserialize(deserializer)?;
+
+        Ok(Self {
+            version,
+            metadata,
+            header: {
+                let cbor_bytes = key.0.decrypt(&header).map_err(DeError::custom)?;
+                dagcbor::decode(&cbor_bytes).map_err(DeError::custom)?
+            },
+            entries,
         })
     }
 }
@@ -691,8 +745,6 @@ mod private_directory_tests {
         assert_eq!(result.len(), 2);
         assert_eq!(result[0].0, String::from("cats"));
         assert_eq!(result[1].0, String::from("puppy.jpg"));
-        assert_eq!(result[0].1.unix_fs.kind, UnixFsNodeKind::Dir);
-        assert_eq!(result[1].1.unix_fs.kind, UnixFsNodeKind::File);
     }
 
     #[test(async_std::test)]

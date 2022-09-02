@@ -22,7 +22,7 @@ jobs:
         run: cargo fmt --all -- --check
 
       - name: Run Linter
-        run: cargo clippy --all
+        run: cargo clippy --all -- -D warnings
 
       - name: Run Tests
         run: cargo test --all
