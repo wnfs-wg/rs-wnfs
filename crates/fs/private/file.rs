@@ -2,7 +2,7 @@ use chrono::{DateTime, Utc};
 use semver::Version;
 use serde::{de::Error as DeError, ser::Error as SerError, Deserialize, Deserializer, Serialize};
 
-use crate::{dagcbor, HashOutput, Id, Metadata, NodeType, UnixFsNodeKind};
+use crate::{dagcbor, HashOutput, Id, Metadata, NodeType};
 
 use super::{namefilter::Namefilter, INumber, Key, PrivateNodeHeader, RatchetKey, Rng};
 
@@ -12,7 +12,6 @@ use super::{namefilter::Namefilter, INumber, Key, PrivateNodeHeader, RatchetKey,
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct PrivateFile {
-    pub r#type: NodeType,
     pub version: Version,
     pub header: PrivateNodeHeader,
     pub metadata: Metadata,
@@ -20,7 +19,7 @@ pub struct PrivateFile {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PrivateFileSerde {
+struct PrivateFileSerde {
     pub r#type: NodeType,
     pub version: Version,
     pub header: Vec<u8>,
@@ -41,10 +40,9 @@ impl PrivateFile {
         content: Vec<u8>,
     ) -> Self {
         Self {
-            r#type: NodeType::PrivateFile,
             version: Version::new(0, 2, 0),
             header: PrivateNodeHeader::new(parent_bare_name, inumber, ratchet_seed),
-            metadata: Metadata::new(time, UnixFsNodeKind::File),
+            metadata: Metadata::new(time),
             content,
         }
     }
@@ -61,7 +59,7 @@ impl PrivateFile {
             .ratchet_key;
 
         (PrivateFileSerde {
-            r#type: self.r#type,
+            r#type: NodeType::PrivateFile,
             version: self.version.clone(),
             header: {
                 let cbor_bytes = dagcbor::encode(&self.header).map_err(SerError::custom)?;
@@ -81,15 +79,14 @@ impl PrivateFile {
         D: Deserializer<'de>,
     {
         let PrivateFileSerde {
-            r#type,
             version,
             metadata,
             header,
             content,
+            ..
         } = PrivateFileSerde::deserialize(deserializer)?;
 
         Ok(Self {
-            r#type,
             version,
             metadata,
             header: {

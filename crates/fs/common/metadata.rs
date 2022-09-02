@@ -20,45 +20,9 @@ pub enum NodeType {
     PrivateDirectory,
 }
 
-/// The different types a UnixFS can be.
-///
-/// See <https://docs.ipfs.io/concepts/file-systems/#unix-file-system-unixfs>
-#[derive(Debug, Clone, PartialEq, Eq, Copy)]
-pub enum UnixFsNodeKind {
-    Raw,
-    File,
-    Dir,
-    Metadata,
-    SymLink,
-    HAMTShard,
-}
-
-/// Mode represents the Unix permissions for a UnixFS node.
-///
-/// See
-/// - <https://docs.ipfs.io/concepts/file-systems/#unix-file-system-unixfs>
-/// - <https://en.wikipedia.org/wiki/File-system_permissions#Numeric_notation>
-#[derive(Debug, Clone, PartialEq, Eq)]
-#[repr(u32)]
-pub enum UnixFsMode {
-    NoPermissions = 0,
-    OwnerReadWriteExecute = 700,
-    OwnerGroupReadWriteExecute = 770,
-    AllReadWriteExecute = 777,
-    AllExecute = 111,
-    AllWrite = 222,
-    AllWriteExecute = 333,
-    AllRead = 444,
-    AllReadExecute = 555,
-    AllReadWrite = 666,
-    OwnerReadWriteExecuteGroupRead = 740,
-    OwnerReadWriteExecuteGroupOthersReadExecute = 755,
-    OwnerReadWriteGroupOthersRead = 644,
-}
-
 /// The metadata of a node on the WNFS file system.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct Metadata(BTreeMap<String, Ipld>);
+pub struct Metadata(pub BTreeMap<String, Ipld>);
 
 //--------------------------------------------------------------------------------------------------
 // Implementations
@@ -66,38 +30,17 @@ pub struct Metadata(BTreeMap<String, Ipld>);
 
 impl Metadata {
     /// Creates a new metadata representing a UnixFS node.
-    pub fn new(time: DateTime<Utc>, kind: UnixFsNodeKind) -> Self {
-        let time: Ipld = time.timestamp().into();
-        let mode =
-            if matches!(kind, UnixFsNodeKind::Dir) || matches!(kind, UnixFsNodeKind::HAMTShard) {
-                (UnixFsMode::OwnerReadWriteGroupOthersRead as u32).into()
-            } else {
-                (UnixFsMode::OwnerReadWriteExecuteGroupOthersReadExecute as u32).into()
-            };
-
-        Self(BTreeMap::from([(
-            "unix_fs_meta".into(),
-            Ipld::Map(BTreeMap::from([
-                ("created".into(), time.clone()),
-                ("modified".into(), time),
-                ("mode".into(), mode),
-                ("kind".into(), String::from(&kind).into()),
-            ])),
-        )]))
-    }
-
-    pub fn get_unix_fs(&self) -> Option<&BTreeMap<String, Ipld>> {
-        match self.0.get("unix_fs_meta") {
-            Some(Ipld::Map(map)) => Some(map),
-            _ => None,
-        }
+    pub fn new(time: DateTime<Utc>) -> Self {
+        let time = time.timestamp();
+        Self(BTreeMap::from([
+            ("created".into(), time.into()),
+            ("modified".into(), time.into()),
+        ]))
     }
 
     /// Updates modified time.
-    pub fn update_mtime(&mut self, time: DateTime<Utc>) {
-        if let Some(Ipld::Map(map)) = self.0.get_mut("unix_fs_meta") {
-            map.insert("modified".into(), time.timestamp().into());
-        }
+    pub fn upsert_mtime(&mut self, time: DateTime<Utc>) {
+        self.0.insert("modified".into(), time.timestamp().into());
     }
 }
 
@@ -142,7 +85,7 @@ impl Serialize for NodeType {
     where
         S: Serializer,
     {
-        serializer.serialize_str(&String::from(self))
+        String::from(self).serialize(serializer)
     }
 }
 
@@ -155,20 +98,6 @@ impl<'de> Deserialize<'de> for NodeType {
         r#type.as_str().try_into().map_err(DeError::custom)
     }
 }
-
-impl From<&UnixFsNodeKind> for String {
-    fn from(kind: &UnixFsNodeKind) -> Self {
-        match kind {
-            UnixFsNodeKind::Raw => "raw".into(),
-            UnixFsNodeKind::File => "file".into(),
-            UnixFsNodeKind::Dir => "dir".into(),
-            UnixFsNodeKind::Metadata => "metadata".into(),
-            UnixFsNodeKind::SymLink => "symlink".into(),
-            UnixFsNodeKind::HAMTShard => "hamt-shard".into(),
-        }
-    }
-}
-
 //--------------------------------------------------------------------------------------------------
 // Tests
 //--------------------------------------------------------------------------------------------------
@@ -177,11 +106,11 @@ impl From<&UnixFsNodeKind> for String {
 mod metadata_tests {
     use chrono::Utc;
 
-    use crate::{dagcbor, Metadata, UnixFsNodeKind};
+    use crate::{dagcbor, Metadata};
 
     #[async_std::test]
     async fn metadata_can_encode_decode_as_cbor() {
-        let metadata = Metadata::new(Utc::now(), UnixFsNodeKind::File);
+        let metadata = Metadata::new(Utc::now());
 
         let encoded_metadata = dagcbor::encode(&metadata).unwrap();
         let decoded_metadata = dagcbor::decode::<Metadata>(encoded_metadata.as_ref()).unwrap();

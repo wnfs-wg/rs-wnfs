@@ -12,7 +12,7 @@ use super::{
 
 use crate::{
     dagcbor, error, utils, BlockStore, FsError, HashOutput, Id, Metadata, NodeType, PathNodes,
-    PathNodesResult, UnixFsNodeKind, HASH_BYTE_SIZE,
+    PathNodesResult, HASH_BYTE_SIZE,
 };
 
 //--------------------------------------------------------------------------------------------------
@@ -24,7 +24,6 @@ pub type PrivatePathNodesResult = PathNodesResult<PrivateDirectory>;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct PrivateDirectory {
-    pub r#type: NodeType,
     pub version: Version,
     pub header: PrivateNodeHeader,
     pub metadata: Metadata,
@@ -32,7 +31,7 @@ pub struct PrivateDirectory {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PrivateDirectorySerde {
+struct PrivateDirectorySerde {
     pub r#type: NodeType,
     pub version: Version,
     pub header: Vec<u8>,
@@ -41,7 +40,7 @@ pub struct PrivateDirectorySerde {
 }
 
 /// The result of an operation applied to a directory.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub struct PrivateOpResult<T> {
     /// The root directory.
     pub root_dir: Rc<PrivateDirectory>,
@@ -64,10 +63,9 @@ impl PrivateDirectory {
         time: DateTime<Utc>,
     ) -> Self {
         Self {
-            r#type: NodeType::PrivateDirectory,
             version: Version::new(0, 2, 0),
             header: PrivateNodeHeader::new(parent_bare_name, inumber, ratchet_seed),
-            metadata: Metadata::new(time, UnixFsNodeKind::Dir),
+            metadata: Metadata::new(time),
             entries: BTreeMap::new(),
         }
     }
@@ -372,7 +370,7 @@ impl PrivateDirectory {
             Some(PrivateNode::File(file_before)) => {
                 let mut file = (*file_before).clone();
                 file.content = content;
-                file.metadata = Metadata::new(time, UnixFsNodeKind::File);
+                file.metadata.upsert_mtime(time);
                 file.header.advance_ratchet();
                 file
             }
@@ -548,7 +546,7 @@ impl PrivateDirectory {
             .ratchet_key;
 
         (PrivateDirectorySerde {
-            r#type: self.r#type,
+            r#type: NodeType::PrivateDirectory,
             version: self.version.clone(),
             header: {
                 let cbor_bytes = dagcbor::encode(&self.header).map_err(SerError::custom)?;
@@ -568,15 +566,14 @@ impl PrivateDirectory {
         D: Deserializer<'de>,
     {
         let PrivateDirectorySerde {
-            r#type,
             version,
             metadata,
             header,
             entries,
+            ..
         } = PrivateDirectorySerde::deserialize(deserializer)?;
 
         Ok(Self {
-            r#type,
             version,
             metadata,
             header: {

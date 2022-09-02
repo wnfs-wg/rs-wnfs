@@ -9,9 +9,7 @@ use libipld::{Cid, Ipld};
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 
 use super::{PublicDirectory, PublicFile};
-use crate::{
-    common::BlockStore, AsyncSerialize, FsError, Id, NodeType, ReferenceableStore, UnixFsNodeKind,
-};
+use crate::{common::BlockStore, AsyncSerialize, FsError, Id, NodeType, ReferenceableStore};
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
@@ -36,12 +34,12 @@ impl PublicNode {
         match self {
             Self::File(file) => {
                 let mut file = (**file).clone();
-                file.metadata.update_mtime(time);
+                file.metadata.upsert_mtime(time);
                 Self::File(Rc::new(file))
             }
             Self::Dir(dir) => {
                 let mut dir = (**dir).clone();
-                dir.metadata.update_mtime(time);
+                dir.metadata.upsert_mtime(time);
                 Self::Dir(Rc::new(dir))
             }
         }
@@ -112,14 +110,6 @@ impl PublicNode {
     /// Returns true if the underlying node is a file.
     pub fn is_file(&self) -> bool {
         matches!(self, Self::File(_))
-    }
-
-    /// Gets the node kind.
-    pub fn kind(&self) -> UnixFsNodeKind {
-        match self {
-            Self::File(_) => UnixFsNodeKind::File,
-            Self::Dir(_) => UnixFsNodeKind::Dir,
-        }
     }
 }
 

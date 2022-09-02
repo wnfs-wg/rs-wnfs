@@ -57,17 +57,17 @@ pub struct PrivateRef {
 //--------------------------------------------------------------------------------------------------
 
 impl PrivateNode {
-    /// Creates node with updated modified time.
-    pub fn update_mtime(&self, time: DateTime<Utc>) -> Self {
+    /// Creates node with upserted modified time.
+    pub fn upsert_mtime(&self, time: DateTime<Utc>) -> Self {
         match self {
             Self::File(file) => {
                 let mut file = (**file).clone();
-                file.metadata.update_mtime(time);
+                file.metadata.upsert_mtime(time);
                 Self::File(Rc::new(file))
             }
             Self::Dir(dir) => {
                 let mut dir = (**dir).clone();
-                dir.metadata.update_mtime(time);
+                dir.metadata.upsert_mtime(time);
                 Self::Dir(Rc::new(dir))
             }
         }

@@ -44,6 +44,9 @@ pub enum FsError {
     #[error("Invalid deserialization: {0}")]
     InvalidDeserialization(String),
 
+    #[error("Invalid serialization: {0}")]
+    InvalidSerialisation(&'static str),
+
     #[error("Cannot access header data necessary for operation")]
     MissingHeader,
 

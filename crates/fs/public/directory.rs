@@ -4,7 +4,7 @@ use std::{collections::BTreeMap, rc::Rc};
 
 use crate::{
     error, utils, AsyncSerialize, BlockStore, FsError, Id, Metadata, NodeType, PathNodes,
-    PathNodesResult, ReferenceableStore, UnixFsNodeKind,
+    PathNodesResult, ReferenceableStore,
 };
 use anyhow::{bail, ensure, Result};
 use async_recursion::async_recursion;
@@ -39,7 +39,6 @@ pub type PublicPathNodesResult = PathNodesResult<PublicDirectory>;
 /// ```
 #[derive(Debug, Clone, PartialEq)]
 pub struct PublicDirectory {
-    pub r#type: NodeType,
     pub version: Version,
     pub metadata: Metadata,
     pub userland: BTreeMap<String, PublicLink>,
@@ -83,9 +82,8 @@ impl PublicDirectory {
     /// ```
     pub fn new(time: DateTime<Utc>) -> Self {
         Self {
-            r#type: NodeType::PublicDirectory,
             version: Version::new(0, 2, 0),
-            metadata: Metadata::new(time, UnixFsNodeKind::Dir),
+            metadata: Metadata::new(time),
             userland: BTreeMap::new(),
             previous: None,
         }
@@ -427,7 +425,7 @@ impl PublicDirectory {
             Some(PublicNode::File(file_before)) => {
                 let mut file = (*file_before).clone();
                 file.userland = content_cid;
-                file.metadata = Metadata::new(time, UnixFsNodeKind::File);
+                file.metadata.upsert_mtime(time);
                 file
             }
             Some(PublicNode::Dir(_)) => bail!(FsError::DirectoryAlreadyExists),
@@ -914,7 +912,7 @@ impl AsyncSerialize for PublicDirectory {
         };
 
         (PublicDirectorySerde {
-            r#type: self.r#type,
+            r#type: NodeType::PublicDirectory,
             version: self.version.clone(),
             metadata: self.metadata.clone(),
             userland: encoded_userland,
@@ -930,11 +928,11 @@ impl<'de> Deserialize<'de> for PublicDirectory {
         D: Deserializer<'de>,
     {
         let PublicDirectorySerde {
-            r#type,
             version,
             metadata,
             userland,
             previous,
+            ..
         } = PublicDirectorySerde::deserialize(deserializer)?;
 
         let userland = userland
@@ -943,7 +941,6 @@ impl<'de> Deserialize<'de> for PublicDirectory {
             .collect();
 
         Ok(Self {
-            r#type,
             version,
             metadata,
             userland,
