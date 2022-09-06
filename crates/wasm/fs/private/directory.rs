@@ -276,6 +276,46 @@ impl PrivateDirectory {
         }))
     }
 
+    /// Copies a specified path to a new location.
+    #[allow(clippy::too_many_arguments)]
+    pub fn cp(
+        &self,
+        path_segments_from: &Array,
+        path_segments_to: &Array,
+        search_latest: bool,
+        time: &Date,
+        hamt: PrivateForest,
+        store: BlockStore,
+        mut rng: Rng,
+    ) -> JsResult<Promise> {
+        let directory = Rc::clone(&self.0);
+        let mut store = ForeignBlockStore(store);
+        let time = DateTime::<Utc>::from(time);
+        let path_segments_from = utils::convert_path_segments(path_segments_from)?;
+        let path_segments_to = utils::convert_path_segments(path_segments_to)?;
+
+        Ok(future_to_promise(async move {
+            let WnfsPrivateOpResult { root_dir, hamt, .. } = directory
+                .cp(
+                    &path_segments_from,
+                    &path_segments_to,
+                    search_latest,
+                    time,
+                    hamt.0,
+                    &mut store,
+                    &mut rng,
+                )
+                .await
+                .map_err(error("Cannot copy content between directories"))?;
+
+            Ok(utils::create_private_op_result(
+                root_dir,
+                hamt,
+                JsValue::NULL,
+            )?)
+        }))
+    }
+
     /// Creates a new directory at the specified path.
     ///
     /// This method acts like `mkdir -p` in Unix because it creates intermediate directories if they do not exist.

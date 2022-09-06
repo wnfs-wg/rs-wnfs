@@ -85,7 +85,7 @@ impl PrivateNode {
         (first, second)
     }
 
-    /// Updates the bare name anscestry of a private sub tree.
+    /// Updates bare name ancestry of private sub tree.
     #[async_recursion(?Send)]
     pub(crate) async fn update_ancestry<B: BlockStore, R: Rng>(
         &mut self,
@@ -302,8 +302,8 @@ impl From<PrivateDirectory> for PrivateNode {
 
 impl PrivateNodeHeader {
     /// Creates a new PrivateNodeHeader.
-    // TODO(appcypher): Use ::<R: Rng>
-    pub fn new(parent_bare_name: Namefilter, inumber: INumber, ratchet_seed: HashOutput) -> Self {
+    pub fn new<R: Rng>(parent_bare_name: Namefilter, rng: &mut R) -> Self {
+        let (inumber, ratchet_seed) = PrivateNode::generate_double_random(rng);
         Self {
             bare_name: {
                 let mut namefilter = parent_bare_name;

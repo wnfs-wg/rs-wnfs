@@ -56,10 +56,9 @@ pub struct PrivateOpResult<T> {
 impl PrivateDirectory {
     /// Creates a new directory with provided details.
     pub fn new<R: Rng>(parent_bare_name: Namefilter, time: DateTime<Utc>, rng: &mut R) -> Self {
-        let (inumber, ratchet_seed) = PrivateNode::generate_double_random(rng);
         Self {
             version: Version::new(0, 2, 0),
-            header: PrivateNodeHeader::new(parent_bare_name, inumber, ratchet_seed),
+            header: PrivateNodeHeader::new(parent_bare_name, rng),
             metadata: Metadata::new(time),
             entries: BTreeMap::new(),
         }
@@ -503,30 +502,23 @@ impl PrivateDirectory {
         })
     }
 
-    /// Moves a file or directory from one path to another.
+    /// Attaches a node to the specified directory.
+    ///
+    /// Fixes up the subtree bare names to refer to the new parent.
     #[allow(clippy::too_many_arguments)]
-    pub async fn basic_mv<B: BlockStore, R: Rng>(
+    pub async fn attach<B: BlockStore, R: Rng>(
         self: Rc<Self>,
-        path_segments_from: &[String],
-        path_segments_to: &[String],
+        mut node: PrivateNode,
+        path_segments: &[String],
         search_latest: bool,
         time: DateTime<Utc>,
         hamt: Rc<PrivateForest>,
         store: &mut B,
         rng: &mut R,
     ) -> Result<PrivateOpResult<()>> {
-        let root_dir = Rc::clone(&self);
-        let (directory_path, filename) = utils::split_last(path_segments_to)?;
+        let (directory_path, filename) = utils::split_last(path_segments)?;
 
-        let PrivateOpResult {
-            root_dir,
-            result: mut removed_node,
-            hamt,
-        } = root_dir
-            .rm(path_segments_from, search_latest, hamt, store, rng)
-            .await?;
-
-        let mut path_nodes = match root_dir
+        let mut path_nodes = match self
             .get_path_nodes(directory_path, search_latest, &hamt, store)
             .await?
         {
@@ -541,15 +533,14 @@ impl PrivateDirectory {
             FsError::FileAlreadyExists
         );
 
-        removed_node.upsert_mtime(time);
-        let hamt = removed_node
+        node.upsert_mtime(time);
+        let hamt = node
             .update_ancestry(directory.header.bare_name.clone(), hamt, store, rng)
             .await?;
 
-        directory.entries.insert(
-            filename.clone(),
-            removed_node.get_header().get_private_ref()?,
-        );
+        directory
+            .entries
+            .insert(filename.clone(), node.get_header().get_private_ref()?);
 
         path_nodes.tail = Rc::new(directory);
 
@@ -560,6 +551,72 @@ impl PrivateDirectory {
             result: (),
             hamt,
         })
+    }
+
+    /// Moves a file or directory from one path to another.
+    #[allow(clippy::too_many_arguments)]
+    pub async fn basic_mv<B: BlockStore, R: Rng>(
+        self: Rc<Self>,
+        path_segments_from: &[String],
+        path_segments_to: &[String],
+        search_latest: bool,
+        time: DateTime<Utc>,
+        hamt: Rc<PrivateForest>,
+        store: &mut B,
+        rng: &mut R,
+    ) -> Result<PrivateOpResult<()>> {
+        let PrivateOpResult {
+            root_dir,
+            result: removed_node,
+            hamt,
+        } = self
+            .rm(path_segments_from, search_latest, hamt, store, rng)
+            .await?;
+
+        root_dir
+            .attach(
+                removed_node,
+                path_segments_to,
+                search_latest,
+                time,
+                hamt,
+                store,
+                rng,
+            )
+            .await
+    }
+
+    /// Copies a file or directory from one path to another.
+    #[allow(clippy::too_many_arguments)]
+    pub async fn cp<B: BlockStore, R: Rng>(
+        self: Rc<Self>,
+        path_segments_from: &[String],
+        path_segments_to: &[String],
+        search_latest: bool,
+        time: DateTime<Utc>,
+        hamt: Rc<PrivateForest>,
+        store: &mut B,
+        rng: &mut R,
+    ) -> Result<PrivateOpResult<()>> {
+        let PrivateOpResult {
+            root_dir,
+            result,
+            hamt,
+        } = self
+            .get_node(path_segments_from, search_latest, hamt, store)
+            .await?;
+
+        root_dir
+            .attach(
+                result.ok_or(FsError::NotFound)?,
+                path_segments_to,
+                search_latest,
+                time,
+                hamt,
+                store,
+                rng,
+            )
+            .await
     }
 
     /// Serializes the directory with provided Serde serialilzer.

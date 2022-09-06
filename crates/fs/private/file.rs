@@ -4,7 +4,7 @@ use serde::{de::Error as DeError, ser::Error as SerError, Deserialize, Deseriali
 
 use crate::{dagcbor, Id, Metadata, NodeType};
 
-use super::{namefilter::Namefilter, Key, PrivateNode, PrivateNodeHeader, RatchetKey, Rng};
+use super::{namefilter::Namefilter, Key, PrivateNodeHeader, RatchetKey, Rng};
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
@@ -38,10 +38,9 @@ impl PrivateFile {
         content: Vec<u8>,
         rng: &mut R,
     ) -> Self {
-        let (inumber, ratchet_seed) = PrivateNode::generate_double_random(rng);
         Self {
             version: Version::new(0, 2, 0),
-            header: PrivateNodeHeader::new(parent_bare_name, inumber, ratchet_seed),
+            header: PrivateNodeHeader::new(parent_bare_name, rng),
             metadata: Metadata::new(time),
             content,
         }

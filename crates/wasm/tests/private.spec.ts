@@ -263,4 +263,79 @@ test.describe("PrivateDirectory", () => {
     expect(picturesContent.length).toEqual(0);
     expect(imagesContent[0].name).toEqual("cats");
   });
+
+  test("cp can copy content between directories", async ({ page }) => {
+    const [imagesContent, picturesContent] = await page.evaluate(async () => {
+      const {
+        wnfs: { PrivateDirectory, PrivateForest, Namefilter },
+        mock: { MemoryBlockStore, Rng },
+      } = await window.setup();
+
+      const initialHamt = new PrivateForest();
+      const rng = new Rng();
+      const store = new MemoryBlockStore();
+      const root = new PrivateDirectory(new Namefilter(), new Date(), rng);
+
+      var { rootDir, hamt } = await root.write(
+        ["pictures", "cats", "luna.jpeg"],
+        true,
+        new Uint8Array([1, 2, 3, 4, 5]),
+        new Date(),
+        initialHamt,
+        store,
+        rng
+      );
+
+      var { rootDir, hamt } = await rootDir.write(
+        ["pictures", "cats", "tabby.png"],
+        true,
+        new Uint8Array([1, 2, 3, 4, 5]),
+        new Date(),
+        hamt,
+        store,
+        rng
+      );
+
+      var { rootDir, hamt } = await rootDir.mkdir(
+        ["images"],
+        true,
+        new Date(),
+        hamt,
+        store,
+        rng
+      );
+
+      var { rootDir, hamt } = await rootDir.cp(
+        ["pictures", "cats"],
+        ["images", "cats"],
+        true,
+        new Date(),
+        hamt,
+        store,
+        rng
+      );
+
+      var { result: imagesContent, hamt } = await rootDir.ls(
+        ["images"],
+        true,
+        hamt,
+        store
+      );
+
+      var { result: picturesContent, hamt } = await rootDir.ls(
+        ["pictures"],
+        true,
+        hamt,
+        store
+      );
+
+      return [imagesContent, picturesContent];
+    });
+
+    expect(imagesContent.length).toEqual(1);
+    expect(picturesContent.length).toEqual(1);
+
+    expect(imagesContent[0].name).toEqual("cats");
+    expect(picturesContent[0].name).toEqual("cats");
+  });
 });
