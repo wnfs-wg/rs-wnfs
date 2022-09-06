@@ -506,7 +506,7 @@ impl PrivateDirectory {
     ///
     /// Fixes up the subtree bare names to refer to the new parent.
     #[allow(clippy::too_many_arguments)]
-    pub async fn attach<B: BlockStore, R: Rng>(
+    async fn attach<B: BlockStore, R: Rng>(
         self: Rc<Self>,
         mut node: PrivateNode,
         path_segments: &[String],
@@ -1020,6 +1020,116 @@ mod private_directory_tests {
         assert_eq!(&String::from_utf8_lossy(&old_read), "One");
         assert_eq!(&String::from_utf8_lossy(&old_read_latest), "Two");
         assert_eq!(&String::from_utf8_lossy(&new_read_latest), "Two");
+    }
+
+    #[async_std::test]
+    async fn cp_can_copy_sub_directory_to_another_valid_location_with_updated_ancestry() {
+        let rng = &mut TestRng();
+        let store = &mut MemoryBlockStore::default();
+        let hamt = Rc::new(PrivateForest::new());
+        let root_dir = Rc::new(PrivateDirectory::new(
+            Namefilter::default(),
+            Utc::now(),
+            rng,
+        ));
+
+        let PrivateOpResult { root_dir, hamt, .. } = root_dir
+            .write(
+                &["pictures".into(), "cats".into(), "tabby.jpg".into()],
+                true,
+                Utc::now(),
+                b"tabby".to_vec(),
+                hamt,
+                store,
+                rng,
+            )
+            .await
+            .unwrap();
+
+        let PrivateOpResult { root_dir, hamt, .. } = root_dir
+            .write(
+                &["pictures".into(), "cats".into(), "luna.png".into()],
+                true,
+                Utc::now(),
+                b"luna".to_vec(),
+                hamt,
+                store,
+                rng,
+            )
+            .await
+            .unwrap();
+
+        let PrivateOpResult { root_dir, hamt, .. } = root_dir
+            .mkdir(&["images".into()], true, Utc::now(), hamt, store, rng)
+            .await
+            .unwrap();
+
+        let PrivateOpResult { root_dir, hamt, .. } = root_dir
+            .cp(
+                &["pictures".into(), "cats".into()],
+                &["images".into(), "cats".into()],
+                true,
+                Utc::now(),
+                hamt,
+                store,
+                rng,
+            )
+            .await
+            .unwrap();
+
+        let PrivateOpResult {
+            root_dir,
+            hamt,
+            result,
+        } = root_dir
+            .ls(&["images".into()], true, hamt, store)
+            .await
+            .unwrap();
+
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].0, String::from("cats"));
+
+        let PrivateOpResult {
+            result,
+            root_dir,
+            hamt,
+        } = root_dir
+            .ls(&["pictures".into()], true, hamt, store)
+            .await
+            .unwrap();
+
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].0, String::from("cats"));
+
+        let PrivateOpResult {
+            result,
+            root_dir,
+            hamt,
+        } = root_dir
+            .get_node(&["images".into(), "cats".into()], true, hamt, store)
+            .await
+            .unwrap();
+
+        let cats_bare_name = result.unwrap().get_header().bare_name.clone();
+
+        let images_dir_inumber = root_dir
+            .lookup_node("images", true, &hamt, store)
+            .await
+            .unwrap()
+            .unwrap()
+            .get_header()
+            .inumber;
+
+        let pictures_dir_inumber = root_dir
+            .lookup_node("pictures", true, &hamt, store)
+            .await
+            .unwrap()
+            .unwrap()
+            .get_header()
+            .inumber;
+
+        assert!(cats_bare_name.contains(&images_dir_inumber));
+        assert!(!cats_bare_name.contains(&pictures_dir_inumber));
     }
 
     #[async_std::test]
