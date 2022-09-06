@@ -140,7 +140,7 @@ impl PublicDirectory {
             let WnfsPublicOpResult { root_dir, result } = directory
                 .ls(&path_segments, &store)
                 .await
-                .map_err(error("Cannot list directory children"))?;
+                .map_err(error("Cannot list directory content"))?;
 
             let result = result
                 .iter()
@@ -214,7 +214,7 @@ impl PublicDirectory {
             let WnfsPublicOpResult { root_dir, .. } = directory
                 .basic_mv(&path_segments_from, &path_segments_to, time, &store)
                 .await
-                .map_err(error("Cannot create directory"))?;
+                .map_err(error("Cannot move content between directories"))?;
 
             Ok(utils::create_public_op_result(root_dir, JsValue::NULL)?)
         }))

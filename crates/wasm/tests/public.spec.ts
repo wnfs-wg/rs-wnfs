@@ -125,19 +125,68 @@ test.describe("PublicDirectory", () => {
         time,
         store
       );
+
       var { rootDir } = await rootDir.write(
         ["pictures", "cats", "tabby.png"],
         sampleCID,
         time,
         store
       );
+
       var { rootDir } = await rootDir.rm(["pictures", "cats"], store);
+
       var { result } = await rootDir.ls(["pictures"], store);
 
       return result;
     });
 
-    expect(result.length).toEqual(1)
+    expect(result.length).toEqual(1);
     expect(result[0].name).toEqual("dogs");
+  });
+
+  test("basicMv can move content between directories", async ({ page }) => {
+    const [imagesContent, picturesContent] = await page.evaluate(async () => {
+      const {
+        wnfs: { PublicDirectory },
+        mock: { MemoryBlockStore, sampleCID },
+      } = await window.setup();
+
+      const time = new Date();
+      const store = new MemoryBlockStore();
+      const root = new PublicDirectory(time);
+
+      var { rootDir } = await root.write(
+        ["pictures", "cats", "luna.jpeg"],
+        sampleCID,
+        time,
+        store
+      );
+
+      var { rootDir } = await rootDir.write(
+        ["pictures", "cats", "tabby.png"],
+        sampleCID,
+        time,
+        store
+      );
+
+      var { rootDir } = await rootDir.mkdir(["images"], time, store);
+
+      var { rootDir } = await rootDir.basicMv(
+        ["pictures", "cats"],
+        ["images", "cats"],
+        time,
+        store
+      );
+
+      var { result: imagesContent } = await rootDir.ls(["images"], store);
+
+      var { result: picturesContent } = await rootDir.ls(["pictures"], store);
+
+      return [imagesContent, picturesContent];
+    });
+
+    expect(imagesContent.length).toEqual(1);
+    expect(picturesContent.length).toEqual(0);
+    expect(imagesContent[0].name).toEqual("cats");
   });
 });

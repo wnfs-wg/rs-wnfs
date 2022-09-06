@@ -152,9 +152,8 @@ mod hamt_store_tests {
 
         let dir = Rc::new(PrivateDirectory::new(
             Namefilter::default(),
-            rng.random_bytes::<32>(),
-            rng.random_bytes::<32>(),
             Utc::now(),
+            rng,
         ));
 
         let private_ref = dir.header.get_private_ref().unwrap();

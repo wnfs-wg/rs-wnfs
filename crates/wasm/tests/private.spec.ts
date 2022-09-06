@@ -19,14 +19,17 @@ test.describe("PrivateDirectory", () => {
       const initialHamt = new PrivateForest();
       const rng = new Rng();
       const store = new MemoryBlockStore();
-      const root = new PrivateDirectory(
-        new Namefilter(),
-        rng.randomBytes(32),
-        rng.randomBytes(32),
-        new Date()
-      );
+      const root = new PrivateDirectory(new Namefilter(), new Date(), rng);
 
-      var { rootDir, hamt } = await root.write(["text.txt"], true, new Uint8Array([1, 2, 3, 4, 5]), new Date(), initialHamt, store, rng);
+      var { rootDir, hamt } = await root.write(
+        ["text.txt"],
+        true,
+        new Uint8Array([1, 2, 3, 4, 5]),
+        new Date(),
+        initialHamt,
+        store,
+        rng
+      );
 
       return await rootDir.lookupNode("text.txt", true, hamt, store);
     });
@@ -46,12 +49,7 @@ test.describe("PrivateDirectory", () => {
       const initialHamt = new PrivateForest();
       const rng = new Rng();
       const store = new MemoryBlockStore();
-      const root = new PrivateDirectory(
-        new Namefilter(),
-        rng.randomBytes(32),
-        rng.randomBytes(32),
-        new Date()
-      );
+      const root = new PrivateDirectory(new Namefilter(), new Date(), rng);
 
       return await root.lookupNode("Unknown", true, initialHamt, store);
     });
@@ -69,14 +67,16 @@ test.describe("PrivateDirectory", () => {
       const initialHamt = new PrivateForest();
       const rng = new Rng();
       const store = new MemoryBlockStore();
-      const root = new PrivateDirectory(
-        new Namefilter(),
-        rng.randomBytes(32),
-        rng.randomBytes(32),
-        new Date()
-      );
+      const root = new PrivateDirectory(new Namefilter(), new Date(), rng);
 
-      var { rootDir, hamt } = await root.mkdir(["pictures", "cats"], true, new Date(), initialHamt, store, rng);
+      var { rootDir, hamt } = await root.mkdir(
+        ["pictures", "cats"],
+        true,
+        new Date(),
+        initialHamt,
+        store,
+        rng
+      );
 
       var { rootDir, hamt } = await rootDir.write(
         ["pictures", "cats", "tabby.png"],
@@ -85,7 +85,7 @@ test.describe("PrivateDirectory", () => {
         new Date(),
         hamt,
         store,
-        rng,
+        rng
       );
 
       var { rootDir } = await rootDir.getNode(
@@ -111,14 +111,16 @@ test.describe("PrivateDirectory", () => {
       const initialHamt = new PrivateForest();
       const rng = new Rng();
       const store = new MemoryBlockStore();
-      const root = new PrivateDirectory(
-        new Namefilter(),
-        rng.randomBytes(32),
-        rng.randomBytes(32),
-        new Date()
-      );
+      const root = new PrivateDirectory(new Namefilter(), new Date(), rng);
 
-      var { rootDir, hamt } = await root.mkdir(["pictures", "dogs"], true, new Date(), initialHamt, store, rng);
+      var { rootDir, hamt } = await root.mkdir(
+        ["pictures", "dogs"],
+        true,
+        new Date(),
+        initialHamt,
+        store,
+        rng
+      );
 
       var { rootDir, hamt } = await rootDir.write(
         ["pictures", "cats", "tabby.png"],
@@ -127,7 +129,7 @@ test.describe("PrivateDirectory", () => {
         new Date(),
         hamt,
         store,
-        rng,
+        rng
       );
 
       var { result } = await rootDir.ls(["pictures"], true, hamt, store);
@@ -150,12 +152,7 @@ test.describe("PrivateDirectory", () => {
       const initialHamt = new PrivateForest();
       const rng = new Rng();
       const store = new MemoryBlockStore();
-      const root = new PrivateDirectory(
-        new Namefilter(),
-        rng.randomBytes(32),
-        rng.randomBytes(32),
-        new Date()
-      );
+      const root = new PrivateDirectory(new Namefilter(), new Date(), rng);
 
       var { rootDir, hamt } = await root.write(
         ["pictures", "dogs", "billie.jpeg"],
@@ -164,7 +161,7 @@ test.describe("PrivateDirectory", () => {
         new Date(),
         initialHamt,
         store,
-        rng,
+        rng
       );
 
       var { rootDir, hamt } = await rootDir.write(
@@ -174,15 +171,96 @@ test.describe("PrivateDirectory", () => {
         new Date(),
         hamt,
         store,
-        rng,
+        rng
       );
-      var { rootDir, hamt } = await rootDir.rm(["pictures", "cats"], true, hamt, store, rng);
+
+      var { rootDir, hamt } = await rootDir.rm(
+        ["pictures", "cats"],
+        true,
+        hamt,
+        store,
+        rng
+      );
+
       var { result } = await rootDir.ls(["pictures"], true, hamt, store);
 
       return result;
     });
 
-    expect(result.length).toEqual(1)
+    expect(result.length).toEqual(1);
     expect(result[0].name).toEqual("dogs");
+  });
+
+  test("basicMv can move content between directories", async ({ page }) => {
+    const [imagesContent, picturesContent] = await page.evaluate(async () => {
+      const {
+        wnfs: { PrivateDirectory, PrivateForest, Namefilter },
+        mock: { MemoryBlockStore, Rng },
+      } = await window.setup();
+
+      const initialHamt = new PrivateForest();
+      const rng = new Rng();
+      const store = new MemoryBlockStore();
+      const root = new PrivateDirectory(new Namefilter(), new Date(), rng);
+
+      var { rootDir, hamt } = await root.write(
+        ["pictures", "cats", "luna.jpeg"],
+        true,
+        new Uint8Array([1, 2, 3, 4, 5]),
+        new Date(),
+        initialHamt,
+        store,
+        rng
+      );
+
+      var { rootDir, hamt } = await rootDir.write(
+        ["pictures", "cats", "tabby.png"],
+        true,
+        new Uint8Array([1, 2, 3, 4, 5]),
+        new Date(),
+        hamt,
+        store,
+        rng
+      );
+
+      var { rootDir, hamt } = await rootDir.mkdir(
+        ["images"],
+        true,
+        new Date(),
+        hamt,
+        store,
+        rng
+      );
+
+      var { rootDir, hamt } = await rootDir.basicMv(
+        ["pictures", "cats"],
+        ["images", "cats"],
+        true,
+        new Date(),
+        hamt,
+        store,
+        rng
+      );
+
+      var { result: imagesContent, hamt } = await rootDir.ls(
+        ["images"],
+        true,
+        hamt,
+        store
+      );
+
+      var { result: picturesContent, hamt } = await rootDir.ls(
+        ["pictures"],
+        true,
+        hamt,
+        store
+      );
+
+      return [imagesContent, picturesContent];
+    });
+
+    expect(imagesContent.length).toEqual(1);
+    expect(picturesContent.length).toEqual(0);
+    expect(imagesContent[0].name).toEqual("cats");
   });
 });

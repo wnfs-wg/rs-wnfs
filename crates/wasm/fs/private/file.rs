@@ -3,12 +3,9 @@
 use chrono::{DateTime, Utc};
 use js_sys::Date;
 use wasm_bindgen::prelude::wasm_bindgen;
-use wnfs::{
-    private::{INumber, PrivateFile as WnfsPrivateFile},
-    HashOutput, Id,
-};
+use wnfs::{private::PrivateFile as WnfsPrivateFile, Id};
 
-use crate::fs::{utils::error, JsResult, Namefilter};
+use crate::fs::{JsResult, Namefilter, Rng};
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
@@ -28,27 +25,17 @@ impl PrivateFile {
     #[wasm_bindgen(constructor)]
     pub fn new(
         parent_bare_name: Namefilter,
-        inumber: Vec<u8>,      // [u8; 32]
-        ratchet_seed: Vec<u8>, // [u8; 32]
         time: &Date,
         content: Vec<u8>,
+        mut rng: Rng,
     ) -> JsResult<PrivateFile> {
-        let inumber: INumber = inumber
-            .try_into()
-            .map_err(error("Cannot convert inumber"))?;
-
-        let ratchet_seed: HashOutput = ratchet_seed
-            .try_into()
-            .map_err(error("Cannot convert ratchet seed"))?;
-
         let time = DateTime::<Utc>::from(time);
 
         Ok(PrivateFile(WnfsPrivateFile::new(
             parent_bare_name.0,
-            inumber,
-            ratchet_seed,
             time,
             content,
+            &mut rng,
         )))
     }
 

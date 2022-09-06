@@ -2,9 +2,9 @@ use chrono::{DateTime, Utc};
 use semver::Version;
 use serde::{de::Error as DeError, ser::Error as SerError, Deserialize, Deserializer, Serialize};
 
-use crate::{dagcbor, HashOutput, Id, Metadata, NodeType};
+use crate::{dagcbor, Id, Metadata, NodeType};
 
-use super::{namefilter::Namefilter, INumber, Key, PrivateNodeHeader, RatchetKey, Rng};
+use super::{namefilter::Namefilter, Key, PrivateNode, PrivateNodeHeader, RatchetKey, Rng};
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
@@ -32,13 +32,13 @@ struct PrivateFileSerde {
 //--------------------------------------------------------------------------------------------------
 
 impl PrivateFile {
-    pub fn new(
+    pub fn new<R: Rng>(
         parent_bare_name: Namefilter,
-        inumber: INumber,
-        ratchet_seed: HashOutput,
         time: DateTime<Utc>,
         content: Vec<u8>,
+        rng: &mut R,
     ) -> Self {
+        let (inumber, ratchet_seed) = PrivateNode::generate_double_random(rng);
         Self {
             version: Version::new(0, 2, 0),
             header: PrivateNodeHeader::new(parent_bare_name, inumber, ratchet_seed),

@@ -1,6 +1,7 @@
 use std::{cmp::Ordering, io::Cursor, rc::Rc};
 
 use anyhow::{bail, Result};
+use async_recursion::async_recursion;
 use chrono::{DateTime, Utc};
 use libipld::{
     cbor::DagCborCodec,
@@ -11,7 +12,7 @@ use serde::{Deserialize, Serialize};
 use sha3::Sha3_256;
 use skip_ratchet::{Ratchet, RatchetExpSearcher};
 
-use crate::{BlockStore, FsError, HashOutput, Id, NodeType};
+use crate::{BlockStore, FsError, HashOutput, Id, NodeType, HASH_BYTE_SIZE};
 
 use super::{
     hamt::Hasher, namefilter::Namefilter, Key, PrivateDirectory, PrivateFile, PrivateForest, Rng,
@@ -58,8 +59,8 @@ pub struct PrivateRef {
 
 impl PrivateNode {
     /// Creates node with upserted modified time.
-    pub fn upsert_mtime(&self, time: DateTime<Utc>) -> Self {
-        match self {
+    pub fn upsert_mtime(&mut self, time: DateTime<Utc>) {
+        *self = match self {
             Self::File(file) => {
                 let mut file = (**file).clone();
                 file.metadata.upsert_mtime(time);
@@ -70,7 +71,77 @@ impl PrivateNode {
                 dir.metadata.upsert_mtime(time);
                 Self::Dir(Rc::new(dir))
             }
-        }
+        };
+    }
+
+    /// Generates two random set of bytes.
+    pub fn generate_double_random<R: Rng>(rng: &mut R) -> (HashOutput, HashOutput) {
+        const _DOUBLE_SIZE: usize = HASH_BYTE_SIZE * 2;
+        let [first, second] = unsafe {
+            std::mem::transmute::<[u8; _DOUBLE_SIZE], [[u8; HASH_BYTE_SIZE]; 2]>(
+                rng.random_bytes::<_DOUBLE_SIZE>(),
+            )
+        };
+        (first, second)
+    }
+
+    /// Updates the bare name anscestry of a private sub tree.
+    #[async_recursion(?Send)]
+    pub(crate) async fn update_ancestry<B: BlockStore, R: Rng>(
+        &mut self,
+        parent_bare_name: Namefilter,
+        hamt: Rc<PrivateForest>,
+        store: &mut B,
+        rng: &mut R,
+    ) -> Result<Rc<PrivateForest>> {
+        let hamt = match self {
+            Self::File(file) => {
+                let mut file = (**file).clone();
+
+                file.header.update_bare_name(parent_bare_name);
+                file.header.reset_ratchet(rng);
+
+                *self = Self::File(Rc::new(file));
+
+                hamt
+            }
+            Self::Dir(old_dir) => {
+                let mut dir = (**old_dir).clone();
+
+                let mut working_hamt = Rc::clone(&hamt);
+                for (name, private_ref) in &old_dir.entries {
+                    let mut node = hamt
+                        .get(private_ref, store)
+                        .await?
+                        .ok_or(FsError::NotFound)?;
+
+                    working_hamt = node
+                        .update_ancestry(dir.header.bare_name.clone(), working_hamt, store, rng)
+                        .await?;
+
+                    dir.entries
+                        .insert(name.clone(), node.get_header().get_private_ref()?);
+                }
+
+                dir.header.update_bare_name(parent_bare_name);
+                dir.header.reset_ratchet(rng);
+
+                *self = Self::Dir(Rc::new(dir));
+
+                working_hamt
+            }
+        };
+
+        let header = self.get_header();
+
+        hamt.set(
+            header.get_saturated_name(),
+            &header.get_private_ref()?,
+            self,
+            store,
+            rng,
+        )
+        .await
     }
 
     /// Gets the header of the node.
@@ -231,6 +302,7 @@ impl From<PrivateDirectory> for PrivateNode {
 
 impl PrivateNodeHeader {
     /// Creates a new PrivateNodeHeader.
+    // TODO(appcypher): Use ::<R: Rng>
     pub fn new(parent_bare_name: Namefilter, inumber: INumber, ratchet_seed: HashOutput) -> Self {
         Self {
             bare_name: {
@@ -274,6 +346,20 @@ impl PrivateNodeHeader {
         let ratchet_key = Key::new(self.ratchet.derive_key());
         self.get_saturated_name_with_key(&ratchet_key)
     }
+
+    /// Updates the bare name of the node.
+    pub fn update_bare_name(&mut self, parent_bare_name: Namefilter) {
+        self.bare_name = {
+            let mut namefilter = parent_bare_name;
+            namefilter.add(&self.inumber);
+            namefilter
+        };
+    }
+
+    /// Resets the ratchet.
+    pub fn reset_ratchet<R: Rng>(&mut self, rng: &mut R) {
+        self.ratchet = Ratchet::zero(rng.random_bytes())
+    }
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -282,7 +368,7 @@ impl PrivateNodeHeader {
 
 #[cfg(test)]
 mod private_node_tests {
-    use crate::{private::Rng, utils::TestRng};
+    use crate::utils::TestRng;
 
     use super::*;
 
@@ -291,10 +377,9 @@ mod private_node_tests {
         let rng = &mut TestRng();
         let original_file = PrivateNode::File(Rc::new(PrivateFile::new(
             Namefilter::default(),
-            rng.random_bytes::<32>(),
-            rng.random_bytes::<32>(),
             Utc::now(),
             b"Lorem ipsum dolor sit amet".to_vec(),
+            rng,
         )));
         let private_ref = original_file.get_header().get_private_ref().unwrap();
 

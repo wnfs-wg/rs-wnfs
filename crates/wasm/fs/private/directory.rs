@@ -8,10 +8,8 @@ use wasm_bindgen::prelude::wasm_bindgen;
 use wasm_bindgen::JsValue;
 use wasm_bindgen_futures::future_to_promise;
 use wnfs::{
-    private::{
-        INumber, PrivateDirectory as WnfsPrivateDirectory, PrivateOpResult as WnfsPrivateOpResult,
-    },
-    HashOutput, Id,
+    private::{PrivateDirectory as WnfsPrivateDirectory, PrivateOpResult as WnfsPrivateOpResult},
+    Id,
 };
 
 use crate::{
@@ -40,25 +38,15 @@ impl PrivateDirectory {
     #[wasm_bindgen(constructor)]
     pub fn new(
         parent_bare_name: Namefilter,
-        inumber: Vec<u8>,      // [u8; 32]
-        ratchet_seed: Vec<u8>, // [u8; 32]
         time: &Date,
+        mut rng: Rng,
     ) -> JsResult<PrivateDirectory> {
-        let inumber: INumber = inumber
-            .try_into()
-            .map_err(error("Cannot convert inumber"))?;
-
-        let ratchet_seed: HashOutput = ratchet_seed
-            .try_into()
-            .map_err(error("Cannot convert ratchet seed"))?;
-
         let time = DateTime::<Utc>::from(time);
 
         Ok(Self(Rc::new(WnfsPrivateDirectory::new(
             parent_bare_name.0,
-            inumber,
-            ratchet_seed,
             time,
+            &mut rng,
         ))))
     }
 
@@ -166,7 +154,7 @@ impl PrivateDirectory {
             } = directory
                 .ls(&path_segments, search_latest, hamt.0, &store)
                 .await
-                .map_err(error("Cannot list directory children"))?;
+                .map_err(error("Cannot list directory content"))?;
 
             let result = result
                 .iter()
@@ -247,6 +235,47 @@ impl PrivateDirectory {
         }))
     }
 
+    /// Moves a specified path to a new location.
+    #[wasm_bindgen(js_name = "basicMv")]
+    #[allow(clippy::too_many_arguments)]
+    pub fn basic_mv(
+        &self,
+        path_segments_from: &Array,
+        path_segments_to: &Array,
+        search_latest: bool,
+        time: &Date,
+        hamt: PrivateForest,
+        store: BlockStore,
+        mut rng: Rng,
+    ) -> JsResult<Promise> {
+        let directory = Rc::clone(&self.0);
+        let mut store = ForeignBlockStore(store);
+        let time = DateTime::<Utc>::from(time);
+        let path_segments_from = utils::convert_path_segments(path_segments_from)?;
+        let path_segments_to = utils::convert_path_segments(path_segments_to)?;
+
+        Ok(future_to_promise(async move {
+            let WnfsPrivateOpResult { root_dir, hamt, .. } = directory
+                .basic_mv(
+                    &path_segments_from,
+                    &path_segments_to,
+                    search_latest,
+                    time,
+                    hamt.0,
+                    &mut store,
+                    &mut rng,
+                )
+                .await
+                .map_err(error("Cannot move content between directories"))?;
+
+            Ok(utils::create_private_op_result(
+                root_dir,
+                hamt,
+                JsValue::NULL,
+            )?)
+        }))
+    }
+
     /// Creates a new directory at the specified path.
     ///
     /// This method acts like `mkdir -p` in Unix because it creates intermediate directories if they do not exist.
@@ -275,7 +304,7 @@ impl PrivateDirectory {
                     &mut rng,
                 )
                 .await
-                .map_err(error("Cannot create directory: {e}"))?;
+                .map_err(error("Cannot create directory"))?;
 
             Ok(utils::create_private_op_result(
                 root_dir,

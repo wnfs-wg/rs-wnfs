@@ -1,18 +1,17 @@
 use std::{collections::BTreeMap, rc::Rc};
 
-use anyhow::{bail, Result};
+use anyhow::{bail, ensure, Result};
 use chrono::{DateTime, Utc};
 use semver::Version;
 use serde::{de::Error as DeError, ser::Error as SerError, Deserialize, Deserializer, Serialize};
 
 use super::{
-    namefilter::Namefilter, INumber, Key, PrivateFile, PrivateForest, PrivateNode,
-    PrivateNodeHeader, PrivateRef, RatchetKey, Rng,
+    namefilter::Namefilter, Key, PrivateFile, PrivateForest, PrivateNode, PrivateNodeHeader,
+    PrivateRef, RatchetKey, Rng,
 };
 
 use crate::{
-    dagcbor, error, utils, BlockStore, FsError, HashOutput, Id, Metadata, NodeType, PathNodes,
-    PathNodesResult, HASH_BYTE_SIZE,
+    dagcbor, error, utils, BlockStore, FsError, Id, Metadata, NodeType, PathNodes, PathNodesResult,
 };
 
 //--------------------------------------------------------------------------------------------------
@@ -56,29 +55,14 @@ pub struct PrivateOpResult<T> {
 
 impl PrivateDirectory {
     /// Creates a new directory with provided details.
-    pub fn new(
-        parent_bare_name: Namefilter,
-        inumber: INumber,
-        ratchet_seed: HashOutput,
-        time: DateTime<Utc>,
-    ) -> Self {
+    pub fn new<R: Rng>(parent_bare_name: Namefilter, time: DateTime<Utc>, rng: &mut R) -> Self {
+        let (inumber, ratchet_seed) = PrivateNode::generate_double_random(rng);
         Self {
             version: Version::new(0, 2, 0),
             header: PrivateNodeHeader::new(parent_bare_name, inumber, ratchet_seed),
             metadata: Metadata::new(time),
             entries: BTreeMap::new(),
         }
-    }
-
-    /// Generates two random set of bytes.
-    pub fn generate_double_random<R: Rng>(rng: &mut R) -> (HashOutput, HashOutput) {
-        const _DOUBLE_SIZE: usize = HASH_BYTE_SIZE * 2;
-        let [first, second] = unsafe {
-            std::mem::transmute::<[u8; _DOUBLE_SIZE], [[u8; HASH_BYTE_SIZE]; 2]>(
-                rng.random_bytes::<_DOUBLE_SIZE>(),
-            )
-        };
-        (first, second)
     }
 
     ///  Advances the ratchet.
@@ -94,21 +78,16 @@ impl PrivateDirectory {
         rng: &mut R,
     ) -> PrivatePathNodes {
         let mut working_parent_bare_name = parent_bare_name;
-        let (mut inumber, mut ratchet_seed) = Self::generate_double_random(rng);
-
         let path: Vec<(Rc<PrivateDirectory>, String)> = path_segments
             .iter()
             .map(|segment| {
                 // Create new private directory.
                 let directory = Rc::new(PrivateDirectory::new(
                     std::mem::take(&mut working_parent_bare_name),
-                    inumber,
-                    ratchet_seed,
                     time,
+                    rng,
                 ));
 
-                // Update seeds and the working parent bare name.
-                (inumber, ratchet_seed) = Self::generate_double_random(rng);
                 working_parent_bare_name = directory.header.bare_name.clone();
 
                 (directory, segment.clone())
@@ -119,9 +98,8 @@ impl PrivateDirectory {
             path,
             tail: Rc::new(PrivateDirectory::new(
                 std::mem::take(&mut working_parent_bare_name),
-                inumber,
-                ratchet_seed,
                 time,
+                rng,
             )),
         }
     }
@@ -375,16 +353,7 @@ impl PrivateDirectory {
                 file
             }
             Some(PrivateNode::Dir(_)) => bail!(FsError::DirectoryAlreadyExists),
-            None => {
-                let (inumber, ratchet_seed) = Self::generate_double_random(rng);
-                PrivateFile::new(
-                    directory.header.bare_name.clone(),
-                    inumber,
-                    ratchet_seed,
-                    time,
-                    content,
-                )
-            }
+            None => PrivateFile::new(directory.header.bare_name.clone(), time, content, rng),
         };
 
         let child_private_ref = file.header.get_private_ref()?;
@@ -534,6 +503,65 @@ impl PrivateDirectory {
         })
     }
 
+    /// Moves a file or directory from one path to another.
+    #[allow(clippy::too_many_arguments)]
+    pub async fn basic_mv<B: BlockStore, R: Rng>(
+        self: Rc<Self>,
+        path_segments_from: &[String],
+        path_segments_to: &[String],
+        search_latest: bool,
+        time: DateTime<Utc>,
+        hamt: Rc<PrivateForest>,
+        store: &mut B,
+        rng: &mut R,
+    ) -> Result<PrivateOpResult<()>> {
+        let root_dir = Rc::clone(&self);
+        let (directory_path, filename) = utils::split_last(path_segments_to)?;
+
+        let PrivateOpResult {
+            root_dir,
+            result: mut removed_node,
+            hamt,
+        } = root_dir
+            .rm(path_segments_from, search_latest, hamt, store, rng)
+            .await?;
+
+        let mut path_nodes = match root_dir
+            .get_path_nodes(directory_path, search_latest, &hamt, store)
+            .await?
+        {
+            PrivatePathNodesResult::Complete(node_path) => node_path,
+            _ => bail!(FsError::NotFound),
+        };
+
+        let mut directory = (*path_nodes.tail).clone();
+
+        ensure!(
+            !directory.entries.contains_key(filename),
+            FsError::FileAlreadyExists
+        );
+
+        removed_node.upsert_mtime(time);
+        let hamt = removed_node
+            .update_ancestry(directory.header.bare_name.clone(), hamt, store, rng)
+            .await?;
+
+        directory.entries.insert(
+            filename.clone(),
+            removed_node.get_header().get_private_ref()?,
+        );
+
+        path_nodes.tail = Rc::new(directory);
+
+        let (root_dir, hamt) = Self::fix_up_path_nodes(path_nodes, hamt, store, rng).await?;
+
+        Ok(PrivateOpResult {
+            root_dir,
+            result: (),
+            hamt,
+        })
+    }
+
     /// Serializes the directory with provided Serde serialilzer.
     pub fn serialize<S, R: Rng>(&self, serializer: S, rng: &mut R) -> Result<S::Ok, S::Error>
     where
@@ -598,7 +626,7 @@ impl Id for PrivateDirectory {
 #[cfg(test)]
 mod private_directory_tests {
     use super::*;
-    use crate::{utils::TestRng, MemoryBlockStore, HASH_BYTE_SIZE};
+    use crate::{utils::TestRng, MemoryBlockStore};
     use test_log::test;
 
     #[test(async_std::test)]
@@ -606,9 +634,8 @@ mod private_directory_tests {
         let rng = &mut TestRng();
         let root_dir = Rc::new(PrivateDirectory::new(
             Namefilter::default(),
-            rng.random_bytes::<HASH_BYTE_SIZE>(),
-            rng.random_bytes::<HASH_BYTE_SIZE>(),
             Utc::now(),
+            rng,
         ));
         let store = &mut MemoryBlockStore::default();
         let hamt = Rc::new(PrivateForest::new());
@@ -641,9 +668,8 @@ mod private_directory_tests {
         let rng = &mut TestRng();
         let root_dir = Rc::new(PrivateDirectory::new(
             Namefilter::default(),
-            rng.random_bytes::<HASH_BYTE_SIZE>(),
-            rng.random_bytes::<HASH_BYTE_SIZE>(),
             Utc::now(),
+            rng,
         ));
         let store = &mut MemoryBlockStore::default();
         let hamt = Rc::new(PrivateForest::new());
@@ -661,9 +687,8 @@ mod private_directory_tests {
         let rng = &mut TestRng();
         let root_dir = Rc::new(PrivateDirectory::new(
             Namefilter::default(),
-            rng.random_bytes::<HASH_BYTE_SIZE>(),
-            rng.random_bytes::<HASH_BYTE_SIZE>(),
             Utc::now(),
+            rng,
         ));
         let store = &mut MemoryBlockStore::default();
         let hamt = Rc::new(PrivateForest::new());
@@ -693,9 +718,8 @@ mod private_directory_tests {
         let rng = &mut TestRng();
         let root_dir = Rc::new(PrivateDirectory::new(
             Namefilter::default(),
-            rng.random_bytes::<HASH_BYTE_SIZE>(),
-            rng.random_bytes::<HASH_BYTE_SIZE>(),
             Utc::now(),
+            rng,
         ));
         let store = &mut MemoryBlockStore::default();
         let hamt = Rc::new(PrivateForest::new());
@@ -752,9 +776,8 @@ mod private_directory_tests {
         let rng = &mut TestRng();
         let root_dir = Rc::new(PrivateDirectory::new(
             Namefilter::default(),
-            rng.random_bytes::<HASH_BYTE_SIZE>(),
-            rng.random_bytes::<HASH_BYTE_SIZE>(),
             Utc::now(),
+            rng,
         ));
         let store = &mut MemoryBlockStore::default();
         let hamt = Rc::new(PrivateForest::new());
@@ -825,9 +848,8 @@ mod private_directory_tests {
         let rng = &mut TestRng();
         let root_dir = Rc::new(PrivateDirectory::new(
             Namefilter::default(),
-            rng.random_bytes::<HASH_BYTE_SIZE>(),
-            rng.random_bytes::<HASH_BYTE_SIZE>(),
             Utc::now(),
+            rng,
         ));
         let store = &mut MemoryBlockStore::default();
         let hamt = Rc::new(PrivateForest::new());
@@ -895,9 +917,8 @@ mod private_directory_tests {
 
         let root_dir = Rc::new(PrivateDirectory::new(
             Namefilter::default(),
-            rng.random_bytes::<HASH_BYTE_SIZE>(),
-            rng.random_bytes::<HASH_BYTE_SIZE>(),
             Utc::now(),
+            rng,
         ));
 
         let path = ["Documents".into(), "file.txt".into()];
@@ -942,5 +963,265 @@ mod private_directory_tests {
         assert_eq!(&String::from_utf8_lossy(&old_read), "One");
         assert_eq!(&String::from_utf8_lossy(&old_read_latest), "Two");
         assert_eq!(&String::from_utf8_lossy(&new_read_latest), "Two");
+    }
+
+    #[async_std::test]
+    async fn mv_can_move_sub_directory_to_another_valid_location_with_updated_ancestry() {
+        let rng = &mut TestRng();
+        let store = &mut MemoryBlockStore::default();
+        let hamt = Rc::new(PrivateForest::new());
+        let root_dir = Rc::new(PrivateDirectory::new(
+            Namefilter::default(),
+            Utc::now(),
+            rng,
+        ));
+
+        let PrivateOpResult { root_dir, hamt, .. } = root_dir
+            .write(
+                &["pictures".into(), "cats".into(), "tabby.jpg".into()],
+                true,
+                Utc::now(),
+                b"tabby".to_vec(),
+                hamt,
+                store,
+                rng,
+            )
+            .await
+            .unwrap();
+
+        let PrivateOpResult { root_dir, hamt, .. } = root_dir
+            .write(
+                &["pictures".into(), "cats".into(), "luna.png".into()],
+                true,
+                Utc::now(),
+                b"luna".to_vec(),
+                hamt,
+                store,
+                rng,
+            )
+            .await
+            .unwrap();
+
+        let PrivateOpResult { root_dir, hamt, .. } = root_dir
+            .mkdir(&["images".into()], true, Utc::now(), hamt, store, rng)
+            .await
+            .unwrap();
+
+        let PrivateOpResult { root_dir, hamt, .. } = root_dir
+            .basic_mv(
+                &["pictures".into(), "cats".into()],
+                &["images".into(), "cats".into()],
+                true,
+                Utc::now(),
+                hamt,
+                store,
+                rng,
+            )
+            .await
+            .unwrap();
+
+        let PrivateOpResult {
+            root_dir,
+            hamt,
+            result,
+        } = root_dir
+            .ls(&["images".into()], true, hamt, store)
+            .await
+            .unwrap();
+
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].0, String::from("cats"));
+
+        let PrivateOpResult {
+            result,
+            root_dir,
+            hamt,
+        } = root_dir
+            .ls(&["pictures".into()], true, hamt, store)
+            .await
+            .unwrap();
+
+        assert_eq!(result.len(), 0);
+
+        let PrivateOpResult {
+            result,
+            root_dir,
+            hamt,
+        } = root_dir
+            .get_node(&["images".into(), "cats".into()], true, hamt, store)
+            .await
+            .unwrap();
+
+        let cats_bare_name = result.unwrap().get_header().bare_name.clone();
+
+        let images_dir_inumber = root_dir
+            .lookup_node("images", true, &hamt, store)
+            .await
+            .unwrap()
+            .unwrap()
+            .get_header()
+            .inumber;
+
+        let pictures_dir_inumber = root_dir
+            .lookup_node("pictures", true, &hamt, store)
+            .await
+            .unwrap()
+            .unwrap()
+            .get_header()
+            .inumber;
+
+        assert!(cats_bare_name.contains(&images_dir_inumber));
+        assert!(!cats_bare_name.contains(&pictures_dir_inumber));
+    }
+
+    #[async_std::test]
+    async fn mv_cannot_move_sub_directory_to_invalid_location() {
+        let rng = &mut TestRng();
+        let store = &mut MemoryBlockStore::default();
+        let hamt = Rc::new(PrivateForest::new());
+        let root_dir = Rc::new(PrivateDirectory::new(
+            Namefilter::default(),
+            Utc::now(),
+            rng,
+        ));
+
+        let PrivateOpResult { root_dir, hamt, .. } = root_dir
+            .mkdir(
+                &[
+                    "videos".into(),
+                    "movies".into(),
+                    "anime".into(),
+                    "ghibli".into(),
+                ],
+                true,
+                Utc::now(),
+                hamt,
+                store,
+                rng,
+            )
+            .await
+            .unwrap();
+
+        let result = root_dir
+            .basic_mv(
+                &["videos".into(), "movies".into()],
+                &["videos".into(), "movies".into(), "anime".into()],
+                true,
+                Utc::now(),
+                hamt,
+                store,
+                rng,
+            )
+            .await;
+
+        assert!(result.is_err());
+    }
+
+    #[async_std::test]
+    async fn mv_can_rename_directories() {
+        let rng = &mut TestRng();
+        let store = &mut MemoryBlockStore::default();
+        let hamt = Rc::new(PrivateForest::new());
+        let root_dir = Rc::new(PrivateDirectory::new(
+            Namefilter::default(),
+            Utc::now(),
+            rng,
+        ));
+        let content = b"file".to_vec();
+
+        let PrivateOpResult { root_dir, hamt, .. } = root_dir
+            .write(
+                &["file.txt".into()],
+                true,
+                Utc::now(),
+                content.clone(),
+                hamt,
+                store,
+                rng,
+            )
+            .await
+            .unwrap();
+
+        let PrivateOpResult { root_dir, hamt, .. } = root_dir
+            .basic_mv(
+                &["file.txt".into()],
+                &["renamed.txt".into()],
+                true,
+                Utc::now(),
+                hamt,
+                store,
+                rng,
+            )
+            .await
+            .unwrap();
+
+        let PrivateOpResult {
+            root_dir,
+            hamt,
+            result,
+        } = root_dir
+            .read(&["renamed.txt".into()], true, hamt, store)
+            .await
+            .unwrap();
+
+        assert!(result == content);
+
+        let result = root_dir
+            .lookup_node("file.txt", true, &hamt, store)
+            .await
+            .unwrap();
+
+        assert!(result.is_none());
+    }
+
+    #[async_std::test]
+    async fn mv_fails_moving_directories_to_files() {
+        let rng = &mut TestRng();
+        let store = &mut MemoryBlockStore::default();
+        let hamt = Rc::new(PrivateForest::new());
+        let root_dir = Rc::new(PrivateDirectory::new(
+            Namefilter::default(),
+            Utc::now(),
+            rng,
+        ));
+
+        let PrivateOpResult { root_dir, hamt, .. } = root_dir
+            .mkdir(
+                &["movies".into(), "ghibli".into()],
+                true,
+                Utc::now(),
+                hamt,
+                store,
+                rng,
+            )
+            .await
+            .unwrap();
+
+        let PrivateOpResult { root_dir, hamt, .. } = root_dir
+            .write(
+                &["file.txt".into()],
+                true,
+                Utc::now(),
+                b"file".to_vec(),
+                hamt,
+                store,
+                rng,
+            )
+            .await
+            .unwrap();
+
+        let result = root_dir
+            .basic_mv(
+                &["movies".into(), "ghibli".into()],
+                &["file.txt".into()],
+                true,
+                Utc::now(),
+                hamt,
+                store,
+                rng,
+            )
+            .await;
+
+        assert!(result.is_err());
     }
 }
