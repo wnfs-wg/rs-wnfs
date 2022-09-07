@@ -1,3 +1,4 @@
+use rand_core::RngCore;
 use wasm_bindgen::prelude::wasm_bindgen;
 use wnfs::private::Rng as WnfsRng;
 
@@ -18,8 +19,24 @@ extern "C" {
 // Implementations
 //--------------------------------------------------------------------------------------------------
 
-impl WnfsRng for Rng {
-    fn random_bytes<const N: usize>(&mut self) -> [u8; N] {
-        self.get_random_bytes(N).try_into().unwrap()
+impl RngCore for Rng {
+    fn next_u32(&mut self) -> u32 {
+        let bytes = self.get_random_bytes(4);
+        u32::from_le_bytes(bytes.try_into().unwrap())
+    }
+
+    fn next_u64(&mut self) -> u64 {
+        let bytes = self.get_random_bytes(8);
+        u64::from_le_bytes(bytes.try_into().unwrap())
+    }
+
+    fn fill_bytes(&mut self, dest: &mut [u8]) {
+        dest.copy_from_slice(&self.get_random_bytes(dest.len()));
+    }
+
+    fn try_fill_bytes(&mut self, dest: &mut [u8]) -> Result<(), rand_core::Error> {
+        Ok(self.fill_bytes(dest))
     }
 }
+
+impl WnfsRng for Rng {}
