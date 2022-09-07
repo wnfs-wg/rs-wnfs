@@ -132,8 +132,8 @@ impl PrivateForest {
 
 #[cfg(test)]
 mod hamt_store_tests {
+    use proptest::test_runner::{RngAlgorithm, TestRng};
     use std::rc::Rc;
-    use proptest::test_runner::{TestRng, RngAlgorithm};
     use test_log::test;
 
     use chrono::Utc;
