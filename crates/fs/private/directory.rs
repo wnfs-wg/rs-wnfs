@@ -598,12 +598,13 @@ impl Id for PrivateDirectory {
 #[cfg(test)]
 mod private_directory_tests {
     use super::*;
-    use crate::{utils::TestRng, MemoryBlockStore, HASH_BYTE_SIZE};
+    use crate::{MemoryBlockStore, HASH_BYTE_SIZE};
+    use proptest::test_runner::{RngAlgorithm, TestRng};
     use test_log::test;
 
     #[test(async_std::test)]
     async fn look_up_can_fetch_file_added_to_directory() {
-        let rng = &mut TestRng();
+        let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
         let root_dir = Rc::new(PrivateDirectory::new(
             Namefilter::default(),
             rng.random_bytes::<HASH_BYTE_SIZE>(),
@@ -638,7 +639,7 @@ mod private_directory_tests {
 
     #[test(async_std::test)]
     async fn look_up_cannot_fetch_file_not_added_to_directory() {
-        let rng = &mut TestRng();
+        let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
         let root_dir = Rc::new(PrivateDirectory::new(
             Namefilter::default(),
             rng.random_bytes::<HASH_BYTE_SIZE>(),
@@ -658,7 +659,7 @@ mod private_directory_tests {
 
     #[test(async_std::test)]
     async fn mkdir_can_create_new_directory() {
-        let rng = &mut TestRng();
+        let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
         let root_dir = Rc::new(PrivateDirectory::new(
             Namefilter::default(),
             rng.random_bytes::<HASH_BYTE_SIZE>(),
@@ -690,7 +691,7 @@ mod private_directory_tests {
 
     #[test(async_std::test)]
     async fn ls_can_list_children_under_directory() {
-        let rng = &mut TestRng();
+        let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
         let root_dir = Rc::new(PrivateDirectory::new(
             Namefilter::default(),
             rng.random_bytes::<HASH_BYTE_SIZE>(),
@@ -749,7 +750,7 @@ mod private_directory_tests {
 
     #[test(async_std::test)]
     async fn rm_can_remove_children_from_directory() {
-        let rng = &mut TestRng();
+        let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
         let root_dir = Rc::new(PrivateDirectory::new(
             Namefilter::default(),
             rng.random_bytes::<HASH_BYTE_SIZE>(),
@@ -822,7 +823,7 @@ mod private_directory_tests {
 
     #[async_std::test]
     async fn read_can_fetch_userland_of_file_added_to_directory() {
-        let rng = &mut TestRng();
+        let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
         let root_dir = Rc::new(PrivateDirectory::new(
             Namefilter::default(),
             rng.random_bytes::<HASH_BYTE_SIZE>(),
@@ -857,7 +858,7 @@ mod private_directory_tests {
     async fn path_nodes_can_generates_new_path_nodes() {
         let store = &mut MemoryBlockStore::default();
         let hamt = Rc::new(PrivateForest::new());
-        let rng = &mut TestRng();
+        let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
 
         let path_nodes = PrivateDirectory::create_path_nodes(
             &["Documents".into(), "Apps".into()],
@@ -891,7 +892,7 @@ mod private_directory_tests {
     async fn search_latest_finds_the_most_recent() {
         let store = &mut MemoryBlockStore::default();
         let hamt = Rc::new(PrivateForest::new());
-        let rng = &mut TestRng();
+        let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
 
         let root_dir = Rc::new(PrivateDirectory::new(
             Namefilter::default(),

@@ -164,11 +164,9 @@ impl<'de, const N: usize, const K: usize> Deserialize<'de> for BloomFilter<N, K>
 //------------------------------------------------------------------------------
 
 #[cfg(test)]
-mod bloomfilter_tests {
-    use libipld::serde as ipld_serde;
-    use rand::{thread_rng, Rng};
-
+mod bloomfilter_unit_tests {
     use super::*;
+    use libipld::serde as ipld_serde;
 
     #[test]
     fn bloom_filter_can_add_and_validate_item_existence() {
@@ -188,22 +186,6 @@ mod bloomfilter_tests {
     }
 
     #[test]
-    fn iterator_can_give_unbounded_number_of_indices() {
-        let iter = HashIndexIterator::<_, 200>::new(&"hello");
-
-        let indices = (0..20)
-            .map(|_| {
-                let count = thread_rng().gen_range(0..500);
-                (iter.clone().take(count).collect::<Vec<_>>(), count)
-            })
-            .collect::<Vec<_>>();
-
-        for (indices, count) in indices {
-            assert_eq!(indices.len(), count);
-        }
-    }
-
-    #[test]
     fn serialized_bloom_filter_can_be_deserialized_correctly() {
         let mut bloom = BloomFilter::<256, 30>::new();
         let items: Vec<String> = vec!["first".into(), "second".into(), "third".into()];
@@ -215,5 +197,25 @@ mod bloomfilter_tests {
         let deserialized: BloomFilter<256, 30> = ipld_serde::from_ipld(ipld).unwrap();
 
         assert_eq!(deserialized, bloom);
+    }
+}
+
+#[cfg(test)]
+mod bloomfilter_prop_tests {
+    use test_strategy::proptest;
+
+    use super::HashIndexIterator;
+
+    #[proptest]
+    fn iterator_can_give_unbounded_number_of_indices(#[strategy(0usize..500)] count: usize) {
+        let iter = HashIndexIterator::<_, 200>::new(&"hello");
+
+        let indices = (0..20)
+            .map(|_| (iter.clone().take(count).collect::<Vec<_>>(), count))
+            .collect::<Vec<_>>();
+
+        for (indices, count) in indices {
+            assert_eq!(indices.len(), count);
+        }
     }
 }
