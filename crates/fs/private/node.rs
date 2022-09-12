@@ -282,13 +282,13 @@ impl PrivateNodeHeader {
 
 #[cfg(test)]
 mod private_node_tests {
-    use crate::{private::Rng, utils::TestRng};
+    use proptest::test_runner::{RngAlgorithm, TestRng};
 
     use super::*;
 
     #[test]
     fn serialized_private_node_can_be_deserialized() {
-        let rng = &mut TestRng();
+        let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
         let original_file = PrivateNode::File(Rc::new(PrivateFile::new(
             Namefilter::default(),
             rng.random_bytes::<32>(),

@@ -84,21 +84,19 @@ impl Debug for Key {
 
 #[cfg(test)]
 mod key_prop_tests {
-    use crate::utils::ProptestRng;
-
     use super::*;
     use proptest::prelude::any;
-    use proptest::test_runner::RngAlgorithm;
+    use proptest::test_runner::{RngAlgorithm, TestRng};
     use test_strategy::proptest;
 
-    #[proptest(cases = 50)]
+    #[proptest(cases = 100)]
     fn key_can_encrypt_and_decrypt_data(
         #[strategy(any::<Vec<u8>>())] data: Vec<u8>,
         #[strategy(any::<[u8; 32]>())] rng_seed: [u8; 32],
         key_bytes: [u8; 32],
     ) {
         let key = Key::new(key_bytes);
-        let rng = &mut ProptestRng::from_seed(RngAlgorithm::ChaCha, &rng_seed);
+        let rng = &mut TestRng::from_seed(RngAlgorithm::ChaCha, &rng_seed);
 
         let encrypted = key.encrypt(&Key::generate_nonce(rng), &data).unwrap();
         let decrypted = key.decrypt(&encrypted).unwrap();

@@ -6,7 +6,7 @@ use log::debug;
 
 use crate::{BlockStore, HashOutput};
 
-use super::{hamt::Hamt, namefilter::Namefilter, Key, PrivateNode, PrivateRef};
+use super::{hamt::Hamt, namefilter::Namefilter, Key, PrivateNode, PrivateRef, Rng};
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
@@ -15,10 +15,6 @@ use super::{hamt::Hamt, namefilter::Namefilter, Key, PrivateNode, PrivateRef};
 // TODO(appcypher): Change Cid to PrivateLink<PrivateNode>.
 // TODO(appcypher): And eventually to BTreeSet<PrivateLink<PrivateNode>>.
 pub type PrivateForest = Hamt<Namefilter, Cid>;
-
-pub trait Rng {
-    fn random_bytes<const N: usize>(&mut self) -> [u8; N];
-}
 
 //--------------------------------------------------------------------------------------------------
 // Implementations
@@ -136,19 +132,20 @@ impl PrivateForest {
 
 #[cfg(test)]
 mod hamt_store_tests {
+    use proptest::test_runner::{RngAlgorithm, TestRng};
     use std::rc::Rc;
     use test_log::test;
 
     use chrono::Utc;
 
     use super::*;
-    use crate::{private::PrivateDirectory, utils::TestRng, MemoryBlockStore};
+    use crate::{private::PrivateDirectory, MemoryBlockStore};
 
     #[test(async_std::test)]
     async fn inserted_items_can_be_fetched() {
         let store = &mut MemoryBlockStore::new();
         let hamt = Rc::new(PrivateForest::new());
-        let rng = &mut TestRng();
+        let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
 
         let dir = Rc::new(PrivateDirectory::new(
             Namefilter::default(),
