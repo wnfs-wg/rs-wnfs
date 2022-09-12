@@ -10,12 +10,6 @@ use crate::{error, FsError};
 
 pub(crate) struct ByteArrayVisitor<const N: usize>;
 
-#[cfg(test)]
-pub(crate) struct TestRng();
-
-#[cfg(test)]
-pub(crate) struct ProptestRng(proptest::test_runner::TestRng);
-
 //--------------------------------------------------------------------------------------------------
 // Implementations
 //--------------------------------------------------------------------------------------------------
@@ -33,33 +27,6 @@ impl<'de, const N: usize> Visitor<'de> for ByteArrayVisitor<N> {
     {
         let bytes: [u8; N] = v.try_into().map_err(E::custom)?;
         Ok(bytes)
-    }
-}
-
-#[cfg(test)]
-impl crate::private::Rng for TestRng {
-    fn random_bytes<const N: usize>(&mut self) -> [u8; N] {
-        use rand::RngCore;
-        let mut bytes = [0u8; N];
-        rand::thread_rng().fill_bytes(&mut bytes);
-        bytes
-    }
-}
-
-#[cfg(test)]
-impl ProptestRng {
-    pub(crate) fn from_seed(algorithm: proptest::test_runner::RngAlgorithm, seed: &[u8]) -> Self {
-        Self(proptest::test_runner::TestRng::from_seed(algorithm, seed))
-    }
-}
-
-#[cfg(test)]
-impl crate::private::Rng for ProptestRng {
-    fn random_bytes<const N: usize>(&mut self) -> [u8; N] {
-        use rand::RngCore;
-        let mut bytes = [0u8; N];
-        self.0.fill_bytes(&mut bytes);
-        bytes
     }
 }
 
