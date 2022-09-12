@@ -683,7 +683,7 @@ impl Id for PrivateDirectory {
 #[cfg(test)]
 mod private_directory_tests {
     use super::*;
-    use crate::{MemoryBlockStore, HASH_BYTE_SIZE};
+    use crate::MemoryBlockStore;
     use proptest::test_runner::{RngAlgorithm, TestRng};
 
     use test_log::test;
@@ -1026,7 +1026,7 @@ mod private_directory_tests {
 
     #[async_std::test]
     async fn cp_can_copy_sub_directory_to_another_valid_location_with_updated_ancestry() {
-        let rng = &mut TestRng();
+        let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
         let store = &mut MemoryBlockStore::default();
         let hamt = Rc::new(PrivateForest::new());
         let root_dir = Rc::new(PrivateDirectory::new(
@@ -1136,7 +1136,7 @@ mod private_directory_tests {
 
     #[async_std::test]
     async fn mv_can_move_sub_directory_to_another_valid_location_with_updated_ancestry() {
-        let rng = &mut TestRng();
+        let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
         let store = &mut MemoryBlockStore::default();
         let hamt = Rc::new(PrivateForest::new());
         let root_dir = Rc::new(PrivateDirectory::new(
@@ -1245,7 +1245,7 @@ mod private_directory_tests {
 
     #[async_std::test]
     async fn mv_cannot_move_sub_directory_to_invalid_location() {
-        let rng = &mut TestRng();
+        let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
         let store = &mut MemoryBlockStore::default();
         let hamt = Rc::new(PrivateForest::new());
         let root_dir = Rc::new(PrivateDirectory::new(
@@ -1288,7 +1288,7 @@ mod private_directory_tests {
 
     #[async_std::test]
     async fn mv_can_rename_directories() {
-        let rng = &mut TestRng();
+        let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
         let store = &mut MemoryBlockStore::default();
         let hamt = Rc::new(PrivateForest::new());
         let root_dir = Rc::new(PrivateDirectory::new(
@@ -1345,7 +1345,7 @@ mod private_directory_tests {
 
     #[async_std::test]
     async fn mv_fails_moving_directories_to_files() {
-        let rng = &mut TestRng();
+        let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
         let store = &mut MemoryBlockStore::default();
         let hamt = Rc::new(PrivateForest::new());
         let root_dir = Rc::new(PrivateDirectory::new(
