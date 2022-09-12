@@ -663,14 +663,14 @@ impl PublicDirectory {
         store: &B,
     ) -> Result<PublicOpResult<()>> {
         let root_dir = Rc::clone(&self);
-        let (directory_path_nodes, filename) = utils::split_last(path_segments_to)?;
+        let (directory_path, filename) = utils::split_last(path_segments_to)?;
 
         let PublicOpResult {
             root_dir,
             result: removed_node,
         } = root_dir.rm(path_segments_from, store).await?;
 
-        let mut path_nodes = match root_dir.get_path_nodes(directory_path_nodes, store).await? {
+        let mut path_nodes = match root_dir.get_path_nodes(directory_path, store).await? {
             PublicPathNodesResult::Complete(node_path) => node_path,
             _ => bail!(FsError::NotFound),
         };
