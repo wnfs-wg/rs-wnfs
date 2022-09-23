@@ -108,7 +108,7 @@ impl BlockStore for MemoryBlockStore {
         let hash = Code::Sha2_256.digest(&bytes);
         let cid = Cid::new(Version::V1, codec.into(), hash)?;
 
-        self.0.insert((&cid).to_string(), bytes);
+        self.0.insert(cid.to_string(), bytes);
 
         Ok(cid)
     }
