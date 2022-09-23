@@ -16,7 +16,7 @@ use serde::{de::DeserializeOwned, Serialize};
 
 use crate::{
     private::{Key, Rng, NONCE_SIZE},
-    AsyncSerialize, ReferenceableStore,
+    AsyncSerialize,
 };
 
 use super::FsError;
@@ -57,10 +57,7 @@ pub trait BlockStore {
         self.put_block(enc_bytes, IpldCodec::DagCbor).await
     }
 
-    async fn put_async_serializable<V: AsyncSerialize<StoreRef = Cid>>(
-        &mut self,
-        value: &V,
-    ) -> Result<Cid> {
+    async fn put_async_serializable<V: AsyncSerialize>(&mut self, value: &V) -> Result<Cid> {
         let ipld = value.async_serialize_ipld(self).await?;
 
         let mut bytes = Vec::new();
@@ -124,22 +121,6 @@ impl BlockStore for MemoryBlockStore {
             .ok_or(FsError::CIDNotFoundInBlockstore)?;
 
         Ok(Cow::Borrowed(bytes))
-    }
-}
-
-#[async_trait(?Send)]
-impl<T: BlockStore + ?Sized> ReferenceableStore for T {
-    type Ref = Cid;
-
-    async fn get_value<V: DeserializeOwned>(&self, reference: &Self::Ref) -> Result<V> {
-        self.get_deserializable(reference).await
-    }
-
-    async fn put_value<V: AsyncSerialize<StoreRef = Self::Ref>>(
-        &mut self,
-        value: &V,
-    ) -> Result<Self::Ref> {
-        self.put_async_serializable(value).await
     }
 }
 

@@ -2,7 +2,7 @@ use std::{collections::BTreeMap, rc::Rc, str::FromStr};
 
 use anyhow::Result;
 use async_trait::async_trait;
-use libipld::{serde as ipld_serde, Cid, Ipld};
+use libipld::{serde as ipld_serde, Ipld};
 use semver::Version;
 use serde::{
     de::{DeserializeOwned, Error as DeError},
@@ -10,7 +10,7 @@ use serde::{
     Deserialize, Deserializer, Serialize, Serializer,
 };
 
-use crate::{AsyncSerialize, ReferenceableStore};
+use crate::{AsyncSerialize, BlockStore};
 
 use super::{Node, HAMT_VERSION};
 
@@ -54,10 +54,7 @@ impl<K, V> Hamt<K, V> {
     }
 
     /// Converts a HAMT to an IPLD object.
-    pub async fn to_ipld<RS: ReferenceableStore<Ref = Cid> + ?Sized>(
-        &self,
-        store: &mut RS,
-    ) -> Result<Ipld>
+    pub async fn to_ipld<B: BlockStore + ?Sized>(&self, store: &mut B) -> Result<Ipld>
     where
         K: Serialize,
         V: Serialize,
@@ -76,12 +73,10 @@ where
     K: Serialize,
     V: Serialize,
 {
-    type StoreRef = Cid;
-
-    async fn async_serialize<S, RS>(&self, serializer: S, store: &mut RS) -> Result<S::Ok, S::Error>
+    async fn async_serialize<S, B>(&self, serializer: S, store: &mut B) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
-        RS: ReferenceableStore<Ref = Self::StoreRef> + ?Sized,
+        B: BlockStore + ?Sized,
     {
         self.to_ipld(store)
             .await

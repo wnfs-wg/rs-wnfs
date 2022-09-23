@@ -1,28 +1,25 @@
 use std::rc::Rc;
 
 use async_trait::async_trait;
-use libipld::{error::SerdeError, serde as ipld_serde, Cid, Ipld};
+use libipld::{error::SerdeError, serde as ipld_serde, Ipld};
 use serde::Serialize;
 use serde::Serializer;
 
-use super::ReferenceableStore;
+use crate::BlockStore;
 
 //--------------------------------------------------------------------------------------------------
 // Macros
 //--------------------------------------------------------------------------------------------------
 
-// NOTE: For now, we only implement AsyncSerialize<StoreRef = Cid>.
 macro_rules! impl_async_serialize {
     ( $( $ty:ty $( : < $( $generics:ident ),+ > )? ),+ ) => {
         $(
             #[async_trait(?Send)]
             impl $( < $( $generics ),+ > )? AsyncSerialize for $ty $( where $( $generics: Serialize ),+  )? {
-                type StoreRef = Cid;
-
-                async fn async_serialize<S: Serializer, RS: ReferenceableStore<Ref = Self::StoreRef> + ?Sized>(
+                async fn async_serialize<S: Serializer, BS: BlockStore + ?Sized>(
                     &self,
                     serializer: S,
-                    _: &mut RS,
+                    _: &mut BS,
                 ) -> Result<S::Ok, S::Error> {
                     self.serialize(serializer)
                 }
@@ -46,22 +43,16 @@ macro_rules! impl_async_serialize {
 /// These links need to be resolved to Cids during serialization if they aren't already.
 #[async_trait(?Send)]
 pub trait AsyncSerialize {
-    type StoreRef;
-
     /// Serializes the type.
-    async fn async_serialize<S, RS>(
-        &self,
-        serializer: S,
-        store: &mut RS,
-    ) -> Result<S::Ok, S::Error>
+    async fn async_serialize<S, B>(&self, serializer: S, store: &mut B) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
-        RS: ReferenceableStore<Ref = Self::StoreRef> + ?Sized;
+        B: BlockStore + ?Sized;
 
     /// Serialize with an IPLD serializer.
-    async fn async_serialize_ipld<RS>(&self, store: &mut RS) -> Result<Ipld, SerdeError>
+    async fn async_serialize_ipld<B>(&self, store: &mut B) -> Result<Ipld, SerdeError>
     where
-        RS: ReferenceableStore<Ref = Self::StoreRef> + ?Sized,
+        B: BlockStore + ?Sized,
     {
         self.async_serialize(ipld_serde::Serializer, store).await
     }
@@ -73,12 +64,10 @@ pub trait AsyncSerialize {
 
 #[async_trait(?Send)]
 impl<T: AsyncSerialize> AsyncSerialize for Rc<T> {
-    type StoreRef = T::StoreRef;
-
-    async fn async_serialize<S, RS>(&self, serializer: S, store: &mut RS) -> Result<S::Ok, S::Error>
+    async fn async_serialize<S, B>(&self, serializer: S, store: &mut B) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
-        RS: ReferenceableStore<Ref = Self::StoreRef> + ?Sized,
+        B: BlockStore + ?Sized,
     {
         self.as_ref().async_serialize(serializer, store).await
     }
