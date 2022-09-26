@@ -1,6 +1,6 @@
 //! Public fs file node.
 
-use std::rc::Rc;
+use std::{collections::BTreeSet, rc::Rc};
 
 use anyhow::Result;
 
@@ -29,7 +29,7 @@ pub struct PublicFile {
     pub version: Version,
     pub metadata: Metadata,
     pub userland: Cid,
-    pub previous: Option<Cid>,
+    pub previous: BTreeSet<Cid>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -38,7 +38,7 @@ struct PublicFileSerde {
     version: Version,
     pub metadata: Metadata,
     pub userland: Cid,
-    pub previous: Option<Cid>,
+    pub previous: Vec<Cid>,
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -64,23 +64,23 @@ impl PublicFile {
             version: Version::new(0, 2, 0),
             metadata: Metadata::new(time),
             userland,
-            previous: None,
+            previous: BTreeSet::new(),
         }
     }
 
     /// Gets the previous value of the file.
-    pub fn get_previous(self: &Rc<Self>) -> Option<Cid> {
-        self.previous
+    pub fn get_previous(&self) -> &BTreeSet<Cid> {
+        &self.previous
     }
 
     /// Gets the metadata of the file
-    pub fn get_metadata<'a>(self: &'a Rc<Self>) -> &'a Metadata {
+    pub fn get_metadata(&self) -> &Metadata {
         &self.metadata
     }
 
     /// Gets the content cid of a file
-    pub fn get_content_cid(self: &Rc<Self>) -> Cid {
-        self.userland
+    pub fn get_content_cid(&self) -> &Cid {
+        &self.userland
     }
 
     /// Stores file in provided block store.
@@ -116,7 +116,7 @@ impl Serialize for PublicFile {
             version: self.version.clone(),
             metadata: self.metadata.clone(),
             userland: self.userland,
-            previous: self.previous,
+            previous: self.previous.iter().cloned().collect(),
         }
         .serialize(serializer)
     }
@@ -139,7 +139,7 @@ impl<'de> Deserialize<'de> for PublicFile {
             version,
             metadata,
             userland,
-            previous,
+            previous: previous.iter().cloned().collect(),
         })
     }
 }

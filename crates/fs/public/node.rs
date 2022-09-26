@@ -1,6 +1,6 @@
 //! Public node system in-memory representation.
 
-use std::rc::Rc;
+use std::{collections::BTreeSet, rc::Rc};
 
 use anyhow::{bail, Result};
 use async_trait::async_trait;
@@ -46,23 +46,23 @@ impl PublicNode {
     }
 
     /// Creates node with updated previous pointer value.
-    pub fn update_previous(&self, cid: Option<Cid>) -> Self {
+    pub fn update_previous<const N: usize>(&self, cids: [Cid; N]) -> Self {
         match self {
             Self::File(file) => {
                 let mut file = (**file).clone();
-                file.previous = cid;
+                file.previous = BTreeSet::from(cids);
                 Self::File(Rc::new(file))
             }
             Self::Dir(dir) => {
                 let mut dir = (**dir).clone();
-                dir.previous = cid;
+                dir.previous = BTreeSet::from(cids);
                 Self::Dir(Rc::new(dir))
             }
         }
     }
 
     /// Gets previous ancestor of a node.
-    pub fn get_previous(&self) -> Option<Cid> {
+    pub fn get_previous(&self) -> &BTreeSet<Cid> {
         match self {
             Self::File(file) => file.get_previous(),
             Self::Dir(dir) => dir.get_previous(),
