@@ -1,15 +1,12 @@
 use std::{fmt::Debug, marker::PhantomData, rc::Rc};
 
-use crate::{
-    private::hamt::HAMT_VALUES_BUCKET_SIZE, AsyncSerialize, BlockStore, HashOutput, Link,
-    ReferenceableStore,
-};
+use crate::{private::hamt::HAMT_VALUES_BUCKET_SIZE, AsyncSerialize, BlockStore, HashOutput, Link};
 use anyhow::{bail, Result};
 use async_recursion::async_recursion;
 use async_trait::async_trait;
 use bitvec::array::BitArray;
 
-use libipld::{serde as ipld_serde, Cid, Ipld};
+use libipld::{serde as ipld_serde, Ipld};
 use log::debug;
 use serde::{
     de::{Deserialize, DeserializeOwned},
@@ -355,10 +352,7 @@ impl<K, V, H: Hasher> Node<K, V, H> {
 
     // TODO(appcypher): Do we really need this? Why not use PublicDirectorySerde style instead.
     /// Converts a Node to an IPLD object.
-    pub async fn to_ipld<RS: ReferenceableStore<Ref = Cid> + ?Sized>(
-        &self,
-        store: &mut RS,
-    ) -> Result<Ipld>
+    pub async fn to_ipld<B: BlockStore + ?Sized>(&self, store: &mut B) -> Result<Ipld>
     where
         K: Serialize,
         V: Serialize,
@@ -393,12 +387,10 @@ where
     V: Serialize,
     H: Hasher,
 {
-    type StoreRef = Cid;
-
-    async fn async_serialize<S, RS>(&self, serializer: S, store: &mut RS) -> Result<S::Ok, S::Error>
+    async fn async_serialize<S, B>(&self, serializer: S, store: &mut B) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
-        RS: ReferenceableStore<Ref = Self::StoreRef> + ?Sized,
+        B: BlockStore + ?Sized,
     {
         self.to_ipld(store)
             .await
