@@ -1,6 +1,6 @@
 //! Public fs file node.
 
-use std::{collections::BTreeSet, rc::Rc};
+use std::collections::BTreeSet;
 
 use anyhow::Result;
 

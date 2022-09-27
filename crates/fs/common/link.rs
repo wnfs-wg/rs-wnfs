@@ -42,7 +42,7 @@ impl<T> Link<T> {
     }
 
     /// Gets the Cid stored in type. It attempts to get it from the store if it is not present in type.
-    pub async fn resolve_cid<'a, B: BlockStore + ?Sized>(&'a self, store: &mut B) -> Result<&'a Cid>
+    pub async fn resolve_cid<B: BlockStore + ?Sized>(&self, store: &mut B) -> Result<&Cid>
     where
         T: AsyncSerialize,
     {
@@ -57,7 +57,7 @@ impl<T> Link<T> {
     }
 
     /// Gets the value stored in link. It attempts to get it from the store if it is not present in link.
-    pub async fn resolve_value<'a, B: BlockStore>(&'a self, store: &B) -> Result<&'a T>
+    pub async fn resolve_value<B: BlockStore>(&self, store: &B) -> Result<&T>
     where
         T: DeserializeOwned,
     {

@@ -11,10 +11,8 @@ use crate::{
 };
 use anyhow::{bail, ensure, Result};
 use async_recursion::async_recursion;
-use async_stream::try_stream;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
-use futures::Stream;
 use libipld::Cid;
 use semver::Version;
 use serde::{ser::Error as SerError, Deserialize, Deserializer, Serialize, Serializer};
