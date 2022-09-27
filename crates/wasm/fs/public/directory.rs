@@ -260,16 +260,19 @@ impl PublicDirectory {
         }))
     }
 
-    /// Gets the previous cid of the directory or null if it doesn't have a previous cid.
-    #[wasm_bindgen(js_name = "previousCid")]
-    pub fn previous_cid(&self) -> JsValue {
-        match self.0.get_previous() {
-            Some(cid) => {
-                let cid_u8array = Uint8Array::from(&cid.to_bytes()[..]);
-                value!(cid_u8array)
-            }
-            None => JsValue::NULL,
-        }
+    /// Gets the previous CID(s) of the directory.
+    /// This will usually be an array of a single CID, but may be
+    /// - an empty array, if this is the first revision of a directory
+    /// - an array with multiple elements if this is the merge node of
+    ///   multiple concurrent changes to the directory.
+    #[wasm_bindgen(js_name = "previousCids")]
+    pub fn previous_cids(&self) -> Vec<Uint8Array> {
+        let cids = self.0.get_previous();
+        let arr: Vec<Uint8Array> = cids
+            .iter()
+            .map(|cid| Uint8Array::from(&cid.to_bytes()[..]))
+            .collect();
+        arr
     }
 
     /// Gets the metadata of the directory
