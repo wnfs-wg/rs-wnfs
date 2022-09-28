@@ -190,7 +190,7 @@ async fn main() {
   - Install it using the following command:
 
     ```bash
-    sh script/rs-wnfs.sh setup
+    sh scripts/rs-wnfs.sh setup
     ```
 
   - This lets you run the `rs-wnfs.sh` script as a command.
