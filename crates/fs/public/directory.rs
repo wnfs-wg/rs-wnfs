@@ -1337,4 +1337,42 @@ mod public_directory_tests {
 
         assert!(result.is_err());
     }
+
+    #[async_std::test]
+    async fn previous_links_is_list() {
+        let time = Utc::now();
+        let mut store = MemoryBlockStore::default();
+        let root_dir = Rc::new(PublicDirectory::new(time));
+
+        let PublicOpResult {
+            root_dir: root_dir_after,
+            ..
+        } = root_dir
+            .clone()
+            .mkdir(&["test".into()], time, &store)
+            .await
+            .unwrap();
+
+        let PublicOpResult {
+            root_dir: root_based,
+            ..
+        } = root_dir_after
+            .base_history_on(root_dir, &mut store)
+            .await
+            .unwrap();
+
+        use libipld::Ipld;
+        let ipld = root_based.async_serialize_ipld(&mut store).await.unwrap();
+        match ipld {
+            Ipld::Map(map) => {
+                match map.get("previous") {
+                    Some(Ipld::List(_)) => {
+                        // we're good
+                    }
+                    _ => panic!("Expected 'previous' key to be a list"),
+                }
+            }
+            _ => panic!("Expected map!"),
+        }
+    }
 }
