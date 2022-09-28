@@ -26,6 +26,7 @@ red='\033[0;31m'
 green='\033[0;32m'
 purple='\033[0;35m'
 none='\033[0m'
+yellow="\033[0;33m"
 
 # DESCRIPTION:
 #	Where execution starts
@@ -226,15 +227,54 @@ check_flag() {
     return $found
 }
 
+upgrade_privilege() {
+    if ! has sudo; then
+        errorln '"sudo" command not found.'
+        displayln "If you are on Windows, please run your shell as an administrator, then"
+        displayln "rerun this script. Otherwise, please run this script as root, or install"
+        displayln "sudo first."
+        exit 1
+    fi
+    if ! sudo -v; then
+        errorln "Superuser not granted, aborting installation"
+        exit 1
+    fi
+}
+
 # DESCRIPTION:
-#	Sets up the cript by making it excutable and available system wide
+#	check if the current user has write perm to specific dir by trying to write to it
+#
+is_writeable() {
+    path="${1:-}/test.txt"
+    if touch "${path}" 2>/dev/null; then
+        rm "${path}"
+        return 0
+    else
+        return 1
+    fi
+}
+
+# DESCRIPTION:
+#	Sets up the script by making it excutable and available system wide
 #
 setup() {
     displayln "Make script executable"
     chmod u+x $script_path
 
     displayln "Drop a link to it in /usr/local/bin"
-    if ln -s $script_path /usr/local/bin/rs-wnfs; then
+    sudo=""
+    if is_writeable "/usr/local/bin"; then
+        msg="Installing rs-wnfs, please wait…"
+    else
+        warnln "Higher permissions are required to install to /usr/local/bin"
+        upgrade_privilege
+        sudo="sudo"
+        msg="Installing rs-wnfs as ROOT, please wait…"
+    fi
+    displayln "$msg"
+
+    # try to make a symlink, using sudo if required
+    if "${sudo}" ln -s $script_path /usr/local/bin/rs-wnfs; then
         successln "Successfully installed"
     else
         local result=$?
@@ -265,10 +305,24 @@ successln() {
 }
 
 # DESCRIPTION:
+#	Prints a warning message.
+#
+warnln() {
+  printf "\n${yellow}!!! $1 !!!${none}\n\n"
+}
+
+# DESCRIPTION:
 #	Prints a header message.
 #
 display_header() {
     printf "\n${purple}$1${none}\n\n"
+}
+
+# DESCRIPTION:
+#	test command availability
+#
+has() {
+  command -v "$1" 1>/dev/null 2>&1
 }
 
 main $@

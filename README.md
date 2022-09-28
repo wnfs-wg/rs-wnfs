@@ -178,6 +178,12 @@ async fn main() {
     brew install binaryen
     ```
 
+  On Arch Linux based distributions, you might need to explicitly install the following:
+  - Install wasm-opt
+
+    ```bash
+    sudo pacman -S binaryen
+    ```
   </details>
 
 - **The _rs-wnfs_ Command**
@@ -190,7 +196,7 @@ async fn main() {
   - Install it using the following command:
 
     ```bash
-    sh script/rs-wnfs.sh setup
+    sh scripts/rs-wnfs.sh setup
     ```
 
   - This lets you run the `rs-wnfs.sh` script as a command.
