@@ -320,22 +320,27 @@ impl PrivateNodeHeader {
         self.ratchet.inc();
     }
 
+    /// Gets the ratchet key used for en/decryption of the node header
+    pub fn get_ratchet_key(&self) -> RatchetKey {
+        RatchetKey(Key::new(self.ratchet.derive_key()))
+    }
+
     /// Gets the private ref of the current header.
     pub fn get_private_ref(&self) -> Result<PrivateRef> {
-        let ratchet_key = Key::new(self.ratchet.derive_key());
+        let ratchet_key = self.get_ratchet_key();
         let saturated_name_hash = Sha3_256::hash(&self.get_saturated_name_with_key(&ratchet_key));
 
-        Ok(PrivateRef {
+        Ok(PrivateRef::from_ratchet_key(
             saturated_name_hash,
-            content_key: ContentKey(Key::new(Sha3_256::hash(&ratchet_key.as_bytes()))),
-            ratchet_key: RatchetKey(ratchet_key),
-        })
+            ratchet_key,
+        ))
     }
 
     /// Gets the saturated namefilter for this node using the provided ratchet key.
-    pub fn get_saturated_name_with_key(&self, ratchet_key: &Key) -> Namefilter {
+    pub fn get_saturated_name_with_key(&self, ratchet_key: &RatchetKey) -> Namefilter {
+        let RatchetKey(key) = ratchet_key;
         let mut name = self.bare_name.clone();
-        name.add(&ratchet_key.as_bytes());
+        name.add(&key.as_bytes());
         name.saturate();
         name
     }
@@ -343,8 +348,7 @@ impl PrivateNodeHeader {
     /// Gets the saturated namefilter for this node.
     #[inline]
     pub fn get_saturated_name(&self) -> Namefilter {
-        let ratchet_key = Key::new(self.ratchet.derive_key());
-        self.get_saturated_name_with_key(&ratchet_key)
+        self.get_saturated_name_with_key(&self.get_ratchet_key())
     }
 
     /// Updates the bare name of the node.
@@ -359,6 +363,23 @@ impl PrivateNodeHeader {
     /// Resets the ratchet.
     pub fn reset_ratchet<R: Rng>(&mut self, rng: &mut R) {
         self.ratchet = Ratchet::zero(rng.random_bytes())
+    }
+}
+
+impl PrivateRef {
+    pub fn from_ratchet_key(saturated_name_hash: HashOutput, ratchet_key: RatchetKey) -> Self {
+        Self {
+            saturated_name_hash,
+            content_key: ratchet_key.derive_content_key(),
+            ratchet_key,
+        }
+    }
+}
+
+impl RatchetKey {
+    pub fn derive_content_key(&self) -> ContentKey {
+        let RatchetKey(key) = self;
+        ContentKey(Key::new(Sha3_256::hash(&key.as_bytes())))
     }
 }
 

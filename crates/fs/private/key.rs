@@ -14,21 +14,22 @@ use super::Rng;
 //--------------------------------------------------------------------------------------------------
 
 pub(crate) const NONCE_SIZE: usize = 12;
+pub const KEY_BYTE_SIZE: usize = 32;
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
 //--------------------------------------------------------------------------------------------------
 
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Key(pub(super) [u8; 32]);
+pub struct Key(pub(super) [u8; KEY_BYTE_SIZE]);
 
 //--------------------------------------------------------------------------------------------------
 // Implementations
 //--------------------------------------------------------------------------------------------------
 
 impl Key {
-    /// Creates a new key from [u8; 32].
-    pub fn new(bytes: [u8; 32]) -> Self {
+    /// Creates a new key from [u8; KEY_SIZE].
+    pub fn new(bytes: [u8; KEY_BYTE_SIZE]) -> Self {
         Self(bytes)
     }
 
@@ -62,7 +63,7 @@ impl Key {
     }
 
     /// Grabs the bytes of the key.
-    pub fn bytes(self) -> [u8; 32] {
+    pub fn bytes(self) -> [u8; KEY_BYTE_SIZE] {
         self.0
     }
 
@@ -92,8 +93,8 @@ mod key_prop_tests {
     #[proptest(cases = 100)]
     fn key_can_encrypt_and_decrypt_data(
         #[strategy(any::<Vec<u8>>())] data: Vec<u8>,
-        #[strategy(any::<[u8; 32]>())] rng_seed: [u8; 32],
-        key_bytes: [u8; 32],
+        #[strategy(any::<[u8; KEY_BYTE_SIZE]>())] rng_seed: [u8; KEY_BYTE_SIZE],
+        key_bytes: [u8; KEY_BYTE_SIZE],
     ) {
         let key = Key::new(key_bytes);
         let rng = &mut TestRng::from_seed(RngAlgorithm::ChaCha, &rng_seed);
