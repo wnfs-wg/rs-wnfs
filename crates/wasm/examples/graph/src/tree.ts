@@ -97,11 +97,14 @@ export class Tree {
   async getChildrenForVertex(vertex: Vertex): Promise<Vertex[]> {
     if (vertex.node && vertex.node.isDir()) {
       const dir = vertex.node.asDir();
-      const { result }: { result: string[] } = await dir.ls([], this.store);
+      const { result }: { result: { name: string }[] } = await dir.ls(
+        [],
+        this.store
+      );
 
       if (result.length > 0) {
         const children: Vertex[] = [];
-        for (let name of result) {
+        for (let { name } of result) {
           const node: PublicNode = await dir.lookupNode(name, this.store);
           children.push(new Vertex(name, node, vertex, this, vertex.rootDir));
         }
