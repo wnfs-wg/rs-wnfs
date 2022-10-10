@@ -7,8 +7,8 @@ use std::rc::Rc;
 /// Represents the directory nodes along a path.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PathNodes<T> {
-    pub path: Vec<(Rc<T>, String)>,
-    pub tail: Rc<T>,
+    pub path: Vec<(T, String)>,
+    pub tail: T,
 }
 
 /// The kinds of outcome from getting a `PathNodes`.
@@ -38,7 +38,7 @@ impl<T> PathNodes<T> {
     /// use std::rc::Rc;
     /// use chrono::Utc;
     ///
-    /// let nodes = PathNodes::<PublicDirectory> {
+    /// let nodes = PathNodes::<Rc<PublicDirectory>> {
     ///     path: vec![
     ///         (Rc::new(PublicDirectory::new(Utc::now())), "music".to_string()),
     ///         (Rc::new(PublicDirectory::new(Utc::now())), "rock".to_string()),
@@ -61,7 +61,7 @@ impl<T> PathNodes<T> {
     /// use std::rc::Rc;
     /// use chrono::Utc;
     ///
-    /// let nodes = PathNodes::<PublicDirectory> {
+    /// let nodes = PathNodes::<Rc<PublicDirectory>> {
     ///     path: vec![
     ///         (Rc::new(PublicDirectory::new(Utc::now())), "music".to_string()),
     ///         (Rc::new(PublicDirectory::new(Utc::now())), "rock".to_string()),

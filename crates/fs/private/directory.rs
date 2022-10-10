@@ -1,9 +1,10 @@
-use std::{collections::BTreeMap, rc::Rc};
+use std::{collections::BTreeMap, intrinsics::discriminant_value, rc::Rc};
 
 use anyhow::{bail, ensure, Result};
 use chrono::{DateTime, Utc};
 use semver::Version;
 use serde::{de::Error as DeError, ser::Error as SerError, Deserialize, Deserializer, Serialize};
+use skip_ratchet::{ratchet::PreviousIterator, Ratchet};
 
 use super::{
     namefilter::Namefilter, Key, PrivateFile, PrivateForest, PrivateNode, PrivateNodeHeader,
@@ -18,8 +19,8 @@ use crate::{
 // Type Definitions
 //--------------------------------------------------------------------------------------------------
 
-pub type PrivatePathNodes = PathNodes<PrivateDirectory>;
-pub type PrivatePathNodesResult = PathNodesResult<PrivateDirectory>;
+pub type PrivatePathNodes = PathNodes<Rc<PrivateDirectory>>;
+pub type PrivatePathNodesResult = PathNodesResult<Rc<PrivateDirectory>>;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct PrivateDirectory {
@@ -47,6 +48,12 @@ pub struct PrivateOpResult<T> {
     pub hamt: Rc<PrivateForest>,
     /// Implementation dependent but it usually the last leaf node operated on.
     pub result: T,
+}
+
+pub struct PreviousNodeIterator {
+    path_nodes: Vec<(Rc<PrivateDirectory>, PreviousIterator, String)>,
+    node: PrivateNode,
+    prev: PreviousIterator,
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -619,6 +626,83 @@ impl PrivateDirectory {
             .await
     }
 
+    pub async fn previous_of<B: BlockStore>(
+        self: Rc<Self>,
+        path_segments: &[String],
+        search_latest: bool,
+        forest: &PrivateForest,
+        store: &B,
+        past_ratchet: &Ratchet,
+        discrepancy_budget: usize,
+    ) -> Result<Option<PreviousNodeIterator>> {
+        let (last_segment, dir_path) = match path_segments.split_last() {
+            Some(success) => success,
+            None => {
+                return Ok(Some(PreviousNodeIterator {
+                    path_nodes: Vec::new(),
+                    node: Rc::clone(&self),
+                    prev: PreviousIterator::new(
+                        past_ratchet,
+                        &self.header.ratchet,
+                        discrepancy_budget,
+                    ),
+                }));
+            }
+        };
+
+        let path_nodes = match self
+            .get_path_nodes(dir_path, search_latest, forest, store)
+            .await?
+        {
+            PathNodesResult::Complete(path_nodes) => Ok(path_nodes),
+            PathNodesResult::MissingLink(_, _) => Err(FsError::InvalidPath),
+            PathNodesResult::NotADirectory(_, _) => Err(FsError::NotADirectory),
+        }?;
+
+        let mut path = Vec::with_capacity(path_nodes.path.len());
+
+        for (dir, path_segment) in path_nodes.path.iter() {
+            // This looks useless, but bear with me!
+            let iter = PreviousIterator::new(
+                &dir.header.ratchet,
+                &dir.header.ratchet,
+                discrepancy_budget,
+            )?;
+            path.push((Rc::clone(dir), iter, path_segment.clone()))
+        }
+
+        path[0].0 .1 =
+            PreviousIterator::new(past_ratchet, &self.header.ratchet, discrepancy_budget);
+
+        let iter_last = PreviousIterator::new(
+            &path_nodes.tail.header.ratchet,
+            &path_nodes.tail.header.ratchet,
+            discrepancy_budget,
+        )?;
+        path.push((Rc::clone(&path_nodes.tail), iter_last, last_segment));
+
+        let node = match path_nodes
+            .tail
+            .lookup_node(last_segment, search_latest, forest, store)
+            .await?
+        {
+            Some(node) => node,
+            None => return Err(FsError::NotFound),
+        };
+
+        let prev = PreviousIterator::new(
+            &node.get_header().ratchet,
+            &node.get_header().ratchet,
+            discrepancy_budget,
+        )?;
+
+        Ok(Some(PreviousNodeIterator {
+            path_nodes,
+            node,
+            prev,
+        }))
+    }
+
     /// Serializes the directory with provided Serde serialilzer.
     pub fn serialize<S, R: Rng>(&self, serializer: S, rng: &mut R) -> Result<S::Ok, S::Error>
     where
@@ -673,6 +757,81 @@ impl PrivateDirectory {
 impl Id for PrivateDirectory {
     fn get_id(&self) -> String {
         format!("{:p}", &self.header)
+    }
+}
+
+impl PreviousNodeIterator {
+    pub async fn next<B: BlockStore>(
+        &mut self,
+        forest: &PrivateForest,
+        store: &B,
+        discrepancy_budget: usize,
+    ) -> Result<Option<PrivateDirectory>> {
+        let mut header = self.node.header.clone();
+        if let Some(prev) = self.prev.next() {
+            header.ratchet = prev;
+            return forest.get(&header.get_private_ref(), store).await;
+        }
+
+        let mut idx = self.path_nodes.len() - 1;
+
+        loop {
+            if idx < 0 {
+                return Ok(None);
+            }
+
+            let mut dir_header = self.path_nodes[idx].0.header;
+            if let Some(prev) = self.path_nodes[idx].1.next() {
+                dir_header.ratchet = prev;
+                self.path_nodes[idx].0 =
+                    match forest.get(&dir_header.get_private_ref(), store).await? {
+                        Some(PrivateNode::Dir(prev_dir)) => prev_dir,
+                        _ => return Ok(None),
+                    };
+            }
+
+            idx -= 1;
+        }
+
+        loop {
+            if idx >= self.path_nodes.len() - 1 {
+                break;
+            }
+
+            let (dir, _, path_segment) = self.path_nodes[idx];
+            let child_dir = match dir.lookup_node(&path_segment, false, forest, store).await? {
+                Some(PrivateNode::Dir(child_dir)) => child_dir,
+                _ => return Ok(None),
+            };
+
+            let iter = PreviousIterator::new(
+                &child_dir.header.ratchet,
+                &self.path_nodes[idx + 1].0.header,
+                discrepancy_budget,
+            )?;
+
+            self.path_nodes[idx + 1].1 = iter;
+            self.path_nodes[idx + 1].0 = child_dir;
+
+            idx += 1;
+        }
+
+        let (dir, _, path_segment) = self.path_nodes[self.path_nodes.len() - 1];
+        let child_node = match dir.lookup_node(&path_segment, false, forest, store).await? {
+            Some(node) => node,
+            _ => return Ok(None),
+        };
+
+        let iter = PreviousIterator::new(
+            &child_node.header.ratchet,
+            &self.node.header.ratchet,
+            discrepancy_budget,
+        )?;
+
+        self.node = child_node;
+        self.prev = iter;
+
+        Ok(Some(child_node.clone()))
     }
 }
 
