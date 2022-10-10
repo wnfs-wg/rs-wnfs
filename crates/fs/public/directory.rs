@@ -1,6 +1,9 @@
 //! Public fs directory node.
 
-use std::{collections::BTreeMap, rc::Rc};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    rc::Rc,
+};
 
 use crate::{
     error, utils, AsyncSerialize, BlockStore, FsError, Id, Metadata, NodeType, PathNodes,
@@ -8,10 +11,8 @@ use crate::{
 };
 use anyhow::{bail, ensure, Result};
 use async_recursion::async_recursion;
-use async_stream::try_stream;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
-use futures::Stream;
 use libipld::Cid;
 use semver::Version;
 use serde::{ser::Error as SerError, Deserialize, Deserializer, Serialize, Serializer};
@@ -42,7 +43,7 @@ pub struct PublicDirectory {
     pub version: Version,
     pub metadata: Metadata,
     pub userland: BTreeMap<String, PublicLink>,
-    pub previous: Option<Cid>,
+    pub previous: BTreeSet<Cid>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -51,7 +52,7 @@ struct PublicDirectorySerde {
     version: Version,
     metadata: Metadata,
     userland: BTreeMap<String, Cid>,
-    previous: Option<Cid>,
+    previous: Vec<Cid>,
 }
 
 /// The result of an operation applied to a directory.
@@ -85,17 +86,18 @@ impl PublicDirectory {
             version: Version::new(0, 2, 0),
             metadata: Metadata::new(time),
             userland: BTreeMap::new(),
-            previous: None,
+            previous: BTreeSet::new(),
         }
     }
 
     /// Gets the previous value of the directory.
     #[inline]
-    pub fn get_previous(self: &Rc<Self>) -> Option<Cid> {
-        self.previous
+    pub fn get_previous<'a>(self: &'a Rc<Self>) -> &'a BTreeSet<Cid> {
+        &self.previous
     }
 
     /// Gets the metadata of the directory
+    #[inline]
     pub fn get_metadata<'a>(self: &'a Rc<Self>) -> &'a Metadata {
         &self.metadata
     }
@@ -751,7 +753,7 @@ impl PublicDirectory {
         }
 
         let mut dir = (*self).clone();
-        dir.previous = Some(base.store(store).await?);
+        dir.previous = BTreeSet::from([base.store(store).await?]);
 
         for (name, entry) in self.userland.iter() {
             if let Some(base_entry) = base.userland.get(name) {
@@ -786,12 +788,12 @@ impl PublicDirectory {
         let (mut dir, dir_rc, base_dir) = match (node, base_node) {
             (PublicNode::Dir(dir_rc), PublicNode::Dir(base_dir_rc)) => {
                 let mut dir = (**dir_rc).clone();
-                dir.previous = Some(*base_link.resolve_cid(store).await?);
+                dir.previous = BTreeSet::from([*base_link.resolve_cid(store).await?]);
                 (dir, dir_rc, base_dir_rc)
             }
             (PublicNode::File(file_rc), PublicNode::File(_)) => {
                 let mut file = (**file_rc).clone();
-                file.previous = Some(*base_link.resolve_cid(store).await?);
+                file.previous = BTreeSet::from([*base_link.resolve_cid(store).await?]);
                 return Ok(Some(PublicLink::with_file(Rc::new(file))));
             }
             _ => {
@@ -812,72 +814,6 @@ impl PublicDirectory {
         }
 
         Ok(Some(PublicLink::with_dir(Rc::new(dir))))
-    }
-
-    /// Gets a stream for walking the history of a directory node.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use std::{rc::Rc, pin::Pin};
-    ///
-    /// use wnfs::{public::{PublicDirectory, PublicOpResult}, MemoryBlockStore};
-    /// use libipld::cid::Cid;
-    /// use chrono::Utc;
-    /// use futures_util::pin_mut;
-    /// use async_std::stream::StreamExt;
-    ///
-    /// #[async_std::main]
-    /// async fn main() {
-    ///     let time = Utc::now();
-    ///     let dir = Rc::new(PublicDirectory::new(time));
-    ///     let mut store = MemoryBlockStore::default();
-    ///
-    ///     let PublicOpResult { root_dir: base_root, .. } = Rc::new(PublicDirectory::new(Utc::now()))
-    ///         .write(
-    ///             &["pictures".into(), "cats".into(), "tabby.png".into()],
-    ///             Cid::default(),
-    ///             Utc::now(),
-    ///             &store
-    ///         )
-    ///         .await
-    ///         .unwrap();
-    ///
-    ///     let PublicOpResult { root_dir: recent_root, .. } = Rc::clone(&base_root)
-    ///         .write(
-    ///             &["pictures".into(), "cats".into(), "katherine.png".into()],
-    ///             Cid::default(),
-    ///             Utc::now(),
-    ///             &store
-    ///         )
-    ///         .await
-    ///         .unwrap();
-    ///
-    ///     let PublicOpResult { root_dir: derived_root, .. } = recent_root
-    ///         .base_history_on(base_root, &mut store)
-    ///         .await
-    ///         .unwrap();
-    ///
-    ///     let history = derived_root.get_history(&store);
-    ///
-    ///     pin_mut!(history);
-    ///
-    ///     while let Some(cid) = history.next().await {
-    ///         println!("previous = {:?}", cid);
-    ///     }
-    /// }
-    /// ```
-    pub fn get_history<B: BlockStore>(
-        self: Rc<Self>,
-        store: &B,
-    ) -> impl Stream<Item = Result<Cid>> + '_ {
-        let mut working_node = self;
-        try_stream! {
-            while let Some(cid) = working_node.get_previous() {
-                working_node = Rc::new(store.get_deserializable(&cid).await?);
-                yield cid;
-            }
-        }
     }
 }
 
@@ -914,7 +850,7 @@ impl AsyncSerialize for PublicDirectory {
             version: self.version.clone(),
             metadata: self.metadata.clone(),
             userland: encoded_userland,
-            previous: self.previous,
+            previous: self.previous.iter().cloned().collect(),
         })
         .serialize(serializer)
     }
@@ -942,7 +878,7 @@ impl<'de> Deserialize<'de> for PublicDirectory {
             version,
             metadata,
             userland,
-            previous,
+            previous: previous.iter().cloned().collect(),
         })
     }
 }
@@ -1211,8 +1147,8 @@ mod public_directory_tests {
         let derived_previous_cid = derived_root.get_previous();
         let base_cid = base_root.store(&mut store).await.unwrap();
 
-        assert!(derived_previous_cid.is_some());
-        assert_eq!(derived_previous_cid.unwrap(), base_cid);
+        assert_eq!(derived_previous_cid.len(), 1);
+        assert!(derived_previous_cid.get(&base_cid).is_some());
 
         // Assert that some node that exists between versions points to its old version.
         let PublicOpResult {
@@ -1231,13 +1167,16 @@ mod public_directory_tests {
             .unwrap();
 
         assert!(derived_node.is_some());
+        let derived_node = derived_node.unwrap();
+
         assert!(base_node.is_some());
+        let base_node = base_node.unwrap();
 
-        let derived_previous_cid = derived_node.unwrap().get_previous();
-        let base_cid = base_node.unwrap().store(&mut store).await.unwrap();
+        let derived_previous_cid = derived_node.get_previous();
+        let base_cid = base_node.store(&mut store).await.unwrap();
 
-        assert!(derived_previous_cid.is_some());
-        assert_eq!(derived_previous_cid.unwrap(), base_cid);
+        assert_eq!(derived_previous_cid.len(), 1);
+        assert!(derived_previous_cid.get(&base_cid).is_some());
 
         // Assert that some node that doesn't exists between versions does not point to anything.
         let PublicOpResult {
@@ -1252,7 +1191,9 @@ mod public_directory_tests {
             .unwrap();
 
         assert!(derived_node.is_some());
-        assert!(matches!(derived_node.unwrap().get_previous(), None));
+        let derived_node = derived_node.unwrap();
+
+        assert_eq!(derived_node.get_previous().len(), 0);
     }
 
     #[async_std::test]
@@ -1395,5 +1336,43 @@ mod public_directory_tests {
             .await;
 
         assert!(result.is_err());
+    }
+
+    #[async_std::test]
+    async fn previous_links_is_list() {
+        let time = Utc::now();
+        let mut store = MemoryBlockStore::default();
+        let root_dir = Rc::new(PublicDirectory::new(time));
+
+        let PublicOpResult {
+            root_dir: root_dir_after,
+            ..
+        } = root_dir
+            .clone()
+            .mkdir(&["test".into()], time, &store)
+            .await
+            .unwrap();
+
+        let PublicOpResult {
+            root_dir: root_based,
+            ..
+        } = root_dir_after
+            .base_history_on(root_dir, &mut store)
+            .await
+            .unwrap();
+
+        use libipld::Ipld;
+        let ipld = root_based.async_serialize_ipld(&mut store).await.unwrap();
+        match ipld {
+            Ipld::Map(map) => {
+                match map.get("previous") {
+                    Some(Ipld::List(_)) => {
+                        // we're good
+                    }
+                    _ => panic!("Expected 'previous' key to be a list"),
+                }
+            }
+            _ => panic!("Expected map!"),
+        }
     }
 }
