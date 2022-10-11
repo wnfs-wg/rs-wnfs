@@ -1,6 +1,7 @@
 //! File system errors.
 
 use anyhow::Result;
+use skip_ratchet::PreviousErr;
 use thiserror::Error;
 
 use crate::NodeType;
@@ -64,6 +65,9 @@ pub enum FsError {
 
     #[error("Found unexpected node type: {0:?}")]
     UnexpectedNodeType(NodeType),
+
+    #[error("Could not compute in-between ratchet {0}")]
+    PreviousError(PreviousErr),
 }
 
 pub fn error<T>(err: impl std::error::Error + Send + Sync + 'static) -> Result<T> {
