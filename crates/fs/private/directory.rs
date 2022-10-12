@@ -814,6 +814,7 @@ impl PreviousNodePathIterator {
         loop {
             if let Some((dir, mut previous, path_segment)) = self.path.pop() {
                 if let Some(prev) = previous.previous_dir(forest, store).await? {
+                    println!("Was able to go a previous step at {path_segment}");
                     self.path.push((prev, previous, path_segment));
                     break;
                 }
@@ -1658,5 +1659,213 @@ mod private_directory_tests {
             .unwrap();
 
         assert!(prevprevprev.is_none());
+    }
+
+    /// This test will generate the following file system structure:
+    ///
+    /// (horizontal = time series, vertical = hierarchy)
+    /// ```plain
+    /// ┌────────────┐              ┌────────────┐              ┌────────────┐
+    /// │            │              │            │              │            │
+    /// │    Root    ├─────────────►│    Root    ├─────────────►│    Root    │
+    /// │            │              │            │              │            │
+    /// └────────────┘              └─────┬──────┘              └─────┬──────┘
+    ///                                   │                           │
+    ///                                   │                           │
+    ///                                   ▼                           ▼
+    ///                             ┌────────────┐              ┌────────────┐
+    ///                             │            │              │            │
+    ///                             │    Docs    ├─────────────►│    Docs    │
+    ///                             │            │              │            │
+    ///                             └─────┬──────┘              └─────┬──────┘
+    ///                                   │                           │
+    ///                                   │                           │
+    ///                                   ▼                           ▼
+    ///                             ┌────────────┐              ┌────────────┐
+    ///                             │            │              │            │
+    ///                             │  Notes.md  ├─────────────►│  Notes.md  │
+    ///                             │            │              │            │
+    ///                             └────────────┘              └────────────┘
+    /// ```
+    ///
+    /// Then, given the skip ratchet for revision 0 of "Root" and revision 2 of "Root",
+    /// it will ask for the backwards-history of the "Root/Docs/Notes.md" file.
+    #[async_std::test]
+    async fn previous_of_path() {
+        let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
+        let store = &mut MemoryBlockStore::default();
+        let hamt = Rc::new(PrivateForest::new());
+        let root_dir = Rc::new(PrivateDirectory::new(
+            Namefilter::default(),
+            Utc::now(),
+            rng,
+        ));
+        let hamt = hamt
+            .set(
+                root_dir.header.get_saturated_name(),
+                &root_dir.header.get_private_ref().unwrap(),
+                &PrivateNode::Dir(Rc::clone(&root_dir)),
+                store,
+                rng,
+            )
+            .await
+            .unwrap();
+        let discrepancy_budget = 1_000_000;
+        let past_ratchet = root_dir.header.ratchet.clone();
+
+        let path = ["Docs".into(), "Notes.md".into()];
+
+        let PrivateOpResult { root_dir, hamt, .. } = root_dir
+            .write(&path, true, Utc::now(), b"Hi".to_vec(), hamt, store, rng)
+            .await
+            .unwrap();
+
+        let PrivateOpResult { root_dir, hamt, .. } = root_dir
+            .write(&path, true, Utc::now(), b"World".to_vec(), hamt, store, rng)
+            .await
+            .unwrap();
+
+        let mut iterator = root_dir
+            .previous_of(
+                &path,
+                true,
+                &*hamt,
+                store,
+                &past_ratchet,
+                discrepancy_budget,
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(
+            iterator
+                .previous(&*hamt, store, discrepancy_budget)
+                .await
+                .unwrap()
+                .unwrap()
+                .as_file()
+                .unwrap()
+                .content,
+            b"Hi".to_vec()
+        );
+
+        assert!(iterator
+            .previous(&*hamt, store, discrepancy_budget)
+            .await
+            .unwrap()
+            .is_none());
+    }
+
+    /// ```plain
+    /// ┌────────────┐              ┌────────────┐
+    /// │            │              │            │
+    /// │    Root    ├─────────────►│    Root    │
+    /// │            │              │            │
+    /// └────────────┘              └─────┬──────┘
+    ///                                   │
+    ///                                   │
+    ///                                   ▼
+    ///                             ┌────────────┐              ┌────────────┐
+    ///                             │            │              │            │
+    ///                             │    Docs    ├─────────────►│    Docs    │
+    ///                             │            │              │            │
+    ///                             └─────┬──────┘              └─────┬──────┘
+    ///                                   │                           │
+    ///                                   │                           │
+    ///                                   ▼                           ▼
+    ///                             ┌────────────┐              ┌────────────┐
+    ///                             │            │              │            │
+    ///                             │  Notes.md  ├─────────────►│  Notes.md  │
+    ///                             │            │              │            │
+    ///                             └────────────┘              └────────────┘
+    /// ```
+    #[async_std::test]
+    async fn previous_of_seeking() {
+        let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
+        let store = &mut MemoryBlockStore::default();
+        let hamt = Rc::new(PrivateForest::new());
+        let root_dir = Rc::new(PrivateDirectory::new(
+            Namefilter::default(),
+            Utc::now(),
+            rng,
+        ));
+        let hamt = hamt
+            .set(
+                root_dir.header.get_saturated_name(),
+                &root_dir.header.get_private_ref().unwrap(),
+                &PrivateNode::Dir(Rc::clone(&root_dir)),
+                store,
+                rng,
+            )
+            .await
+            .unwrap();
+        let discrepancy_budget = 1_000_000;
+        let past_ratchet = root_dir.header.ratchet.clone();
+
+        let path = ["Docs".into(), "Notes.md".into()];
+
+        let PrivateOpResult { root_dir, hamt, .. } = root_dir
+            .write(&path, true, Utc::now(), b"Hi".to_vec(), hamt, store, rng)
+            .await
+            .unwrap();
+
+        let PrivateOpResult {
+            root_dir,
+            hamt,
+            result: docs_dir,
+            ..
+        } = root_dir
+            .get_node(&["Docs".into()], true, hamt, store)
+            .await
+            .unwrap();
+
+        let docs_dir = if let Some(PrivateNode::Dir(docs_dir)) = docs_dir {
+            docs_dir
+        } else {
+            unreachable!()
+        };
+
+        let PrivateOpResult { hamt, .. } = docs_dir
+            .write(
+                &["Notes.md".into()],
+                true,
+                Utc::now(),
+                b"World".to_vec(),
+                hamt,
+                store,
+                rng,
+            )
+            .await
+            .unwrap();
+
+        let mut iterator = root_dir
+            .previous_of(
+                &path,
+                true,
+                &*hamt,
+                store,
+                &past_ratchet,
+                discrepancy_budget,
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(
+            iterator
+                .previous(&*hamt, store, discrepancy_budget)
+                .await
+                .unwrap()
+                .unwrap()
+                .as_file()
+                .unwrap()
+                .content,
+            b"Hi".to_vec()
+        );
+
+        assert!(iterator
+            .previous(&*hamt, store, discrepancy_budget)
+            .await
+            .unwrap()
+            .is_none());
     }
 }
