@@ -675,18 +675,19 @@ impl PrivateDirectory {
         };
 
         let target_header = target.get_header();
+        let target_ratchets = PreviousNodeIterator {
+            header: target_header.clone(),
+            ratchets: PreviousIterator::new(
+                &target_header.ratchet,
+                &target_header.ratchet,
+                discrepancy_budget,
+            )
+            .map_err(|err| FsError::PreviousError(err))?,
+        };
 
         let mut previous_iter = PreviousNodePathIterator {
             path: Vec::with_capacity(path_nodes.len() + 1),
-            tail: PreviousNodeIterator {
-                header: target_header.clone(),
-                ratchets: PreviousIterator::new(
-                    &target_header.ratchet,
-                    &target_header.ratchet,
-                    discrepancy_budget,
-                )
-                .map_err(|err| FsError::PreviousError(err))?,
-            },
+            tail: target_ratchets,
         };
 
         let PathNodes { mut path, tail } = path_nodes;
@@ -1589,5 +1590,73 @@ mod private_directory_tests {
             .await;
 
         assert!(result.is_err());
+    }
+
+    #[async_std::test]
+    async fn previous_of_root_node() {
+        let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
+        let store = &mut MemoryBlockStore::default();
+        let hamt = Rc::new(PrivateForest::new());
+        let root_dir = Rc::new(PrivateDirectory::new(
+            Namefilter::default(),
+            Utc::now(),
+            rng,
+        ));
+        let hamt = hamt
+            .set(
+                root_dir.header.get_saturated_name(),
+                &root_dir.header.get_private_ref().unwrap(),
+                &PrivateNode::Dir(Rc::clone(&root_dir)),
+                store,
+                rng,
+            )
+            .await
+            .unwrap();
+        let discrepancy_budget = 1_000_000;
+        let past_ratchet = root_dir.header.ratchet.clone();
+
+        let PrivateOpResult { root_dir, hamt, .. } = root_dir
+            .write(
+                &["file.txt".into()],
+                true,
+                Utc::now(),
+                b"file".to_vec(),
+                hamt,
+                store,
+                rng,
+            )
+            .await
+            .unwrap();
+
+        let PrivateOpResult { root_dir, hamt, .. } = root_dir
+            .mkdir(&["docs".into()], true, Utc::now(), hamt, store, rng)
+            .await
+            .unwrap();
+
+        let mut iterator = root_dir
+            .previous_of(&[], true, &*hamt, store, &past_ratchet, discrepancy_budget)
+            .await
+            .unwrap();
+
+        let prev = iterator
+            .previous(&*hamt, store, discrepancy_budget)
+            .await
+            .unwrap();
+
+        assert!(prev.is_some());
+
+        let prevprev = iterator
+            .previous(&*hamt, store, discrepancy_budget)
+            .await
+            .unwrap();
+
+        assert!(prevprev.is_some());
+
+        let prevprevprev = iterator
+            .previous(&*hamt, store, discrepancy_budget)
+            .await
+            .unwrap();
+
+        assert!(prevprevprev.is_none());
     }
 }
