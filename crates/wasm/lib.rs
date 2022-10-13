@@ -18,16 +18,6 @@ pub fn set_panic_hook() {
     console_error_panic_hook::set_once();
 }
 
-// If wee_alloc is enabled, we use the the `wee_alloc` crate to allocate memory which helps us reduce bundle size.
-//
-// https://rustwasm.github.io/docs/wasm-pack/tutorials/npm-browser-packages/template-deep-dive/wee_alloc.html
-cfg_if::cfg_if! {
-    if #[cfg(feature = "wee_alloc")] {
-        #[global_allocator]
-        static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
-    }
-}
-
 // For logging in the console.
 #[wasm_bindgen]
 extern "C" {

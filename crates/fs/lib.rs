@@ -22,8 +22,7 @@ pub use traits::*;
 pub mod ipld {
     pub use libipld::{
         cbor::DagCborCodec,
-        codec::Codec,
-        codec::{Decode, Encode},
+        codec::{Codec, Decode, Encode},
         Cid, IpldCodec,
     };
 }

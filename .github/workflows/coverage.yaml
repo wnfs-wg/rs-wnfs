@@ -5,35 +5,56 @@ on:
     branches: [ main ]
 
   pull_request:
-    branches: [ main ]
+    branches: [ '*' ]
 
 jobs:
   coverage:
+    strategy:
+      fail-fast: false
+
     runs-on: ubuntu-latest
 
-    container:
-      image: xd009642/tarpaulin:develop-nightly
-      options: --security-opt seccomp=unconfined
-
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v2
+      - name: Checkout Repository
+        uses: actions/checkout@v3
 
-      - name: Install dependencies
-        run: |
-          apt-get update && \
-          apt-get install -y cmake clang libssl-dev llvm libudev-dev libgmp3-dev && \
-          rm -rf /var/lib/apt/lists/*
+      - name: Install Rust Toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          override: true
+          toolchain: nightly
+          components: llvm-tools-preview
+          profile: minimal
 
-      - name: Cache project
-        uses: Swatinem/rust-cache@v1.3.0
+      - name: Cache Project
+        uses: Swatinem/rust-cache@v2
 
-      - name: Generate code coverage
-        run: cargo +nightly tarpaulin --out Xml --timeout 3600
+      - name: Generate Code coverage
+        env:
+          CARGO_INCREMENTAL: '0'
+          LLVM_PROFILE_FILE: "rs-wnfs-%p-%m.profraw"
+          RUSTFLAGS: '-Zprofile -Ccodegen-units=1 -Cinline-threshold=0 -Clink-dead-code -Coverflow-checks=off -Cpanic=abort -Zpanic_abort_tests'
+          RUSTDOCFLAGS: '-Zprofile -Ccodegen-units=1 -Cinline-threshold=0 -Clink-dead-code -Coverflow-checks=off -Cpanic=abort -Zpanic_abort_tests'
+        run: cargo test
+
+      - name: Install grcov
+        run: "curl -L https://github.com/mozilla/grcov/releases/download/v0.8.12/grcov-x86_64-unknown-linux-gnu.tar.bz2 | tar jxf -"
+
+      - name: Run grcov
+        run: "./grcov . --llvm --binary-path target/debug/ -s . -t lcov --branch --ignore-not-existing --ignore '/*' -o lcov.info"
+
+      - name: Install covfix
+        uses: actions-rs/install@v0.1
+        with:
+          crate: rust-covfix
+          use-tool-cache: true
+
+      - name: Run covfix
+        run: rust-covfix lcov.info -o lcov.info --verbose
 
       - name: Upload to codecov.io
-        uses: codecov/codecov-action@v2
+        uses: codecov/codecov-action@v3
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-          version: "v0.1.15"
           fail_ci_if_error: true
+          files: lcov.info
