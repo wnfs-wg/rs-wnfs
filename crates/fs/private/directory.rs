@@ -1104,7 +1104,11 @@ impl PrivateDirectory {
     }
 
     /// Serializes the directory with provided Serde serialilzer.
-    pub(crate) fn serialize<S, R: RngCore>(&self, serializer: S, rng: &mut R) -> Result<S::Ok, S::Error>
+    pub(crate) fn serialize<S, R: RngCore>(
+        &self,
+        serializer: S,
+        rng: &mut R,
+    ) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
     {

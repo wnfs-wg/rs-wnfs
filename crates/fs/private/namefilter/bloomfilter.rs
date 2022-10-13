@@ -1,4 +1,4 @@
-use std::{ops::Index, fmt::Debug};
+use std::{fmt::Debug, ops::Index};
 
 use anyhow::anyhow;
 use bitvec::prelude::BitArray;

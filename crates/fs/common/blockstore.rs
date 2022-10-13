@@ -17,7 +17,7 @@ use serde::{de::DeserializeOwned, Serialize};
 
 use crate::{
     private::{Key, NONCE_SIZE},
-    AsyncSerialize, utils,
+    utils, AsyncSerialize,
 };
 
 use super::FsError;

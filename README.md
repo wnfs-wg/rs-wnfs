@@ -200,7 +200,7 @@ async fn main() {
 }
 ```
 
-You may notice that we store the `root_dir` returned by the `mkdir` operation, not the `dir` we started with. That is because WNFS internal state is immutable and every operation potentially returns a new root directory. This allows us to track and rollback changes when needed. It also makes collaborative editing easier to implement and reason about. You can find more examples in [`crates/fs/examples/`](crates/fs/examples/). And there is a basic demo of the filesystem immutability [here](https://calm-thin-barista.fission.app).
+You may notice that we store the `root_dir` returned by the `mkdir` operation, not the `dir` we started with. That is because WNFS internal state is immutable and every operation potentially returns a new root directory. This allows us to track and rollback changes when needed. It also makes collaborative editing easier to implement and reason about. You can find more examples in the [`crates/fs/examples/`](crates/fs/examples/) folder. And there is a basic demo of the filesystem immutability [here](https://calm-thin-barista.fission.app).
 
 The private filesystem, on the other hand, is a bit more involved. [Hash Array Mapped Trie (HAMT)](https://en.wikipedia.org/wiki/Hash_array_mapped_trie) is used as the intermediate format of private file tree before it is persisted to the blockstore because HAMT helps us hide the hierarchy of the file tree.
 
@@ -271,7 +271,7 @@ async fn main() {
 
 Namefilters are currently how we represent the identity key of a node in the filesystem. They have nice properties, one of which is the ability to check if one node belongs to another. This is necessary in a filesystem where metadata like hierarchy needs to be hidden from observing agents. One notable caveat with namefilters is that they can only reliably store information of a file tree 47 levels deep or less so there is a plan to replace them with cryptographic accumlators in the near future.
 
-Check [`crates/fs/examples/`](crates/fs/examples/) for more examples.
+Check the [`crates/fs/examples/`](crates/fs/examples/) folder for more examples.
 
 ## Testing the Project
 

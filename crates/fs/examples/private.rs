@@ -25,7 +25,10 @@ async fn main() {
     let (hamt_cid, private_ref) = get_hamt_cid_and_private_ref(store, rng).await;
 
     // Fetch cbor_bytes from the blockstore.
-    let cbor_bytes = store.get_deserializable::<Vec<u8>>(&hamt_cid).await.unwrap();
+    let cbor_bytes = store
+        .get_deserializable::<Vec<u8>>(&hamt_cid)
+        .await
+        .unwrap();
 
     // Decode CBOR.
     let forest = dagcbor::decode::<PrivateForest>(cbor_bytes.as_ref()).unwrap();
