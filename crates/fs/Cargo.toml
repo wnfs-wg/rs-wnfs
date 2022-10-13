@@ -30,7 +30,7 @@ async-recursion = "1.0.0"
 futures = "0.3.21"
 async-stream = "0.3.3"
 futures-util = "0.3.21"
-skip_ratchet = { version = "0.1.1", features = ["serde"] }
+skip_ratchet = { version = "0.1.6", features = ["serde"] }
 bitvec = { version = "1.0.0", features = ["serde"] }
 async-once-cell = "0.4.0"
 sha3 = "0.10.0"

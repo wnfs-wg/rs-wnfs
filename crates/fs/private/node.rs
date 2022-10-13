@@ -10,7 +10,7 @@ use libipld::{
 };
 use serde::{Deserialize, Serialize};
 use sha3::Sha3_256;
-use skip_ratchet::{Ratchet, RatchetExpSearcher};
+use skip_ratchet::{seek::JumpSize, Ratchet, RatchetSeeker};
 
 use crate::{BlockStore, FsError, HashOutput, Id, NodeType, HASH_BYTE_SIZE};
 
@@ -195,7 +195,7 @@ impl PrivateNode {
         }
 
         // Start an exponential search.
-        let mut search = RatchetExpSearcher::from(header.ratchet.clone());
+        let mut search = RatchetSeeker::new(header.ratchet.clone(), JumpSize::Small);
         let mut current_header = header.clone();
 
         loop {

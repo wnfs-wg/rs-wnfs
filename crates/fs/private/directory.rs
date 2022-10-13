@@ -657,7 +657,7 @@ impl PrivateDirectory {
         };
 
         let path_nodes = match self
-            .get_path_nodes(path_segments, search_latest, forest, store)
+            .get_path_nodes(path_segments, false, forest, store)
             .await?
         {
             PathNodesResult::Complete(path_nodes) => path_nodes,
@@ -667,7 +667,7 @@ impl PrivateDirectory {
 
         let target = match path_nodes
             .tail
-            .lookup_node(last, search_latest, forest, store)
+            .lookup_node(last, false, forest, store)
             .await?
         {
             Some(target) => target,
@@ -675,11 +675,19 @@ impl PrivateDirectory {
         };
 
         let target_header = target.get_header();
+        let target_clone = target.clone();
+
+        let target_latest = if search_latest {
+            target_clone.search_latest(forest, store).await?
+        } else {
+            target.clone()
+        };
+
         let target_ratchets = PreviousNodeIterator {
             header: target_header.clone(),
             ratchets: PreviousIterator::new(
                 &target_header.ratchet,
-                &target_header.ratchet,
+                &target_latest.get_header().ratchet,
                 discrepancy_budget,
             )
             .map_err(|err| FsError::PreviousError(err))?,
@@ -814,7 +822,6 @@ impl PreviousNodePathIterator {
         loop {
             if let Some((dir, mut previous, path_segment)) = self.path.pop() {
                 if let Some(prev) = previous.previous_dir(forest, store).await? {
-                    println!("Was able to go a previous step at {path_segment}");
                     self.path.push((prev, previous, path_segment));
                     break;
                 }
@@ -826,9 +833,14 @@ impl PreviousNodePathIterator {
         }
 
         for (directory, path_segment) in working_stack {
-            let (ancestor_dir, _, ancestor_segment) = self.path.last().unwrap();
+            let (_, ancestor_previous, ancestor_segment) = self.path.last_mut().unwrap();
 
-            let older_directory = match ancestor_dir
+            let ancestor_prev_dir = match ancestor_previous.previous_dir(forest, store).await? {
+                Some(dir) => dir,
+                None => return Ok(None),
+            };
+
+            let older_directory = match ancestor_prev_dir
                 .lookup_node(ancestor_segment, false, forest, store)
                 .await?
             {

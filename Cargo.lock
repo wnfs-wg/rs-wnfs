@@ -1646,9 +1646,9 @@ dependencies = [
 
 [[package]]
 name = "skip_ratchet"
-version = "0.1.1"
+version = "0.1.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c780f3c0bc40819a7e57642cdde00dea7cd47967d46370c2494b1c46facf98fa"
+checksum = "16ee41f8a86f13fe0618c3cc9c5d9f7a6173f3449de900595753973c97a25579"
 dependencies = [
  "base64",
  "hex",
