@@ -158,32 +158,36 @@ async fn main() {
     cargo install wasm-pack
     ```
 
-  - Install playwrigth binaries
+  - Install [playwright](https://playwright.dev/) binaries
 
     ```bash
     npx playwright install
     ```
 
-  On ARM-based (M1 family) macOS, you might need to explicitly install the following:
 
-  - Install wasm-bindgen
+  **Architecture-specifics**
 
-    ```bash
-    cargo install -f wasm-bindgen-cli
-    ```
+  - On ARM-based (M1 family) macOS, you might need to explicitly install the following:
 
-  - Install wasm-opt
+      - Install wasm-bindgen
 
-    ```bash
-    brew install binaryen
-    ```
+        ```bash
+        cargo install -f wasm-bindgen-cli
+        ```
 
-  On Arch Linux based distributions, you might need to explicitly install the following:
-  - Install wasm-opt
+      - Install wasm-opt
 
-    ```bash
-    sudo pacman -S binaryen
-    ```
+        ```bash
+        brew install binaryen
+        ```
+
+  - On Arch Linux based distributions, you might need to explicitly install the following:
+
+      - Install wasm-opt
+
+        ```bash
+        sudo pacman -S binaryen
+        ```
   </details>
 
 - **The _rs-wnfs_ Command**

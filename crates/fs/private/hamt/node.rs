@@ -357,7 +357,7 @@ impl<K, V, H: Hasher> Node<K, V, H> {
         K: Serialize,
         V: Serialize,
     {
-        let bitmask_ipld = ipld_serde::to_ipld(&self.bitmask.as_raw_slice())?;
+        let bitmask_ipld = ipld_serde::to_ipld(self.bitmask.as_raw_slice())?;
         let pointers_ipld = {
             let mut tmp = Vec::with_capacity(self.pointers.len());
             for pointer in self.pointers.iter() {
@@ -680,16 +680,12 @@ mod hamt_node_unit_tests {
 #[cfg(test)]
 mod hamt_node_prop_tests {
 
-    use std::collections::HashMap;
-    use std::hash::Hash;
+    use std::{collections::HashMap, hash::Hash};
 
-    use proptest::collection::*;
-    use proptest::prelude::*;
-    use proptest::strategy::Shuffleable;
+    use proptest::{collection::*, prelude::*, strategy::Shuffleable};
     use test_strategy::proptest;
 
-    use crate::dagcbor;
-    use crate::MemoryBlockStore;
+    use crate::{dagcbor, MemoryBlockStore};
 
     use super::*;
 

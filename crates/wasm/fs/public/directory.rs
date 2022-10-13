@@ -15,12 +15,14 @@ use wnfs::{
     BlockStore as WnfsBlockStore, Id,
 };
 
-use crate::fs::{
-    metadata::JsMetadata,
-    utils::{self, error},
-    BlockStore, ForeignBlockStore, JsResult, PublicNode,
+use crate::{
+    fs::{
+        metadata::JsMetadata,
+        utils::{self, error},
+        BlockStore, ForeignBlockStore, JsResult, PublicNode,
+    },
+    value,
 };
-use crate::value;
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions

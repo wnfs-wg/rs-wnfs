@@ -1,7 +1,9 @@
 use std::fmt::Debug;
 
-use aes_gcm::aead::{Aead, NewAead};
-use aes_gcm::{Aes256Gcm, Key as AesKey, Nonce};
+use aes_gcm::{
+    aead::{Aead, NewAead},
+    Aes256Gcm, Key as AesKey, Nonce,
+};
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 
@@ -85,8 +87,10 @@ impl Debug for Key {
 #[cfg(test)]
 mod key_prop_tests {
     use super::*;
-    use proptest::prelude::any;
-    use proptest::test_runner::{RngAlgorithm, TestRng};
+    use proptest::{
+        prelude::any,
+        test_runner::{RngAlgorithm, TestRng},
+    };
     use test_strategy::proptest;
 
     #[proptest(cases = 100)]
