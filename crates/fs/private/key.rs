@@ -5,11 +5,10 @@ use aes_gcm::{
     Aes256Gcm, Key as AesKey, Nonce,
 };
 use anyhow::Result;
+use rand_core::RngCore;
 use serde::{Deserialize, Serialize};
 
-use crate::FsError;
-
-use super::Rng;
+use crate::{utils, FsError};
 
 //--------------------------------------------------------------------------------------------------
 // Contants
@@ -58,9 +57,9 @@ impl Key {
     #[inline]
     pub fn generate_nonce<R>(rng: &mut R) -> [u8; NONCE_SIZE]
     where
-        R: Rng,
+        R: RngCore,
     {
-        rng.random_bytes::<NONCE_SIZE>()
+        utils::get_random_bytes::<NONCE_SIZE>(rng)
     }
 
     /// Grabs the bytes of the key.
@@ -76,7 +75,17 @@ impl Key {
 
 impl Debug for Key {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Key(0x{:02X?})", &self.0[..5])
+        write!(f, "0x")?;
+        for (i, byte) in self.0.iter().enumerate() {
+            if i > 6 {
+                write!(f, "..")?;
+                break;
+            } else {
+                write!(f, "{:02X}", byte)?;
+            }
+        }
+
+        Ok(())
     }
 }
 

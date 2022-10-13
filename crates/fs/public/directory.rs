@@ -26,12 +26,12 @@ use super::{PublicFile, PublicLink, PublicNode};
 pub type PublicPathNodes = PathNodes<PublicDirectory>;
 pub type PublicPathNodesResult = PathNodesResult<PublicDirectory>;
 
-/// A directory in a WNFS public file system.
+/// Represents a directory in the WNFS public filesystem.
 ///
 /// # Examples
 ///
 /// ```
-/// use wnfs::{public::PublicDirectory, Id};
+/// use wnfs::{PublicDirectory, Id};
 /// use chrono::Utc;
 ///
 /// let dir = PublicDirectory::new(Utc::now());
@@ -74,7 +74,7 @@ impl PublicDirectory {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::{public::PublicDirectory, Id};
+    /// use wnfs::{PublicDirectory, Id};
     /// use chrono::Utc;
     ///
     /// let dir = PublicDirectory::new(Utc::now());
@@ -211,17 +211,16 @@ impl PublicDirectory {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::{public::{PublicDirectory, PublicOpResult}, MemoryBlockStore};
+    /// use wnfs::{PublicDirectory, PublicOpResult, MemoryBlockStore};
     /// use std::rc::Rc;
     /// use chrono::Utc;
     ///
     /// #[async_std::main]
     /// async fn main() {
-    ///     let time = Utc::now();
-    ///     let dir = Rc::new(PublicDirectory::new(time));
+    ///     let dir = Rc::new(PublicDirectory::new(Utc::now()));
     ///     let store = MemoryBlockStore::default();
     ///
-    ///     let PublicOpResult { root_dir, .. } = Rc::new(PublicDirectory::new(Utc::now()))
+    ///     let PublicOpResult { root_dir, .. } = dir
     ///         .mkdir(&["pictures".into(), "cats".into()], Utc::now(), &store)
     ///         .await
     ///         .unwrap();
@@ -268,15 +267,16 @@ impl PublicDirectory {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::{public::{PublicDirectory, PublicOpResult}, Id, MemoryBlockStore};
+    /// use wnfs::{PublicDirectory, PublicOpResult, Id, MemoryBlockStore};
     /// use std::rc::Rc;
     /// use chrono::Utc;
     ///
     /// #[async_std::main]
     /// async fn main() {
+    ///     let dir = Rc::new(PublicDirectory::new(Utc::now()));
     ///     let mut store = MemoryBlockStore::default();
     ///
-    ///     let PublicOpResult { root_dir, .. } = Rc::new(PublicDirectory::new(Utc::now()))
+    ///     let PublicOpResult { root_dir, .. } = dir
     ///         .mkdir(&["pictures".into(), "cats".into()], Utc::now(), &store)
     ///         .await
     ///         .unwrap();
@@ -305,15 +305,20 @@ impl PublicDirectory {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::{public::PublicDirectory, Id, MemoryBlockStore};
+    /// use wnfs::{PublicDirectory, Id, MemoryBlockStore, BlockStore};
     /// use chrono::Utc;
     ///
     /// #[async_std::main]
     /// async fn main() {
-    ///     let mut store = MemoryBlockStore::default();
+    ///     let store = &mut MemoryBlockStore::default();
     ///     let dir = PublicDirectory::new(Utc::now());
     ///
-    ///     dir.store(&mut store).await.unwrap();
+    ///     let cid = dir.store(store).await.unwrap();
+    ///
+    ///     assert_eq!(
+    ///         dir,
+    ///         store.get_deserializable(&cid).await.unwrap()
+    ///     );
     /// }
     /// ```
     #[inline(always)]
@@ -326,19 +331,18 @@ impl PublicDirectory {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::{public::{PublicDirectory, PublicOpResult}, MemoryBlockStore};
+    /// use wnfs::{PublicDirectory, PublicOpResult, MemoryBlockStore};
     /// use libipld::cid::Cid;
     /// use std::rc::Rc;
     /// use chrono::Utc;
     ///
     /// #[async_std::main]
     /// async fn main() {
-    ///     let time = Utc::now();
-    ///     let dir = Rc::new(PublicDirectory::new(time));
+    ///     let dir = Rc::new(PublicDirectory::new(Utc::now()));
     ///     let mut store = MemoryBlockStore::default();
     ///     let cid = Cid::default();
     ///
-    ///     let PublicOpResult { root_dir, .. } = Rc::new(PublicDirectory::new(Utc::now()))
+    ///     let PublicOpResult { root_dir, .. } = dir
     ///         .write(
     ///             &["pictures".into(), "cats".into(), "tabby.png".into()],
     ///             cid,
@@ -384,18 +388,17 @@ impl PublicDirectory {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::{public::{PublicDirectory, PublicOpResult}, MemoryBlockStore};
+    /// use wnfs::{PublicDirectory, PublicOpResult, MemoryBlockStore};
     /// use libipld::cid::Cid;
     /// use std::rc::Rc;
     /// use chrono::Utc;
     ///
     /// #[async_std::main]
     /// async fn main() {
-    ///     let time = Utc::now();
-    ///     let dir = Rc::new(PublicDirectory::new(time));
+    ///     let dir = Rc::new(PublicDirectory::new(Utc::now()));
     ///     let store = MemoryBlockStore::default();
     ///
-    ///     let PublicOpResult { root_dir, .. } = Rc::new(PublicDirectory::new(Utc::now()))
+    ///     let PublicOpResult { root_dir, .. } = dir
     ///         .write(
     ///             &["pictures".into(), "cats".into(), "tabby.png".into()],
     ///             Cid::default(),
@@ -452,18 +455,27 @@ impl PublicDirectory {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::{public::{PublicDirectory, PublicOpResult}, Id, MemoryBlockStore};
+    /// use wnfs::{PublicDirectory, PublicOpResult, Id, MemoryBlockStore};
     /// use std::rc::Rc;
     /// use chrono::Utc;
     ///
     /// #[async_std::main]
     /// async fn main() {
-    ///     let mut store = MemoryBlockStore::default();
+    ///     let dir = Rc::new(PublicDirectory::new(Utc::now()));
+    ///     let store = MemoryBlockStore::default();
     ///
-    ///     let PublicOpResult { root_dir, .. } = Rc::new(PublicDirectory::new(Utc::now()))
+    ///     let PublicOpResult { root_dir, .. } = dir
     ///         .mkdir(&["pictures".into(), "cats".into()], Utc::now(), &store)
     ///         .await
     ///         .unwrap();
+    ///
+    ///     let PublicOpResult { result, .. } = root_dir
+    ///         .ls(&["pictures".into()], &store)
+    ///         .await
+    ///         .unwrap();
+    ///
+    ///     assert_eq!(result.len(), 1);
+    ///     assert_eq!(result[0].0, "cats");
     /// }
     /// ```
     ///
@@ -489,18 +501,17 @@ impl PublicDirectory {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::{public::{PublicDirectory, PublicOpResult}, MemoryBlockStore};
+    /// use wnfs::{PublicDirectory, PublicOpResult, MemoryBlockStore};
     /// use libipld::cid::Cid;
     /// use std::rc::Rc;
     /// use chrono::Utc;
     ///
     /// #[async_std::main]
     /// async fn main() {
-    ///     let time = Utc::now();
-    ///     let dir = Rc::new(PublicDirectory::new(time));
+    ///     let dir = Rc::new(PublicDirectory::new(Utc::now()));
     ///     let store = MemoryBlockStore::default();
     ///
-    ///     let PublicOpResult { root_dir, .. } = Rc::new(PublicDirectory::new(Utc::now()))
+    ///     let PublicOpResult { root_dir, .. } = dir
     ///         .write(
     ///             &["pictures".into(), "cats".into(), "tabby.png".into()],
     ///             Cid::default(),
@@ -549,18 +560,17 @@ impl PublicDirectory {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::{public::{PublicDirectory, PublicOpResult}, MemoryBlockStore};
+    /// use wnfs::{PublicDirectory, PublicOpResult, MemoryBlockStore};
     /// use libipld::cid::Cid;
     /// use std::rc::Rc;
     /// use chrono::Utc;
     ///
     /// #[async_std::main]
     /// async fn main() {
-    ///     let time = Utc::now();
-    ///     let dir = Rc::new(PublicDirectory::new(time));
+    ///     let dir = Rc::new(PublicDirectory::new(Utc::now()));
     ///     let store = MemoryBlockStore::default();
     ///
-    ///     let PublicOpResult { root_dir, .. } = Rc::new(PublicDirectory::new(Utc::now()))
+    ///     let PublicOpResult { root_dir, .. } = dir
     ///         .write(
     ///             &["pictures".into(), "cats".into(), "tabby.png".into()],
     ///             Cid::default(),
@@ -569,6 +579,13 @@ impl PublicDirectory {
     ///         )
     ///         .await
     ///         .unwrap();
+    ///
+    ///     let PublicOpResult { root_dir, result } = root_dir
+    ///         .ls(&["pictures".into()], &store)
+    ///         .await
+    ///         .unwrap();
+    ///
+    ///     assert_eq!(result.len(), 1);
     ///
     ///     let PublicOpResult { root_dir, .. } = root_dir
     ///         .rm(&["pictures".into(), "cats".into()], &store)
@@ -618,18 +635,17 @@ impl PublicDirectory {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::{public::{PublicDirectory, PublicOpResult}, MemoryBlockStore};
+    /// use wnfs::{PublicDirectory, PublicOpResult, MemoryBlockStore};
     /// use libipld::cid::Cid;
     /// use std::rc::Rc;
     /// use chrono::Utc;
     ///
     /// #[async_std::main]
     /// async fn main() {
-    ///     let time = Utc::now();
-    ///     let dir = Rc::new(PublicDirectory::new(time));
+    ///     let dir = Rc::new(PublicDirectory::new(Utc::now()));
     ///     let store = MemoryBlockStore::default();
     ///
-    ///     let PublicOpResult { root_dir, .. } = Rc::new(PublicDirectory::new(Utc::now()))
+    ///     let PublicOpResult { root_dir, .. } = dir
     ///         .write(
     ///             &["pictures".into(), "cats".into(), "tabby.png".into()],
     ///             Cid::default(),
@@ -703,7 +719,7 @@ impl PublicDirectory {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::{public::{PublicDirectory, PublicOpResult}, MemoryBlockStore};
+    /// use wnfs::{PublicDirectory, PublicOpResult, MemoryBlockStore};
     /// use libipld::cid::Cid;
     /// use std::rc::Rc;
     /// use chrono::Utc;
@@ -892,6 +908,7 @@ mod public_directory_tests {
     use super::*;
     use crate::{dagcbor, public::PublicFile, MemoryBlockStore};
     use chrono::Utc;
+    use libipld::Ipld;
 
     #[async_std::test]
     async fn look_up_can_fetch_file_added_to_directory() {
@@ -1361,7 +1378,6 @@ mod public_directory_tests {
             .await
             .unwrap();
 
-        use libipld::Ipld;
         let ipld = root_based.async_serialize_ipld(&mut store).await.unwrap();
         match ipld {
             Ipld::Map(map) => {

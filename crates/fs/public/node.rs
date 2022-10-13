@@ -46,16 +46,16 @@ impl PublicNode {
     }
 
     /// Creates node with updated previous pointer value.
-    pub fn update_previous<const N: usize>(&self, cids: [Cid; N]) -> Self {
+    pub fn update_previous(&self, cids: Vec<Cid>) -> Self {
         match self {
             Self::File(file) => {
                 let mut file = (**file).clone();
-                file.previous = BTreeSet::from(cids);
+                file.previous = cids.into_iter().collect();
                 Self::File(Rc::new(file))
             }
             Self::Dir(dir) => {
                 let mut dir = (**dir).clone();
-                dir.previous = BTreeSet::from(cids);
+                dir.previous = cids.into_iter().collect();
                 Self::Dir(Rc::new(dir))
             }
         }

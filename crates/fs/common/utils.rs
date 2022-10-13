@@ -1,4 +1,5 @@
 use anyhow::Result;
+use rand_core::RngCore;
 use serde::de::Visitor;
 use std::fmt;
 
@@ -39,6 +40,12 @@ pub fn split_last(path_segments: &[String]) -> Result<(&[String], &String)> {
         Some((last, rest)) => Ok((rest, last)),
         None => error(FsError::InvalidPath),
     }
+}
+
+pub fn get_random_bytes<const N: usize>(rng: &mut impl RngCore) -> [u8; N] {
+    let mut bytes = [0u8; N];
+    rng.fill_bytes(&mut bytes);
+    bytes
 }
 
 //--------------------------------------------------------------------------------------------------

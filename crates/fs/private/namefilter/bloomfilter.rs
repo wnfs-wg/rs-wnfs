@@ -1,4 +1,4 @@
-use std::ops::Index;
+use std::{ops::Index, fmt::Debug};
 
 use anyhow::anyhow;
 use bitvec::prelude::BitArray;
@@ -16,7 +16,7 @@ use crate::utils::ByteArrayVisitor;
 /// `N` is the size of the bloom filter in bytes.
 ///
 /// `K` is the number of bits to be set with each add operation.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd)]
+#[derive(Clone, PartialEq, Eq, PartialOrd)]
 pub struct BloomFilter<const N: usize, const K: usize> {
     pub(super) bits: BitArray<[u8; N]>,
 }
@@ -156,6 +156,17 @@ impl<'de, const N: usize, const K: usize> Deserialize<'de> for BloomFilter<N, K>
         Ok(BloomFilter::<N, K> {
             bits: BitArray::<[u8; N]>::new(deserializer.deserialize_bytes(ByteArrayVisitor::<N>)?),
         })
+    }
+}
+
+impl<const N: usize, const K: usize> Debug for BloomFilter<N, K> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "0x")?;
+        for byte in self.as_bytes().iter() {
+            write!(f, "{:02X}", byte)?;
+        }
+
+        Ok(())
     }
 }
 

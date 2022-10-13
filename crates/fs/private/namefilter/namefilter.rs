@@ -18,7 +18,7 @@ pub const HASH_BYTE_SIZE: usize = 32;
 
 /// Namefilters are 2048-bit bloom filters.
 ///
-/// In WNFS they represent the identity of a file or directory, doubling as a store for checking the ancestor of the file or directory.
+/// In WNFS they represent the identity key of a file or directory, doubling as a store for checking the ancestor of the file or directory.
 pub type Namefilter = BloomFilter<256, 30>;
 
 //--------------------------------------------------------------------------------------------------

@@ -1,4 +1,4 @@
-use std::{cmp::Ordering, io::Cursor, rc::Rc};
+use std::{cmp::Ordering, fmt::Debug, io::Cursor, rc::Rc};
 
 use anyhow::{bail, Result};
 use async_recursion::async_recursion;
@@ -8,14 +8,15 @@ use libipld::{
     prelude::{Decode, Encode},
     serde as ipld_serde, Ipld,
 };
+use rand_core::RngCore;
 use serde::{Deserialize, Serialize};
 use sha3::Sha3_256;
 use skip_ratchet::{seek::JumpSize, Ratchet, RatchetSeeker};
 
-use crate::{BlockStore, FsError, HashOutput, Id, NodeType, HASH_BYTE_SIZE};
+use crate::{utils, BlockStore, FsError, HashOutput, Id, NodeType, HASH_BYTE_SIZE};
 
 use super::{
-    hamt::Hasher, namefilter::Namefilter, Key, PrivateDirectory, PrivateFile, PrivateForest, Rng,
+    hamt::Hasher, namefilter::Namefilter, Key, PrivateDirectory, PrivateFile, PrivateForest,
 };
 
 //--------------------------------------------------------------------------------------------------
@@ -75,11 +76,11 @@ impl PrivateNode {
     }
 
     /// Generates two random set of bytes.
-    pub fn generate_double_random<R: Rng>(rng: &mut R) -> (HashOutput, HashOutput) {
+    pub fn generate_double_random<R: RngCore>(rng: &mut R) -> (HashOutput, HashOutput) {
         const _DOUBLE_SIZE: usize = HASH_BYTE_SIZE * 2;
         let [first, second] = unsafe {
             std::mem::transmute::<[u8; _DOUBLE_SIZE], [[u8; HASH_BYTE_SIZE]; 2]>(
-                rng.random_bytes::<_DOUBLE_SIZE>(),
+                utils::get_random_bytes::<_DOUBLE_SIZE>(rng),
             )
         };
         (first, second)
@@ -87,7 +88,7 @@ impl PrivateNode {
 
     /// Updates bare name ancestry of private sub tree.
     #[async_recursion(?Send)]
-    pub(crate) async fn update_ancestry<B: BlockStore, R: Rng>(
+    pub(crate) async fn update_ancestry<B: BlockStore, R: RngCore>(
         &mut self,
         parent_bare_name: Namefilter,
         hamt: Rc<PrivateForest>,
@@ -190,7 +191,7 @@ impl PrivateNode {
         let header = self.get_header();
 
         let private_ref = &header.get_private_ref()?;
-        if !forest.has(private_ref, store).await? {
+        if !forest.has(&private_ref.saturated_name_hash, store).await? {
             return Ok(self.clone());
         }
 
@@ -203,7 +204,10 @@ impl PrivateNode {
             current_header.ratchet = current.clone();
 
             let has_curr = forest
-                .has(&current_header.get_private_ref()?, store)
+                .has(
+                    &current_header.get_private_ref()?.saturated_name_hash,
+                    store,
+                )
                 .await?;
 
             let ord = if has_curr {
@@ -228,7 +232,7 @@ impl PrivateNode {
     }
 
     /// Serializes the node with provided Serde serialilzer.
-    pub fn serialize<S, R: Rng>(&self, serializer: S, rng: &mut R) -> Result<S::Ok, S::Error>
+    pub fn serialize<S, R: RngCore>(&self, serializer: S, rng: &mut R) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
     {
@@ -239,7 +243,7 @@ impl PrivateNode {
     }
 
     /// Serializes the node to dag-cbor bytes.
-    pub fn serialize_to_cbor<R: Rng>(&self, rng: &mut R) -> Result<Vec<u8>> {
+    pub fn serialize_to_cbor<R: RngCore>(&self, rng: &mut R) -> Result<Vec<u8>> {
         let ipld = self.serialize(ipld_serde::Serializer, rng)?;
         let mut bytes = Vec::new();
         ipld.encode(DagCborCodec, &mut bytes)?;
@@ -302,7 +306,7 @@ impl From<PrivateDirectory> for PrivateNode {
 
 impl PrivateNodeHeader {
     /// Creates a new PrivateNodeHeader.
-    pub fn new<R: Rng>(parent_bare_name: Namefilter, rng: &mut R) -> Self {
+    pub fn new<R: RngCore>(parent_bare_name: Namefilter, rng: &mut R) -> Self {
         let (inumber, ratchet_seed) = PrivateNode::generate_double_random(rng);
         Self {
             bare_name: {
@@ -357,8 +361,8 @@ impl PrivateNodeHeader {
     }
 
     /// Resets the ratchet.
-    pub fn reset_ratchet<R: Rng>(&mut self, rng: &mut R) {
-        self.ratchet = Ratchet::zero(rng.random_bytes())
+    pub fn reset_ratchet<R: RngCore>(&mut self, rng: &mut R) {
+        self.ratchet = Ratchet::zero(utils::get_random_bytes(rng))
     }
 }
 

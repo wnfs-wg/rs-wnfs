@@ -3,10 +3,11 @@ use std::rc::Rc;
 use anyhow::Result;
 use libipld::Cid;
 use log::debug;
+use rand_core::RngCore;
 
 use crate::{BlockStore, HashOutput};
 
-use super::{hamt::Hamt, namefilter::Namefilter, Key, PrivateNode, PrivateRef, Rng};
+use super::{hamt::Hamt, namefilter::Namefilter, Key, PrivateNode, PrivateRef};
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
@@ -22,13 +23,13 @@ pub type PrivateForest = Hamt<Namefilter, Cid>;
 
 impl PrivateForest {
     /// Encrypts supplied bytes with a random nonce and AES key.
-    pub(crate) fn encrypt<R: Rng>(key: &Key, data: &[u8], rng: &mut R) -> Result<Vec<u8>> {
+    pub(crate) fn encrypt<R: RngCore>(key: &Key, data: &[u8], rng: &mut R) -> Result<Vec<u8>> {
         key.encrypt(&Key::generate_nonce(rng), data)
     }
 
     /// Sets a new value at the given key.
     #[inline]
-    pub async fn set<B: BlockStore, R: Rng>(
+    pub async fn set<B: BlockStore, R: RngCore>(
         self: Rc<Self>,
         saturated_name: Namefilter,
         private_ref: &PrivateRef,
@@ -82,10 +83,15 @@ impl PrivateForest {
         )?))
     }
 
-    pub async fn has<B: BlockStore>(&self, private_ref: &PrivateRef, store: &B) -> Result<bool> {
+    /// Checks that a value with the given saturated name hash key exists.
+    pub async fn has<B: BlockStore>(
+        &self,
+        saturated_name_hash: &HashOutput,
+        store: &B,
+    ) -> Result<bool> {
         Ok(self
             .root
-            .get_by_hash(&private_ref.saturated_name_hash, store)
+            .get_by_hash(saturated_name_hash, store)
             .await?
             .is_some())
     }
