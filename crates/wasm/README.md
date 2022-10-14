@@ -43,9 +43,9 @@ WNFS file trees can serialize and be deserialized from IPLD graphs with an exten
 
 ## Usage
 
-WNFS does not have an opinion on where you want to persist your content or the file tree. Instead, the API expects any object that implements the async [`BlockStore`](https://github.com/wnfs-wg/rs-wnfs/blob/07d026c1ef324597da9ac7897353015dd634af16/crates/fs/common/blockstore.rs#L30-L85) interface. This implementation also defers system-level operations to the user; requiring that operations like time and random number generation be passed in from the interface. This makes for a clean wasm interface that works everywhere.
+WNFS does not have an opinion on where you want to persist your content or the file tree. Instead, the API expects any object that implements the async [`BlockStore`](https://github.com/wnfs-wg/rs-wnfs/blob/07d026c1ef324597da9ac7897353015dd634af16/crates/wasm/fs/blockstore.rs#L20-L29) interface. This implementation also defers system-level operations to the user; requiring that operations like time and random number generation be passed in from the interface. This makes for a clean wasm interface that works everywhere.
 
-Let's see an example of working with a public directory. Here we are going to use the memory-based blockstore provided by library.
+Let's see an example of working with a public directory. Here we are going to use a custom-written memory-based blockstore.
 
 ```js
 import { MemoryBlockStore } from "<custom>";
