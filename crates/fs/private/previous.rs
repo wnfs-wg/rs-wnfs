@@ -649,4 +649,107 @@ mod private_history_tests {
             .unwrap()
             .is_none());
     }
+
+    /// This test will generate the following file system structure:
+    ///
+    /// (horizontal = time series, vertical = hierarchy)
+    /// ```plain
+    /// ┌────────────┐    ┌────────────┐    ┌────────────┐
+    /// │            │    │            │    │            │
+    /// │    Root    ├───►│    Root    ├───►│    Root    │
+    /// │            │    │            │    │            │
+    /// └─────┬──────┘    └─────┬──────┘    └─────┬──────┘
+    ///       │                 │                 │
+    ///       │ ┌───────────────┘                 │
+    ///       ▼ ▼                                 ▼
+    /// ┌────────────┐                      ┌────────────┐
+    /// │            │                      │            │
+    /// │    Docs    ├─────────────────────►│    Docs    │
+    /// │            │                      │            │
+    /// └─────┬──────┘                      └─────┬──────┘
+    ///       │                                   │
+    ///       │                                   │
+    ///       ▼                                   ▼
+    /// ┌────────────┐                      ┌────────────┐
+    /// │            │                      │            │
+    /// │  Notes.md  ├─────────────────────►│  Notes.md  │
+    /// │            │                      │            │
+    /// └────────────┘                      └────────────┘
+    /// ```
+    ///
+    /// This scenario may happen very commonly when things are
+    /// written to the root directory that aren't related to
+    /// the path that is looked at for its history.
+    #[async_std::test]
+    async fn previous_with_unrelated_changes() {
+        let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
+        let store = &mut MemoryBlockStore::default();
+        let hamt = Rc::new(PrivateForest::new());
+        let root_dir = Rc::new(PrivateDirectory::new(
+            Namefilter::default(),
+            Utc::now(),
+            rng,
+        ));
+        let discrepancy_budget = 1_000_000;
+        let path = ["Docs".into(), "Notes.md".into()];
+
+        let PrivateOpResult { root_dir, hamt, .. } = root_dir
+            .write(&path, true, Utc::now(), b"rev 0".to_vec(), hamt, store, rng)
+            .await
+            .unwrap();
+
+        let past_ratchet = root_dir.header.ratchet.clone();
+
+        let root_dir = {
+            let mut tmp = (*root_dir).clone();
+            tmp.advance_ratchet();
+            Rc::new(tmp)
+        };
+
+        let hamt = hamt
+            .set(
+                root_dir.header.get_saturated_name(),
+                &root_dir.header.get_private_ref().unwrap(),
+                &PrivateNode::Dir(Rc::clone(&root_dir)),
+                store,
+                rng,
+            )
+            .await
+            .unwrap();
+
+        let PrivateOpResult { root_dir, hamt, .. } = root_dir
+            .write(&path, true, Utc::now(), b"rev 1".to_vec(), hamt, store, rng)
+            .await
+            .unwrap();
+
+        let mut iterator = PrivateNodeOnPathHistory::previous_of(
+            root_dir,
+            &path,
+            true,
+            &*hamt,
+            store,
+            &past_ratchet,
+            discrepancy_budget,
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(
+            iterator
+                .previous(&*hamt, store, discrepancy_budget)
+                .await
+                .unwrap()
+                .unwrap()
+                .as_file()
+                .unwrap()
+                .content,
+            b"rev 0".to_vec()
+        );
+
+        assert!(iterator
+            .previous(&*hamt, store, discrepancy_budget)
+            .await
+            .unwrap()
+            .is_none());
+    }
 }
