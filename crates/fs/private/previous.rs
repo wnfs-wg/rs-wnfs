@@ -10,19 +10,24 @@ use crate::{BlockStore, FsError, PathNodes, PathNodesResult};
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
 //--------------------------------------------------------------------------------------------------
-pub struct PrviateNodeHistory {
+pub struct PrivateNodeOnPathHistory {
+    // TODO(matheus23) add PrivateForest & BlockStore refs?
+    path: Vec<PathSegmentHistory>,
+    target: PrivateNodeHistory,
+}
+
+struct PrivateNodeHistory {
     header: PrivateNodeHeader,
     ratchets: PreviousIterator,
 }
 
-pub struct PrivateNodeOnPathHistory {
-    // TODO(matheus23) Make triple a struct?
-    // TODO(matheus23) add PrivateForest & BlockStore refs?
-    path: Vec<(Rc<PrivateDirectory>, PrviateNodeHistory, String)>,
-    tail: PrviateNodeHistory,
+struct PathSegmentHistory {
+    dir: Rc<PrivateDirectory>,
+    history: PrivateNodeHistory,
+    path_segment: String,
 }
 
-impl PrviateNodeHistory {
+impl PrivateNodeHistory {
     pub fn of(
         node: &PrivateNode,
         past_ratchet: &Ratchet,
@@ -38,7 +43,7 @@ impl PrviateNodeHistory {
     ) -> Result<Self> {
         let ratchets = PreviousIterator::new(past_ratchet, &header.ratchet, discrepancy_budget)
             .map_err(|err| FsError::PreviousError(err))?;
-        Ok(PrviateNodeHistory { header, ratchets })
+        Ok(PrivateNodeHistory { header, ratchets })
     }
 
     async fn previous_node<B: BlockStore>(
@@ -83,7 +88,7 @@ impl PrivateNodeOnPathHistory {
             None => {
                 return Ok(PrivateNodeOnPathHistory {
                     path: Vec::with_capacity(0),
-                    tail: PrviateNodeHistory::of(
+                    target: PrivateNodeHistory::of(
                         &PrivateNode::Dir(directory),
                         past_ratchet,
                         discrepancy_budget,
@@ -119,7 +124,7 @@ impl PrivateNodeOnPathHistory {
             target.clone()
         };
 
-        let target_ratchets = PrviateNodeHistory::of(
+        let target_ratchets = PrivateNodeHistory::of(
             &target_latest,
             &target.get_header().ratchet,
             discrepancy_budget,
@@ -127,7 +132,7 @@ impl PrivateNodeOnPathHistory {
 
         let mut previous_iter = PrivateNodeOnPathHistory {
             path: Vec::with_capacity(path_nodes.len() + 1),
-            tail: target_ratchets,
+            target: target_ratchets,
         };
 
         let PathNodes { mut path, tail } = path_nodes;
@@ -135,21 +140,20 @@ impl PrivateNodeOnPathHistory {
         path.push((tail, last.to_string()));
 
         for (dir, path_segment) in path {
-            previous_iter.path.push((
-                Rc::clone(&dir),
-                PrviateNodeHistory::of(
+            previous_iter.path.push(PathSegmentHistory {
+                dir: Rc::clone(&dir),
+                history: PrivateNodeHistory::of(
                     &PrivateNode::Dir(Rc::clone(&dir)),
                     &dir.header.ratchet,
                     discrepancy_budget,
                 )?,
                 path_segment,
-            ));
+            });
         }
 
-        let ratchets = PreviousIterator::new(past_ratchet, &new_ratchet, discrepancy_budget)
-            .map_err(|err| FsError::PreviousError(err))?;
-
-        previous_iter.path[0].1.ratchets = ratchets;
+        previous_iter.path[0].history.ratchets =
+            PreviousIterator::new(past_ratchet, &new_ratchet, discrepancy_budget)
+                .map_err(|err| FsError::PreviousError(err))?;
 
         Ok(previous_iter)
     }
@@ -160,7 +164,7 @@ impl PrivateNodeOnPathHistory {
         store: &B,
         discrepancy_budget: usize,
     ) -> Result<Option<PrivateNode>> {
-        if let Some(node) = self.tail.previous_node(forest, store).await? {
+        if let Some(node) = self.target.previous_node(forest, store).await? {
             return Ok(Some(node));
         }
 
@@ -168,30 +172,32 @@ impl PrivateNodeOnPathHistory {
             Vec::with_capacity(self.path.len());
 
         loop {
-            if let Some((dir, mut previous, path_segment)) = self.path.pop() {
-                if let Some(prev) = previous.previous_dir(forest, store).await? {
-                    self.path.push((prev, previous, path_segment));
+            if let Some(mut segment) = self.path.pop() {
+                if let Some(prev) = segment.history.previous_dir(forest, store).await? {
+                    segment.dir = prev;
+                    self.path.push(segment);
                     break;
                 }
 
-                working_stack.push((dir, path_segment));
+                working_stack.push((segment.dir, segment.path_segment));
             } else {
                 return Ok(None);
             }
         }
 
         for (directory, path_segment) in working_stack {
-            let (ancestor_dir, _, ancestor_segment) = self.path.last().unwrap();
+            let ancestor = self.path.last().unwrap();
 
-            let older_directory = match ancestor_dir
-                .lookup_node(ancestor_segment, false, forest, store)
+            let older_directory = match ancestor
+                .dir
+                .lookup_node(&ancestor.path_segment, false, forest, store)
                 .await?
             {
                 Some(PrivateNode::Dir(older_directory)) => older_directory,
                 _ => return Ok(None),
             };
 
-            let mut directory_history = PrviateNodeHistory::of(
+            let mut directory_history = PrivateNodeHistory::of(
                 &PrivateNode::Dir(directory),
                 &older_directory.header.ratchet,
                 discrepancy_budget,
@@ -202,27 +208,31 @@ impl PrivateNodeOnPathHistory {
                 _ => return Ok(None),
             };
 
-            self.path
-                .push((directory_prev, directory_history, path_segment));
+            self.path.push(PathSegmentHistory {
+                dir: directory_prev,
+                history: directory_history,
+                path_segment,
+            });
         }
 
-        let (ancestor_dir, _, ancestor_segment) = self.path.last().unwrap();
+        let ancestor = self.path.last().unwrap();
 
-        let older_node = match ancestor_dir
-            .lookup_node(ancestor_segment, false, forest, store)
+        let older_node = match ancestor
+            .dir
+            .lookup_node(&ancestor.path_segment, false, forest, store)
             .await?
         {
             Some(older_node) => older_node,
-            None => todo!(),
+            None => return Ok(None),
         };
 
-        self.tail = PrviateNodeHistory::from_header(
-            self.tail.header.clone(),
+        self.target = PrivateNodeHistory::from_header(
+            self.target.header.clone(),
             &older_node.get_header().ratchet,
             discrepancy_budget,
         )?;
 
-        self.tail.previous_node(forest, store).await
+        self.target.previous_node(forest, store).await
     }
 }
 
