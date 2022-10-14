@@ -25,25 +25,54 @@ use super::{
 
 pub type INumber = HashOutput;
 
+/// Represents a node in the WNFS private file system. This can either be a file or a directory.
+///
+/// # Examples
+///
+/// ```
+/// use wnfs::{PrivateDirectory, PrivateNode, Namefilter};
+/// use chrono::Utc;
+/// use std::rc::Rc;
+/// use rand::thread_rng;
+///
+/// let rng = &mut thread_rng();
+/// let dir = Rc::new(PrivateDirectory::new(
+///     Namefilter::default(),
+///     Utc::now(),
+///     rng,
+/// ));
+///
+/// let node = PrivateNode::Dir(dir);
+///
+/// println!("Node: {:?}", node);
+/// ```
 #[derive(Debug, Clone, PartialEq)]
 pub enum PrivateNode {
     File(Rc<PrivateFile>),
     Dir(Rc<PrivateDirectory>),
 }
 
+/// The key used to encrypt the content of a node.
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct ContentKey(pub Key);
 
+/// The key used to encrypt the header section of a node.
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct RatchetKey(pub Key);
 
+/// This is the header of a private node. It contains secret information about the node which includes
+/// the inumber, the ratchet, and the namefilter.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PrivateNodeHeader {
-    pub(crate) bare_name: Namefilter,
-    pub(crate) ratchet: Ratchet,
+    /// A unique identifier of the node.
     pub(crate) inumber: INumber,
+    /// Used both for versioning and deriving keys for that enforces privacy.
+    pub(crate) ratchet: Ratchet,
+    /// Used for ancestry checks and as a key fot the HAMT.
+    pub(crate) bare_name: Namefilter,
 }
 
+/// PrivateRef holds the information to fetch associated node from a HAMT and decrypt it if it is present.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PrivateRef {
     /// Sha3-256 hash of saturated namefilter.
@@ -60,8 +89,37 @@ pub struct PrivateRef {
 
 impl PrivateNode {
     /// Creates node with upserted modified time.
-    pub fn upsert_mtime(&mut self, time: DateTime<Utc>) {
-        *self = match self {
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use wnfs::{PrivateDirectory, PrivateNode, Namefilter};
+    /// use chrono::Utc;
+    /// use std::rc::Rc;
+    /// use rand::thread_rng;
+    ///
+    /// let rng = &mut thread_rng();
+    /// let dir = Rc::new(PrivateDirectory::new(
+    ///     Namefilter::default(),
+    ///     Utc::now(),
+    ///     rng,
+    /// ));
+    /// let node = PrivateNode::Dir(dir);
+    ///
+    /// let time = Utc::now();
+    /// let node = node.upsert_mtime(time);
+    ///
+    /// assert_eq!(
+    ///     time,
+    ///     node.as_dir()
+    ///         .unwrap()
+    ///         .get_metadata()
+    ///         .get_modified()
+    ///         .unwrap()
+    /// );
+    /// ```
+    pub fn upsert_mtime(&self, time: DateTime<Utc>) -> Self {
+        match self {
             Self::File(file) => {
                 let mut file = (**file).clone();
                 file.metadata.upsert_mtime(time);
@@ -72,11 +130,11 @@ impl PrivateNode {
                 dir.metadata.upsert_mtime(time);
                 Self::Dir(Rc::new(dir))
             }
-        };
+        }
     }
 
     /// Generates two random set of bytes.
-    pub fn generate_double_random<R: RngCore>(rng: &mut R) -> (HashOutput, HashOutput) {
+    pub(crate) fn generate_double_random<R: RngCore>(rng: &mut R) -> (HashOutput, HashOutput) {
         const _DOUBLE_SIZE: usize = HASH_BYTE_SIZE * 2;
         let [first, second] = unsafe {
             std::mem::transmute::<[u8; _DOUBLE_SIZE], [[u8; HASH_BYTE_SIZE]; 2]>(
@@ -146,6 +204,25 @@ impl PrivateNode {
     }
 
     /// Gets the header of the node.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use wnfs::{PrivateDirectory, PrivateNode, Namefilter};
+    /// use chrono::Utc;
+    /// use std::rc::Rc;
+    /// use rand::thread_rng;
+    ///
+    /// let rng = &mut thread_rng();
+    /// let dir = Rc::new(PrivateDirectory::new(
+    ///     Namefilter::default(),
+    ///     Utc::now(),
+    ///     rng,
+    /// ));
+    /// let node = PrivateNode::Dir(Rc::clone(&dir));
+    ///
+    /// assert_eq!(&dir.header, node.get_header());
+    /// ```
     pub fn get_header(&self) -> &PrivateNodeHeader {
         match self {
             Self::File(file) => &file.header,
@@ -155,9 +232,24 @@ impl PrivateNode {
 
     /// Casts a node to a directory.
     ///
-    /// # Panics
+    /// # Examples
     ///
-    /// Panics if the node is not a directory.
+    /// ```
+    /// use wnfs::{PrivateDirectory, PrivateNode, Namefilter};
+    /// use chrono::Utc;
+    /// use std::rc::Rc;
+    /// use rand::thread_rng;
+    ///
+    /// let rng = &mut thread_rng();
+    /// let dir = Rc::new(PrivateDirectory::new(
+    ///     Namefilter::default(),
+    ///     Utc::now(),
+    ///     rng,
+    /// ));
+    /// let node = PrivateNode::Dir(Rc::clone(&dir));
+    ///
+    /// assert_eq!(node.as_dir().unwrap(), dir);
+    /// ```
     pub fn as_dir(&self) -> Result<Rc<PrivateDirectory>> {
         Ok(match self {
             Self::Dir(dir) => Rc::clone(dir),
@@ -167,9 +259,25 @@ impl PrivateNode {
 
     /// Casts a node to a file.
     ///
-    /// # Panics
+    /// # Examples
     ///
-    /// Panics if the node is not a file.
+    /// ```
+    /// use wnfs::{PrivateFile, PrivateNode, Namefilter};
+    /// use chrono::Utc;
+    /// use std::rc::Rc;
+    /// use rand::thread_rng;
+    ///
+    /// let rng = &mut thread_rng();
+    /// let file = Rc::new(PrivateFile::new(
+    ///     Namefilter::default(),
+    ///     Utc::now(),
+    ///     b"hello world".to_vec(),
+    ///     rng,
+    /// ));
+    /// let node = PrivateNode::File(Rc::clone(&file));
+    ///
+    /// assert_eq!(node.as_file().unwrap(), file);
+    /// ```
     pub fn as_file(&self) -> Result<Rc<PrivateFile>> {
         Ok(match self {
             Self::File(file) => Rc::clone(file),
@@ -178,8 +286,52 @@ impl PrivateNode {
     }
 
     /// Returns true if underlying node is a directory.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use wnfs::{PrivateDirectory, PrivateNode, Namefilter};
+    /// use chrono::Utc;
+    /// use std::rc::Rc;
+    /// use rand::thread_rng;
+    ///
+    /// let rng = &mut thread_rng();
+    /// let dir = Rc::new(PrivateDirectory::new(
+    ///     Namefilter::default(),
+    ///     Utc::now(),
+    ///     rng,
+    /// ));
+    /// let node = PrivateNode::Dir(dir);
+    ///
+    /// assert!(node.is_dir());
+    /// ```
     pub fn is_dir(&self) -> bool {
         matches!(self, Self::Dir(_))
+    }
+
+    /// Returns true if the underlying node is a file.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use wnfs::{PrivateFile, PrivateNode, Namefilter};
+    /// use chrono::Utc;
+    /// use std::rc::Rc;
+    /// use rand::thread_rng;
+    ///
+    /// let rng = &mut thread_rng();
+    /// let file = Rc::new(PrivateFile::new(
+    ///     Namefilter::default(),
+    ///     Utc::now(),
+    ///     b"hello world".to_vec(),
+    ///     rng,
+    /// ));
+    /// let node = PrivateNode::File(file);
+    ///
+    /// assert!(node.is_file());
+    /// ```
+    pub fn is_file(&self) -> bool {
+        matches!(self, Self::File(_))
     }
 
     /// Gets the latest version of the node using exponential search.
@@ -232,7 +384,11 @@ impl PrivateNode {
     }
 
     /// Serializes the node with provided Serde serialilzer.
-    pub fn serialize<S, R: RngCore>(&self, serializer: S, rng: &mut R) -> Result<S::Ok, S::Error>
+    pub(crate) fn serialize<S, R: RngCore>(
+        &self,
+        serializer: S,
+        rng: &mut R,
+    ) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
     {
@@ -243,7 +399,7 @@ impl PrivateNode {
     }
 
     /// Serializes the node to dag-cbor bytes.
-    pub fn serialize_to_cbor<R: RngCore>(&self, rng: &mut R) -> Result<Vec<u8>> {
+    pub(crate) fn serialize_to_cbor<R: RngCore>(&self, rng: &mut R) -> Result<Vec<u8>> {
         let ipld = self.serialize(ipld_serde::Serializer, rng)?;
         let mut bytes = Vec::new();
         ipld.encode(DagCborCodec, &mut bytes)?;
@@ -251,7 +407,7 @@ impl PrivateNode {
     }
 
     /// Deserializes the node from dag-cbor bytes.
-    pub fn deserialize_from_cbor(bytes: &[u8], key: &RatchetKey) -> Result<Self> {
+    pub(crate) fn deserialize_from_cbor(bytes: &[u8], key: &RatchetKey) -> Result<Self> {
         let ipld = Ipld::decode(DagCborCodec, &mut Cursor::new(bytes))?;
         (ipld, key).try_into()
     }

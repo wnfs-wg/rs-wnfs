@@ -27,7 +27,7 @@ pub type PrivatePathNodesResult = PathNodesResult<PrivateDirectory>;
 /// # Examples
 ///
 /// ```
-/// use wnfs::{PrivateDirectory, Namefilter, Id};
+/// use wnfs::{PrivateDirectory, Namefilter};
 /// use chrono::Utc;
 /// use rand::thread_rng;
 ///
@@ -78,7 +78,7 @@ impl PrivateDirectory {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::{PrivateDirectory, Namefilter, Id};
+    /// use wnfs::{PrivateDirectory, Namefilter};
     /// use chrono::Utc;
     /// use rand::thread_rng;
     ///
@@ -98,6 +98,31 @@ impl PrivateDirectory {
             metadata: Metadata::new(time),
             entries: BTreeMap::new(),
         }
+    }
+
+    /// Gets the metadata of the directory
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use wnfs::{PrivateDirectory, Namefilter, Metadata};
+    /// use chrono::Utc;
+    /// use rand::thread_rng;
+    /// use std::rc::Rc;
+    ///
+    /// let rng = &mut thread_rng();
+    /// let time = Utc::now();
+    /// let dir = Rc::new(PrivateDirectory::new(
+    ///     Namefilter::default(),
+    ///     time,
+    ///     rng,
+    /// ));
+    ///
+    /// assert_eq!(dir.get_metadata(), &Metadata::new(time));
+    /// ```
+    #[inline]
+    pub fn get_metadata<'a>(self: &'a Rc<Self>) -> &'a Metadata {
+        &self.metadata
     }
 
     /// Advances the ratchet.
@@ -872,7 +897,7 @@ impl PrivateDirectory {
     #[allow(clippy::too_many_arguments)]
     async fn attach<B: BlockStore, R: RngCore>(
         self: Rc<Self>,
-        mut node: PrivateNode,
+        node: PrivateNode,
         path_segments: &[String],
         search_latest: bool,
         time: DateTime<Utc>,
@@ -897,7 +922,8 @@ impl PrivateDirectory {
             FsError::FileAlreadyExists
         );
 
-        node.upsert_mtime(time);
+        let mut node = node.upsert_mtime(time);
+
         let hamt = node
             .update_ancestry(directory.header.bare_name.clone(), hamt, store, rng)
             .await?;

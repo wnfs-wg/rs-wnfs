@@ -31,12 +31,12 @@ pub type PublicPathNodesResult = PathNodesResult<PublicDirectory>;
 /// # Examples
 ///
 /// ```
-/// use wnfs::{PublicDirectory, Id};
+/// use wnfs::PublicDirectory;
 /// use chrono::Utc;
 ///
 /// let dir = PublicDirectory::new(Utc::now());
 ///
-/// println!("id = {}", dir.get_id());
+/// println!("Directory: {:?}", dir);
 /// ```
 #[derive(Debug, Clone, PartialEq)]
 pub struct PublicDirectory {
@@ -74,12 +74,12 @@ impl PublicDirectory {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::{PublicDirectory, Id};
+    /// use wnfs::PublicDirectory;
     /// use chrono::Utc;
     ///
     /// let dir = PublicDirectory::new(Utc::now());
     ///
-    /// println!("id = {}", dir.get_id());
+    /// println!("Directory: {:?}", dir);
     /// ```
     pub fn new(time: DateTime<Utc>) -> Self {
         Self {
@@ -90,13 +90,38 @@ impl PublicDirectory {
         }
     }
 
-    /// Gets the previous value of the directory.
+    /// Gets the previous Cids.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use wnfs::PublicDirectory;
+    /// use std::{rc::Rc, collections::BTreeSet};
+    /// use chrono::Utc;
+    ///
+    /// let dir = Rc::new(PublicDirectory::new(Utc::now()));
+    ///
+    /// assert_eq!(dir.get_previous(), &BTreeSet::new());
+    /// ```
     #[inline]
     pub fn get_previous<'a>(self: &'a Rc<Self>) -> &'a BTreeSet<Cid> {
         &self.previous
     }
 
-    /// Gets the metadata of the directory
+    /// Gets the metadata.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use wnfs::{PublicDirectory, Metadata};
+    /// use std::rc::Rc;
+    /// use chrono::Utc;
+    ///
+    /// let time = Utc::now();
+    /// let dir = Rc::new(PublicDirectory::new(time));
+    ///
+    /// assert_eq!(dir.get_metadata(), &Metadata::new(time));
+    /// ```
     #[inline]
     pub fn get_metadata<'a>(self: &'a Rc<Self>) -> &'a Metadata {
         &self.metadata
@@ -700,7 +725,7 @@ impl PublicDirectory {
             FsError::FileAlreadyExists
         );
 
-        let removed_node = removed_node.update_mtime(time);
+        let removed_node = removed_node.upsert_mtime(time);
 
         directory
             .userland

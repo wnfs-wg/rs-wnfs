@@ -15,9 +15,20 @@ use crate::{common::BlockStore, AsyncSerialize, FsError, Id, NodeType};
 // Type Definitions
 //--------------------------------------------------------------------------------------------------
 
-/// A node in a WNFS public file system. This can either be a file or a directory.
+/// Represents a node in the WNFS public file system. This can either be a file or a directory.
 ///
-/// PublicNode is serialized as enum.
+/// # Examples
+///
+/// ```
+/// use wnfs::{PublicDirectory, PublicNode};
+/// use chrono::Utc;
+/// use std::rc::Rc;
+///
+/// let dir = Rc::new(PublicDirectory::new(Utc::now()));
+/// let node = PublicNode::Dir(dir);
+///
+/// println!("Node: {:?}", node);
+/// ```
 #[derive(Debug, Clone)]
 pub enum PublicNode {
     File(Rc<PublicFile>),
@@ -29,8 +40,31 @@ pub enum PublicNode {
 //--------------------------------------------------------------------------------------------------
 
 impl PublicNode {
-    /// Creates node with updated modified time.
-    pub fn update_mtime(&self, time: DateTime<Utc>) -> Self {
+    /// Creates node with upserted modified time.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use wnfs::{PublicDirectory, PublicNode};
+    /// use chrono::Utc;
+    /// use std::rc::Rc;
+    ///
+    /// let dir = Rc::new(PublicDirectory::new(Utc::now()));
+    /// let node = PublicNode::Dir(dir);
+    ///
+    /// let time = Utc::now();
+    /// let node = node.upsert_mtime(time);
+    ///
+    /// assert_eq!(
+    ///     time,
+    ///     node.as_dir()
+    ///         .unwrap()
+    ///         .get_metadata()
+    ///         .get_modified()
+    ///         .unwrap()
+    /// );
+    /// ```
+    pub fn upsert_mtime(&self, time: DateTime<Utc>) -> Self {
         match self {
             Self::File(file) => {
                 let mut file = (**file).clone();
@@ -46,6 +80,28 @@ impl PublicNode {
     }
 
     /// Creates node with updated previous pointer value.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use wnfs::{PublicDirectory, PublicNode};
+    /// use chrono::Utc;
+    /// use libipld::Cid;
+    /// use std::{rc::Rc, collections::BTreeSet};
+    ///
+    /// let dir = Rc::new(PublicDirectory::new(Utc::now()));
+    /// let node = PublicNode::Dir(dir);
+    ///
+    /// let new_cids = [Cid::default()];
+    /// let node = node.update_previous(new_cids.to_vec());
+    ///
+    /// assert_eq!(
+    ///     &BTreeSet::from(new_cids),
+    ///     node.as_dir()
+    ///         .unwrap()
+    ///         .get_previous()
+    /// );
+    /// ```
     pub fn update_previous(&self, cids: Vec<Cid>) -> Self {
         match self {
             Self::File(file) => {
@@ -62,6 +118,24 @@ impl PublicNode {
     }
 
     /// Gets previous ancestor of a node.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use wnfs::{PublicDirectory, PublicNode};
+    /// use chrono::Utc;
+    /// use std::rc::Rc;
+    ///
+    /// let dir = Rc::new(PublicDirectory::new(Utc::now()));
+    /// let node = PublicNode::Dir(dir);
+    ///
+    /// assert_eq!(
+    ///     node.get_previous(),
+    ///     node.as_dir()
+    ///         .unwrap()
+    ///         .get_previous()
+    /// );
+    /// ```
     pub fn get_previous(&self) -> &BTreeSet<Cid> {
         match self {
             Self::File(file) => file.get_previous(),
@@ -71,9 +145,18 @@ impl PublicNode {
 
     /// Casts a node to a directory.
     ///
-    /// # Panics
+    /// # Examples
     ///
-    /// Panics if the node is not a directory.
+    /// ```
+    /// use wnfs::{PublicDirectory, PublicNode};
+    /// use chrono::Utc;
+    /// use std::rc::Rc;
+    ///
+    /// let dir = Rc::new(PublicDirectory::new(Utc::now()));
+    /// let node = PublicNode::Dir(Rc::clone(&dir));
+    ///
+    /// assert_eq!(node.as_dir().unwrap(), dir);
+    /// ```
     pub fn as_dir(&self) -> Result<Rc<PublicDirectory>> {
         Ok(match self {
             Self::Dir(dir) => Rc::clone(dir),
@@ -83,9 +166,19 @@ impl PublicNode {
 
     /// Casts a node to a file.
     ///
-    /// # Panics
+    /// # Examples
     ///
-    /// Panics if the node is not a file.
+    /// ```
+    /// use wnfs::{PublicFile, PublicNode};
+    /// use chrono::Utc;
+    /// use std::rc::Rc;
+    /// use libipld::Cid;
+    ///
+    /// let file = Rc::new(PublicFile::new(Utc::now(), Cid::default()));
+    /// let node = PublicNode::File(Rc::clone(&file));
+    ///
+    /// assert_eq!(node.as_file().unwrap(), file);
+    /// ```
     pub fn as_file(&self) -> Result<Rc<PublicFile>> {
         Ok(match self {
             Self::File(file) => Rc::clone(file),
@@ -93,8 +186,7 @@ impl PublicNode {
         })
     }
 
-    /// Stores a WNFS node as block(s) in chosen block store.
-    #[inline]
+    /// Serializes a node to the block store.
     pub async fn store<B: BlockStore>(&self, store: &mut B) -> Result<Cid> {
         Ok(match self {
             Self::File(file) => file.store(store).await?,
@@ -103,11 +195,38 @@ impl PublicNode {
     }
 
     /// Returns true if underlying node is a directory.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use wnfs::{PublicDirectory, PublicNode};
+    /// use chrono::Utc;
+    /// use std::rc::Rc;
+    ///
+    /// let dir = Rc::new(PublicDirectory::new(Utc::now()));
+    /// let node = PublicNode::Dir(dir);
+    ///
+    /// assert!(node.is_dir());
+    /// ```
     pub fn is_dir(&self) -> bool {
         matches!(self, Self::Dir(_))
     }
 
     /// Returns true if the underlying node is a file.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use wnfs::{PublicFile, PublicNode};
+    /// use chrono::Utc;
+    /// use std::rc::Rc;
+    /// use libipld::Cid;
+    ///
+    /// let file = Rc::new(PublicFile::new(Utc::now(), Cid::default()));
+    /// let node = PublicNode::File(file);
+    ///
+    /// assert!(node.is_file());
+    /// ```
     pub fn is_file(&self) -> bool {
         matches!(self, Self::File(_))
     }

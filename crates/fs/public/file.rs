@@ -16,13 +16,13 @@ use crate::{BlockStore, Id, Metadata, NodeType};
 /// # Examples
 ///
 /// ```
-/// use wnfs::{public::PublicFile, Id};
+/// use wnfs::PublicFile;
 /// use chrono::Utc;
 /// use libipld::Cid;
 ///
 /// let file = PublicFile::new(Utc::now(), Cid::default());
 ///
-/// println!("id = {}", file.get_id());
+/// println!("File: {:?}", file);
 /// ```
 #[derive(Debug, Clone, PartialEq)]
 pub struct PublicFile {
@@ -51,13 +51,13 @@ impl PublicFile {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::{public::PublicFile, Id};
+    /// use wnfs::PublicFile;
     /// use chrono::Utc;
     /// use libipld::Cid;
     ///
     /// let file = PublicFile::new(Utc::now(), Cid::default());
     ///
-    /// println!("id = {}", file.get_id());
+    /// println!("File: {:?}", file);
     /// ```
     pub fn new(time: DateTime<Utc>, content_cid: Cid) -> Self {
         Self {
@@ -99,7 +99,7 @@ impl PublicFile {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::{public::PublicFile, Id, MemoryBlockStore};
+    /// use wnfs::{PublicFile, Id, MemoryBlockStore};
     /// use chrono::Utc;
     /// use libipld::Cid;
     ///
