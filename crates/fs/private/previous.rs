@@ -17,6 +17,7 @@ pub struct PrviateNodeHistory {
 
 pub struct PrivateNodeOnPathHistory {
     // TODO(matheus23) Make triple a struct?
+    // TODO(matheus23) add PrivateForest & BlockStore refs?
     path: Vec<(Rc<PrivateDirectory>, PrviateNodeHistory, String)>,
     tail: PrviateNodeHistory,
 }
@@ -180,14 +181,9 @@ impl PrivateNodeOnPathHistory {
         }
 
         for (directory, path_segment) in working_stack {
-            let (_, ancestor_previous, ancestor_segment) = self.path.last_mut().unwrap();
+            let (ancestor_dir, _, ancestor_segment) = self.path.last().unwrap();
 
-            let ancestor_prev_dir = match ancestor_previous.previous_dir(forest, store).await? {
-                Some(dir) => dir,
-                None => return Ok(None),
-            };
-
-            let older_directory = match ancestor_prev_dir
+            let older_directory = match ancestor_dir
                 .lookup_node(ancestor_segment, false, forest, store)
                 .await?
             {
@@ -195,15 +191,19 @@ impl PrivateNodeOnPathHistory {
                 _ => return Ok(None),
             };
 
-            self.path.push((
-                Rc::clone(&older_directory),
-                PrviateNodeHistory::of(
-                    &PrivateNode::Dir(directory),
-                    &older_directory.header.ratchet,
-                    discrepancy_budget,
-                )?,
-                path_segment,
-            ));
+            let mut directory_history = PrviateNodeHistory::of(
+                &PrivateNode::Dir(directory),
+                &older_directory.header.ratchet,
+                discrepancy_budget,
+            )?;
+
+            let directory_prev = match directory_history.previous_dir(forest, store).await? {
+                Some(dir) => dir,
+                _ => return Ok(None),
+            };
+
+            self.path
+                .push((directory_prev, directory_history, path_segment));
         }
 
         let (ancestor_dir, _, ancestor_segment) = self.path.last().unwrap();
@@ -411,6 +411,9 @@ mod private_history_tests {
             .is_none());
     }
 
+    /// This test will generate the following file system structure:
+    ///
+    /// (horizontal = time series, vertical = hierarchy)
     /// ```plain
     /// ┌────────────┐              ┌────────────┐
     /// │            │              │            │
@@ -434,6 +437,10 @@ mod private_history_tests {
     ///                             │            │              │            │
     ///                             └────────────┘              └────────────┘
     /// ```
+    ///
+    /// This is testing a case where the file system wasn't rooted completely.
+    /// Imagine someone wrote the `Notes.md` file with only access up to `Root/Docs`.
+    /// The file system diagram looks like this:
     #[async_std::test]
     async fn previous_of_seeking() {
         let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
@@ -474,11 +481,7 @@ mod private_history_tests {
             .await
             .unwrap();
 
-        let docs_dir = if let Some(PrivateNode::Dir(docs_dir)) = docs_dir {
-            docs_dir
-        } else {
-            unreachable!()
-        };
+        let docs_dir = docs_dir.unwrap().as_dir().unwrap();
 
         let PrivateOpResult { hamt, .. } = docs_dir
             .write(
@@ -515,6 +518,129 @@ mod private_history_tests {
                 .unwrap()
                 .content,
             b"Hi".to_vec()
+        );
+
+        assert!(iterator
+            .previous(&*hamt, store, discrepancy_budget)
+            .await
+            .unwrap()
+            .is_none());
+    }
+
+    /// This test will generate the following file system structure:
+    ///
+    /// (horizontal = time series, vertical = hierarchy)
+    /// ```plain
+    /// ┌────────────┐                              ┌────────────┐
+    /// │            │                              │            │
+    /// │    Root    ├─────────────────────────────►│    Root    │
+    /// │            │                              │            │
+    /// └─────┬──────┘                              └─────┬──────┘
+    ///       │                                           │
+    ///       │                                           │
+    ///       ▼                                           ▼
+    /// ┌────────────┐        ┌────────────┐        ┌────────────┐
+    /// │            │        │            │        │            │
+    /// │    Docs    ├───────►│    Docs    ├───────►│    Docs    │
+    /// │            │        │            │        │            │
+    /// └─────┬──────┘        └─────┬──────┘        └─────┬──────┘
+    ///       │                     │                     │
+    ///       │                     │                     │
+    ///       ▼                     ▼                     ▼
+    /// ┌────────────┐        ┌────────────┐        ┌────────────┐
+    /// │            │        │            │        │            │
+    /// │  Notes.md  ├───────►│  Notes.md  ├───────►│  Notes.md  │
+    /// │            │        │            │        │            │
+    /// └────────────┘        └────────────┘        └────────────┘
+    /// ```
+    ///
+    /// This case happens when someone who only has access up to
+    /// `Root/Docs` writes two revisions of `Notes.md` and
+    /// is later rooted by another peer that has full root access.
+    #[async_std::test]
+    async fn previous_with_multiple_child_changes() {
+        let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
+        let store = &mut MemoryBlockStore::default();
+        let hamt = Rc::new(PrivateForest::new());
+        let root_dir = Rc::new(PrivateDirectory::new(
+            Namefilter::default(),
+            Utc::now(),
+            rng,
+        ));
+        let discrepancy_budget = 1_000_000;
+        let path = ["Docs".into(), "Notes.md".into()];
+
+        let PrivateOpResult { root_dir, hamt, .. } = root_dir
+            .write(&path, true, Utc::now(), b"rev 0".to_vec(), hamt, store, rng)
+            .await
+            .unwrap();
+
+        let past_ratchet = root_dir.header.ratchet.clone();
+
+        let PrivateOpResult {
+            root_dir,
+            hamt,
+            result: docs_dir,
+            ..
+        } = root_dir
+            .get_node(&["Docs".into()], true, hamt, store)
+            .await
+            .unwrap();
+
+        let docs_dir = docs_dir.unwrap().as_dir().unwrap();
+
+        let PrivateOpResult { hamt, .. } = docs_dir
+            .write(
+                &["Notes.md".into()],
+                true,
+                Utc::now(),
+                b"rev 1".to_vec(),
+                hamt,
+                store,
+                rng,
+            )
+            .await
+            .unwrap();
+
+        let PrivateOpResult { root_dir, hamt, .. } = root_dir
+            .write(&path, true, Utc::now(), b"rev 2".to_vec(), hamt, store, rng)
+            .await
+            .unwrap();
+
+        let mut iterator = PrivateNodeOnPathHistory::previous_of(
+            root_dir,
+            &path,
+            true,
+            &*hamt,
+            store,
+            &past_ratchet,
+            discrepancy_budget,
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(
+            iterator
+                .previous(&*hamt, store, discrepancy_budget)
+                .await
+                .unwrap()
+                .unwrap()
+                .as_file()
+                .unwrap()
+                .content,
+            b"rev 1".to_vec()
+        );
+
+        assert_eq!(
+            iterator
+                .previous(&*hamt, store, discrepancy_budget)
+                .await
+                .unwrap()
+                .unwrap()
+                .as_file()
+                .unwrap()
+                .content,
+            b"rev 0".to_vec()
         );
 
         assert!(iterator
