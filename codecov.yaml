@@ -1,6 +1,7 @@
 ignore:
-  - "*/test/*"
+  - "*/tests/*"
   - "crates/wasm/*"
+  - "crates/proptest-regressions/*"
 
 comment:
   layout: "reach, diff, flags, files"
@@ -9,7 +10,8 @@ comment:
 github_checks:
   annotations: false
 
-status:
+coverage:
+  status:
     project:
       default:
         threshold: 5%

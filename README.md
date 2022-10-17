@@ -39,12 +39,18 @@ A goal of the project is to be easily compiled to WebAssembly to be used in the 
 ## Outline
 
 - [Usage](#usage)
+- [Crates](#crates)
 - [Building the Project](#building-the-project)
 - [Testing the Project](#testing-the-project)
 - [Contributing](#contributing)
 - [Getting Help](#getting-help)
 - [External Resources](#external-resources)
 - [License](#license)
+
+## Crates
+
+- [fs / filesystem](https://github.com/wnfs-wg/rs-wnfs/tree/main/crates/fs)
+- [wasm](https://github.com/wnfs-wg/rs-wnfs/tree/main/crates/wasm)
 
 ## Usage
 
@@ -280,6 +286,7 @@ This is a list of links to blog posts, confereence talks, and tutorials related 
 ### Talks
 
 - [A Distributed File System for Secure P2P Applications](https://www.youtube.com/watch?v=-f4cH_HQU4U) by Brooklyn Zelenka (Strange Loop 2022)
+- [WebNative File System](https://www.youtube.com/watch?v=3se17NAS-Lw) by Brooklyn Zelenka (IPFS bing 2022)
 - [Shared Private Files Design in Webnative's WNFS](https://vimeo.com/534517727) by Brooklyn Zelenka
 
 ### Related Implementations
