@@ -17,35 +17,35 @@ homepage = "https://fission.codes"
 authors = ["The Fission Authors"]
 
 [dependencies]
-libipld = { version = "0.14.0", features = ["dag-cbor", "derive", "serde-codec"] }
-serde = { version = "1.0.137", features = ["rc"]}
-multihash = "0.16.2"
-semver = { version = "1.0.7", features = ["serde"] }
-chrono = "0.4.19"
-anyhow = "1.0.56"
-hashbrown = "0.12.0"
-async-trait = "0.1.53"
-async-std = { version = "1.11.0", features = ["attributes"] }
-async-recursion = "1.0.0"
-futures = "0.3.21"
-async-stream = "0.3.3"
-futures-util = "0.3.21"
-skip_ratchet = { version = "0.1.6", features = ["serde"] }
-bitvec = { version = "1.0.0", features = ["serde"] }
-async-once-cell = "0.4.0"
-sha3 = "0.10.0"
-log = "0.4.17"
-xxhash-rust = { version = "0.8.5", features = ["xxh3"] }
-lazy_static = "1.4.0"
-thiserror = "1.0.31"
-aes-gcm = "0.9.4"
-rand_core = "0.6.3"
+aes-gcm = "0.9"
+anyhow = "1.0"
+async-once-cell = "0.4"
+async-recursion = "1.0"
+async-std = { version = "1.11", features = ["attributes"] }
+async-stream = "0.3"
+async-trait = "0.1"
+bitvec = { version = "1.0", features = ["serde"] }
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+futures = "0.3"
+futures-util = "0.3"
+hashbrown = "0.12"
+libipld = { version = "0.14", features = ["dag-cbor", "derive", "serde-codec"] }
+lazy_static = "1.4"
+log = "0.4"
+multihash = "0.16"
+rand_core = "0.6"
+serde = { version = "1.0", features = ["rc"]}
+semver = { version = "1.0", features = ["serde"] }
+sha3 = "0.10"
+skip_ratchet = { version = "0.1", features = ["serde"] }
+thiserror = "1.0"
+xxhash-rust = { version = "0.8", features = ["xxh3"] }
 
 [dev-dependencies]
-env_logger = "0.9.0"
-test-log = "0.2.10"
-proptest = "1.0.0"
-test-strategy = "0.2.0"
+env_logger = "0.9"
+proptest = "1.0"
+test-log = "0.2"
+test-strategy = "0.2"
 
 [lib]
 path = "lib.rs"

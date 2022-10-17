@@ -4,8 +4,7 @@ use async_trait::async_trait;
 use libipld::Cid;
 use serde::de::DeserializeOwned;
 
-use crate::AsyncSerialize;
-use crate::{BlockStore, IpldEq};
+use crate::{AsyncSerialize, BlockStore, IpldEq};
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions

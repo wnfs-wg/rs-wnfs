@@ -194,7 +194,10 @@ impl PrivateNode {
             return Ok(self.clone());
         }
 
-        // Start an exponential search.
+        // Start an exponential search, starting with a small jump.
+        // In many cases, we'll be at the latest revision already, so we only
+        // do a single lookup to the next version, most likely realize it's not
+        // there and thus stop seeking.
         let mut search = RatchetSeeker::new(header.ratchet.clone(), JumpSize::Small);
         let mut current_header = header.clone();
 

@@ -17,19 +17,18 @@ homepage = "https://fission.codes"
 authors = ["The Fission Authors"]
 
 [dependencies]
-libipld = "0.14.0"
-wnfs = { path = "../fs", version = "0.1.8" }
-wasm-bindgen = { version = "0.2", optional = true, features = ["serde-serialize"] }
-wasm-bindgen-futures = { version = "0.4", optional = true }
-js-sys = { version = "0.3", optional = true }
-web-sys = { version = "0.3", optional = true }
-chrono = { version = "0.4", features = ["wasmbind"] }
 anyhow = "1.0"
 async-trait = "0.1"
+cfg-if = "1.0"
+chrono = { version = "0.4", default-features = false, features = ["clock", "std", "wasmbind"] }
 console_error_panic_hook = { version = "0.1", optional = true }
-wee_alloc = { version = "0.4", optional = true }
-cfg-if = "1.0.0"
-rand_core = "0.6.3"
+libipld = "0.14"
+js-sys = { version = "0.3", optional = true }
+rand_core = "0.6"
+wasm-bindgen = { version = "0.2", optional = true, features = ["serde-serialize"] }
+wasm-bindgen-futures = { version = "0.4", optional = true }
+web-sys = { version = "0.3", optional = true }
+wnfs = { path = "../fs", version = "0.1.8" }
 
 [dev-dependencies]
 wasm-bindgen-test = "0.3"
@@ -47,7 +46,6 @@ js = [
   "wasm-bindgen-futures",
   "js-sys",
   "chrono/wasmbind",
-  "wee_alloc",
   "console_error_panic_hook",
 ]
 web = ["wasm", "web-sys"]

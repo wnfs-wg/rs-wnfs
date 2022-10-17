@@ -2,8 +2,7 @@ use std::rc::Rc;
 
 use async_trait::async_trait;
 use libipld::{error::SerdeError, serde as ipld_serde, Ipld};
-use serde::Serialize;
-use serde::Serializer;
+use serde::{Serialize, Serializer};
 
 use crate::BlockStore;
 
