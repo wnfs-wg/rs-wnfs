@@ -31,7 +31,8 @@
 
 ##
 
-This crate is a Rust implementation of the primitives for creating and manipulating IPLD graphs that encode WNFS.
+This crate is a Rust implementation of the primitives for creating and manipulating IPLD graphs that encode WNFS, of
+which the specification can be found [here](https://github.com/wnfs-wg/spec).
 
 A goal of the project is to be easily compiled to WebAssembly to be used in the browsers or other environments.
 
@@ -40,6 +41,10 @@ A goal of the project is to be easily compiled to WebAssembly to be used in the 
 - [Usage](#usage)
 - [Building the Project](#building-the-project)
 - [Testing the Project](#testing-the-project)
+- [Contributing](#contributing)
+- [Getting Help](#getting-help)
+- [External Resources](#external-resources)
+- [License](#license)
 
 ## Usage
 
@@ -131,7 +136,7 @@ async fn main() {
 
 ## Building the Project
 
-#### REQUIREMENTS
+### REQUIREMENTS
 
 - **The Rust Toolchain**
 
@@ -211,7 +216,7 @@ async fn main() {
 
   </details>
 
-#### STEPS
+### STEPS
 
 - Clone the repository.
 
@@ -252,3 +257,36 @@ async fn main() {
   ```bash
   rs-wnfs coverage
   ```
+
+## Contributing
+
+### Pre-commit Hook
+
+This library recommends using [pre-commit](https://pre-commit.com/) for running pre-commit hooks. Please run this before every commit and/or push.
+
+- Once installed, Run `pre-commit install` to setup the pre-commit hooks locally.  This will reduce failed CI builds.
+- If you are doing interim commits locally, and for some reason if you _don't_ want pre-commit hooks to fire, you can run
+  `git commit -a -m "Your message here" --no-verify`.
+
+## Getting Help
+
+For usage questions, usecases, or issues reach out to us in our [Discord webnative-fs channel](https://discord.com/channels/478735028319158273/877623827331428403).
+We would be happy to try to answer your question or try opening a new issue on Github.
+
+## External Resources
+
+This is a list of links to blog posts, confereence talks, and tutorials related to WNFS in general:
+
+### Talks
+
+- [A Distributed File System for Secure P2P Applications](https://www.youtube.com/watch?v=-f4cH_HQU4U) by Brooklyn Zelenka (Strange Loop 2022)
+- [Shared Private Files Design in Webnative's WNFS](https://vimeo.com/534517727) by Brooklyn Zelenka
+
+### Related Implementations
+
+- [wnfs-go](https://github.com/wnfs-wg/wnfs-go)
+- [WNFS (typescript) / Webnative SDK](https://github.com/fission-codes/webnative/blob/main/README.md#web-native-file-system)
+
+## License
+
+This project is licensed under the [Apache License 2.0](https://github.com/wnfs-wg/rs-wnfs/blob/main/LICENSE).
