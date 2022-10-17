@@ -83,7 +83,7 @@ impl PrivateNodeHistory {
     ) -> Result<Self> {
         let forest = Rc::clone(&forest);
         let ratchets = PreviousIterator::new(past_ratchet, &header.ratchet, discrepancy_budget)
-            .map_err(|err| FsError::PreviousError(err))?;
+            .map_err(FsError::PreviousError)?;
         Ok(PrivateNodeHistory {
             forest,
             header,
@@ -178,7 +178,7 @@ impl PrivateNodeOnPathHistory {
         };
 
         let path_nodes = match directory
-            .get_path_nodes(path_segments, false, &*forest, store)
+            .get_path_nodes(path_segments, false, &forest, store)
             .await?
         {
             PathNodesResult::Complete(path_nodes) => path_nodes,
@@ -189,7 +189,7 @@ impl PrivateNodeOnPathHistory {
         // TODO(matheus23) refactor using let-else once rust stable 1.65 released (Nov 3rd)
         let target = match path_nodes
             .tail
-            .lookup_node(last, false, &*forest, store)
+            .lookup_node(last, false, &forest, store)
             .await?
         {
             Some(target) => target,
@@ -197,7 +197,7 @@ impl PrivateNodeOnPathHistory {
         };
 
         let target_latest = if search_latest {
-            target.search_latest(&*forest, store).await?
+            target.search_latest(&forest, store).await?
         } else {
             target.clone()
         };
@@ -238,7 +238,7 @@ impl PrivateNodeOnPathHistory {
 
         previous_iter.path[0].history.ratchets =
             PreviousIterator::new(past_ratchet, &new_ratchet, discrepancy_budget)
-                .map_err(|err| FsError::PreviousError(err))?;
+                .map_err(FsError::PreviousError)?;
 
         Ok(previous_iter)
     }
@@ -324,7 +324,7 @@ impl PrivateNodeOnPathHistory {
         // TODO(matheus23) refactor using let-else once rust stable 1.65 released (Nov 3rd)
         let older_node = match ancestor
             .dir
-            .lookup_node(&ancestor.path_segment, false, &*self.forest, store)
+            .lookup_node(&ancestor.path_segment, false, &self.forest, store)
             .await?
         {
             Some(older_node) => older_node,
