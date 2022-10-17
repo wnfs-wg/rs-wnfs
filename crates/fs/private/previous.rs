@@ -12,7 +12,8 @@ use crate::{BlockStore, FsError, PathNodes, PathNodesResult};
 //--------------------------------------------------------------------------------------------------
 
 pub struct PrivateNodeOnPathHistory {
-    // TODO(matheus23) add PrivateForest & BlockStore refs?
+    forest: Rc<PrivateForest>,
+    discrepancy_budget: usize,
     path: Vec<PathSegmentHistory>,
     target: PrivateNodeHistory,
 }
@@ -80,7 +81,7 @@ impl PrivateNodeOnPathHistory {
         discrepancy_budget: usize,
         path_segments: &[String],
         search_latest: bool,
-        forest: &PrivateForest,
+        forest: Rc<PrivateForest>,
         store: &B,
     ) -> Result<PrivateNodeOnPathHistory> {
         // To get the history on a node on a path from a given directory that we
@@ -96,6 +97,8 @@ impl PrivateNodeOnPathHistory {
         let (last, path_segments) = match path_segments.split_last() {
             None => {
                 return Ok(PrivateNodeOnPathHistory {
+                    forest: Rc::clone(&forest),
+                    discrepancy_budget,
                     path: Vec::with_capacity(0),
                     target: PrivateNodeHistory::of(
                         &PrivateNode::Dir(directory),
@@ -108,7 +111,7 @@ impl PrivateNodeOnPathHistory {
         };
 
         let path_nodes = match directory
-            .get_path_nodes(path_segments, false, forest, store)
+            .get_path_nodes(path_segments, false, &*forest, store)
             .await?
         {
             PathNodesResult::Complete(path_nodes) => path_nodes,
@@ -119,7 +122,7 @@ impl PrivateNodeOnPathHistory {
         // TODO(matheus23) refactor using let-else once rust stable 1.65 released (Nov 3rd)
         let target = match path_nodes
             .tail
-            .lookup_node(last, false, forest, store)
+            .lookup_node(last, false, &*forest, store)
             .await?
         {
             Some(target) => target,
@@ -127,7 +130,7 @@ impl PrivateNodeOnPathHistory {
         };
 
         let target_latest = if search_latest {
-            target.search_latest(forest, store).await?
+            target.search_latest(&*forest, store).await?
         } else {
             target.clone()
         };
@@ -139,6 +142,8 @@ impl PrivateNodeOnPathHistory {
         )?;
 
         let mut previous_iter = PrivateNodeOnPathHistory {
+            forest: Rc::clone(&forest),
+            discrepancy_budget,
             path: Vec::with_capacity(path_nodes.len() + 1),
             target: target_history,
         };
@@ -169,12 +174,7 @@ impl PrivateNodeOnPathHistory {
         Ok(previous_iter)
     }
 
-    pub async fn previous<B: BlockStore>(
-        &mut self,
-        forest: &PrivateForest,
-        store: &B,
-        discrepancy_budget: usize,
-    ) -> Result<Option<PrivateNode>> {
+    pub async fn previous<B: BlockStore>(&mut self, store: &B) -> Result<Option<PrivateNode>> {
         // Finding the previous revision of a node works by trying to get
         // the previous revision of the path elements starting on the deepest
         // path node working upwards, in case the history of lower nodes
@@ -188,6 +188,8 @@ impl PrivateNodeOnPathHistory {
         if let Some(node) = self.target.previous_node(forest, store).await? {
             return Ok(Some(node));
         }
+
+        let discrepancy_budget = self.discrepancy_budget;
 
         let mut working_stack: Vec<(Rc<PrivateDirectory>, String)> =
             Vec::with_capacity(self.path.len());
@@ -336,26 +338,9 @@ mod private_history_tests {
         .await
         .unwrap();
 
-        let prev = iterator
-            .previous(&*hamt, store, discrepancy_budget)
-            .await
-            .unwrap();
-
-        assert!(prev.is_some());
-
-        let prevprev = iterator
-            .previous(&*hamt, store, discrepancy_budget)
-            .await
-            .unwrap();
-
-        assert!(prevprev.is_some());
-
-        let prevprevprev = iterator
-            .previous(&*hamt, store, discrepancy_budget)
-            .await
-            .unwrap();
-
-        assert!(prevprevprev.is_none());
+        assert!(iterator.previous(store).await.unwrap().is_some());
+        assert!(iterator.previous(store).await.unwrap().is_some());
+        assert!(iterator.previous(store).await.unwrap().is_none());
     }
 
     /// This test will generate the following file system structure:
@@ -436,7 +421,7 @@ mod private_history_tests {
 
         assert_eq!(
             iterator
-                .previous(&*hamt, store, discrepancy_budget)
+                .previous(store)
                 .await
                 .unwrap()
                 .unwrap()
@@ -446,11 +431,7 @@ mod private_history_tests {
             b"Hi".to_vec()
         );
 
-        assert!(iterator
-            .previous(&*hamt, store, discrepancy_budget)
-            .await
-            .unwrap()
-            .is_none());
+        assert!(iterator.previous(store).await.unwrap().is_none());
     }
 
     /// This test will generate the following file system structure:
@@ -552,7 +533,7 @@ mod private_history_tests {
 
         assert_eq!(
             iterator
-                .previous(&*hamt, store, discrepancy_budget)
+                .previous(store)
                 .await
                 .unwrap()
                 .unwrap()
@@ -562,11 +543,7 @@ mod private_history_tests {
             b"Hi".to_vec()
         );
 
-        assert!(iterator
-            .previous(&*hamt, store, discrepancy_budget)
-            .await
-            .unwrap()
-            .is_none());
+        assert!(iterator.previous(store).await.unwrap().is_none());
     }
 
     /// This test will generate the following file system structure:
@@ -663,7 +640,7 @@ mod private_history_tests {
 
         assert_eq!(
             iterator
-                .previous(&*hamt, store, discrepancy_budget)
+                .previous(store)
                 .await
                 .unwrap()
                 .unwrap()
@@ -675,7 +652,7 @@ mod private_history_tests {
 
         assert_eq!(
             iterator
-                .previous(&*hamt, store, discrepancy_budget)
+                .previous(store)
                 .await
                 .unwrap()
                 .unwrap()
@@ -685,11 +662,7 @@ mod private_history_tests {
             b"rev 0".to_vec()
         );
 
-        assert!(iterator
-            .previous(&*hamt, store, discrepancy_budget)
-            .await
-            .unwrap()
-            .is_none());
+        assert!(iterator.previous(store).await.unwrap().is_none());
     }
 
     /// This test will generate the following file system structure:
@@ -783,7 +756,7 @@ mod private_history_tests {
 
         assert_eq!(
             iterator
-                .previous(&*hamt, store, discrepancy_budget)
+                .previous(store)
                 .await
                 .unwrap()
                 .unwrap()
@@ -793,10 +766,6 @@ mod private_history_tests {
             b"rev 0".to_vec()
         );
 
-        assert!(iterator
-            .previous(&*hamt, store, discrepancy_budget)
-            .await
-            .unwrap()
-            .is_none());
+        assert!(iterator.previous(store).await.unwrap().is_none());
     }
 }
