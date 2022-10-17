@@ -36,11 +36,12 @@ impl PrivateForest {
         Self(Rc::new(WnfsPrivateForest::default()))
     }
 
+    #[wasm_bindgen]
     pub fn get(
         &self,
-        store: BlockStore,
         saturated_namefilter_hash: Uint8Array,
         revision_key: Uint8Array,
+        store: BlockStore,
     ) -> JsResult<Promise> {
         let store = ForeignBlockStore(store);
         let forest = self.0.clone();
