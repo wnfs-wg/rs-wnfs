@@ -11,22 +11,44 @@ use crate::{BlockStore, FsError, PathNodes, PathNodesResult};
 // Type Definitions
 //--------------------------------------------------------------------------------------------------
 
+/// Represents the state of an iterator through the history
+/// of a private node on a path relative to a root directory.
 pub struct PrivateNodeOnPathHistory {
+    /// Keep a reference to the version of the forest used upon construction.
+    /// It could *technically* change what's behind a certain key in between
+    /// previous node requests, this forces it to be consistent.
     forest: Rc<PrivateForest>,
-    discrepancy_budget: usize,
+    /// The history of each path segment leading up to the final node
     path: Vec<PathSegmentHistory>,
+    /// The target node's history
     target: PrivateNodeHistory,
 }
 
-struct PrivateNodeHistory {
-    header: PrivateNodeHeader,
-    ratchets: PreviousIterator,
+struct PathSegmentHistory {
+    /// The directory that the history was originally created relative to.
+    dir: Rc<PrivateDirectory>,
+    /// The history of said directory.
+    history: PrivateNodeHistory,
+    /// The name of the child node to follow for history next.
+    path_segment: String,
 }
 
-struct PathSegmentHistory {
-    dir: Rc<PrivateDirectory>,
-    history: PrivateNodeHistory,
-    path_segment: String,
+/// This represents the state of an iterator through the history of
+/// only a single private node. It can only be constructed when you
+/// know the past ratchet state of such a node.
+pub struct PrivateNodeHistory {
+    /// Keep a reference to the version of the forest used upon construction.
+    /// It could *technically* change what's behind a certain key in between
+    /// previous node requests, this forces it to be consistent.
+    forest: Rc<PrivateForest>,
+    /// Keep the original discrepancy budget for consistency & ease of use.
+    discrepancy_budget: usize,
+    /// The private node header is all we need to look up private nodes in the forest.
+    /// This will always be the header of the *next* version after what's retrieved from
+    /// the `ratchets` iterator.
+    header: PrivateNodeHeader,
+    /// The iterator for previous revision ratchets.
+    ratchets: PreviousIterator,
 }
 
 impl PrivateNodeHistory {
@@ -34,40 +56,50 @@ impl PrivateNodeHistory {
         node: &PrivateNode,
         past_ratchet: &Ratchet,
         discrepancy_budget: usize,
+        forest: Rc<PrivateForest>,
     ) -> Result<Self> {
-        Self::from_header(node.get_header().clone(), past_ratchet, discrepancy_budget)
+        Self::from_header(
+            node.get_header().clone(),
+            past_ratchet,
+            discrepancy_budget,
+            forest,
+        )
     }
 
     pub fn from_header(
         header: PrivateNodeHeader,
         past_ratchet: &Ratchet,
         discrepancy_budget: usize,
+        forest: Rc<PrivateForest>,
     ) -> Result<Self> {
+        let forest = Rc::clone(&forest);
         let ratchets = PreviousIterator::new(past_ratchet, &header.ratchet, discrepancy_budget)
             .map_err(|err| FsError::PreviousError(err))?;
-        Ok(PrivateNodeHistory { header, ratchets })
+        Ok(PrivateNodeHistory {
+            forest,
+            discrepancy_budget,
+            header,
+            ratchets,
+        })
     }
 
-    async fn previous_node<B: BlockStore>(
-        &mut self,
-        forest: &PrivateForest,
-        store: &B,
-    ) -> Result<Option<PrivateNode>> {
+    pub async fn previous_node<B: BlockStore>(&mut self, store: &B) -> Result<Option<PrivateNode>> {
         match self.ratchets.next() {
             None => Ok(None),
             Some(previous_ratchet) => {
                 self.header.ratchet = previous_ratchet;
-                forest.get(&self.header.get_private_ref()?, store).await
+                self.forest
+                    .get(&self.header.get_private_ref()?, store)
+                    .await
             }
         }
     }
 
-    async fn previous_dir<B: BlockStore>(
+    pub async fn previous_dir<B: BlockStore>(
         &mut self,
-        forest: &PrivateForest,
         store: &B,
     ) -> Result<Option<Rc<PrivateDirectory>>> {
-        match self.previous_node(forest, store).await? {
+        match self.previous_node(store).await? {
             Some(PrivateNode::Dir(dir)) => Ok(Some(dir)),
             _ => Ok(None),
         }
@@ -75,7 +107,7 @@ impl PrivateNodeHistory {
 }
 
 impl PrivateNodeOnPathHistory {
-    pub async fn previous_of<B: BlockStore>(
+    pub async fn of<B: BlockStore>(
         directory: Rc<PrivateDirectory>,
         past_ratchet: &Ratchet,
         discrepancy_budget: usize,
@@ -98,12 +130,12 @@ impl PrivateNodeOnPathHistory {
             None => {
                 return Ok(PrivateNodeOnPathHistory {
                     forest: Rc::clone(&forest),
-                    discrepancy_budget,
                     path: Vec::with_capacity(0),
                     target: PrivateNodeHistory::of(
                         &PrivateNode::Dir(directory),
                         past_ratchet,
                         discrepancy_budget,
+                        Rc::clone(&forest),
                     )?,
                 });
             }
@@ -139,11 +171,11 @@ impl PrivateNodeOnPathHistory {
             &target_latest,
             &target.get_header().ratchet,
             discrepancy_budget,
+            Rc::clone(&forest),
         )?;
 
         let mut previous_iter = PrivateNodeOnPathHistory {
             forest: Rc::clone(&forest),
-            discrepancy_budget,
             path: Vec::with_capacity(path_nodes.len() + 1),
             target: target_history,
         };
@@ -159,6 +191,7 @@ impl PrivateNodeOnPathHistory {
                     &PrivateNode::Dir(Rc::clone(&dir)),
                     &dir.header.ratchet,
                     discrepancy_budget,
+                    Rc::clone(&forest),
                 )?,
                 path_segment,
             });
@@ -185,11 +218,9 @@ impl PrivateNodeOnPathHistory {
         // on the same path from an older root revision, until we've completed
         // the whole path and found new history entries in every segment.
 
-        if let Some(node) = self.target.previous_node(forest, store).await? {
+        if let Some(node) = self.target.previous_node(store).await? {
             return Ok(Some(node));
         }
-
-        let discrepancy_budget = self.discrepancy_budget;
 
         let mut working_stack: Vec<(Rc<PrivateDirectory>, String)> =
             Vec::with_capacity(self.path.len());
@@ -198,7 +229,7 @@ impl PrivateNodeOnPathHistory {
             // Pop elements off the end of the path
             if let Some(mut segment) = self.path.pop() {
                 // Try to find a path segment for which we have previous history entries
-                if let Some(prev) = segment.history.previous_dir(forest, store).await? {
+                if let Some(prev) = segment.history.previous_dir(store).await? {
                     segment.dir = prev;
                     self.path.push(segment);
                     // Once found, we can continue.
@@ -221,7 +252,7 @@ impl PrivateNodeOnPathHistory {
             // TODO(matheus23) refactor using let-else once rust stable 1.65 released (Nov 3rd)
             let older_directory = match ancestor
                 .dir
-                .lookup_node(&ancestor.path_segment, false, forest, store)
+                .lookup_node(&ancestor.path_segment, false, &self.forest, store)
                 .await?
             {
                 Some(PrivateNode::Dir(older_directory)) => older_directory,
@@ -232,11 +263,12 @@ impl PrivateNodeOnPathHistory {
                 &PrivateNode::Dir(directory),
                 &older_directory.header.ratchet,
                 discrepancy_budget,
+                Rc::clone(&self.forest),
             )?;
 
             // We need to find the in-between history entry! See the test case `previous_with_multiple_child_changes`.
             // TODO(matheus23) refactor using let-else once rust stable 1.65 released (Nov 3rd)
-            let directory_prev = match directory_history.previous_dir(forest, store).await? {
+            let directory_prev = match directory_history.previous_dir(store).await? {
                 Some(dir) => dir,
                 _ => return Ok(None),
             };
@@ -264,9 +296,10 @@ impl PrivateNodeOnPathHistory {
             self.target.header.clone(),
             &older_node.get_header().ratchet,
             discrepancy_budget,
+            Rc::clone(&self.forest),
         )?;
 
-        self.target.previous_node(forest, store).await
+        self.target.previous_node(store).await
     }
 }
 
@@ -326,7 +359,7 @@ mod private_history_tests {
             .await
             .unwrap();
 
-        let mut iterator = PrivateNodeOnPathHistory::previous_of(
+        let mut iterator = PrivateNodeOnPathHistory::of(
             root_dir,
             &past_ratchet,
             discrepancy_budget,
@@ -407,7 +440,7 @@ mod private_history_tests {
             .await
             .unwrap();
 
-        let mut iterator = PrivateNodeOnPathHistory::previous_of(
+        let mut iterator = PrivateNodeOnPathHistory::of(
             root_dir,
             &past_ratchet,
             discrepancy_budget,
@@ -519,7 +552,7 @@ mod private_history_tests {
             .await
             .unwrap();
 
-        let mut iterator = PrivateNodeOnPathHistory::previous_of(
+        let mut iterator = PrivateNodeOnPathHistory::of(
             root_dir,
             &past_ratchet,
             discrepancy_budget,
@@ -626,7 +659,7 @@ mod private_history_tests {
             .await
             .unwrap();
 
-        let mut iterator = PrivateNodeOnPathHistory::previous_of(
+        let mut iterator = PrivateNodeOnPathHistory::of(
             root_dir,
             &past_ratchet,
             discrepancy_budget,
@@ -742,7 +775,7 @@ mod private_history_tests {
             2
         );
 
-        let mut iterator = PrivateNodeOnPathHistory::previous_of(
+        let mut iterator = PrivateNodeOnPathHistory::of(
             root_dir,
             &past_ratchet,
             discrepancy_budget,
