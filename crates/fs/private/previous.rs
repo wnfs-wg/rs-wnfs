@@ -52,6 +52,12 @@ pub struct PrivateNodeHistory {
 }
 
 impl PrivateNodeHistory {
+    /// Create a history iterator for given private node up until `past_ratchet`.
+    ///
+    /// There must be an `n > 0` for which `node.get_header().ratchet == past_ratchet.inc_by(n)`.
+    ///
+    /// Discrepancy budget is used to bound the search for the actual `n`
+    /// and prevent infinite looping in case it doesn't exist.
     pub fn of(
         node: &PrivateNode,
         past_ratchet: &Ratchet,
@@ -66,6 +72,9 @@ impl PrivateNodeHistory {
         )
     }
 
+    /// Create a history iterator for a node given its header.
+    ///
+    /// See also `PrivateNodeHistory::of`.
     pub fn from_header(
         header: PrivateNodeHeader,
         past_ratchet: &Ratchet,
@@ -83,6 +92,10 @@ impl PrivateNodeHistory {
         })
     }
 
+    /// Step the history one step back and retrieve the private node at the
+    /// previous point in history.
+    ///
+    /// Returns `None` if there is no such node in the `PrivateForest` at that point in time.
     pub async fn previous_node<B: BlockStore>(&mut self, store: &B) -> Result<Option<PrivateNode>> {
         match self.ratchets.next() {
             None => Ok(None),
@@ -95,13 +108,35 @@ impl PrivateNodeHistory {
         }
     }
 
+    /// Like `previous_node`, but attempts to resolve a directory.
+    ///
+    /// Returns `None` if there is no previous node with that revision in the `PrivateForest`,
+    /// throws `FsError::NotADirectory` if the previous node happens to not be a directory.
+    /// That should only happen for all nodes or for none.
     pub async fn previous_dir<B: BlockStore>(
         &mut self,
         store: &B,
     ) -> Result<Option<Rc<PrivateDirectory>>> {
         match self.previous_node(store).await? {
             Some(PrivateNode::Dir(dir)) => Ok(Some(dir)),
-            _ => Ok(None),
+            Some(_) => Err(FsError::NotADirectory.into()),
+            None => Ok(None),
+        }
+    }
+
+    /// Like `previous_node`, but attempts to resolve a file.
+    ///
+    /// Returns `None` if there is no previous node with that revision in the `PrivateForest`,
+    /// throws `FsError::NotAFile` if the previous node happens to not be a file.
+    /// That should only happen for all nodes or for none.
+    pub async fn previous_file<B: BlockStore>(
+        &mut self,
+        store: &B,
+    ) -> Result<Option<Rc<PrivateFile>>> {
+        match self.previous_node(store).await? {
+            Some(PrivateNode::File(file)) => Ok(Some(file)),
+            Some(_) => Err(FsError::NotAFile.into()),
+            None => Ok(None),
         }
     }
 }
@@ -207,6 +242,9 @@ impl PrivateNodeOnPathHistory {
         Ok(previous_iter)
     }
 
+    /// Step the history one revision back and retrieve the node at the configured path.
+    ///
+    /// Returns `None` if there is no more previous revisions.
     pub async fn previous<B: BlockStore>(&mut self, store: &B) -> Result<Option<PrivateNode>> {
         // Finding the previous revision of a node works by trying to get
         // the previous revision of the path elements starting on the deepest
