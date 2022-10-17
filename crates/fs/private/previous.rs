@@ -10,6 +10,7 @@ use crate::{BlockStore, FsError, PathNodes, PathNodesResult};
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
 //--------------------------------------------------------------------------------------------------
+
 pub struct PrivateNodeOnPathHistory {
     // TODO(matheus23) add PrivateForest & BlockStore refs?
     path: Vec<PathSegmentHistory>,
@@ -75,13 +76,21 @@ impl PrivateNodeHistory {
 impl PrivateNodeOnPathHistory {
     pub async fn previous_of<B: BlockStore>(
         directory: Rc<PrivateDirectory>,
+        past_ratchet: &Ratchet,
+        discrepancy_budget: usize,
         path_segments: &[String],
         search_latest: bool,
         forest: &PrivateForest,
         store: &B,
-        past_ratchet: &Ratchet,
-        discrepancy_budget: usize,
     ) -> Result<PrivateNodeOnPathHistory> {
+        // To get the history on a node on a path from a given directory that we
+        // know its newest and oldest ratchet of, we need to generate
+        // `PrivateNodeHistory`s for each path segment up to the last node.
+        //
+        // This is what this function is doing, it constructs the `PrivateNodeOnPathHistory`.
+        //
+        // Stepping that history forward is then done in `PrivateNodeOnPathHistory#previous`.
+
         let new_ratchet = directory.header.ratchet.clone();
 
         let (last, path_segments) = match path_segments.split_last() {
@@ -107,6 +116,7 @@ impl PrivateNodeOnPathHistory {
             PathNodesResult::NotADirectory(_, _) => bail!(FsError::NotADirectory),
         };
 
+        // TODO(matheus23) refactor using let-else once rust stable 1.65 released (Nov 3rd)
         let target = match path_nodes
             .tail
             .lookup_node(last, false, forest, store)
@@ -116,15 +126,13 @@ impl PrivateNodeOnPathHistory {
             None => bail!(FsError::NotFound),
         };
 
-        let target_clone = target.clone();
-
         let target_latest = if search_latest {
-            target_clone.search_latest(forest, store).await?
+            target.search_latest(forest, store).await?
         } else {
             target.clone()
         };
 
-        let target_ratchets = PrivateNodeHistory::of(
+        let target_history = PrivateNodeHistory::of(
             &target_latest,
             &target.get_header().ratchet,
             discrepancy_budget,
@@ -132,7 +140,7 @@ impl PrivateNodeOnPathHistory {
 
         let mut previous_iter = PrivateNodeOnPathHistory {
             path: Vec::with_capacity(path_nodes.len() + 1),
-            target: target_ratchets,
+            target: target_history,
         };
 
         let PathNodes { mut path, tail } = path_nodes;
@@ -151,6 +159,9 @@ impl PrivateNodeOnPathHistory {
             });
         }
 
+        // For the first part of the path, we specifically set the history ourselves,
+        // because we've had `past_ratchet` passed in from the outside.
+
         previous_iter.path[0].history.ratchets =
             PreviousIterator::new(past_ratchet, &new_ratchet, discrepancy_budget)
                 .map_err(|err| FsError::PreviousError(err))?;
@@ -164,6 +175,16 @@ impl PrivateNodeOnPathHistory {
         store: &B,
         discrepancy_budget: usize,
     ) -> Result<Option<PrivateNode>> {
+        // Finding the previous revision of a node works by trying to get
+        // the previous revision of the path elements starting on the deepest
+        // path node working upwards, in case the history of lower nodes
+        // have been exhausted.
+        //
+        // Once another history entry on the path has been found, we proceed
+        // to work back trying to construct new history entries by going downwards
+        // on the same path from an older root revision, until we've completed
+        // the whole path and found new history entries in every segment.
+
         if let Some(node) = self.target.previous_node(forest, store).await? {
             return Ok(Some(node));
         }
@@ -172,22 +193,30 @@ impl PrivateNodeOnPathHistory {
             Vec::with_capacity(self.path.len());
 
         loop {
+            // Pop elements off the end of the path
             if let Some(mut segment) = self.path.pop() {
+                // Try to find a path segment for which we have previous history entries
                 if let Some(prev) = segment.history.previous_dir(forest, store).await? {
                     segment.dir = prev;
                     self.path.push(segment);
+                    // Once found, we can continue.
                     break;
                 }
 
                 working_stack.push((segment.dir, segment.path_segment));
             } else {
+                // We have exhausted all histories of all path segments.
+                // There's no way we can produce more history entries.
                 return Ok(None);
             }
         }
 
+        // Work downwards from the previous history entry of a path segment we found
         for (directory, path_segment) in working_stack {
             let ancestor = self.path.last().unwrap();
 
+            // Go down from the older ancestor directory parallel to the new revision's path
+            // TODO(matheus23) refactor using let-else once rust stable 1.65 released (Nov 3rd)
             let older_directory = match ancestor
                 .dir
                 .lookup_node(&ancestor.path_segment, false, forest, store)
@@ -203,6 +232,8 @@ impl PrivateNodeOnPathHistory {
                 discrepancy_budget,
             )?;
 
+            // We need to find the in-between history entry! See the test case `previous_with_multiple_child_changes`.
+            // TODO(matheus23) refactor using let-else once rust stable 1.65 released (Nov 3rd)
             let directory_prev = match directory_history.previous_dir(forest, store).await? {
                 Some(dir) => dir,
                 _ => return Ok(None),
@@ -217,6 +248,7 @@ impl PrivateNodeOnPathHistory {
 
         let ancestor = self.path.last().unwrap();
 
+        // TODO(matheus23) refactor using let-else once rust stable 1.65 released (Nov 3rd)
         let older_node = match ancestor
             .dir
             .lookup_node(&ancestor.path_segment, false, forest, store)
@@ -294,12 +326,12 @@ mod private_history_tests {
 
         let mut iterator = PrivateNodeOnPathHistory::previous_of(
             root_dir,
+            &past_ratchet,
+            discrepancy_budget,
             &[],
             true,
             &*hamt,
             store,
-            &past_ratchet,
-            discrepancy_budget,
         )
         .await
         .unwrap();
@@ -392,12 +424,12 @@ mod private_history_tests {
 
         let mut iterator = PrivateNodeOnPathHistory::previous_of(
             root_dir,
+            &past_ratchet,
+            discrepancy_budget,
             &path,
             true,
             &*hamt,
             store,
-            &past_ratchet,
-            discrepancy_budget,
         )
         .await
         .unwrap();
@@ -508,12 +540,12 @@ mod private_history_tests {
 
         let mut iterator = PrivateNodeOnPathHistory::previous_of(
             root_dir,
+            &past_ratchet,
+            discrepancy_budget,
             &path,
             true,
             &*hamt,
             store,
-            &past_ratchet,
-            discrepancy_budget,
         )
         .await
         .unwrap();
@@ -619,12 +651,12 @@ mod private_history_tests {
 
         let mut iterator = PrivateNodeOnPathHistory::previous_of(
             root_dir,
+            &past_ratchet,
+            discrepancy_budget,
             &path,
             true,
             &*hamt,
             store,
-            &past_ratchet,
-            discrepancy_budget,
         )
         .await
         .unwrap();
@@ -732,14 +764,19 @@ mod private_history_tests {
             .await
             .unwrap();
 
+        assert_eq!(
+            root_dir.header.ratchet.compare(&past_ratchet, 100).unwrap(),
+            2
+        );
+
         let mut iterator = PrivateNodeOnPathHistory::previous_of(
             root_dir,
+            &past_ratchet,
+            discrepancy_budget,
             &path,
             true,
             &*hamt,
             store,
-            &past_ratchet,
-            discrepancy_budget,
         )
         .await
         .unwrap();
