@@ -23,8 +23,8 @@ use super::{PublicFile, PublicLink, PublicNode};
 // Type Definitions
 //--------------------------------------------------------------------------------------------------
 
-pub type PublicPathNodes = PathNodes<Rc<PublicDirectory>>;
-pub type PublicPathNodesResult = PathNodesResult<Rc<PublicDirectory>>;
+pub type PublicPathNodes = PathNodes<PublicDirectory>;
+pub type PublicPathNodesResult = PathNodesResult<PublicDirectory>;
 
 /// A directory in a WNFS public file system.
 ///

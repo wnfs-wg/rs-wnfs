@@ -3,7 +3,7 @@ use std::rc::Rc;
 use anyhow::{bail, Result};
 use skip_ratchet::{ratchet::PreviousIterator, Ratchet};
 
-use super::{PrivateDirectory, PrivateForest, PrivateNode, PrivateNodeHeader};
+use super::{PrivateDirectory, PrivateFile, PrivateForest, PrivateNode, PrivateNodeHeader};
 
 use crate::{BlockStore, FsError, PathNodes, PathNodesResult};
 
@@ -18,6 +18,8 @@ pub struct PrivateNodeOnPathHistory {
     /// It could *technically* change what's behind a certain key in between
     /// previous node requests, this forces it to be consistent.
     forest: Rc<PrivateForest>,
+    /// Keep the original discrepancy budget for consistency & ease of use.
+    discrepancy_budget: usize,
     /// The history of each path segment leading up to the final node
     path: Vec<PathSegmentHistory>,
     /// The target node's history
@@ -41,8 +43,6 @@ pub struct PrivateNodeHistory {
     /// It could *technically* change what's behind a certain key in between
     /// previous node requests, this forces it to be consistent.
     forest: Rc<PrivateForest>,
-    /// Keep the original discrepancy budget for consistency & ease of use.
-    discrepancy_budget: usize,
     /// The private node header is all we need to look up private nodes in the forest.
     /// This will always be the header of the *next* version after what's retrieved from
     /// the `ratchets` iterator.
@@ -86,7 +86,6 @@ impl PrivateNodeHistory {
             .map_err(|err| FsError::PreviousError(err))?;
         Ok(PrivateNodeHistory {
             forest,
-            discrepancy_budget,
             header,
             ratchets,
         })
@@ -165,6 +164,7 @@ impl PrivateNodeOnPathHistory {
             None => {
                 return Ok(PrivateNodeOnPathHistory {
                     forest: Rc::clone(&forest),
+                    discrepancy_budget,
                     path: Vec::with_capacity(0),
                     target: PrivateNodeHistory::of(
                         &PrivateNode::Dir(directory),
@@ -211,6 +211,7 @@ impl PrivateNodeOnPathHistory {
 
         let mut previous_iter = PrivateNodeOnPathHistory {
             forest: Rc::clone(&forest),
+            discrepancy_budget,
             path: Vec::with_capacity(path_nodes.len() + 1),
             target: target_history,
         };
@@ -300,7 +301,7 @@ impl PrivateNodeOnPathHistory {
             let mut directory_history = PrivateNodeHistory::of(
                 &PrivateNode::Dir(directory),
                 &older_directory.header.ratchet,
-                discrepancy_budget,
+                self.discrepancy_budget,
                 Rc::clone(&self.forest),
             )?;
 
@@ -323,7 +324,7 @@ impl PrivateNodeOnPathHistory {
         // TODO(matheus23) refactor using let-else once rust stable 1.65 released (Nov 3rd)
         let older_node = match ancestor
             .dir
-            .lookup_node(&ancestor.path_segment, false, forest, store)
+            .lookup_node(&ancestor.path_segment, false, &*self.forest, store)
             .await?
         {
             Some(older_node) => older_node,
@@ -333,7 +334,7 @@ impl PrivateNodeOnPathHistory {
         self.target = PrivateNodeHistory::from_header(
             self.target.header.clone(),
             &older_node.get_header().ratchet,
-            discrepancy_budget,
+            self.discrepancy_budget,
             Rc::clone(&self.forest),
         )?;
 
@@ -403,7 +404,7 @@ mod private_history_tests {
             discrepancy_budget,
             &[],
             true,
-            &*hamt,
+            Rc::clone(&hamt),
             store,
         )
         .await
@@ -484,7 +485,7 @@ mod private_history_tests {
             discrepancy_budget,
             &path,
             true,
-            &*hamt,
+            Rc::clone(&hamt),
             store,
         )
         .await
@@ -596,7 +597,7 @@ mod private_history_tests {
             discrepancy_budget,
             &path,
             true,
-            &*hamt,
+            Rc::clone(&hamt),
             store,
         )
         .await
@@ -703,7 +704,7 @@ mod private_history_tests {
             discrepancy_budget,
             &path,
             true,
-            &*hamt,
+            Rc::clone(&hamt),
             store,
         )
         .await
@@ -819,7 +820,7 @@ mod private_history_tests {
             discrepancy_budget,
             &path,
             true,
-            &*hamt,
+            Rc::clone(&hamt),
             store,
         )
         .await

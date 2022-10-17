@@ -18,8 +18,8 @@ use crate::{
 // Type Definitions
 //--------------------------------------------------------------------------------------------------
 
-pub type PrivatePathNodes = PathNodes<Rc<PrivateDirectory>>;
-pub type PrivatePathNodesResult = PathNodesResult<Rc<PrivateDirectory>>;
+pub type PrivatePathNodes = PathNodes<PrivateDirectory>;
+pub type PrivatePathNodesResult = PathNodesResult<PrivateDirectory>;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct PrivateDirectory {
