@@ -8,7 +8,7 @@ repos:
         entry: cargo +nightly fmt
         language: system
         types: [rust]
-        args: ["--all", "--"]
+        args: ["--all", "--", "--check"]
       - id: cargo-check
         name: cargo check
         description: Check the package for errors.
