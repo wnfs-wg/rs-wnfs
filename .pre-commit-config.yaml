@@ -1,0 +1,44 @@
+# See https://pre-commit.com for more information
+repos:
+  - repo: local
+    hooks:
+      - id: fmt
+        name: fmt
+        description: Format rust files.
+        entry: cargo +nightly fmt
+        language: system
+        types: [rust]
+        args: ["--all", "--", "--check"]
+      - id: cargo-check
+        name: cargo check
+        description: Check the package for errors.
+        entry: cargo check
+        language: system
+        types: [rust]
+        pass_filenames: false
+      - id: clippy
+        name: clippy
+        description: Lint via clippy
+        entry: cargo clippy
+        language: system
+        args: ["--all", "--", "-D", "warnings"]
+        types: [rust]
+        pass_filenames: false
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.0.1
+    hooks:
+      - id: no-commit-to-branch
+        args: ["-b", "main"]
+      - id: check-merge-conflict
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+        exclude: ^catalog-info.yaml
+      - id: check-json
+        exclude: ^tests/data/
+      - id: check-added-large-files
+      - id: detect-private-key
+        exclude: ^tests/data/
+      - id: check-executables-have-shebangs
+      - id: check-toml
