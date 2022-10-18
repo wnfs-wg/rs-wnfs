@@ -2,6 +2,8 @@
 repos:
   - repo: local
     hooks:
+      # allow for crate import granularity:
+      # https://github.com/rust-lang/rustfmt/issues/4991
       - id: fmt
         name: fmt
         description: Format rust files.
@@ -21,7 +23,7 @@ repos:
         description: Lint via clippy
         entry: cargo clippy
         language: system
-        args: ["--all", "--", "-D", "warnings"]
+        args: ["--workspace", "--", "-D", "warnings"]
         types: [rust]
         pass_filenames: false
 

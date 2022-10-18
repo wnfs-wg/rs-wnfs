@@ -1,7 +1,7 @@
 ignore:
   - "*/tests/*"
-  - "crates/wasm/*"
-  - "crates/proptest-regressions/*"
+  - "wnfs-wasm/*"
+  - "proptest-regressions/*"
 
 comment:
   layout: "reach, diff, flags, files"

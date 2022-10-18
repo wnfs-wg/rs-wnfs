@@ -44,7 +44,7 @@ jobs:
       - name: Run Linter
         uses: actions-rs/cargo@v1
         with:
-          args: --all -- -D warnings
+          args: --workspace -- -D warnings
           command: clippy
           toolchain: ${{ matrix.rust-toolchain }}
 
@@ -78,7 +78,7 @@ jobs:
         uses: Swatinem/rust-cache@v2
 
       - name: Run Tests
-        run: cargo test --all
+        run: cargo test --workspace
 
 
   wasm-js-tests:
@@ -92,16 +92,16 @@ jobs:
 
     defaults:
       run:
-        working-directory: ./crates/wasm
+        working-directory: ./wnfs-wasm
 
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v3
 
       - name: Cache Project (JavaScript)
-        uses: actions/setup-node@v2
+        uses: actions/setup-node@v3
         with:
-          node-version: '14.x'
+          node-version: '16.x'
 
       - name: Cache Project (Rust)
         uses: Swatinem/rust-cache@v2

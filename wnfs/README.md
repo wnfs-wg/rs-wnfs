@@ -7,7 +7,7 @@
 
   <p>
     <a href="https://crates.io/crates/wnfs">
-      <img src="https://img.shields.io/crates/v/wnfs?label=crates" alt="Concurrency Docs">
+      <img src="https://img.shields.io/crates/v/wnfs?label=crates" alt="Docs">
     </a>
     <a href="https://codecov.io/gh/wnfs-wg/rs-wnfs">
       <img src="https://codecov.io/gh/wnfs-wg/rs-wnfs/branch/main/graph/badge.svg?token=95YHXFMFF4" alt="Code Coverage"/>
@@ -19,7 +19,7 @@
       <img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg" alt="License">
     </a>
     <a href="https://docs.rs/wnfs">
-      <img src="https://img.shields.io/static/v1?label=Docs&message=docs.rs&color=blue" alt="Concurrency Docs">
+      <img src="https://img.shields.io/static/v1?label=Docs&message=docs.rs&color=blue" alt="Docs">
     </a>
     <a href="https://discord.gg/zAQBDEq">
       <img src="https://img.shields.io/static/v1?label=Discord&message=join%20us!&color=mediumslateblue" alt="Discord">
@@ -28,8 +28,6 @@
 </div>
 
 <div align="center"><sub>:warning: Work in progress :warning:</sub></div>
-
-##
 
 This is a Rust implementation of [the WebNative FileSystem (WNFS) specification][wnfs-spec]. WNFS is a versioned content-addressable distributed filesystem with private and public sub systems. The private filesystem is encrypted so that only users with the right keys can access its contents. It is designed to prevent inferring metadata like the structure of the file tree. The other part of the WNFS filesystem is a simpler public filesystem that is not encrypted and can be accessed by anyone with the right address.
 
@@ -145,11 +143,11 @@ Namefilters are currently how we identify private node blocks in the filesystem.
 
 Check the [`examples/`][wnfs-examples] folder for more examples.
 
-[wnfs-spec]: https://github.com/wnfs-wg/spec
-[wnfs-wasm-readme]: crates/wasm/README.md
-[blockstore-trait]: https://github.com/wnfs-wg/rs-wnfs/blob/07d026c1ef324597da9ac7897353015dd634af16/crates/fs/common/blockstore.rs#L30-L85
-[wnfs-examples]: examples/
-[wnfs-graph-demo]: https://calm-thin-barista.fission.app
+[blockstore-trait]: https://github.com/wnfs-wg/rs-wnfs/blob/07d026c1ef324597da9ac7897353015dd634af16/wnfs/common/blockstore.rs#L30-L85
 [hamt-wiki]: https://en.wikipedia.org/wiki/Hash_array_mapped_trie
 [ipld-spec]: https://ipld.io/
 [npm-ipld-tools]: https://www.npmjs.com/search?q=ipld
+[wnfs-examples]: examples/
+[wnfs-graph-demo]: https://calm-thin-barista.fission.app
+[wnfs-spec]: https://github.com/wnfs-wg/spec
+[wnfs-wasm-readme]: wnfs-wasm/README.md

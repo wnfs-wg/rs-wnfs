@@ -108,7 +108,7 @@ build_fs() {
 
 build_wasm() {
     display_header "💿 | BUILDING WASM-WNFS PROJECT | 💿"
-    cd $script_dir/../crates/wasm
+    cd $script_dir/../wnfs-wasm
     WASM_BINDGEN_WEAKREF=1 wasm-pack build --target web
 	sed -i.bak \
         -e 's/"name": "wasm-wnfs"/"name": "wnfs",\n  "type": "module"/g' \
@@ -141,7 +141,7 @@ test_fs() {
 
 test_wasm() {
     display_header "🧪 | RUNNING WASM-WNFS TESTS | 🧪"
-    cd $script_dir/../crates/wasm
+    cd $script_dir/../wnfs-wasm
     yarn playwright test
 }
 
