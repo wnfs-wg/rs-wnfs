@@ -1,12 +1,12 @@
 ## Wasm WNFS
 
-This projects implements bindings for using [the WebNative FileSystem (WNFS) Rust implementation](../fs) in the browser.
+This projects implements necessary JavaScript bindings for using [the WebNative FileSystem (WNFS) Rust implementation][wnfs-crate] in the browser.
 
 WNFS is a versioned content-addressable distributed filesystem with private and public sub systems. The private filesystem is encrypted so that only users with the right keys can access its contents. It is designed to prevent inferring metadata like the structure of the file tree. The other part of the WNFS filesystem is a simpler public filesystem that is not encrypted and can be accessed by anyone with the right address.
 
 WNFS also features collaborative editing of file trees, where multiple users can edit the same tree at the same time.
 
-WNFS file trees can serialize and be deserialized from IPLD graphs with an extensible metadata section. This allows WNFS to be understood by other IPLD-based tools and systems.
+WNFS file trees can serialize and be deserialized from [IPLD graphs][ipld-spec] with an extensible metadata section. This allows WNFS to be understood by other [IPLD-based tools][npm-ipld-tools] and systems.
 
 ## Outline
 
@@ -43,7 +43,7 @@ WNFS file trees can serialize and be deserialized from IPLD graphs with an exten
 
 ## Usage
 
-WNFS does not have an opinion on where you want to persist your content or the file tree. Instead, the API expects any object that implements the async [`BlockStore`](https://github.com/wnfs-wg/rs-wnfs/blob/07d026c1ef324597da9ac7897353015dd634af16/crates/wasm/fs/blockstore.rs#L20-L29) interface. This implementation also defers system-level operations to the user; requiring that operations like time and random number generation be passed in from the interface. This makes for a clean wasm interface that works everywhere.
+WNFS does not have an opinion on where you want to persist your content or the file tree. Instead, the API expects any object that implements the async [`BlockStore`][blockstore-trait] interface. This implementation also defers system-level operations to the user; requiring that operations like time and random number generation be passed in from the interface. This makes for a clean wasm interface that works everywhere.
 
 Let's see an example of working with a public directory. Here we are going to use a custom-written memory-based blockstore.
 
@@ -88,9 +88,9 @@ var { result } = await rootDir.ls(["pictures"], store);
 console.log("Files in /pictures directory:", result);
 ```
 
-You may notice that we use the `rootDir`s returned by each operation in subseqent operations. That is because WNFS internal state is immutable and every operation potentially returns a new root directory. This allows us to track and rollback changes when needed. It also makes collaborative editing easier to implement and reason about. There is a basic demo of the filesystem immutability [here](https://calm-thin-barista.fission.app).
+You may notice that we use the `rootDir`s returned by each operation in subseqent operations. That is because WNFS internal state is immutable and every operation potentially returns a new root directory. This allows us to track and rollback changes when needed. It also makes collaborative editing easier to implement and reason about. There is a basic demo of the filesystem immutability [here][wnfs-graph-demo].
 
-The private filesystem, on the other hand, is a bit more involved. [Hash Array Mapped Trie (HAMT)](https://en.wikipedia.org/wiki/Hash_array_mapped_trie) is used as the intermediate format of private file tree before it is persisted to the blockstore. HAMT helps us hide the hierarchy of the file tree.
+The private filesystem, on the other hand, is a bit more involved. [Hash Array Mapped Trie (HAMT)][hamt-wiki] is used as the intermediate format of private file tree before it is persisted to the blockstore. HAMT helps us hide the hierarchy of the file tree.
 
 ```js
 import { MemoryBlockStore, Rng } from "<custom>";
@@ -169,3 +169,10 @@ console.log("Files in /pictures directory:", result);
   ```bash
   npm publish
   ```
+
+[wnfs-crate]: https://crates.io/crates/wnfs
+[blockstore-trait]: https://github.com/wnfs-wg/rs-wnfs/blob/main/crates/wasm/fs/blockstore.rs#L20-L29
+[wnfs-graph-demo]: https://calm-thin-barista.fission.app
+[hamt-wiki]: https://en.wikipedia.org/wiki/Hash_array_mapped_trie
+[ipld-spec]: https://ipld.io/
+[npm-ipld-tools]: https://www.npmjs.com/search?q=ipld

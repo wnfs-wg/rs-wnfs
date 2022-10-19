@@ -31,13 +31,13 @@
 
 ##
 
-This is a Rust implementation of [the WebNative FileSystem (WNFS) specification](https://github.com/wnfs-wg/spec). WNFS is a versioned content-addressable distributed filesystem with private and public sub systems. The private filesystem is encrypted so that only users with the right keys can access its contents. It is designed to prevent inferring metadata like the structure of the file tree. The other part of the WNFS filesystem is a simpler public filesystem that is not encrypted and can be accessed by anyone with the right address.
+This is a Rust implementation of [the WebNative FileSystem (WNFS) specification][wnfs-spec]. WNFS is a versioned content-addressable distributed filesystem with private and public sub systems. The private filesystem is encrypted so that only users with the right keys can access its contents. It is designed to prevent inferring metadata like the structure of the file tree. The other part of the WNFS filesystem is a simpler public filesystem that is not encrypted and can be accessed by anyone with the right address.
 
 WNFS also features collaborative editing of file trees, where multiple users can edit the same tree at the same time.
 
-WNFS file trees can serialize and be deserialized from IPLD graphs with an extensible metadata section. This allows WNFS to be understood by other IPLD-based tools and systems.
+WNFS file trees can serialize and be deserialized from [IPLD graphs][ipld-spec] with an extensible metadata section. This allows WNFS to be understood by other [IPLD-based tools][npm-ipld-tools] and systems.
 
-This library is designed with WebAssembly in mind. You can follow instructions on how to use it in your browser applications [here](crates/wasm/README.md).
+This library is designed with WebAssembly in mind. You can follow instructions on how to use it in your browser applications [here][wnfs-wasm-readme].
 
 ## Outline
 
@@ -61,7 +61,7 @@ This library is designed with WebAssembly in mind. You can follow instructions o
 
 - **The Rust Toolchain**
 
-  Follow the instructions [here](https://doc.rust-lang.org/cargo/getting-started/installation.html) to install the official Rust toolchain.
+  Follow the instructions [here][rust-toolchain-guide] to install the official Rust toolchain.
 
 - **The WebAssembly Toolchain**
 
@@ -76,7 +76,7 @@ This library is designed with WebAssembly in mind. You can follow instructions o
     rustup target add wasm32-unknown-unknown
     ```
 
-  - [rust-analyzer](https://rust-analyzer.github.io/manual.html#installation) is the go-to IDE tool for Rust and if you have it set up, you may want to set the `rust-analyzer.cargo.target` [setting](https://code.visualstudio.com/docs/getstarted/settings#_workspace-settings) to `wasm32-unknown-unknown`
+  - [rust-analyzer][rust-analyzer-guide] is the go-to IDE tool for Rust and if you have it set up, you may want to set the `rust-analyzer.cargo.target` [setting][vscode-settings] to `wasm32-unknown-unknown`
 
   - Install wasm-pack
 
@@ -84,36 +84,36 @@ This library is designed with WebAssembly in mind. You can follow instructions o
     cargo install wasm-pack
     ```
 
-  - Install [playwright](https://playwright.dev/) binaries
+  - Install [playwright][playwright-guide] binaries
 
     ```bash
     npx playwright install
     ```
 
-
   **Architecture-specifics**
 
   - On ARM-based (M1 family) macOS, you might need to explicitly install the following:
 
-      - Install wasm-bindgen
+    - Install wasm-bindgen
 
-        ```bash
-        cargo install -f wasm-bindgen-cli
-        ```
+      ```bash
+      cargo install -f wasm-bindgen-cli
+      ```
 
-      - Install wasm-opt
+    - Install wasm-opt
 
-        ```bash
-        brew install binaryen
-        ```
+      ```bash
+      brew install binaryen
+      ```
 
   - On Arch Linux based distributions, you might need to explicitly install the following:
 
-      - Install wasm-opt
+    - Install wasm-opt
 
-        ```bash
-        sudo pacman -S binaryen
-        ```
+      ```bash
+      sudo pacman -S binaryen
+      ```
+
   </details>
 
 - **The _rs-wnfs_ Command**
@@ -142,7 +142,7 @@ This library is designed with WebAssembly in mind. You can follow instructions o
 - Clone the repository.
 
   ```bash
-  git clone https://github.com/WebNativeFileSystem/rs-wnfs.git
+  git clone https://github.com/wnfs-wg/rs-wnfs.git
   ```
 
 - Change directory
@@ -167,7 +167,7 @@ This library is designed with WebAssembly in mind. You can follow instructions o
 
 ## Usage
 
-WNFS does not have an opinion on where you want to persist your content or the file tree. Instead, the API expects any object that implements the async [`BlockStore`](https://github.com/wnfs-wg/rs-wnfs/blob/07d026c1ef324597da9ac7897353015dd634af16/crates/fs/common/blockstore.rs#L30-L85) interface. This implementation also defers system-level operations to the user; requiring that operations like time and random number generation be passed in from the interface. This makes for a clean wasm interface that works everywhere.
+WNFS does not have an opinion on where you want to persist your content or the file tree. Instead, the API expects any object that implements the async [`BlockStore`][blockstore-trait] interface. This implementation also defers system-level operations to the user; requiring that operations like time and random number generation be passed in from the interface. This makes for a clean wasm interface that works everywhere.
 
 Let's see an example of working with a public directory. Here we are going to use the memory-based blockstore provided by library.
 
@@ -200,9 +200,9 @@ async fn main() {
 }
 ```
 
-You may notice that we store the `root_dir` returned by the `mkdir` operation, not the `dir` we started with. That is because WNFS internal state is immutable and every operation potentially returns a new root directory. This allows us to track and rollback changes when needed. It also makes collaborative editing easier to implement and reason about. You can find more examples in the [`crates/fs/examples/`](crates/fs/examples/) folder. And there is a basic demo of the filesystem immutability [here](https://calm-thin-barista.fission.app).
+You may notice that we store the `root_dir` returned by the `mkdir` operation, not the `dir` we started with. That is because WNFS internal state is immutable and every operation potentially returns a new root directory. This allows us to track and rollback changes when needed. It also makes collaborative editing easier to implement and reason about. You can find more examples in the [`crates/fs/examples/`][wnfs-examples] folder. And there is a basic demo of the filesystem immutability [here][wnfs-graph-demo].
 
-The private filesystem, on the other hand, is a bit more involved. [Hash Array Mapped Trie (HAMT)](https://en.wikipedia.org/wiki/Hash_array_mapped_trie) is used as the intermediate format of private file tree before it is persisted to the blockstore. HAMT helps us hide the hierarchy of the file tree.
+The private filesystem, on the other hand, is a bit more involved. [Hash Array Mapped Trie (HAMT)][hamt-wiki] is used as the intermediate format of private file tree before it is persisted to the blockstore. HAMT helps us hide the hierarchy of the file tree.
 
 ```rust
 use wnfs::{
@@ -271,7 +271,7 @@ async fn main() {
 
 Namefilters are currently how we represent the identity key of a node in the filesystem. They have nice properties, one of which is the ability to check if one node belongs to another. This is necessary in a filesystem where metadata like hierarchy needs to be hidden from observing agents. One notable caveat with namefilters is that they can only reliably store information of a file tree 47 levels deep or less so there is a plan to replace them with cryptographic accumlators in the near future.
 
-Check the [`crates/fs/examples/`](crates/fs/examples/) folder for more examples.
+Check the [`crates/fs/examples/`][wnfs-examples] folder for more examples.
 
 ## Testing the Project
 
@@ -291,15 +291,15 @@ Check the [`crates/fs/examples/`](crates/fs/examples/) folder for more examples.
 
 ### Pre-commit Hook
 
-This library recommends using [pre-commit](https://pre-commit.com/) for running pre-commit hooks. Please run this before every commit and/or push.
+This library recommends using [pre-commit][pre-commit-guide] for running pre-commit hooks. Please run this before every commit and/or push.
 
-- Once installed, Run `pre-commit install` to setup the pre-commit hooks locally.  This will reduce failed CI builds.
+- Once installed, Run `pre-commit install` to setup the pre-commit hooks locally. This will reduce failed CI builds.
 - If you are doing interim commits locally, and for some reason if you _don't_ want pre-commit hooks to fire, you can run
   `git commit -a -m "Your message here" --no-verify`.
 
 ## Getting Help
 
-For usage questions, usecases, or issues reach out to us in our [Discord webnative-fs channel](https://discord.com/channels/478735028319158273/877623827331428403).
+For usage questions, usecases, or issues reach out to us in our [Discord webnative-fs channel][webnative-discord].
 We would be happy to try to answer your question or try opening a new issue on Github.
 
 ## External Resources
@@ -308,15 +308,35 @@ This is a list of links to blog posts, confereence talks, and tutorials related 
 
 ### Talks
 
-- [A Distributed File System for Secure P2P Applications](https://www.youtube.com/watch?v=-f4cH_HQU4U) by Brooklyn Zelenka (Strange Loop 2022)
-- [WebNative File System](https://www.youtube.com/watch?v=3se17NAS-Lw) by Brooklyn Zelenka (IPFS bing 2022)
-- [Shared Private Files Design in Webnative's WNFS](https://vimeo.com/534517727) by Brooklyn Zelenka
+- [A Distributed File System for Secure P2P Applications][distributed-fs-talk] by Brooklyn Zelenka (Strange Loop 2022)
+- [WebNative File System][wnfs-talk] by Brooklyn Zelenka (IPFS bing 2022)
+- [Shared Private Files Design in Webnative's WNFS][shared-private-fs-talk] by Brooklyn Zelenka
 
 ### Related Implementations
 
-- [wnfs-go](https://github.com/wnfs-wg/wnfs-go)
-- [WNFS (typescript) / Webnative SDK](https://github.com/fission-codes/webnative/blob/main/README.md#web-native-file-system)
+- [wnfs-go][wnfs-go-repo]
+- [WNFS (typescript) / Webnative SDK][webnative-sdk-repo]
 
 ## License
 
 This project is licensed under the [Apache License 2.0](https://github.com/wnfs-wg/rs-wnfs/blob/main/LICENSE).
+
+[wnfs-spec]: https://github.com/wnfs-wg/spec
+[wnfs-wasm-readme]: crates/wasm/README.md
+[rust-toolchain-guide]: https://doc.rust-lang.org/cargo/getting-started/installation.html
+[rust-analyzer-guide]: https://rust-analyzer.github.io/manual.html#installation
+[vscode-settings]: https://code.visualstudio.com/docs/getstarted/settings#_workspace-settings
+[playwright-guide]: https://playwright.dev/
+[blockstore-trait]: https://github.com/wnfs-wg/rs-wnfs/blob/07d026c1ef324597da9ac7897353015dd634af16/crates/fs/common/blockstore.rs#L30-L85
+[wnfs-examples]: crates/fs/examples/
+[wnfs-graph-demo]: https://calm-thin-barista.fission.app
+[hamt-wiki]: https://en.wikipedia.org/wiki/Hash_array_mapped_trie
+[ipld-spec]: https://ipld.io/
+[npm-ipld-tools]: https://www.npmjs.com/search?q=ipld
+[pre-commit-guide]: https://pre-commit.com/
+[webnative-discord]: https://discord.com/channels/478735028319158273/877623827331428403
+[distributed-fs-talk]: https://www.youtube.com/watch?v=-f4cH_HQU4U
+[wnfs-talk]: https://www.youtube.com/watch?v=3se17NAS-Lw
+[shared-private-fs-talk]: https://vimeo.com/534517727
+[wnfs-go-repo]: https://github.com/wnfs-wg/wnfs-go
+[webnative-sdk-repo]: https://github.com/fission-codes/webnative/blob/main/README.md#web-native-file-system
