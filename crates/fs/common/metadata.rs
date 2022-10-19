@@ -42,7 +42,8 @@ impl Metadata {
 
     /// Updates modified time.
     pub fn upsert_mtime(&mut self, time: DateTime<Utc>) {
-        self.0.insert("modified".into(), time.timestamp_nanos().into());
+        self.0
+            .insert("modified".into(), time.timestamp_nanos().into());
     }
 
     /// Returns the created time.

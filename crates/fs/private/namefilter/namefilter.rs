@@ -19,6 +19,17 @@ pub const HASH_BYTE_SIZE: usize = 32;
 /// Namefilters are 2048-bit bloom filters.
 ///
 /// In WNFS they represent the identity key of a file or directory, doubling as a store for checking the ancestor of the file or directory.
+///
+/// # Examples
+///
+/// ```
+/// use wnfs::Namefilter;
+///
+/// let mut filter = Namefilter::default();
+/// filter.add(&[0xF5u8; 32]);
+///
+/// assert!(filter.contains(&[0xF5u8; 32]));
+/// ```
 pub type Namefilter = BloomFilter<256, 30>;
 
 //--------------------------------------------------------------------------------------------------
@@ -27,6 +38,19 @@ pub type Namefilter = BloomFilter<256, 30>;
 
 impl Namefilter {
     /// Adds hashes to filter until is is over the saturation threshold.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use wnfs::{private::SATURATION_THRESHOLD, Namefilter};
+    ///
+    /// let mut filter = Namefilter::default();
+    /// filter.add(&[0xF5u8; 32]);
+    /// filter.saturate();
+    ///
+    /// assert!(filter.contains(&[0xF5u8; 32]));
+    /// assert!(filter.count_ones() <= SATURATION_THRESHOLD);
+    /// ```
     pub fn saturate(&mut self) {
         let mut xof = {
             let mut h = Shake256::default();

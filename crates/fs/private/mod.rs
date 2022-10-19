@@ -9,5 +9,7 @@ mod node;
 pub use directory::*;
 pub use file::*;
 pub use forest::*;
+pub use hamt::*;
 pub use key::*;
+pub use namefilter::*;
 pub use node::*;

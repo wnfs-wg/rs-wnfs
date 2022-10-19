@@ -13,8 +13,24 @@ use super::{hamt::Hamt, namefilter::Namefilter, Key, PrivateNode, PrivateRef};
 // Type Definitions
 //--------------------------------------------------------------------------------------------------
 
-// TODO(appcypher): Change Cid to PrivateLink<PrivateNode>.
-// TODO(appcypher): And eventually to BTreeSet<PrivateLink<PrivateNode>>.
+/// PrivateForest is a HAMT that stores CIDs of private nodes using their saturated namefilters as keys.
+///
+/// On insert, nodes are serialized to DAG CBOR and encrypted with their private refs and then stored in
+/// a accompanying blockstore. And on lookup, the nodes are decrypted and deserialized with the same private
+/// refs.
+///
+/// It is called a forest because it is a collection of file trees.
+///
+/// # Examples
+///
+/// ```
+/// use wnfs::private::PrivateForest;
+///
+/// let forest = PrivateForest::new();
+///
+/// println!("{:?}", forest);
+/// ```
+// TODO(appcypher): Change Cid to PrivateLink<PrivateNode> to BTreeSet<PrivateLink<PrivateNode>>.
 pub type PrivateForest = Hamt<Namefilter, Cid>;
 
 //--------------------------------------------------------------------------------------------------
@@ -28,7 +44,39 @@ impl PrivateForest {
     }
 
     /// Sets a new value at the given key.
-    #[inline]
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use std::rc::Rc;
+    ///
+    /// use chrono::Utc;
+    /// use rand::thread_rng;
+    ///
+    /// use wnfs::{
+    ///     private::{PrivateForest, PrivateRef}, PrivateNode,
+    ///     BlockStore, MemoryBlockStore, Namefilter, PrivateDirectory, PrivateOpResult,
+    /// };
+    ///
+    /// #[async_std::main]
+    /// async fn main() {
+    ///     let store = &mut MemoryBlockStore::default();
+    ///     let rng = &mut thread_rng();
+    ///     let forest = Rc::new(PrivateForest::new());
+    ///     let dir = Rc::new(PrivateDirectory::new(
+    ///         Namefilter::default(),
+    ///         Utc::now(),
+    ///         rng,
+    ///     ));
+    ///
+    ///     let private_ref = &dir.header.get_private_ref().unwrap();
+    ///     let name = dir.header.get_saturated_name();
+    ///     let node = PrivateNode::Dir(dir);
+    ///
+    ///     let forest = forest.set(name, private_ref, &node, store, rng).await.unwrap();
+    ///     assert_eq!(forest.get(private_ref, store).await.unwrap(), Some(node));
+    /// }
+    /// ```
     pub async fn set<B: BlockStore, R: RngCore>(
         self: Rc<Self>,
         saturated_name: Namefilter,
@@ -53,7 +101,39 @@ impl PrivateForest {
     }
 
     /// Gets the value at the given key.
-    #[inline]
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use std::rc::Rc;
+    ///
+    /// use chrono::Utc;
+    /// use rand::thread_rng;
+    ///
+    /// use wnfs::{
+    ///     private::{PrivateForest, PrivateRef}, PrivateNode,
+    ///     BlockStore, MemoryBlockStore, Namefilter, PrivateDirectory, PrivateOpResult,
+    /// };
+    ///
+    /// #[async_std::main]
+    /// async fn main() {
+    ///     let store = &mut MemoryBlockStore::default();
+    ///     let rng = &mut thread_rng();
+    ///     let forest = Rc::new(PrivateForest::new());
+    ///     let dir = Rc::new(PrivateDirectory::new(
+    ///         Namefilter::default(),
+    ///         Utc::now(),
+    ///         rng,
+    ///     ));
+    ///
+    ///     let private_ref = &dir.header.get_private_ref().unwrap();
+    ///     let name = dir.header.get_saturated_name();
+    ///     let node = PrivateNode::Dir(dir);
+    ///
+    ///     let forest = forest.set(name, private_ref, &node, store, rng).await.unwrap();
+    ///     assert_eq!(forest.get(private_ref, store).await.unwrap(), Some(node));
+    /// }
+    /// ```
     pub async fn get<B: BlockStore>(
         &self,
         private_ref: &PrivateRef,
@@ -84,6 +164,43 @@ impl PrivateForest {
     }
 
     /// Checks that a value with the given saturated name hash key exists.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use std::rc::Rc;
+    ///
+    /// use chrono::Utc;
+    /// use rand::thread_rng;
+    /// use sha3::Sha3_256;
+    ///
+    ///
+    /// use wnfs::{
+    ///     private::{PrivateForest, PrivateRef}, PrivateNode,
+    ///     BlockStore, MemoryBlockStore, Namefilter, PrivateDirectory, PrivateOpResult, Hasher
+    /// };
+    ///
+    /// #[async_std::main]
+    /// async fn main() {
+    ///     let store = &mut MemoryBlockStore::default();
+    ///     let rng = &mut thread_rng();
+    ///     let forest = Rc::new(PrivateForest::new());
+    ///     let dir = Rc::new(PrivateDirectory::new(
+    ///         Namefilter::default(),
+    ///         Utc::now(),
+    ///         rng,
+    ///     ));
+    ///
+    ///     let private_ref = &dir.header.get_private_ref().unwrap();
+    ///     let name = dir.header.get_saturated_name();
+    ///     let node = PrivateNode::Dir(dir);
+    ///     let forest = forest.set(name.clone(), private_ref, &node, store, rng).await.unwrap();
+    ///
+    ///     let name_hash = &Sha3_256::hash(&name.as_bytes());
+    ///
+    ///     assert!(forest.has(name_hash, store).await.unwrap());
+    /// }
+    /// ```
     pub async fn has<B: BlockStore>(
         &self,
         saturated_name_hash: &HashOutput,
@@ -97,7 +214,6 @@ impl PrivateForest {
     }
 
     /// Sets a new encrypted value at the given key.
-    #[inline]
     pub async fn set_encrypted<B: BlockStore>(
         self: Rc<Self>,
         name: Namefilter,
@@ -126,9 +242,9 @@ impl PrivateForest {
         store: &mut B,
     ) -> Result<(Rc<Self>, Option<Cid>)> {
         let mut cloned = (*self).clone();
-        let (root, value) = self.root.remove_by_hash(name_hash, store).await?;
+        let (root, pair) = cloned.root.remove_by_hash(name_hash, store).await?;
         cloned.root = root;
-        Ok((Rc::new(cloned), value))
+        Ok((Rc::new(cloned), pair.map(|p| p.value)))
     }
 }
 

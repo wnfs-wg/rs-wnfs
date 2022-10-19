@@ -14,7 +14,9 @@ mod traits;
 
 pub use common::*;
 pub use private::{
-    namefilter::Namefilter, PrivateDirectory, PrivateFile, PrivateNode, PrivateOpResult,
+    hamt::{Hasher, Pair},
+    namefilter::Namefilter,
+    PrivateDirectory, PrivateFile, PrivateNode, PrivateOpResult,
 };
 pub use public::{PublicDirectory, PublicFile, PublicNode, PublicOpResult};
 pub use traits::*;

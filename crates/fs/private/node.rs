@@ -62,6 +62,24 @@ pub struct RatchetKey(pub Key);
 
 /// This is the header of a private node. It contains secret information about the node which includes
 /// the inumber, the ratchet, and the namefilter.
+///
+/// # Examples
+///
+/// ```
+/// use wnfs::{PrivateFile, Namefilter, Id};
+/// use chrono::Utc;
+/// use rand::thread_rng;
+///
+/// let rng = &mut thread_rng();
+/// let file = PrivateFile::new(
+///     Namefilter::default(),
+///     Utc::now(),
+///     b"hello world".to_vec(),
+///     rng,
+/// );
+///
+/// println!("Header: {:?}", file.header);
+/// ```
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PrivateNodeHeader {
     /// A unique identifier of the node.
@@ -462,7 +480,7 @@ impl From<PrivateDirectory> for PrivateNode {
 
 impl PrivateNodeHeader {
     /// Creates a new PrivateNodeHeader.
-    pub fn new<R: RngCore>(parent_bare_name: Namefilter, rng: &mut R) -> Self {
+    pub(crate) fn new<R: RngCore>(parent_bare_name: Namefilter, rng: &mut R) -> Self {
         let (inumber, ratchet_seed) = PrivateNode::generate_double_random(rng);
         Self {
             bare_name: {
@@ -476,39 +494,12 @@ impl PrivateNodeHeader {
     }
 
     /// Advances the ratchet.
-    pub fn advance_ratchet(&mut self) {
+    pub(crate) fn advance_ratchet(&mut self) {
         self.ratchet.inc();
     }
 
-    /// Gets the private ref of the current header.
-    pub fn get_private_ref(&self) -> Result<PrivateRef> {
-        let ratchet_key = Key::new(self.ratchet.derive_key());
-        let saturated_name_hash = Sha3_256::hash(&self.get_saturated_name_with_key(&ratchet_key));
-
-        Ok(PrivateRef {
-            saturated_name_hash,
-            content_key: ContentKey(Key::new(Sha3_256::hash(&ratchet_key.as_bytes()))),
-            ratchet_key: RatchetKey(ratchet_key),
-        })
-    }
-
-    /// Gets the saturated namefilter for this node using the provided ratchet key.
-    pub fn get_saturated_name_with_key(&self, ratchet_key: &Key) -> Namefilter {
-        let mut name = self.bare_name.clone();
-        name.add(&ratchet_key.as_bytes());
-        name.saturate();
-        name
-    }
-
-    /// Gets the saturated namefilter for this node.
-    #[inline]
-    pub fn get_saturated_name(&self) -> Namefilter {
-        let ratchet_key = Key::new(self.ratchet.derive_key());
-        self.get_saturated_name_with_key(&ratchet_key)
-    }
-
     /// Updates the bare name of the node.
-    pub fn update_bare_name(&mut self, parent_bare_name: Namefilter) {
+    pub(crate) fn update_bare_name(&mut self, parent_bare_name: Namefilter) {
         self.bare_name = {
             let mut namefilter = parent_bare_name;
             namefilter.add(&self.inumber);
@@ -517,8 +508,99 @@ impl PrivateNodeHeader {
     }
 
     /// Resets the ratchet.
-    pub fn reset_ratchet<R: RngCore>(&mut self, rng: &mut R) {
+    pub(crate) fn reset_ratchet<R: RngCore>(&mut self, rng: &mut R) {
         self.ratchet = Ratchet::zero(utils::get_random_bytes(rng))
+    }
+
+    /// Gets the private ref of the current header.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use wnfs::{PrivateFile, Namefilter, Id};
+    /// use chrono::Utc;
+    /// use rand::thread_rng;
+    ///
+    /// let rng = &mut thread_rng();
+    /// let file = PrivateFile::new(
+    ///     Namefilter::default(),
+    ///     Utc::now(),
+    ///     b"hello world".to_vec(),
+    ///     rng,
+    /// );
+    ///
+    /// let private_ref = file.header.get_private_ref().unwrap();
+    ///
+    /// println!("Private ref: {:?}", private_ref);
+    /// ```
+    pub fn get_private_ref(&self) -> Result<PrivateRef> {
+        let ratchet_key = Key::new(self.ratchet.derive_key());
+        let saturated_name_hash = Sha3_256::hash(&self.get_saturated_name_with_key(&ratchet_key));
+
+        Ok(PrivateRef {
+            saturated_name_hash,
+            content_key: Key::new(Sha3_256::hash(&ratchet_key.as_bytes())).into(),
+            ratchet_key: ratchet_key.into(),
+        })
+    }
+
+    /// Gets the saturated namefilter for this node using the provided ratchet key.
+    pub(crate) fn get_saturated_name_with_key(&self, ratchet_key: &Key) -> Namefilter {
+        let mut name = self.bare_name.clone();
+        name.add(&ratchet_key.as_bytes());
+        name.saturate();
+        name
+    }
+
+    /// Gets the saturated namefilter for this node.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use wnfs::{PrivateFile, Namefilter, private::Key};
+    /// use chrono::Utc;
+    /// use rand::thread_rng;
+    ///
+    /// let rng = &mut thread_rng();
+    /// let file = PrivateFile::new(
+    ///     Namefilter::default(),
+    ///     Utc::now(),
+    ///     b"hello world".to_vec(),
+    ///     rng,
+    /// );
+    ///
+    /// let saturated_name = file.header.get_saturated_name();
+    ///
+    /// println!("Saturated name: {:?}", saturated_name);
+    /// ```
+    #[inline]
+    pub fn get_saturated_name(&self) -> Namefilter {
+        let ratchet_key = Key::new(self.ratchet.derive_key());
+        self.get_saturated_name_with_key(&ratchet_key)
+    }
+}
+
+impl From<Key> for RatchetKey {
+    fn from(key: Key) -> Self {
+        Self(key)
+    }
+}
+
+impl From<RatchetKey> for Key {
+    fn from(key: RatchetKey) -> Self {
+        key.0
+    }
+}
+
+impl From<Key> for ContentKey {
+    fn from(key: Key) -> Self {
+        Self(key)
+    }
+}
+
+impl From<ContentKey> for Key {
+    fn from(key: ContentKey) -> Self {
+        key.0
     }
 }
 

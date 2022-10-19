@@ -1,6 +1,6 @@
 use std::{fmt::Debug, marker::PhantomData, rc::Rc};
 
-use crate::{private::hamt::HAMT_VALUES_BUCKET_SIZE, AsyncSerialize, BlockStore, HashOutput, Link};
+use crate::{private::HAMT_VALUES_BUCKET_SIZE, AsyncSerialize, BlockStore, HashOutput, Link};
 use anyhow::{bail, Result};
 use async_recursion::async_recursion;
 use async_trait::async_trait;
@@ -25,8 +25,22 @@ use super::{
 // Type Definitions
 //--------------------------------------------------------------------------------------------------
 
+/// The bitmask used by the HAMT which 16-bit, [u8; 2] type.
 pub type BitMaskType = [u8; HAMT_BITMASK_BYTE_SIZE];
 
+/// Represents a node in the HAMT tree structure.
+///
+/// # Examples
+///
+/// ```
+/// use std::rc::Rc;
+/// use wnfs::{private::Node, MemoryBlockStore};
+///
+/// let store = &mut MemoryBlockStore::new();
+/// let node = Rc::new(Node::<String, usize>::default());
+///
+/// assert!(node.is_empty());
+/// ```
 #[derive(Debug, Clone)]
 pub struct Node<K, V, H = Sha3_256>
 where
@@ -46,12 +60,23 @@ where
     H: Hasher + Clone,
 {
     /// Sets a new value at the given key.
-    pub async fn set<B: BlockStore>(
-        self: &Rc<Self>,
-        key: K,
-        value: V,
-        store: &mut B,
-    ) -> Result<Rc<Self>>
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use std::rc::Rc;
+    /// use wnfs::{private::Node, MemoryBlockStore};
+    ///
+    /// #[async_std::main]
+    /// async fn main() {
+    ///     let store = &mut MemoryBlockStore::new();
+    ///     let node = Rc::new(Node::<String, usize>::default());
+    ///
+    ///     let node = node.set("key".into(), 42, store).await.unwrap();
+    ///     assert_eq!(node.get(&String::from("key"), store).await.unwrap(), Some(&42));
+    /// }
+    /// ```
+    pub async fn set<B: BlockStore>(&self, key: K, value: V, store: &mut B) -> Result<Rc<Self>>
     where
         K: DeserializeOwned + Clone + AsRef<[u8]>,
         V: DeserializeOwned + Clone,
@@ -63,11 +88,23 @@ where
     }
 
     /// Gets the value at the given key.
-    pub async fn get<'a, B: BlockStore>(
-        self: &'a Rc<Self>,
-        key: &K,
-        store: &B,
-    ) -> Result<Option<&'a V>>
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use std::rc::Rc;
+    /// use wnfs::{private::Node, MemoryBlockStore};
+    ///
+    /// #[async_std::main]
+    /// async fn main() {
+    ///     let store = &mut MemoryBlockStore::new();
+    ///     let node = Rc::new(Node::<String, usize>::default());
+    ///
+    ///     let node = node.set("key".into(), 42, store).await.unwrap();
+    ///     assert_eq!(node.get(&String::from("key"), store).await.unwrap(), Some(&42));
+    /// }
+    /// ```
+    pub async fn get<'a, B: BlockStore>(&'a self, key: &K, store: &B) -> Result<Option<&'a V>>
     where
         K: DeserializeOwned + AsRef<[u8]>,
         V: DeserializeOwned,
@@ -81,8 +118,28 @@ where
     }
 
     /// Removes the value at the given key.
-    pub async fn remove<'a, B: BlockStore>(
-        self: &Rc<Self>,
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use std::rc::Rc;
+    /// use wnfs::{private::Node, Pair, MemoryBlockStore};
+    ///
+    /// #[async_std::main]
+    /// async fn main() {
+    ///     let store = &mut MemoryBlockStore::new();
+    ///     let node = Rc::new(Node::<String, usize>::default());
+    ///
+    ///     let node = node.set("key".into(), 42, store).await.unwrap();
+    ///     assert_eq!(node.get(&String::from("key"), store).await.unwrap(), Some(&42));
+    ///
+    ///     let (node, value) = node.remove(&String::from("key"), store).await.unwrap();
+    ///     assert_eq!(value, Some(Pair::new("key".into(), 42)));
+    ///     assert_eq!(node.get(&String::from("key"), store).await.unwrap(), None);
+    /// }
+    /// ```
+    pub async fn remove<B: BlockStore>(
+        self: Rc<Self>,
         key: &K,
         store: &B,
     ) -> Result<(Rc<Self>, Option<Pair<K, V>>)>
@@ -96,8 +153,27 @@ where
     }
 
     /// Gets the value at the key matching the provided hash.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use std::rc::Rc;
+    /// use sha3::Sha3_256;
+    /// use wnfs::{private::Node, Hasher, MemoryBlockStore};
+    ///
+    /// #[async_std::main]
+    /// async fn main() {
+    ///     let store = &mut MemoryBlockStore::new();
+    ///     let node = Rc::new(Node::<String, usize>::default());
+    ///
+    ///     let node = node.set("key".into(), 42, store).await.unwrap();
+    ///
+    ///     let key_hash = &Sha3_256::hash(&String::from("key"));
+    ///     assert_eq!(node.get_by_hash(key_hash, store).await.unwrap(), Some(&42));
+    /// }
+    /// ```
     pub async fn get_by_hash<'a, B: BlockStore>(
-        self: &'a Rc<Self>,
+        &'a self,
         hash: &HashOutput,
         store: &B,
     ) -> Result<Option<&'a V>>
@@ -113,27 +189,66 @@ where
     }
 
     /// Removes the value at the key matching the provided hash.
-    pub async fn remove_by_hash<'a, B: BlockStore>(
-        self: &Rc<Self>,
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use std::rc::Rc;
+    /// use sha3::Sha3_256;
+    /// use wnfs::{private::Node, Hasher, Pair, MemoryBlockStore};
+    ///
+    /// #[async_std::main]
+    /// async fn main() {
+    ///     let store = &mut MemoryBlockStore::new();
+    ///     let node = Rc::new(Node::<String, usize>::default());
+    ///
+    ///     let node = node.set("key".into(), 42, store).await.unwrap();
+    ///     assert_eq!(node.get(&String::from("key"), store).await.unwrap(), Some(&42));
+    ///
+    ///     let key_hash = &Sha3_256::hash(&String::from("key"));
+    ///     let (node, value) = node.remove_by_hash(key_hash, store).await.unwrap();
+    ///
+    ///     assert_eq!(value, Some(Pair::new("key".into(), 42)));
+    ///     assert_eq!(node.get(&String::from("key"), store).await.unwrap(), None);
+    /// }
+    /// ```
+    pub async fn remove_by_hash<B: BlockStore>(
+        self: Rc<Self>,
         hash: &HashOutput,
         store: &B,
-    ) -> Result<(Rc<Self>, Option<V>)>
+    ) -> Result<(Rc<Self>, Option<Pair<K, V>>)>
     where
         K: DeserializeOwned + Clone + AsRef<[u8]>,
         V: DeserializeOwned + Clone,
     {
-        self.remove_value(&mut HashNibbles::new(hash), store)
-            .await
-            .map(|(node, pair)| (node, pair.map(|pair| pair.value)))
+        self.remove_value(&mut HashNibbles::new(hash), store).await
     }
 
     /// Checks if the node is empty.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use std::rc::Rc;
+    /// use wnfs::{private::Node, MemoryBlockStore};
+    ///
+    /// #[async_std::main]
+    /// async fn main() {
+    ///     let store = &mut MemoryBlockStore::new();
+    ///
+    ///     let node = Rc::new(Node::<String, usize>::default());
+    ///     assert!(node.is_empty());
+    ///
+    ///     let node = node.set("key".into(), 42, store).await.unwrap();
+    ///     assert!(!node.is_empty());
+    /// }
+    /// ```
     pub fn is_empty(&self) -> bool {
-        self.bitmask.is_empty()
+        self.bitmask.count_ones() == 0
     }
 
     /// Calculates the value index from the bitmask index.
-    pub(super) fn get_value_index(&self, bit_index: usize) -> usize {
+    fn get_value_index(&self, bit_index: usize) -> usize {
         let shift_amount = HAMT_BITMASK_BIT_SIZE - bit_index;
         let mask = if shift_amount < HAMT_BITMASK_BIT_SIZE {
             let mut tmp = BitArray::<BitMaskType>::new([0xff, 0xff]);
@@ -147,9 +262,9 @@ where
     }
 
     #[async_recursion(?Send)]
-    pub async fn set_value<'a, 'b, B: BlockStore>(
-        self: &'a Rc<Self>,
-        hashnibbles: &'b mut HashNibbles,
+    async fn set_value<B: BlockStore>(
+        &self,
+        hashnibbles: &mut HashNibbles,
         key: K,
         value: V,
         store: &B,
@@ -168,7 +283,7 @@ where
 
         // If the bit is not set yet, insert a new pointer.
         if !self.bitmask[bit_index] {
-            let mut node = (**self).clone();
+            let mut node = self.clone();
 
             node.pointers
                 .insert(value_index, Pointer::Values(vec![Pair { key, value }]));
@@ -180,7 +295,7 @@ where
 
         Ok(match &self.pointers[value_index] {
             Pointer::Values(values) => {
-                let mut node = (**self).clone();
+                let mut node = self.clone();
                 let pointers: Pointer<_, _, H> = {
                     let mut values = (*values).clone();
                     if let Some(i) = values
@@ -223,7 +338,7 @@ where
             Pointer::Link(link) => {
                 let child = Rc::clone(link.resolve_value(store).await?);
                 let child = child.set_value(hashnibbles, key, value, store).await?;
-                let mut node = (**self).clone();
+                let mut node = self.clone();
                 node.pointers[value_index] = Pointer::Link(Link::from(child));
                 Rc::new(node)
             }
@@ -231,9 +346,9 @@ where
     }
 
     #[async_recursion(?Send)]
-    pub async fn get_value<'a, 'b, B: BlockStore>(
-        self: &'a Rc<Self>,
-        hashnibbles: &'b mut HashNibbles,
+    async fn get_value<'a, B: BlockStore>(
+        &'a self,
+        hashnibbles: &mut HashNibbles,
         store: &B,
     ) -> Result<Option<&'a Pair<K, V>>>
     where
@@ -262,7 +377,7 @@ where
     }
 
     #[async_recursion(?Send)]
-    pub async fn remove_value<'a, 'b, B: BlockStore>(
+    async fn remove_value<'a, 'b, B: BlockStore>(
         self: &'a Rc<Self>,
         hashnibbles: &'b mut HashNibbles,
         store: &B,
@@ -866,10 +981,10 @@ mod hamt_node_prop_tests {
             let store = &mut MemoryBlockStore::default();
             let node = node_from_operations(operations, store).await.unwrap();
 
-            node.set(key.clone(), value, store).await.unwrap();
+            let node = node.set(key.clone(), value, store).await.unwrap();
             let cid1 = store.put_async_serializable(&node).await.unwrap();
 
-            node.set(key, value, store).await.unwrap();
+            let node = node.set(key, value, store).await.unwrap();
             let cid2 = store.put_async_serializable(&node).await.unwrap();
 
             assert_eq!(cid1, cid2);
@@ -888,10 +1003,10 @@ mod hamt_node_prop_tests {
             let store = &mut MemoryBlockStore::default();
             let node = node_from_operations(operations, store).await.unwrap();
 
-            node.remove(&key, store).await.unwrap();
+            let (node, _) = node.remove(&key, store).await.unwrap();
             let cid1 = store.put_async_serializable(&node).await.unwrap();
 
-            node.remove(&key, store).await.unwrap();
+            let (node, _) = node.remove(&key, store).await.unwrap();
             let cid2 = store.put_async_serializable(&node).await.unwrap();
 
             assert_eq!(cid1, cid2);

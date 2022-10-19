@@ -35,13 +35,26 @@ impl<'de, const N: usize> Visitor<'de> for ByteArrayVisitor<N> {
 // Functions
 //--------------------------------------------------------------------------------------------------
 
-pub fn split_last(path_segments: &[String]) -> Result<(&[String], &String)> {
+pub(crate) fn split_last(path_segments: &[String]) -> Result<(&[String], &String)> {
     match path_segments.split_last() {
         Some((last, rest)) => Ok((rest, last)),
         None => error(FsError::InvalidPath),
     }
 }
 
+/// Generates a random byte array of the given length.
+///
+/// # Examples
+///
+/// ```
+/// use rand::thread_rng;
+/// use wnfs::utils::get_random_bytes;
+///
+/// let rng = &mut thread_rng();
+/// let bytes = get_random_bytes::<32>(rng);
+///
+/// assert_eq!(bytes.len(), 32);
+/// ```
 pub fn get_random_bytes<const N: usize>(rng: &mut impl RngCore) -> [u8; N] {
     let mut bytes = [0u8; N];
     rng.fill_bytes(&mut bytes);
