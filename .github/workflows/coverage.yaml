@@ -1,4 +1,4 @@
-name: ◒ Code Coverage
+name: ☂ Code Coverage
 
 on:
   push:
@@ -9,9 +9,6 @@ on:
 
 jobs:
   coverage:
-    strategy:
-      fail-fast: false
-
     runs-on: ubuntu-latest
 
     steps:
