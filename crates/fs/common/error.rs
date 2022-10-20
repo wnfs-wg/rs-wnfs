@@ -67,7 +67,7 @@ pub enum FsError {
     UnexpectedNodeType(NodeType),
 
     #[error("Could not compute in-between ratchet {0}")]
-    PreviousError(PreviousErr),
+    NoIntermediateRatchet(PreviousErr),
 }
 
 pub fn error<T>(err: impl std::error::Error + Send + Sync + 'static) -> Result<T> {

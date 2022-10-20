@@ -83,7 +83,7 @@ impl PrivateNodeHistory {
     ) -> Result<Self> {
         let forest = Rc::clone(&forest);
         let ratchets = PreviousIterator::new(past_ratchet, &header.ratchet, discrepancy_budget)
-            .map_err(FsError::PreviousError)?;
+            .map_err(FsError::NoIntermediateRatchet)?;
         Ok(PrivateNodeHistory {
             forest,
             header,
@@ -238,7 +238,7 @@ impl PrivateNodeOnPathHistory {
 
         previous_iter.path[0].history.ratchets =
             PreviousIterator::new(past_ratchet, &new_ratchet, discrepancy_budget)
-                .map_err(FsError::PreviousError)?;
+                .map_err(FsError::NoIntermediateRatchet)?;
 
         Ok(previous_iter)
     }
