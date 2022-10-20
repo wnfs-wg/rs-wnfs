@@ -1,0 +1,10 @@
+[package]
+name = "wnfs-server"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "wnfs_server"
+path = "src/server.rs"
+
+[dependencies]

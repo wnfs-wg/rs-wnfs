@@ -1,7 +1,9 @@
 [workspace]
 members = [
 	'crates/fs',
-	'crates/wasm'
+	'crates/wasm',
+	'wnfs-cli',
+	'wnfs-server',
 ]
 
 [patch.crates-io]
