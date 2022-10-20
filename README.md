@@ -52,8 +52,8 @@ This library is designed with WebAssembly in mind. You can follow instructions o
 
 ## Crates
 
-- [fs / filesystem](https://github.com/wnfs-wg/rs-wnfs/tree/main/crates/fs)
-- [wasm](https://github.com/wnfs-wg/rs-wnfs/tree/main/crates/wasm)
+- [wnfs](https://github.com/wnfs-wg/rs-wnfs/tree/main/crates/fs)
+- [wnfs-wasm](https://github.com/wnfs-wg/rs-wnfs/tree/main/crates/wasm)
 
 ## Building the Project
 
