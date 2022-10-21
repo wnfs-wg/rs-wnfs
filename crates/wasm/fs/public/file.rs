@@ -5,7 +5,7 @@ use js_sys::{Error, Promise, Uint8Array};
 use std::rc::Rc;
 use wasm_bindgen::{prelude::wasm_bindgen, JsValue};
 use wasm_bindgen_futures::future_to_promise;
-use wnfs::{ipld::Cid, public::PublicFile as WnfsPublicFile, BlockStore as WnfsBlockStore, Id};
+use wnfs::{ipld::Cid, BlockStore as WnfsBlockStore, Id, PublicFile as WnfsPublicFile};
 
 use crate::{
     fs::{metadata::JsMetadata, utils::error, BlockStore, ForeignBlockStore, JsResult},

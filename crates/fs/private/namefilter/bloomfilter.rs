@@ -1,4 +1,4 @@
-use std::ops::Index;
+use std::{fmt::Debug, ops::Index};
 
 use anyhow::anyhow;
 use bitvec::prelude::BitArray;
@@ -16,7 +16,18 @@ use crate::utils::ByteArrayVisitor;
 /// `N` is the size of the bloom filter in bytes.
 ///
 /// `K` is the number of bits to be set with each add operation.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd)]
+///
+/// # Examples
+///
+/// ```
+/// use wnfs::private::BloomFilter;
+///
+/// let mut filter = BloomFilter::<256, 30>::default();
+/// filter.add(&[0xF5u8; 32]);
+///
+/// assert!(filter.contains(&[0xF5u8; 32]));
+/// ```
+#[derive(Clone, PartialEq, Eq, PartialOrd)]
 pub struct BloomFilter<const N: usize, const K: usize> {
     pub(super) bits: BitArray<[u8; N]>,
 }
@@ -25,6 +36,18 @@ pub struct BloomFilter<const N: usize, const K: usize> {
 ///
 /// `N` is the number of bytes in the bloom filter.
 /// This is used to restrict generated value within bloomfilter index space bounds.
+///
+/// # Examples
+///
+/// ```
+/// use wnfs::private::BloomFilter;
+///
+/// let filter = BloomFilter::<256, 30>::default();
+/// let indices = filter.hash_indices(&[0xF5u8; 32]);
+/// let indices = indices.collect::<Vec<_>>();
+///
+/// assert_eq!(indices.len(), 30);
+/// ```
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HashIndexIterator<'a, T: AsRef<[u8]>, const N: usize> {
     item: &'a T,
@@ -42,7 +65,7 @@ impl<'a, T: AsRef<[u8]>, const N: usize> HashIndexIterator<'a, T, N> {
     }
 
     /// Returns the size of the bloom filter in bits.
-    pub const fn bit_size() -> usize {
+    const fn bit_size() -> usize {
         N * 8
     }
 }
@@ -60,6 +83,17 @@ impl<T: AsRef<[u8]>, const N: usize> Iterator for HashIndexIterator<'_, T, N> {
 
 impl<const N: usize, const K: usize> BloomFilter<N, K> {
     /// Creates a new bloom filter with all bits unset.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use wnfs::private::BloomFilter;
+    ///
+    /// let mut filter = BloomFilter::<256, 30>::new();
+    /// filter.add(&[0xF5u8; 32]);
+    ///
+    /// assert!(filter.contains(&[0xF5u8; 32]));
+    /// ```
     pub fn new() -> Self {
         Self {
             bits: Default::default(),
@@ -67,6 +101,17 @@ impl<const N: usize, const K: usize> BloomFilter<N, K> {
     }
 
     /// Adds an item to the bloom filter.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use wnfs::private::BloomFilter;
+    ///
+    /// let mut filter = BloomFilter::<256, 30>::default();
+    /// filter.add(&[0xF5u8; 32]);
+    ///
+    /// assert!(filter.contains(&[0xF5u8; 32]));
+    /// ```
     pub fn add<T>(&mut self, item: &T)
     where
         T: AsRef<[u8]>,
@@ -77,11 +122,32 @@ impl<const N: usize, const K: usize> BloomFilter<N, K> {
     }
 
     /// Returns the number of hash iterations the bloom filter uses to set bits.
-    pub const fn bit_index_count(&self) -> usize {
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use wnfs::private::BloomFilter;
+    ///
+    /// let mut filter = BloomFilter::<256, 30>::default();
+    ///
+    /// assert_eq!(filter.num_iterations(), 30);
+    /// ```
+    pub const fn num_iterations(&self) -> usize {
         K
     }
 
     /// Checks if the item is in the bloom filter.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use wnfs::private::BloomFilter;
+    ///
+    /// let mut filter = BloomFilter::<256, 30>::default();
+    /// filter.add(&[0xF5u8; 32]);
+    ///
+    /// assert!(filter.contains(&[0xF5u8; 32]));
+    /// ```
     pub fn contains<T>(&self, item: &T) -> bool
     where
         T: AsRef<[u8]>,
@@ -90,20 +156,55 @@ impl<const N: usize, const K: usize> BloomFilter<N, K> {
     }
 
     /// Counts the number of bits set in the bloom filter.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use wnfs::private::BloomFilter;
+    ///
+    /// let mut filter = BloomFilter::<256, 30>::default();
+    /// filter.add(&[0xF5u8; 32]);
+    ///
+    /// assert_eq!(filter.count_ones(), 30);
+    /// ```
     pub fn count_ones(&self) -> usize {
         self.bits.count_ones()
     }
 
     /// Returns the indices of the bits that would be set if the item was added to the bloom filter.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use wnfs::private::BloomFilter;
+    ///
+    /// let filter = BloomFilter::<256, 30>::default();
+    /// let indices = filter.hash_indices(&[0xF5u8; 32]);
+    /// let indices = indices.collect::<Vec<_>>();
+    ///
+    /// assert_eq!(indices.len(), 30);
+    /// ```
     #[inline]
     pub fn hash_indices<'a, T>(&self, item: &'a T) -> impl Iterator<Item = usize> + 'a
     where
         T: AsRef<[u8]>,
     {
-        HashIndexIterator::<_, N>::new(item).take(self.bit_index_count())
+        HashIndexIterator::<_, N>::new(item).take(self.num_iterations())
     }
 
     /// Get the bytes of the bloom filter.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use wnfs::private::BloomFilter;
+    ///
+    /// let mut filter = BloomFilter::<256, 30>::default();
+    /// filter.add(&[0xF5u8; 32]);
+    ///
+    /// let bytes = filter.as_bytes();
+    /// assert_eq!(bytes.len(), 256);
+    /// ```
     #[inline]
     pub fn as_bytes(&self) -> &[u8] {
         self.bits.as_raw_slice()
@@ -156,6 +257,17 @@ impl<'de, const N: usize, const K: usize> Deserialize<'de> for BloomFilter<N, K>
         Ok(BloomFilter::<N, K> {
             bits: BitArray::<[u8; N]>::new(deserializer.deserialize_bytes(ByteArrayVisitor::<N>)?),
         })
+    }
+}
+
+impl<const N: usize, const K: usize> Debug for BloomFilter<N, K> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "0x")?;
+        for byte in self.as_bytes().iter() {
+            write!(f, "{:02X}", byte)?;
+        }
+
+        Ok(())
     }
 }
 

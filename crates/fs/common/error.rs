@@ -56,9 +56,6 @@ pub enum FsError {
     #[error("Expected bare ratchet key")]
     ExpectBareRatchetKey,
 
-    #[error("Missing unix fs metadata field")]
-    MissingUnixFSMetadata,
-
     #[error("Missing node type field")]
     MissingNodeType,
 

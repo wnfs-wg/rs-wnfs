@@ -16,13 +16,31 @@ const MAX_CURSOR_DEPTH: usize = HASH_BYTE_SIZE * 2;
 //--------------------------------------------------------------------------------------------------
 
 /// A common trait for the ability to generate a hash of some data.
+///
+/// # Examples
+///
+/// ```
+/// use sha3::{Digest, Sha3_256};
+/// use wnfs::{Hasher, HashOutput};
+///
+/// struct MyHasher;
+///
+/// impl Hasher for MyHasher {
+///     fn hash<D: AsRef<[u8]>>(data: &D) -> HashOutput {
+///         let mut hasher = Sha3_256::new();
+///         hasher.update(data.as_ref());
+///         hasher.finalize().into()
+///     }
+/// }
+/// ```
 pub trait Hasher {
     /// Generates a hash of the given data.
-    fn hash<K: AsRef<[u8]>>(key: &K) -> HashOutput;
+    fn hash<D: AsRef<[u8]>>(data: &D) -> HashOutput;
 }
 
+/// HashNibbles is a wrapper around a byte slice that provides a cursor for traversing the nibbles.
 #[derive(Debug, Clone)]
-pub struct HashNibbles<'a> {
+pub(super) struct HashNibbles<'a> {
     pub digest: &'a HashOutput,
     cursor: usize,
 }
@@ -78,9 +96,9 @@ impl Iterator for HashNibbles<'_> {
 }
 
 impl Hasher for Sha3_256 {
-    fn hash<K: AsRef<[u8]>>(key: &K) -> HashOutput {
+    fn hash<D: AsRef<[u8]>>(data: &D) -> HashOutput {
         let mut hasher = Self::default();
-        hasher.update(key.as_ref());
+        hasher.update(data.as_ref());
         hasher.finalize().into()
     }
 }

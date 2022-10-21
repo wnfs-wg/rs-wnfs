@@ -18,16 +18,23 @@ use super::{Node, HAMT_VERSION};
 // Type Definitions
 //--------------------------------------------------------------------------------------------------
 
+/// Hash Array Mapped Trie (HAMT) is an implementation of an associative array that combines the characteristics
+/// of a hash table and an array mapped trie.
+///
+/// This type wraps the actual implementation which can be found in the [`Node`](crate::private::Node).
+///
+/// # Examples
+///
+/// ```
+/// use wnfs::private::Hamt;
+///
+/// let hamt = Hamt::<String, usize>::new();
+/// println!("HAMT: {:?}", hamt);
+/// ```
 #[derive(Debug, Clone, PartialEq)]
 pub struct Hamt<K, V> {
     pub root: Rc<Node<K, V>>,
     pub version: Version,
-    pub structure: Structure,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub enum Structure {
-    HAMT,
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -35,26 +42,42 @@ pub enum Structure {
 //--------------------------------------------------------------------------------------------------
 
 impl<K, V> Hamt<K, V> {
-    /// Creates a new empty Hamt.
+    /// Creates a new empty HAMT.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use wnfs::private::Hamt;
+    ///
+    /// let hamt = Hamt::<String, usize>::new();
+    /// println!("HAMT: {:?}", hamt);
+    /// ```
     pub fn new() -> Self {
         Self {
             root: Rc::new(Node::default()),
             version: HAMT_VERSION,
-            structure: Structure::HAMT,
         }
     }
 
-    /// Creates a new `Hamt` with the given root node.
+    /// Creates a new `HAMT` with the given root node.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use std::rc::Rc;
+    /// use wnfs::private::{Hamt, Node};
+    ///
+    /// let hamt = Hamt::<String, usize>::with_root(Rc::new(Node::default()));
+    /// println!("HAMT: {:?}", hamt);
+    /// ```
     pub fn with_root(root: Rc<Node<K, V>>) -> Self {
         Self {
             root,
             version: HAMT_VERSION,
-            structure: Structure::HAMT,
         }
     }
 
-    /// Converts a HAMT to an IPLD object.
-    pub async fn to_ipld<B: BlockStore + ?Sized>(&self, store: &mut B) -> Result<Ipld>
+    async fn to_ipld<B: BlockStore + ?Sized>(&self, store: &mut B) -> Result<Ipld>
     where
         K: Serialize,
         V: Serialize,
@@ -62,7 +85,7 @@ impl<K, V> Hamt<K, V> {
         Ok(Ipld::Map(BTreeMap::from([
             ("root".into(), self.root.to_ipld(store).await?),
             ("version".into(), ipld_serde::to_ipld(&self.version)?),
-            ("structure".into(), ipld_serde::to_ipld(&self.structure)?),
+            ("structure".into(), ipld_serde::to_ipld("hamt")?),
         ])))
     }
 }
@@ -118,41 +141,10 @@ where
                     _ => return Err("`version` is not a string".into()),
                 };
 
-                let structure = map
-                    .get("structure")
-                    .ok_or("Missing structure")?
-                    .try_into()?;
-
-                Ok(Self {
-                    root,
-                    version,
-                    structure,
-                })
+                Ok(Self { root, version })
             }
             other => Err(format!("Expected `Ipld::Map`, got {:#?}", other)),
         }
-    }
-}
-
-impl TryFrom<&Ipld> for Structure {
-    type Error = String;
-
-    fn try_from(ipld: &Ipld) -> Result<Self, Self::Error> {
-        match ipld {
-            Ipld::String(s) => Structure::try_from(s.as_str()),
-            other => Err(format!("Expected `Ipld::Integer` got {:#?}", other)),
-        }
-    }
-}
-
-impl TryFrom<&str> for Structure {
-    type Error = String;
-
-    fn try_from(name: &str) -> Result<Self, Self::Error> {
-        Ok(match name.to_lowercase().as_str() {
-            "hamt" => Structure::HAMT,
-            _ => return Err(format!("Unknown Structure: {}", name)),
-        })
     }
 }
 

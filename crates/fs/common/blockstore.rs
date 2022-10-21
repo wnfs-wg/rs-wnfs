@@ -12,11 +12,12 @@ use libipld::{
     serde as ipld_serde, Cid, Ipld, IpldCodec,
 };
 use multihash::{Code, MultihashDigest};
+use rand_core::RngCore;
 use serde::{de::DeserializeOwned, Serialize};
 
 use crate::{
-    private::{Key, Rng, NONCE_SIZE},
-    AsyncSerialize,
+    private::{Key, NONCE_SIZE},
+    utils, AsyncSerialize,
 };
 
 use super::FsError;
@@ -48,12 +49,12 @@ pub trait BlockStore {
     ) -> Result<Cid>
     where
         V: Serialize,
-        R: Rng,
+        R: RngCore,
     {
         let ipld = ipld_serde::to_ipld(value)?;
         let mut bytes = Vec::new();
         ipld.encode(DagCborCodec, &mut bytes)?;
-        let enc_bytes = key.encrypt(&rng.random_bytes::<NONCE_SIZE>(), &bytes)?;
+        let enc_bytes = key.encrypt(&utils::get_random_bytes::<NONCE_SIZE>(rng), &bytes)?;
         self.put_block(enc_bytes, IpldCodec::DagCbor).await
     }
 

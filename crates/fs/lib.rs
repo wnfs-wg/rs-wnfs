@@ -13,6 +13,12 @@ pub mod public;
 mod traits;
 
 pub use common::*;
+pub use private::{
+    hamt::{Hasher, Pair},
+    namefilter::Namefilter,
+    PrivateDirectory, PrivateFile, PrivateNode, PrivateOpResult,
+};
+pub use public::{PublicDirectory, PublicFile, PublicNode, PublicOpResult};
 pub use traits::*;
 
 //--------------------------------------------------------------------------------------------------
@@ -25,4 +31,8 @@ pub mod ipld {
         codec::{Codec, Decode, Encode},
         Cid, IpldCodec,
     };
+}
+
+pub mod rng {
+    pub use rand_core::RngCore;
 }

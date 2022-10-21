@@ -74,8 +74,8 @@ help() {
     echo "   * test     [--fs|--wasm|--all]  - run tests"
     echo "   * publish  [--fs|--wasm|--all]  - publish packages"
     echo "   * coverage [--fs|--wasm|--all]  - show code coverage"
-    echo "   * setup                           - install rs-wnfs script"
-    echo "   * help                            - print this help message"
+    echo "   * setup                         - install rs-wnfs script"
+    echo "   * help                          - print this help message"
     echo ""
     echo ""
 }
@@ -308,7 +308,7 @@ successln() {
 #	Prints a warning message.
 #
 warnln() {
-  printf "\n${yellow}!!! $1 !!!${none}\n\n"
+    printf "\n${yellow}!!! $1 !!!${none}\n\n"
 }
 
 # DESCRIPTION:
@@ -322,7 +322,7 @@ display_header() {
 #	test command availability
 #
 has() {
-  command -v "$1" 1>/dev/null 2>&1
+    command -v "$1" 1>/dev/null 2>&1
 }
 
 main $@

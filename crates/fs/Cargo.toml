@@ -1,6 +1,6 @@
 [package]
 name = "wnfs"
-version = "0.1.8"
+version = "0.1.9"
 description = "WebNative filesystem core implementation"
 keywords = ["wnfs", "webnative", "ipfs", "decentralisation"]
 categories = [
@@ -29,13 +29,13 @@ chrono = { version = "0.4", default-features = false, features = ["clock", "std"
 futures = "0.3"
 futures-util = "0.3"
 hashbrown = "0.12"
-libipld = { version = "0.14", features = ["dag-cbor", "derive", "serde-codec"] }
 lazy_static = "1.4"
+libipld = { version = "0.14", features = ["dag-cbor", "derive", "serde-codec"] }
 log = "0.4"
 multihash = "0.16"
 rand_core = "0.6"
-serde = { version = "1.0", features = ["rc"]}
 semver = { version = "1.0", features = ["serde"] }
+serde = { version = "1.0", features = ["rc"] }
 sha3 = "0.10"
 skip_ratchet = { version = "0.1", features = ["serde"] }
 thiserror = "1.0"
@@ -44,12 +44,13 @@ xxhash-rust = { version = "0.8", features = ["xxh3"] }
 [dev-dependencies]
 env_logger = "0.9"
 proptest = "1.0"
+rand = "0.8"
 test-log = "0.2"
 test-strategy = "0.2"
 
 [lib]
 path = "lib.rs"
-crate-type = ["cdylib" , "rlib"]
+crate-type = ["cdylib", "rlib"]
 
 [features]
 default = []

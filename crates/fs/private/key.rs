@@ -5,11 +5,10 @@ use aes_gcm::{
     Aes256Gcm, Key as AesKey, Nonce,
 };
 use anyhow::Result;
+use rand_core::RngCore;
 use serde::{Deserialize, Serialize};
 
-use crate::FsError;
-
-use super::Rng;
+use crate::{utils, FsError};
 
 //--------------------------------------------------------------------------------------------------
 // Contants
@@ -21,6 +20,19 @@ pub(crate) const NONCE_SIZE: usize = 12;
 // Type Definitions
 //--------------------------------------------------------------------------------------------------
 
+/// A key used for encryption and decryption. This is a wrapper around a 32 byte AES key.
+///
+/// # Examples
+///
+/// ```
+/// use wnfs::{private::Key, utils};
+/// use rand::thread_rng;
+///
+/// let rng = &mut thread_rng();
+/// let key = Key::new(utils::get_random_bytes(rng));
+///
+/// println!("Key: {:?}", key);
+/// ```
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Key(pub(super) [u8; 32]);
 
@@ -30,11 +42,40 @@ pub struct Key(pub(super) [u8; 32]);
 
 impl Key {
     /// Creates a new key from [u8; 32].
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use wnfs::{private::Key, utils};
+    /// use rand::thread_rng;
+    ///
+    /// let rng = &mut thread_rng();
+    /// let key = Key::new(utils::get_random_bytes(rng));
+    ///
+    /// println!("Key: {:?}", key);
+    /// ```
     pub fn new(bytes: [u8; 32]) -> Self {
         Self(bytes)
     }
 
     /// Encrypts the given plaintext using the key.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use wnfs::{private::Key, utils};
+    /// use rand::thread_rng;
+    ///
+    /// let rng = &mut thread_rng();
+    /// let key = Key::new(utils::get_random_bytes(rng));
+    /// let nonce = Key::generate_nonce(rng);
+    ///
+    /// let plaintext = b"Hello World!";
+    /// let ciphertext = key.encrypt(&nonce, plaintext).unwrap();
+    /// let decrypted = key.decrypt(&ciphertext).unwrap();
+    ///
+    /// assert_eq!(plaintext, &decrypted[..]);
+    /// ```
     pub fn encrypt(&self, nonce_bytes: &[u8; NONCE_SIZE], data: &[u8]) -> Result<Vec<u8>> {
         let nonce = Nonce::from_slice(nonce_bytes);
 
@@ -46,6 +87,23 @@ impl Key {
     }
 
     /// Decrypts the given ciphertext using the key.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use wnfs::{private::Key, utils};
+    /// use rand::thread_rng;
+    ///
+    /// let rng = &mut thread_rng();
+    /// let key = Key::new(utils::get_random_bytes(rng));
+    /// let nonce = Key::generate_nonce(rng);
+    ///
+    /// let plaintext = b"Hello World!";
+    /// let ciphertext = key.encrypt(&nonce, plaintext).unwrap();
+    /// let decrypted = key.decrypt(&ciphertext).unwrap();
+    ///
+    /// assert_eq!(plaintext, &decrypted[..]);
+    /// ```
     pub fn decrypt(&self, cipher_text: &[u8]) -> Result<Vec<u8>> {
         let (nonce_bytes, data) = cipher_text.split_at(NONCE_SIZE);
 
@@ -55,12 +113,24 @@ impl Key {
     }
 
     /// Generates a nonce that can be used to encrypt data.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use wnfs::{private::Key, utils};
+    /// use rand::thread_rng;
+    ///
+    /// let rng = &mut thread_rng();
+    /// let nonce = Key::generate_nonce(rng);
+    ///
+    /// println!("Nonce: {:?}", nonce);
+    /// ```
     #[inline]
     pub fn generate_nonce<R>(rng: &mut R) -> [u8; NONCE_SIZE]
     where
-        R: Rng,
+        R: RngCore,
     {
-        rng.random_bytes::<NONCE_SIZE>()
+        utils::get_random_bytes::<NONCE_SIZE>(rng)
     }
 
     /// Grabs the bytes of the key.
@@ -76,7 +146,17 @@ impl Key {
 
 impl Debug for Key {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Key(0x{:02X?})", &self.0[..5])
+        write!(f, "0x")?;
+        for (i, byte) in self.0.iter().enumerate() {
+            if i > 6 {
+                write!(f, "..")?;
+                break;
+            } else {
+                write!(f, "{:02X}", byte)?;
+            }
+        }
+
+        Ok(())
     }
 }
 

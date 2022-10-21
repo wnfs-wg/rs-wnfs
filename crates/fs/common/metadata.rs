@@ -1,9 +1,9 @@
 //! File system metadata.
 
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, convert::TryInto};
 
 use anyhow::{bail, Result};
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, TimeZone, Utc};
 use libipld::Ipld;
 use serde::{de::Error as DeError, Deserialize, Deserializer, Serialize, Serializer};
 
@@ -11,7 +11,7 @@ use serde::{de::Error as DeError, Deserialize, Deserializer, Serialize, Serializ
 // Type Definitions
 //--------------------------------------------------------------------------------------------------
 
-/// The type of node.
+/// The type of file system node.
 #[derive(Debug, Clone, PartialEq, Eq, Copy)]
 pub enum NodeType {
     PublicFile,
@@ -20,7 +20,18 @@ pub enum NodeType {
     PrivateDirectory,
 }
 
-/// The metadata of a node on the WNFS file system.
+/// The metadata of a node in the WNFS file system.
+///
+/// # Examples
+///
+/// ```
+/// use wnfs::Metadata;
+/// use chrono::Utc;
+///
+/// let metadata = Metadata::new(Utc::now());
+///
+/// println!("{:?}", metadata);
+/// ```
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Metadata(pub BTreeMap<String, Ipld>);
 
@@ -29,7 +40,18 @@ pub struct Metadata(pub BTreeMap<String, Ipld>);
 //--------------------------------------------------------------------------------------------------
 
 impl Metadata {
-    /// Creates a new metadata representing a UnixFS node.
+    /// Creates a new metadata.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use wnfs::Metadata;
+    /// use chrono::Utc;
+    ///
+    /// let metadata = Metadata::new(Utc::now());
+    ///
+    /// println!("{:?}", metadata);
+    /// ```
     pub fn new(time: DateTime<Utc>) -> Self {
         let time = time.timestamp();
         Self(BTreeMap::from([
@@ -39,8 +61,65 @@ impl Metadata {
     }
 
     /// Updates modified time.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use wnfs::Metadata;
+    /// use chrono::{Utc, TimeZone, Duration};
+    ///
+    /// let mut metadata = Metadata::new(Utc::now());
+    /// let time = Utc::now() + Duration::days(1);
+    ///
+    /// metadata.upsert_mtime(time);
+    ///
+    /// let imprecise_time = Utc.timestamp(time.timestamp(), 0);
+    /// assert_eq!(metadata.get_modified(), Some(imprecise_time));
+    /// ```
     pub fn upsert_mtime(&mut self, time: DateTime<Utc>) {
         self.0.insert("modified".into(), time.timestamp().into());
+    }
+
+    /// Returns the created time.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use wnfs::Metadata;
+    /// use chrono::{Utc, TimeZone};
+    ///
+    /// let time = Utc::now();
+    /// let metadata = Metadata::new(time);
+    ///
+    /// let imprecise_time = Utc.timestamp(time.timestamp(), 0);
+    /// assert_eq!(metadata.get_created(), Some(imprecise_time));
+    /// ```
+    pub fn get_created(&self) -> Option<DateTime<Utc>> {
+        self.0.get("created").and_then(|ipld| match ipld {
+            Ipld::Integer(i) => Some(Utc.timestamp(i64::try_from(*i).ok()?, 0)),
+            _ => None,
+        })
+    }
+
+    /// Returns the modified time.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use wnfs::Metadata;
+    /// use chrono::{Utc, TimeZone};
+    ///
+    /// let time = Utc::now();
+    /// let metadata = Metadata::new(time);
+    ///
+    /// let imprecise_time = Utc.timestamp(time.timestamp(), 0);
+    /// assert_eq!(metadata.get_modified(), Some(imprecise_time));
+    /// ```
+    pub fn get_modified(&self) -> Option<DateTime<Utc>> {
+        self.0.get("modified").and_then(|ipld| match ipld {
+            Ipld::Integer(i) => Some(Utc.timestamp(i64::try_from(*i).ok()?, 0)),
+            _ => None,
+        })
     }
 }
 
@@ -50,7 +129,7 @@ impl TryFrom<&Ipld> for NodeType {
     fn try_from(ipld: &Ipld) -> Result<Self> {
         match ipld {
             Ipld::String(s) => NodeType::try_from(s.as_str()),
-            other => bail!("Expected `Ipld::Integer` got {:#?}", other),
+            other => bail!("Expected `Ipld::String` got {:#?}", other),
         }
     }
 }
