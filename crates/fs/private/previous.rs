@@ -320,7 +320,9 @@ impl PrivateNodeOnPathHistory {
             return Ok(None);
         }
 
-        let ancestor = self.path.last().unwrap();
+        let ancestor = self.path.last().expect(
+            "Should not happen: path stack was empty after call to repopulate_segment_histories",
+        );
 
         // TODO(matheus23) refactor using let-else once rust stable 1.65 released (Nov 3rd)
         let older_node = match ancestor
@@ -381,6 +383,9 @@ impl PrivateNodeOnPathHistory {
     /// and leaving behind a history-steppable element,
     /// push back steppable histories onto the stack.
     ///
+    /// Must only be called when the path segment history stack has
+    /// a steppable history entry on top.
+    ///
     /// Returns false if there's no corresponding path in the previous revision.
     async fn repopulate_segment_histories<B: BlockStore>(
         &mut self,
@@ -389,7 +394,10 @@ impl PrivateNodeOnPathHistory {
     ) -> Result<bool> {
         // Work downwards from the previous history entry of a path segment we found
         for (directory, path_segment) in working_stack {
-            let ancestor = self.path.last().unwrap();
+            let ancestor = self
+                .path
+                .last()
+                .expect("Should not happen: repopulate_segment_histories called when the path stack was empty.");
 
             // Go down from the older ancestor directory parallel to the new revision's path
             // TODO(matheus23) refactor using let-else once rust stable 1.65 released (Nov 3rd)
