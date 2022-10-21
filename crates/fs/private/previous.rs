@@ -304,8 +304,53 @@ impl PrivateNodeOnPathHistory {
             return Ok(Some(node));
         }
 
-        let mut working_stack: Vec<(Rc<PrivateDirectory>, String)> =
-            Vec::with_capacity(self.path.len());
+        // TODO(matheus23) refactor using let-else once rust stable 1.65 released (Nov 3rd)
+        let working_stack = match self.find_and_step_segment_history(store).await? {
+            Some(stack) => stack,
+            None => return Ok(None),
+        };
+
+        let ancestor = self.path.last().unwrap();
+
+        if !self
+            .repopulate_segment_histories(working_stack, store)
+            .await?
+        {
+            return Ok(None);
+        }
+
+        // TODO(matheus23) refactor using let-else once rust stable 1.65 released (Nov 3rd)
+        let older_node = match ancestor
+            .dir
+            .lookup_node(&ancestor.path_segment, false, &self.forest, store)
+            .await?
+        {
+            Some(older_node) => older_node,
+            None => return Ok(None),
+        };
+
+        self.target = PrivateNodeHistory::from_header(
+            self.target.header.clone(),
+            &older_node.get_header().ratchet,
+            self.discrepancy_budget,
+            Rc::clone(&self.forest),
+        )?;
+
+        self.target.previous_node(store).await
+    }
+
+    /// Pops off elements from the path segment history stack until a
+    /// path segment history is found which has history entries.
+    /// Then this will put the previous directory on that stack and return
+    /// all elements that were popped off.
+    ///
+    /// Returns None if the no path segment history in the stack has any
+    /// more history entries.
+    async fn find_and_step_segment_history<B: BlockStore>(
+        &mut self,
+        store: &B,
+    ) -> Result<Option<Vec<(Rc<PrivateDirectory>, String)>>> {
+        let mut working_stack = Vec::with_capacity(self.path.len());
 
         loop {
             // Pop elements off the end of the path
@@ -326,6 +371,19 @@ impl PrivateNodeOnPathHistory {
             }
         }
 
+        Ok(Some(working_stack))
+    }
+
+    /// After having popped off elements from the path segment history stack,
+    /// and leaving behind a history-steppable element,
+    /// push back steppable histories onto the stack.
+    ///
+    /// Returns false if there's no corresponding path in the previous revision.
+    async fn repopulate_segment_histories<B: BlockStore>(
+        &mut self,
+        working_stack: Vec<(Rc<PrivateDirectory>, String)>,
+        store: &B,
+    ) -> Result<bool> {
         // Work downwards from the previous history entry of a path segment we found
         for (directory, path_segment) in working_stack {
             let ancestor = self.path.last().unwrap();
@@ -338,7 +396,7 @@ impl PrivateNodeOnPathHistory {
                 .await?
             {
                 Some(PrivateNode::Dir(older_directory)) => older_directory,
-                _ => return Ok(None),
+                _ => return Ok(false),
             };
 
             let mut directory_history = PrivateNodeHistory::of(
@@ -352,7 +410,7 @@ impl PrivateNodeOnPathHistory {
             // TODO(matheus23) refactor using let-else once rust stable 1.65 released (Nov 3rd)
             let directory_prev = match directory_history.previous_dir(store).await? {
                 Some(dir) => dir,
-                _ => return Ok(None),
+                _ => return Ok(false),
             };
 
             self.path.push(PathSegmentHistory {
@@ -361,27 +419,6 @@ impl PrivateNodeOnPathHistory {
                 path_segment,
             });
         }
-
-        let ancestor = self.path.last().unwrap();
-
-        // TODO(matheus23) refactor using let-else once rust stable 1.65 released (Nov 3rd)
-        let older_node = match ancestor
-            .dir
-            .lookup_node(&ancestor.path_segment, false, &self.forest, store)
-            .await?
-        {
-            Some(older_node) => older_node,
-            None => return Ok(None),
-        };
-
-        self.target = PrivateNodeHistory::from_header(
-            self.target.header.clone(),
-            &older_node.get_header().ratchet,
-            self.discrepancy_budget,
-            Rc::clone(&self.forest),
-        )?;
-
-        self.target.previous_node(store).await
     }
 }
 
