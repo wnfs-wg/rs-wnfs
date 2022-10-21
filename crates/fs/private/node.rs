@@ -112,7 +112,7 @@ impl PrivateNode {
     ///
     /// ```
     /// use wnfs::{PrivateDirectory, PrivateNode, Namefilter};
-    /// use chrono::Utc;
+    /// use chrono::{Utc, Duration, TimeZone};
     /// use std::rc::Rc;
     /// use rand::thread_rng;
     ///
@@ -124,11 +124,12 @@ impl PrivateNode {
     /// ));
     /// let node = PrivateNode::Dir(dir);
     ///
-    /// let time = Utc::now();
+    /// let time = Utc::now() + Duration::days(1);
     /// let node = node.upsert_mtime(time);
     ///
+    /// let imprecise_time = Utc.timestamp(time.timestamp(), 0);
     /// assert_eq!(
-    ///     time,
+    ///     imprecise_time,
     ///     node.as_dir()
     ///         .unwrap()
     ///         .get_metadata()

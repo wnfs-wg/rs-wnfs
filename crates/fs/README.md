@@ -41,7 +41,7 @@ WNFS file trees can serialize and be deserialized from [IPLD graphs][ipld-spec] 
 
 WNFS does not have an opinion on where you want to persist your content or the file tree. Instead, the API expects any object that implements the async [`BlockStore`][blockstore-trait] interface. This implementation also defers system-level operations to the user; requiring that operations like time and random number generation be passed in from the interface. This makes for a clean wasm interface that works everywhere.
 
-Let's see an example of working with a public directory. Here we are going to use the memory-based blockstore provided by library.
+Let's see an example of working with a public directory. Here we are going to use the memory-based blockstore provided by the library.
 
 ```rust
 use wnfs::{MemoryBlockStore, PublicDirectory, PublicOpResult};
@@ -141,7 +141,7 @@ async fn main() {
 }
 ```
 
-Namefilters are currently how we represent the identity key of a node in the filesystem. They have nice properties, one of which is the ability to check if one node belongs to another. This is necessary in a filesystem where metadata like hierarchy needs to be hidden from observing agents. One notable caveat with namefilters is that they can only reliably store information of a file tree 47 levels deep or less so there is a plan to replace them with cryptographic accumlators in the near future.
+Namefilters are currently how we identify private node blocks in the filesystem. They have nice properties, one of which is the ability to check if one node belongs to another. This is necessary in a filesystem where metadata like hierarchy needs to be hidden from observing agents. One notable caveat with namefilters is that they can only reliably store information of a file tree 47 levels deep or less so there is a plan to replace them with other cryptographic accumlators in the near future.
 
 Check the [`examples/`][wnfs-examples] folder for more examples.
 

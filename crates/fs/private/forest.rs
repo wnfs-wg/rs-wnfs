@@ -13,10 +13,10 @@ use super::{hamt::Hamt, namefilter::Namefilter, Key, PrivateNode, PrivateRef};
 // Type Definitions
 //--------------------------------------------------------------------------------------------------
 
-/// PrivateForest is a HAMT that stores CIDs of private nodes using their saturated namefilters as keys.
+/// PrivateForest is a HAMT that stores CIDs of encrypted private nodes keyed by saturated namefilters.
 ///
 /// On insert, nodes are serialized to DAG CBOR and encrypted with their private refs and then stored in
-/// a accompanying blockstore. And on lookup, the nodes are decrypted and deserialized with the same private
+/// an accompanying block store. And on lookup, the nodes are decrypted and deserialized with the same private
 /// refs.
 ///
 /// It is called a forest because it is a collection of file trees.

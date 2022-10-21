@@ -39,17 +39,8 @@ pub trait Hasher {
 }
 
 /// HashNibbles is a wrapper around a byte slice that provides a cursor for traversing the nibbles.
-///
-/// # Examples
-///
-/// ```
-/// use wnfs::private::HashNibbles;
-///
-/// let nibbles = HashNibbles::new(&[0xFFu8; 32]);
-/// println!("{:?}", nibbles);
-/// ```
 #[derive(Debug, Clone)]
-pub struct HashNibbles<'a> {
+pub(super) struct HashNibbles<'a> {
     pub digest: &'a HashOutput,
     cursor: usize,
 }
@@ -60,46 +51,16 @@ pub struct HashNibbles<'a> {
 
 impl<'a> HashNibbles<'a> {
     /// Creates a new `HashNibbles` instance from a `[u8; 32]` hash.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use wnfs::private::HashNibbles;
-    ///
-    /// let nibbles = HashNibbles::new(&[0xFFu8; 32]);
-    /// println!("{:?}", nibbles);
-    /// ```
     pub fn new(digest: &'a HashOutput) -> HashNibbles<'a> {
         Self::with_cursor(digest, 0)
     }
 
     /// Constructs hash nibbles with custom cursor index.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use wnfs::private::HashNibbles;
-    ///
-    /// let mut nibbles = HashNibbles::with_cursor(&[0xF3u8; 32], 1);
-    ///
-    /// assert_eq!(nibbles.next(), Some(0x3));
-    /// ```
     pub fn with_cursor(digest: &'a HashOutput, cursor: usize) -> HashNibbles<'a> {
         Self { digest, cursor }
     }
 
     /// Gets the next nibble from the hash.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use wnfs::private::HashNibbles;
-    ///
-    /// let mut nibbles = HashNibbles::with_cursor(&[0xF3u8; 32], 63);
-    ///
-    /// assert_eq!(nibbles.try_next().unwrap(), 0x3);
-    /// assert!(nibbles.try_next().is_err());
-    /// ```
     pub fn try_next(&mut self) -> Result<usize> {
         if let Some(nibble) = self.next() {
             return Ok(nibble as usize);
@@ -108,19 +69,6 @@ impl<'a> HashNibbles<'a> {
     }
 
     /// Gets the current cursor position.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use wnfs::private::HashNibbles;
-    ///
-    /// let mut nibbles = HashNibbles::new(&[0xF3u8; 32]);
-    /// for _ in 0..32 {
-    ///    nibbles.next();
-    /// }
-    ///
-    /// assert_eq!(nibbles.get_cursor(), 32);
-    /// ```
     #[inline]
     pub fn get_cursor(&self) -> usize {
         self.cursor

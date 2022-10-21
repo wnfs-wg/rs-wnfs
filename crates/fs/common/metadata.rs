@@ -7,13 +7,11 @@ use chrono::{DateTime, TimeZone, Utc};
 use libipld::Ipld;
 use serde::{de::Error as DeError, Deserialize, Deserializer, Serialize, Serializer};
 
-use crate::FsError;
-
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
 //--------------------------------------------------------------------------------------------------
 
-/// The type of node.
+/// The type of file system node.
 #[derive(Debug, Clone, PartialEq, Eq, Copy)]
 pub enum NodeType {
     PublicFile,
@@ -22,7 +20,18 @@ pub enum NodeType {
     PrivateDirectory,
 }
 
-/// The metadata of a node on the WNFS file system.
+/// The metadata of a node in the WNFS file system.
+///
+/// # Examples
+///
+/// ```
+/// use wnfs::Metadata;
+/// use chrono::Utc;
+///
+/// let metadata = Metadata::new(Utc::now());
+///
+/// println!("{:?}", metadata);
+/// ```
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Metadata(pub BTreeMap<String, Ipld>);
 
@@ -31,9 +40,20 @@ pub struct Metadata(pub BTreeMap<String, Ipld>);
 //--------------------------------------------------------------------------------------------------
 
 impl Metadata {
-    /// Creates a new metadata representing a UnixFS node.
+    /// Creates a new metadata.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use wnfs::Metadata;
+    /// use chrono::Utc;
+    ///
+    /// let metadata = Metadata::new(Utc::now());
+    ///
+    /// println!("{:?}", metadata);
+    /// ```
     pub fn new(time: DateTime<Utc>) -> Self {
-        let time = time.timestamp_nanos();
+        let time = time.timestamp();
         Self(BTreeMap::from([
             ("created".into(), time.into()),
             ("modified".into(), time.into()),
@@ -41,35 +61,65 @@ impl Metadata {
     }
 
     /// Updates modified time.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use wnfs::Metadata;
+    /// use chrono::{Utc, TimeZone, Duration};
+    ///
+    /// let mut metadata = Metadata::new(Utc::now());
+    /// let time = Utc::now() + Duration::days(1);
+    ///
+    /// metadata.upsert_mtime(time);
+    ///
+    /// let imprecise_time = Utc.timestamp(time.timestamp(), 0);
+    /// assert_eq!(metadata.get_modified(), Some(imprecise_time));
+    /// ```
     pub fn upsert_mtime(&mut self, time: DateTime<Utc>) {
-        self.0
-            .insert("modified".into(), time.timestamp_nanos().into());
+        self.0.insert("modified".into(), time.timestamp().into());
     }
 
     /// Returns the created time.
-    pub fn get_created(&self) -> Result<DateTime<Utc>> {
-        let time = self
-            .0
-            .get("created")
-            .ok_or(FsError::MissingCreatedTimeMetadata)?;
-
-        match time {
-            Ipld::Integer(i) => Ok(Utc.timestamp_nanos(i64::try_from(*i)?)),
-            other => bail!("Expected `Ipld::Integer` got {:#?}", other),
-        }
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use wnfs::Metadata;
+    /// use chrono::{Utc, TimeZone};
+    ///
+    /// let time = Utc::now();
+    /// let metadata = Metadata::new(time);
+    ///
+    /// let imprecise_time = Utc.timestamp(time.timestamp(), 0);
+    /// assert_eq!(metadata.get_created(), Some(imprecise_time));
+    /// ```
+    pub fn get_created(&self) -> Option<DateTime<Utc>> {
+        self.0.get("created").and_then(|ipld| match ipld {
+            Ipld::Integer(i) => Some(Utc.timestamp(i64::try_from(*i).ok()?, 0)),
+            _ => None,
+        })
     }
 
     /// Returns the modified time.
-    pub fn get_modified(&self) -> Result<DateTime<Utc>> {
-        let time = self
-            .0
-            .get("modified")
-            .ok_or(FsError::MissingModifiedTimeMetadata)?;
-
-        match time {
-            Ipld::Integer(i) => Ok(Utc.timestamp_nanos(i64::try_from(*i)?)),
-            other => bail!("Expected `Ipld::Integer` got {:#?}", other),
-        }
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use wnfs::Metadata;
+    /// use chrono::{Utc, TimeZone};
+    ///
+    /// let time = Utc::now();
+    /// let metadata = Metadata::new(time);
+    ///
+    /// let imprecise_time = Utc.timestamp(time.timestamp(), 0);
+    /// assert_eq!(metadata.get_modified(), Some(imprecise_time));
+    /// ```
+    pub fn get_modified(&self) -> Option<DateTime<Utc>> {
+        self.0.get("modified").and_then(|ipld| match ipld {
+            Ipld::Integer(i) => Some(Utc.timestamp(i64::try_from(*i).ok()?, 0)),
+            _ => None,
+        })
     }
 }
 

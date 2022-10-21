@@ -46,7 +46,7 @@ impl PublicNode {
     ///
     /// ```
     /// use wnfs::{PublicDirectory, PublicNode};
-    /// use chrono::Utc;
+    /// use chrono::{Utc, Duration, TimeZone};
     /// use std::rc::Rc;
     ///
     /// let dir = Rc::new(PublicDirectory::new(Utc::now()));
@@ -55,8 +55,9 @@ impl PublicNode {
     /// let time = Utc::now();
     /// let node = node.upsert_mtime(time);
     ///
+    /// let imprecise_time = Utc.timestamp(time.timestamp(), 0);
     /// assert_eq!(
-    ///     time,
+    ///     imprecise_time,
     ///     node.as_dir()
     ///         .unwrap()
     ///         .get_metadata()
