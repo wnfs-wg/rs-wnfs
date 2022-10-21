@@ -144,6 +144,12 @@ impl PrivateNodeHistory {
 }
 
 impl PrivateNodeOnPathHistory {
+    /// Construct a history iterator for a private node at some path relative
+    /// to some root directory.
+    ///
+    /// Returns errors when there is no private node at given path,
+    /// or if the given `past_ratchet` is not within the `discrepancy_budget` to
+    /// the given root `directory`, or simply unrelated.
     pub async fn of<B: BlockStore>(
         directory: Rc<PrivateDirectory>,
         past_ratchet: &Ratchet,
@@ -334,12 +340,22 @@ impl PrivateNodeOnPathHistory {
             None => return Ok(None),
         };
 
-        self.target = PrivateNodeHistory::from_header(
+        self.target = match PrivateNodeHistory::from_header(
             self.target.header.clone(),
             &older_node.get_header().ratchet,
             self.discrepancy_budget,
             Rc::clone(&self.forest),
-        )?;
+        ) {
+            Ok(history) => history,
+            // NoIntermediateRatchet error
+            Err(_) => {
+                // The target element lives at the same path but has ratchets that are further
+                // apart than `discrepancy_budget`.
+                // It's likely this node was deleted and recreated in between these history
+                // steps. Or it had its key rotated. Either way, the history stops here.
+                return Ok(None);
+            }
+        };
 
         self.target.get_previous_node(store).await
     }
@@ -410,12 +426,21 @@ impl PrivateNodeOnPathHistory {
                 _ => return Ok(false),
             };
 
-            let mut directory_history = PrivateNodeHistory::of(
+            let mut directory_history = match PrivateNodeHistory::of(
                 &PrivateNode::Dir(directory),
                 &older_directory.header.ratchet,
                 self.discrepancy_budget,
                 Rc::clone(&self.forest),
-            )?;
+            ) {
+                Ok(history) => history,
+                // NoIntermediateRatchet error
+                Err(_) => {
+                    // in this case the two directories share the same name in different revisions,
+                    // but their keys aren't related. It's likely that they don't share identity
+                    // or there's some key rotation in between meaning we can't follow their history.
+                    return Ok(false);
+                }
+            };
 
             // We need to find the in-between history entry! See the test case `previous_with_multiple_child_changes`.
             // TODO(matheus23) refactor using let-else once rust stable 1.65 released (Nov 3rd)
