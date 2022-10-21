@@ -95,7 +95,10 @@ impl PrivateNodeHistory {
     /// previous point in history.
     ///
     /// Returns `None` if there is no such node in the `PrivateForest` at that point in time.
-    pub async fn previous_node<B: BlockStore>(&mut self, store: &B) -> Result<Option<PrivateNode>> {
+    pub async fn get_previous_node<B: BlockStore>(
+        &mut self,
+        store: &B,
+    ) -> Result<Option<PrivateNode>> {
         match self.ratchets.next() {
             None => Ok(None),
             Some(previous_ratchet) => {
@@ -112,11 +115,11 @@ impl PrivateNodeHistory {
     /// Returns `None` if there is no previous node with that revision in the `PrivateForest`,
     /// throws `FsError::NotADirectory` if the previous node happens to not be a directory.
     /// That should only happen for all nodes or for none.
-    pub async fn previous_dir<B: BlockStore>(
+    pub async fn get_previous_dir<B: BlockStore>(
         &mut self,
         store: &B,
     ) -> Result<Option<Rc<PrivateDirectory>>> {
-        match self.previous_node(store).await? {
+        match self.get_previous_node(store).await? {
             Some(PrivateNode::Dir(dir)) => Ok(Some(dir)),
             Some(_) => Err(FsError::NotADirectory.into()),
             None => Ok(None),
@@ -128,11 +131,11 @@ impl PrivateNodeHistory {
     /// Returns `None` if there is no previous node with that revision in the `PrivateForest`,
     /// throws `FsError::NotAFile` if the previous node happens to not be a file.
     /// That should only happen for all nodes or for none.
-    pub async fn previous_file<B: BlockStore>(
+    pub async fn get_previous_file<B: BlockStore>(
         &mut self,
         store: &B,
     ) -> Result<Option<Rc<PrivateFile>>> {
-        match self.previous_node(store).await? {
+        match self.get_previous_node(store).await? {
             Some(PrivateNode::File(file)) => Ok(Some(file)),
             Some(_) => Err(FsError::NotAFile.into()),
             None => Ok(None),
@@ -289,7 +292,7 @@ impl PrivateNodeOnPathHistory {
     /// Step the history one revision back and retrieve the node at the configured path.
     ///
     /// Returns `None` if there is no more previous revisions.
-    pub async fn previous<B: BlockStore>(&mut self, store: &B) -> Result<Option<PrivateNode>> {
+    pub async fn get_previous<B: BlockStore>(&mut self, store: &B) -> Result<Option<PrivateNode>> {
         // Finding the previous revision of a node works by trying to get
         // the previous revision of the path elements starting on the deepest
         // path node working upwards, in case the history of lower nodes
@@ -300,7 +303,7 @@ impl PrivateNodeOnPathHistory {
         // on the same path from an older root revision, until we've completed
         // the whole path and found new history entries in every segment.
 
-        if let Some(node) = self.target.previous_node(store).await? {
+        if let Some(node) = self.target.get_previous_node(store).await? {
             return Ok(Some(node));
         }
 
@@ -336,7 +339,7 @@ impl PrivateNodeOnPathHistory {
             Rc::clone(&self.forest),
         )?;
 
-        self.target.previous_node(store).await
+        self.target.get_previous_node(store).await
     }
 
     /// Pops off elements from the path segment history stack until a
@@ -356,7 +359,7 @@ impl PrivateNodeOnPathHistory {
             // Pop elements off the end of the path
             if let Some(mut segment) = self.path.pop() {
                 // Try to find a path segment for which we have previous history entries
-                if let Some(prev) = segment.history.previous_dir(store).await? {
+                if let Some(prev) = segment.history.get_previous_dir(store).await? {
                     segment.dir = prev;
                     self.path.push(segment);
                     // Once found, we can continue.
@@ -408,7 +411,7 @@ impl PrivateNodeOnPathHistory {
 
             // We need to find the in-between history entry! See the test case `previous_with_multiple_child_changes`.
             // TODO(matheus23) refactor using let-else once rust stable 1.65 released (Nov 3rd)
-            let directory_prev = match directory_history.previous_dir(store).await? {
+            let directory_prev = match directory_history.get_previous_dir(store).await? {
                 Some(dir) => dir,
                 _ => return Ok(false),
             };
@@ -490,9 +493,9 @@ mod private_history_tests {
         .await
         .unwrap();
 
-        assert!(iterator.previous(store).await.unwrap().is_some());
-        assert!(iterator.previous(store).await.unwrap().is_some());
-        assert!(iterator.previous(store).await.unwrap().is_none());
+        assert!(iterator.get_previous(store).await.unwrap().is_some());
+        assert!(iterator.get_previous(store).await.unwrap().is_some());
+        assert!(iterator.get_previous(store).await.unwrap().is_none());
     }
 
     /// This test will generate the following file system structure:
@@ -573,7 +576,7 @@ mod private_history_tests {
 
         assert_eq!(
             iterator
-                .previous(store)
+                .get_previous(store)
                 .await
                 .unwrap()
                 .unwrap()
@@ -583,7 +586,7 @@ mod private_history_tests {
             b"Hi".to_vec()
         );
 
-        assert!(iterator.previous(store).await.unwrap().is_none());
+        assert!(iterator.get_previous(store).await.unwrap().is_none());
     }
 
     /// This test will generate the following file system structure:
@@ -685,7 +688,7 @@ mod private_history_tests {
 
         assert_eq!(
             iterator
-                .previous(store)
+                .get_previous(store)
                 .await
                 .unwrap()
                 .unwrap()
@@ -695,7 +698,7 @@ mod private_history_tests {
             b"Hi".to_vec()
         );
 
-        assert!(iterator.previous(store).await.unwrap().is_none());
+        assert!(iterator.get_previous(store).await.unwrap().is_none());
     }
 
     /// This test will generate the following file system structure:
@@ -792,7 +795,7 @@ mod private_history_tests {
 
         assert_eq!(
             iterator
-                .previous(store)
+                .get_previous(store)
                 .await
                 .unwrap()
                 .unwrap()
@@ -804,7 +807,7 @@ mod private_history_tests {
 
         assert_eq!(
             iterator
-                .previous(store)
+                .get_previous(store)
                 .await
                 .unwrap()
                 .unwrap()
@@ -814,7 +817,7 @@ mod private_history_tests {
             b"rev 0".to_vec()
         );
 
-        assert!(iterator.previous(store).await.unwrap().is_none());
+        assert!(iterator.get_previous(store).await.unwrap().is_none());
     }
 
     /// This test will generate the following file system structure:
@@ -908,7 +911,7 @@ mod private_history_tests {
 
         assert_eq!(
             iterator
-                .previous(store)
+                .get_previous(store)
                 .await
                 .unwrap()
                 .unwrap()
@@ -918,6 +921,6 @@ mod private_history_tests {
             b"rev 0".to_vec()
         );
 
-        assert!(iterator.previous(store).await.unwrap().is_none());
+        assert!(iterator.get_previous(store).await.unwrap().is_none());
     }
 }
