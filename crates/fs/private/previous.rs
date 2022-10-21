@@ -442,16 +442,47 @@ mod private_history_tests {
     use chrono::Utc;
     use proptest::test_runner::{RngAlgorithm, TestRng};
 
+    struct TestSetup {
+        rng: TestRng,
+        store: MemoryBlockStore,
+        hamt: Rc<PrivateForest>,
+        root_dir: Rc<PrivateDirectory>,
+        discrepancy_budget: usize,
+    }
+
+    impl TestSetup {
+        fn new() -> Self {
+            let mut rng = TestRng::deterministic_rng(RngAlgorithm::ChaCha);
+            let store = MemoryBlockStore::default();
+            let root_dir = Rc::new(PrivateDirectory::new(
+                Namefilter::default(),
+                Utc::now(),
+                &mut rng,
+            ));
+
+            Self {
+                rng,
+                store,
+                hamt: Rc::new(PrivateForest::new()),
+                root_dir,
+                discrepancy_budget: 1_000_000,
+            }
+        }
+    }
+
     #[async_std::test]
     async fn previous_of_root_node() {
-        let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
-        let store = &mut MemoryBlockStore::default();
-        let hamt = Rc::new(PrivateForest::new());
-        let root_dir = Rc::new(PrivateDirectory::new(
-            Namefilter::default(),
-            Utc::now(),
-            rng,
-        ));
+        let TestSetup {
+            mut rng,
+            mut store,
+            hamt,
+            root_dir,
+            discrepancy_budget,
+        } = TestSetup::new();
+
+        let rng = &mut rng;
+        let store = &mut store;
+
         let hamt = hamt
             .set(
                 root_dir.header.get_saturated_name(),
@@ -462,7 +493,7 @@ mod private_history_tests {
             )
             .await
             .unwrap();
-        let discrepancy_budget = 1_000_000;
+
         let past_ratchet = root_dir.header.ratchet.clone();
 
         let PrivateOpResult { root_dir, hamt, .. } = root_dir
@@ -531,14 +562,17 @@ mod private_history_tests {
     /// it will ask for the backwards-history of the "Root/Docs/Notes.md" file.
     #[async_std::test]
     async fn previous_of_path() {
-        let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
-        let store = &mut MemoryBlockStore::default();
-        let hamt = Rc::new(PrivateForest::new());
-        let root_dir = Rc::new(PrivateDirectory::new(
-            Namefilter::default(),
-            Utc::now(),
-            rng,
-        ));
+        let TestSetup {
+            mut rng,
+            mut store,
+            hamt,
+            root_dir,
+            discrepancy_budget,
+        } = TestSetup::new();
+
+        let rng = &mut rng;
+        let store = &mut store;
+
         let hamt = hamt
             .set(
                 root_dir.header.get_saturated_name(),
@@ -549,7 +583,7 @@ mod private_history_tests {
             )
             .await
             .unwrap();
-        let discrepancy_budget = 1_000_000;
+
         let past_ratchet = root_dir.header.ratchet.clone();
 
         let path = ["Docs".into(), "Notes.md".into()];
@@ -623,14 +657,17 @@ mod private_history_tests {
     /// The file system diagram looks like this:
     #[async_std::test]
     async fn previous_of_seeking() {
-        let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
-        let store = &mut MemoryBlockStore::default();
-        let hamt = Rc::new(PrivateForest::new());
-        let root_dir = Rc::new(PrivateDirectory::new(
-            Namefilter::default(),
-            Utc::now(),
-            rng,
-        ));
+        let TestSetup {
+            mut rng,
+            mut store,
+            hamt,
+            root_dir,
+            discrepancy_budget,
+        } = TestSetup::new();
+
+        let rng = &mut rng;
+        let store = &mut store;
+
         let hamt = hamt
             .set(
                 root_dir.header.get_saturated_name(),
@@ -641,7 +678,7 @@ mod private_history_tests {
             )
             .await
             .unwrap();
-        let discrepancy_budget = 1_000_000;
+
         let past_ratchet = root_dir.header.ratchet.clone();
 
         let path = ["Docs".into(), "Notes.md".into()];
@@ -735,15 +772,17 @@ mod private_history_tests {
     /// is later rooted by another peer that has full root access.
     #[async_std::test]
     async fn previous_with_multiple_child_changes() {
-        let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
-        let store = &mut MemoryBlockStore::default();
-        let hamt = Rc::new(PrivateForest::new());
-        let root_dir = Rc::new(PrivateDirectory::new(
-            Namefilter::default(),
-            Utc::now(),
-            rng,
-        ));
-        let discrepancy_budget = 1_000_000;
+        let TestSetup {
+            mut rng,
+            mut store,
+            hamt,
+            root_dir,
+            discrepancy_budget,
+        } = TestSetup::new();
+
+        let rng = &mut rng;
+        let store = &mut store;
+
         let path = ["Docs".into(), "Notes.md".into()];
 
         let PrivateOpResult { root_dir, hamt, .. } = root_dir
@@ -854,15 +893,17 @@ mod private_history_tests {
     /// the path that is looked at for its history.
     #[async_std::test]
     async fn previous_with_unrelated_changes() {
-        let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
-        let store = &mut MemoryBlockStore::default();
-        let hamt = Rc::new(PrivateForest::new());
-        let root_dir = Rc::new(PrivateDirectory::new(
-            Namefilter::default(),
-            Utc::now(),
-            rng,
-        ));
-        let discrepancy_budget = 1_000_000;
+        let TestSetup {
+            mut rng,
+            mut store,
+            hamt,
+            root_dir,
+            discrepancy_budget,
+        } = TestSetup::new();
+
+        let rng = &mut rng;
+        let store = &mut store;
+
         let path = ["Docs".into(), "Notes.md".into()];
 
         let PrivateOpResult { root_dir, hamt, .. } = root_dir
