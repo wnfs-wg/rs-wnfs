@@ -39,8 +39,8 @@ impl PrivateForest {
     #[wasm_bindgen]
     pub fn get(
         &self,
-        saturated_namefilter_hash: Uint8Array,
-        revision_key: Uint8Array,
+        saturated_namefilter_hash: Vec<u8>,
+        revision_key: Vec<u8>,
         store: BlockStore,
     ) -> JsResult<Promise> {
         let store = ForeignBlockStore(store);
@@ -68,15 +68,12 @@ impl PrivateForest {
     }
 }
 
-fn expect_bytes<'a, const N: usize>(bytes: Uint8Array) -> JsResult<[u8; N]> {
-    let vec = bytes.to_vec();
-    if vec.len() != N {
-        return Err(Error::new(&format!(
+#[inline]
+fn expect_bytes<const N: usize>(bytes: Vec<u8>) -> JsResult<[u8; N]> {
+    bytes.try_into().map_err(|v: Vec<u8>| {
+        Error::new(&format!(
             "Unexpected number of bytes received. Expected {N}, but got {}",
-            vec.len()
-        )));
-    }
-    let mut slice = [0u8; N];
-    slice.copy_from_slice(vec.as_slice());
-    Ok(slice)
+            v.len()
+        ))
+    })
 }
