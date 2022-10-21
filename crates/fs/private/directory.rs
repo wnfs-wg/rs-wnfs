@@ -2,12 +2,13 @@ use std::{collections::BTreeMap, rc::Rc};
 
 use anyhow::{bail, ensure, Result};
 use chrono::{DateTime, Utc};
+use rand_core::RngCore;
 use semver::Version;
 use serde::{de::Error as DeError, ser::Error as SerError, Deserialize, Deserializer, Serialize};
 
 use super::{
     namefilter::Namefilter, Key, PrivateFile, PrivateForest, PrivateNode, PrivateNodeHeader,
-    PrivateRef, RatchetKey, Rng,
+    PrivateRef, RatchetKey,
 };
 
 use crate::{
@@ -21,6 +22,24 @@ use crate::{
 pub type PrivatePathNodes = PathNodes<PrivateDirectory>;
 pub type PrivatePathNodesResult = PathNodesResult<PrivateDirectory>;
 
+/// Represents a directory in the WNFS private filesystem.
+///
+/// # Examples
+///
+/// ```
+/// use wnfs::{PrivateDirectory, Namefilter};
+/// use chrono::Utc;
+/// use rand::thread_rng;
+///
+/// let rng = &mut thread_rng();
+/// let dir = PrivateDirectory::new(
+///     Namefilter::default(),
+///     Utc::now(),
+///     rng,
+/// );
+///
+/// println!("dir = {:?}", dir);
+/// ```
 #[derive(Debug, Clone, PartialEq)]
 pub struct PrivateDirectory {
     pub version: Version,
@@ -55,7 +74,24 @@ pub struct PrivateOpResult<T> {
 
 impl PrivateDirectory {
     /// Creates a new directory with provided details.
-    pub fn new<R: Rng>(parent_bare_name: Namefilter, time: DateTime<Utc>, rng: &mut R) -> Self {
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use wnfs::{PrivateDirectory, Namefilter};
+    /// use chrono::Utc;
+    /// use rand::thread_rng;
+    ///
+    /// let rng = &mut thread_rng();
+    /// let dir = PrivateDirectory::new(
+    ///     Namefilter::default(),
+    ///     Utc::now(),
+    ///     rng,
+    /// );
+    ///
+    /// println!("dir = {:?}", dir);
+    /// ```
+    pub fn new<R: RngCore>(parent_bare_name: Namefilter, time: DateTime<Utc>, rng: &mut R) -> Self {
         Self {
             version: Version::new(0, 2, 0),
             header: PrivateNodeHeader::new(parent_bare_name, rng),
@@ -64,13 +100,38 @@ impl PrivateDirectory {
         }
     }
 
-    ///  Advances the ratchet.
+    /// Gets the metadata of the directory
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use wnfs::{PrivateDirectory, Namefilter, Metadata};
+    /// use chrono::Utc;
+    /// use rand::thread_rng;
+    /// use std::rc::Rc;
+    ///
+    /// let rng = &mut thread_rng();
+    /// let time = Utc::now();
+    /// let dir = Rc::new(PrivateDirectory::new(
+    ///     Namefilter::default(),
+    ///     time,
+    ///     rng,
+    /// ));
+    ///
+    /// assert_eq!(dir.get_metadata(), &Metadata::new(time));
+    /// ```
+    #[inline]
+    pub fn get_metadata<'a>(self: &'a Rc<Self>) -> &'a Metadata {
+        &self.metadata
+    }
+
+    /// Advances the ratchet.
     pub(crate) fn advance_ratchet(&mut self) {
         self.header.advance_ratchet();
     }
 
     /// Creates a new `PathNodes` that is not based on an existing file tree.
-    pub(crate) fn create_path_nodes<R: Rng>(
+    pub(crate) fn create_path_nodes<R: RngCore>(
         path_segments: &[String],
         time: DateTime<Utc>,
         parent_bare_name: Namefilter,
@@ -152,7 +213,7 @@ impl PrivateDirectory {
     }
 
     /// Uses specified path segments to generate `PathNodes`. Creates missing directories as needed.
-    pub(crate) async fn get_or_create_path_nodes<B: BlockStore, R: Rng>(
+    pub(crate) async fn get_or_create_path_nodes<B: BlockStore, R: RngCore>(
         self: Rc<Self>,
         path_segments: &[String],
         search_latest: bool,
@@ -193,7 +254,7 @@ impl PrivateDirectory {
     }
 
     /// Fix up `PathNodes` so that parents refer to the newly updated children.
-    async fn fix_up_path_nodes<B: BlockStore, R: Rng>(
+    async fn fix_up_path_nodes<B: BlockStore, R: RngCore>(
         path_nodes: PrivatePathNodes,
         hamt: Rc<PrivateForest>,
         store: &mut B,
@@ -244,6 +305,45 @@ impl PrivateDirectory {
     }
 
     /// Follows a path and fetches the node at the end of the path.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use std::rc::Rc;
+    ///
+    /// use chrono::Utc;
+    /// use rand::thread_rng;
+    ///
+    /// use wnfs::{
+    ///     private::{PrivateForest, PrivateRef},
+    ///     BlockStore, MemoryBlockStore, Namefilter, PrivateDirectory, PrivateOpResult,
+    /// };
+    ///
+    /// #[async_std::main]
+    /// async fn main() {
+    ///     let store = &mut MemoryBlockStore::default();
+    ///     let rng = &mut thread_rng();
+    ///     let hamt = Rc::new(PrivateForest::new());
+    ///
+    ///     let dir = Rc::new(PrivateDirectory::new(
+    ///         Namefilter::default(),
+    ///         Utc::now(),
+    ///         rng,
+    ///     ));
+    ///
+    ///     let PrivateOpResult { hamt, root_dir, .. } = dir
+    ///         .mkdir(&["pictures".into(), "cats".into()], true, Utc::now(), hamt, store, rng)
+    ///         .await
+    ///         .unwrap();
+    ///
+    ///     let PrivateOpResult { result, .. } = root_dir
+    ///         .get_node(&["pictures".into(), "cats".into()], true, hamt, store)
+    ///         .await
+    ///         .unwrap();
+    ///
+    ///     assert!(result.is_some());
+    /// }
+    /// ```
     pub async fn get_node<B: BlockStore>(
         self: Rc<Self>,
         path_segments: &[String],
@@ -285,6 +385,55 @@ impl PrivateDirectory {
     }
 
     /// Reads specified file content from the directory.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use std::rc::Rc;
+    ///
+    /// use chrono::Utc;
+    /// use rand::thread_rng;
+    ///
+    /// use wnfs::{
+    ///     private::{PrivateForest, PrivateRef},
+    ///     BlockStore, MemoryBlockStore, Namefilter, PrivateDirectory, PrivateOpResult,
+    /// };
+    ///
+    /// #[async_std::main]
+    /// async fn main() {
+    ///     let store = &mut MemoryBlockStore::default();
+    ///     let rng = &mut thread_rng();
+    ///     let hamt = Rc::new(PrivateForest::new());
+    ///
+    ///     let dir = Rc::new(PrivateDirectory::new(
+    ///         Namefilter::default(),
+    ///         Utc::now(),
+    ///         rng,
+    ///     ));
+    ///
+    ///     let content = b"print('hello world')";
+    ///
+    ///     let PrivateOpResult { hamt, root_dir, .. } = dir
+    ///         .write(
+    ///             &["code".into(), "hello.py".into()],
+    ///             true,
+    ///             Utc::now(),
+    ///             content.to_vec(),
+    ///             hamt,
+    ///             store,
+    ///             rng
+    ///         )
+    ///         .await
+    ///         .unwrap();
+    ///
+    ///     let PrivateOpResult { result, .. } = root_dir
+    ///         .read(&["code".into(), "hello.py".into()], true, hamt, store)
+    ///         .await
+    ///         .unwrap();
+    ///
+    ///     assert_eq!(&result, content);
+    /// }
+    /// ```
     pub async fn read<B: BlockStore>(
         self: Rc<Self>,
         path_segments: &[String],
@@ -319,8 +468,57 @@ impl PrivateDirectory {
     }
 
     /// Writes a file to the directory.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use std::rc::Rc;
+    ///
+    /// use chrono::Utc;
+    /// use rand::thread_rng;
+    ///
+    /// use wnfs::{
+    ///     private::{PrivateForest, PrivateRef},
+    ///     BlockStore, MemoryBlockStore, Namefilter, PrivateDirectory, PrivateOpResult,
+    /// };
+    ///
+    /// #[async_std::main]
+    /// async fn main() {
+    ///     let store = &mut MemoryBlockStore::default();
+    ///     let rng = &mut thread_rng();
+    ///     let hamt = Rc::new(PrivateForest::new());
+    ///
+    ///     let dir = Rc::new(PrivateDirectory::new(
+    ///         Namefilter::default(),
+    ///         Utc::now(),
+    ///         rng,
+    ///     ));
+    ///
+    ///     let content = b"print('hello world')";
+    ///
+    ///     let PrivateOpResult { hamt, root_dir, .. } = dir
+    ///         .write(
+    ///             &["code".into(), "hello.py".into()],
+    ///             true,
+    ///             Utc::now(),
+    ///             content.to_vec(),
+    ///             hamt,
+    ///             store,
+    ///             rng
+    ///         )
+    ///         .await
+    ///         .unwrap();
+    ///
+    ///     let PrivateOpResult { result, .. } = root_dir
+    ///         .read(&["code".into(), "hello.py".into()], true, hamt, store)
+    ///         .await
+    ///         .unwrap();
+    ///
+    ///     assert_eq!(&result, content);
+    /// }
+    /// ```
     #[allow(clippy::too_many_arguments)]
-    pub async fn write<B: BlockStore, R: Rng>(
+    pub async fn write<B: BlockStore, R: RngCore>(
         self: Rc<Self>,
         path_segments: &[String],
         search_latest: bool,
@@ -385,6 +583,44 @@ impl PrivateDirectory {
     }
 
     /// Looks up a node by its path name in the current directory.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use std::rc::Rc;
+    ///
+    /// use chrono::Utc;
+    /// use rand::thread_rng;
+    ///
+    /// use wnfs::{
+    ///     private::{PrivateForest, PrivateRef},
+    ///     BlockStore, MemoryBlockStore, Namefilter, PrivateDirectory, PrivateOpResult,
+    /// };
+    ///
+    /// #[async_std::main]
+    /// async fn main() {
+    ///     let store = &mut MemoryBlockStore::default();
+    ///     let rng = &mut thread_rng();
+    ///     let hamt = Rc::new(PrivateForest::new());
+    ///
+    ///     let dir = Rc::new(PrivateDirectory::new(
+    ///         Namefilter::default(),
+    ///         Utc::now(),
+    ///         rng,
+    ///     ));
+    ///
+    ///     let PrivateOpResult { hamt, root_dir, .. } = dir
+    ///         .mkdir(&["pictures".into(), "cats".into()], true, Utc::now(), hamt, store, rng)
+    ///         .await
+    ///         .unwrap();
+    ///
+    ///     let node = root_dir.lookup_node("pictures", true, &hamt, store)
+    ///         .await
+    ///         .unwrap();
+    ///
+    ///     assert!(node.is_some());
+    /// }
+    /// ```
     pub async fn lookup_node<'a, B: BlockStore>(
         &self,
         path_segment: &str,
@@ -405,7 +641,45 @@ impl PrivateDirectory {
     }
 
     /// Creates a new directory at the specified path.
-    pub async fn mkdir<B: BlockStore, R: Rng>(
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use std::rc::Rc;
+    ///
+    /// use chrono::Utc;
+    /// use rand::thread_rng;
+    ///
+    /// use wnfs::{
+    ///     private::{PrivateForest, PrivateRef},
+    ///     BlockStore, MemoryBlockStore, Namefilter, PrivateDirectory, PrivateOpResult,
+    /// };
+    ///
+    /// #[async_std::main]
+    /// async fn main() {
+    ///     let store = &mut MemoryBlockStore::default();
+    ///     let rng = &mut thread_rng();
+    ///     let hamt = Rc::new(PrivateForest::new());
+    ///
+    ///     let dir = Rc::new(PrivateDirectory::new(
+    ///         Namefilter::default(),
+    ///         Utc::now(),
+    ///         rng,
+    ///     ));
+    ///
+    ///     let PrivateOpResult { hamt, root_dir, .. } = dir
+    ///         .mkdir(&["pictures".into(), "cats".into()], true, Utc::now(), hamt, store, rng)
+    ///         .await
+    ///         .unwrap();
+    ///
+    ///     let node = root_dir.lookup_node("pictures", true, &hamt, store)
+    ///         .await
+    ///         .unwrap();
+    ///
+    ///     assert!(node.is_some());
+    /// }
+    /// ```
+    pub async fn mkdir<B: BlockStore, R: RngCore>(
         self: Rc<Self>,
         path_segments: &[String],
         search_latest: bool,
@@ -428,6 +702,62 @@ impl PrivateDirectory {
     }
 
     /// Returns names and metadata of directory's immediate children.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use std::rc::Rc;
+    ///
+    /// use chrono::Utc;
+    /// use rand::thread_rng;
+    ///
+    /// use wnfs::{
+    ///     private::{PrivateForest, PrivateRef},
+    ///     BlockStore, MemoryBlockStore, Namefilter, PrivateDirectory, PrivateOpResult,
+    /// };
+    ///
+    /// #[async_std::main]
+    /// async fn main() {
+    ///     let store = &mut MemoryBlockStore::default();
+    ///     let rng = &mut thread_rng();
+    ///     let hamt = Rc::new(PrivateForest::new());
+    ///
+    ///     let dir = Rc::new(PrivateDirectory::new(
+    ///         Namefilter::default(),
+    ///         Utc::now(),
+    ///         rng,
+    ///     ));
+    ///
+    ///     let PrivateOpResult { hamt, root_dir, .. } = dir
+    ///         .write(
+    ///             &["code".into(), "hello.py".into()],
+    ///             true,
+    ///             Utc::now(),
+    ///             b"print('hello world')".to_vec(),
+    ///             hamt,
+    ///             store,
+    ///             rng
+    ///         )
+    ///         .await
+    ///         .unwrap();
+    ///
+    ///     let PrivateOpResult { hamt, root_dir, .. } = root_dir
+    ///         .mkdir(&["code".into(), "bin".into()], true, Utc::now(), hamt, store, rng)
+    ///         .await
+    ///         .unwrap();
+    ///
+    ///     let PrivateOpResult { result, .. } = root_dir
+    ///         .ls(&["code".into()], true, hamt, store)
+    ///         .await
+    ///         .unwrap();
+    ///
+    ///     assert_eq!(result.len(), 2);
+    ///     assert_eq!(
+    ///         result.iter().map(|t| &t.0).collect::<Vec<_>>(),
+    ///         ["bin", "hello.py"]
+    ///     );
+    /// }
+    /// ```
     pub async fn ls<B: BlockStore>(
         self: Rc<Self>,
         path_segments: &[String],
@@ -464,7 +794,66 @@ impl PrivateDirectory {
     }
 
     /// Removes a file or directory from the directory.
-    pub async fn rm<B: BlockStore, R: Rng>(
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use std::rc::Rc;
+    ///
+    /// use chrono::Utc;
+    /// use rand::thread_rng;
+    ///
+    /// use wnfs::{
+    ///     private::{PrivateForest, PrivateRef},
+    ///     BlockStore, MemoryBlockStore, Namefilter, PrivateDirectory, PrivateOpResult,
+    /// };
+    ///
+    /// #[async_std::main]
+    /// async fn main() {
+    ///     let store = &mut MemoryBlockStore::default();
+    ///     let rng = &mut thread_rng();
+    ///     let hamt = Rc::new(PrivateForest::new());
+    ///
+    ///     let dir = Rc::new(PrivateDirectory::new(
+    ///         Namefilter::default(),
+    ///         Utc::now(),
+    ///         rng,
+    ///     ));
+    ///
+    ///     let PrivateOpResult { hamt, root_dir, .. } = dir
+    ///         .write(
+    ///             &["code".into(), "python".into(), "hello.py".into()],
+    ///             true,
+    ///             Utc::now(),
+    ///             b"print('hello world')".to_vec(),
+    ///             hamt,
+    ///             store,
+    ///             rng
+    ///         )
+    ///         .await
+    ///         .unwrap();
+    ///
+    ///     let PrivateOpResult { hamt, root_dir, result } = root_dir
+    ///         .ls(&["code".into()], true, hamt, store)
+    ///         .await
+    ///         .unwrap();
+    ///
+    ///     assert_eq!(result.len(), 1);
+    ///
+    ///     let PrivateOpResult { hamt, root_dir, .. } = root_dir
+    ///         .rm(&["code".into(), "python".into()], true, hamt, store, rng)
+    ///         .await
+    ///         .unwrap();
+    ///
+    ///     let PrivateOpResult { result, .. } = root_dir
+    ///         .ls(&["code".into()], true, hamt, store)
+    ///         .await
+    ///         .unwrap();
+    ///
+    ///     assert_eq!(result.len(), 0);
+    /// }
+    /// ```
+    pub async fn rm<B: BlockStore, R: RngCore>(
         self: Rc<Self>,
         path_segments: &[String],
         search_latest: bool,
@@ -506,9 +895,9 @@ impl PrivateDirectory {
     ///
     /// Fixes up the subtree bare names to refer to the new parent.
     #[allow(clippy::too_many_arguments)]
-    async fn attach<B: BlockStore, R: Rng>(
+    async fn attach<B: BlockStore, R: RngCore>(
         self: Rc<Self>,
-        mut node: PrivateNode,
+        node: PrivateNode,
         path_segments: &[String],
         search_latest: bool,
         time: DateTime<Utc>,
@@ -533,7 +922,8 @@ impl PrivateDirectory {
             FsError::FileAlreadyExists
         );
 
-        node.upsert_mtime(time);
+        let mut node = node.upsert_mtime(time);
+
         let hamt = node
             .update_ancestry(directory.header.bare_name.clone(), hamt, store, rng)
             .await?;
@@ -554,8 +944,68 @@ impl PrivateDirectory {
     }
 
     /// Moves a file or directory from one path to another.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use std::rc::Rc;
+    ///
+    /// use chrono::Utc;
+    /// use rand::thread_rng;
+    ///
+    /// use wnfs::{
+    ///     private::{PrivateForest, PrivateRef},
+    ///     BlockStore, MemoryBlockStore, Namefilter, PrivateDirectory, PrivateOpResult,
+    /// };
+    ///
+    /// #[async_std::main]
+    /// async fn main() {
+    ///     let store = &mut MemoryBlockStore::default();
+    ///     let rng = &mut thread_rng();
+    ///     let hamt = Rc::new(PrivateForest::new());
+    ///
+    ///     let dir = Rc::new(PrivateDirectory::new(
+    ///         Namefilter::default(),
+    ///         Utc::now(),
+    ///         rng,
+    ///     ));
+    ///
+    ///     let PrivateOpResult { hamt, root_dir, .. } = dir
+    ///         .write(
+    ///             &["code".into(), "python".into(), "hello.py".into()],
+    ///             true,
+    ///             Utc::now(),
+    ///             b"print('hello world')".to_vec(),
+    ///             hamt,
+    ///             store,
+    ///             rng
+    ///         )
+    ///         .await
+    ///         .unwrap();
+    ///
+    ///     let PrivateOpResult { hamt, root_dir, result } = root_dir
+    ///         .basic_mv(
+    ///             &["code".into(), "python".into(), "hello.py".into()],
+    ///             &["code".into(), "hello.py".into()],
+    ///             true,
+    ///             Utc::now(),
+    ///             hamt,
+    ///             store,
+    ///             rng
+    ///         )
+    ///         .await
+    ///         .unwrap();
+    ///
+    ///     let PrivateOpResult { result, .. } = root_dir
+    ///         .ls(&["code".into()], true, hamt, store)
+    ///         .await
+    ///         .unwrap();
+    ///
+    ///     assert_eq!(result.len(), 2);
+    /// }
+    /// ```
     #[allow(clippy::too_many_arguments)]
-    pub async fn basic_mv<B: BlockStore, R: Rng>(
+    pub async fn basic_mv<B: BlockStore, R: RngCore>(
         self: Rc<Self>,
         path_segments_from: &[String],
         path_segments_to: &[String],
@@ -587,8 +1037,68 @@ impl PrivateDirectory {
     }
 
     /// Copies a file or directory from one path to another.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use std::rc::Rc;
+    ///
+    /// use chrono::Utc;
+    /// use rand::thread_rng;
+    ///
+    /// use wnfs::{
+    ///     private::{PrivateForest, PrivateRef},
+    ///     BlockStore, MemoryBlockStore, Namefilter, PrivateDirectory, PrivateOpResult,
+    /// };
+    ///
+    /// #[async_std::main]
+    /// async fn main() {
+    ///     let store = &mut MemoryBlockStore::default();
+    ///     let rng = &mut thread_rng();
+    ///     let hamt = Rc::new(PrivateForest::new());
+    ///
+    ///     let dir = Rc::new(PrivateDirectory::new(
+    ///         Namefilter::default(),
+    ///         Utc::now(),
+    ///         rng,
+    ///     ));
+    ///
+    ///     let PrivateOpResult { hamt, root_dir, .. } = dir
+    ///         .write(
+    ///             &["code".into(), "python".into(), "hello.py".into()],
+    ///             true,
+    ///             Utc::now(),
+    ///             b"print('hello world')".to_vec(),
+    ///             hamt,
+    ///             store,
+    ///             rng
+    ///         )
+    ///         .await
+    ///         .unwrap();
+    ///
+    ///     let PrivateOpResult { hamt, root_dir, result } = root_dir
+    ///         .cp(
+    ///             &["code".into(), "python".into(), "hello.py".into()],
+    ///             &["code".into(), "hello.py".into()],
+    ///             true,
+    ///             Utc::now(),
+    ///             hamt,
+    ///             store,
+    ///             rng
+    ///         )
+    ///         .await
+    ///         .unwrap();
+    ///
+    ///     let PrivateOpResult { result, .. } = root_dir
+    ///         .ls(&["code".into()], true, hamt, store)
+    ///         .await
+    ///         .unwrap();
+    ///
+    ///     assert_eq!(result.len(), 2);
+    /// }
+    /// ```
     #[allow(clippy::too_many_arguments)]
-    pub async fn cp<B: BlockStore, R: Rng>(
+    pub async fn cp<B: BlockStore, R: RngCore>(
         self: Rc<Self>,
         path_segments_from: &[String],
         path_segments_to: &[String],
@@ -620,7 +1130,11 @@ impl PrivateDirectory {
     }
 
     /// Serializes the directory with provided Serde serialilzer.
-    pub fn serialize<S, R: Rng>(&self, serializer: S, rng: &mut R) -> Result<S::Ok, S::Error>
+    pub(crate) fn serialize<S, R: RngCore>(
+        &self,
+        serializer: S,
+        rng: &mut R,
+    ) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
     {
@@ -646,7 +1160,7 @@ impl PrivateDirectory {
     }
 
     /// Deserializes the directory with provided Serde deserializer and key.
-    pub fn deserialize<'de, D>(deserializer: D, key: &RatchetKey) -> Result<Self, D::Error>
+    pub(crate) fn deserialize<'de, D>(deserializer: D, key: &RatchetKey) -> Result<Self, D::Error>
     where
         D: Deserializer<'de>,
     {

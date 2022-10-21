@@ -1,15 +1,35 @@
 use chrono::{DateTime, Utc};
+use rand_core::RngCore;
 use semver::Version;
 use serde::{de::Error as DeError, ser::Error as SerError, Deserialize, Deserializer, Serialize};
 
 use crate::{dagcbor, Id, Metadata, NodeType};
 
-use super::{namefilter::Namefilter, Key, PrivateNodeHeader, RatchetKey, Rng};
+use super::{namefilter::Namefilter, Key, PrivateNodeHeader, RatchetKey};
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
 //--------------------------------------------------------------------------------------------------
 
+/// Represents a file in the WNFS private filesystem.
+///
+/// # Examples
+///
+/// ```
+/// use wnfs::{PrivateFile, Namefilter, Id};
+/// use chrono::Utc;
+/// use rand::thread_rng;
+///
+/// let rng = &mut thread_rng();
+/// let file = PrivateFile::new(
+///     Namefilter::default(),
+///     Utc::now(),
+///     b"hello world".to_vec(),
+///     rng,
+/// );
+///
+/// println!("file = {:?}", file);
+/// ```
 #[derive(Debug, Clone, PartialEq)]
 pub struct PrivateFile {
     pub version: Version,
@@ -32,7 +52,26 @@ struct PrivateFileSerde {
 //--------------------------------------------------------------------------------------------------
 
 impl PrivateFile {
-    pub fn new<R: Rng>(
+    /// Creates a new file using the given metadata and CID.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use wnfs::{PrivateFile, Namefilter, Id};
+    /// use chrono::Utc;
+    /// use rand::thread_rng;
+    ///
+    /// let rng = &mut thread_rng();
+    /// let file = PrivateFile::new(
+    ///     Namefilter::default(),
+    ///     Utc::now(),
+    ///     b"hello world".to_vec(),
+    ///     rng,
+    /// );
+    ///
+    /// println!("file = {:?}", file);
+    /// ```
+    pub fn new<R: RngCore>(
         parent_bare_name: Namefilter,
         time: DateTime<Utc>,
         content: Vec<u8>,
@@ -47,7 +86,11 @@ impl PrivateFile {
     }
 
     /// Serializes the file with provided Serde serialilzer.
-    pub fn serialize<S, R: Rng>(&self, serializer: S, rng: &mut R) -> Result<S::Ok, S::Error>
+    pub(crate) fn serialize<S, R: RngCore>(
+        &self,
+        serializer: S,
+        rng: &mut R,
+    ) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
     {
@@ -73,7 +116,7 @@ impl PrivateFile {
     }
 
     /// Deserializes the file with provided Serde deserializer and key.
-    pub fn deserialize<'de, D>(deserializer: D, key: &RatchetKey) -> Result<Self, D::Error>
+    pub(crate) fn deserialize<'de, D>(deserializer: D, key: &RatchetKey) -> Result<Self, D::Error>
     where
         D: Deserializer<'de>,
     {

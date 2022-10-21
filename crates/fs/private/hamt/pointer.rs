@@ -18,14 +18,28 @@ use super::{error::HamtError, hash::Hasher, Node, HAMT_VALUES_BUCKET_SIZE};
 // Type Definitions
 //--------------------------------------------------------------------------------------------------
 
+/// A key-value pair type.
+///
+/// # Examples
+///
+/// ```
+/// use wnfs::Pair;
+///
+/// let pair = Pair::new("key", "value");
+///
+/// assert_eq!(pair.key, "key");
+/// assert_eq!(pair.value, "value");
+/// ```
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Pair<K, V> {
     pub key: K,
     pub value: V,
 }
 
+/// Each bit in the bitmask of a node maps a `Pointer` in the HAMT structure.
+/// A `Pointer` can be either a link to a child node or a collection of key-value pairs.
 #[derive(Debug, Clone)]
-pub enum Pointer<K, V, H>
+pub(crate) enum Pointer<K, V, H>
 where
     H: Hasher,
 {
@@ -39,6 +53,17 @@ where
 
 impl<K, V> Pair<K, V> {
     /// Create a new `Pair` from a key and value.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use wnfs::Pair;
+    ///
+    /// let pair = Pair::new("key", "value");
+    ///
+    /// assert_eq!(pair.key, "key");
+    /// assert_eq!(pair.value, "value");
+    /// ```
     pub fn new(key: K, value: V) -> Self {
         Self { key, value }
     }

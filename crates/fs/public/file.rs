@@ -11,18 +11,18 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::{BlockStore, Id, Metadata, NodeType};
 
-/// A file in a WNFS public file system.
+/// Represents a file in the WNFS public filesystem.
 ///
 /// # Examples
 ///
 /// ```
-/// use wnfs::{public::PublicFile, Id};
+/// use wnfs::PublicFile;
 /// use chrono::Utc;
 /// use libipld::Cid;
 ///
 /// let file = PublicFile::new(Utc::now(), Cid::default());
 ///
-/// println!("id = {}", file.get_id());
+/// println!("File: {:?}", file);
 /// ```
 #[derive(Debug, Clone, PartialEq)]
 pub struct PublicFile {
@@ -46,29 +46,40 @@ struct PublicFileSerde {
 //--------------------------------------------------------------------------------------------------
 
 impl PublicFile {
-    /// Creates a new file using the given metadata and CID.
+    /// Creates a new file with provided content CID.
     ///
     /// # Examples
     ///
     /// ```
-    /// use wnfs::{public::PublicFile, Id};
+    /// use wnfs::PublicFile;
     /// use chrono::Utc;
     /// use libipld::Cid;
     ///
     /// let file = PublicFile::new(Utc::now(), Cid::default());
     ///
-    /// println!("id = {}", file.get_id());
+    /// println!("File: {:?}", file);
     /// ```
-    pub fn new(time: DateTime<Utc>, userland: Cid) -> Self {
+    pub fn new(time: DateTime<Utc>, content_cid: Cid) -> Self {
         Self {
             version: Version::new(0, 2, 0),
             metadata: Metadata::new(time),
-            userland,
+            userland: content_cid,
             previous: BTreeSet::new(),
         }
     }
 
     /// Gets the previous value of the file.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use wnfs::{PublicDirectory, Id};
+    /// use chrono::Utc;
+    ///
+    /// let dir = PublicDirectory::new(Utc::now());
+    ///
+    /// println!("id = {}", dir.get_id());
+    /// ```
     pub fn get_previous(&self) -> &BTreeSet<Cid> {
         &self.previous
     }
@@ -88,7 +99,7 @@ impl PublicFile {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::{public::PublicFile, Id, MemoryBlockStore};
+    /// use wnfs::{PublicFile, Id, MemoryBlockStore};
     /// use chrono::Utc;
     /// use libipld::Cid;
     ///

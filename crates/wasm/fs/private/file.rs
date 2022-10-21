@@ -3,7 +3,7 @@
 use chrono::{DateTime, Utc};
 use js_sys::Date;
 use wasm_bindgen::prelude::wasm_bindgen;
-use wnfs::{private::PrivateFile as WnfsPrivateFile, Id};
+use wnfs::{Id, PrivateFile as WnfsPrivateFile};
 
 use crate::fs::{JsResult, Namefilter, Rng};
 

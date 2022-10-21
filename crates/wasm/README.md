@@ -1,51 +1,62 @@
 ## Wasm WNFS
 
-This package implements the primitives for creating and manipulating IPLD graphs that encode WNFS.
+This projects implements necessary JavaScript bindings for using [the WebNative FileSystem (WNFS) Rust implementation][wnfs-crate] in the browser.
 
-The core of this project is a WebAssembly binary compiled from the [Rust source code](https://github.com/WebNativeFileSystem/rs-wnfs/tree/main/crates/fs).
+WNFS is a versioned content-addressable distributed filesystem with private and public sub systems. The private filesystem is encrypted so that only users with the right keys can access its contents. It is designed to prevent inferring metadata like the structure of the file tree. The other part of the WNFS filesystem is a simpler public filesystem that is not encrypted and can be accessed by anyone with the right address.
+
+WNFS also features collaborative editing of file trees, where multiple users can edit the same tree at the same time.
+
+WNFS file trees can serialize and be deserialized from [IPLD graphs][ipld-spec] with an extensible metadata section. This allows WNFS to be understood by other [IPLD-based tools][npm-ipld-tools] and systems.
 
 ## Outline
 
-- [Usage](#usage)
 - [Setting up the project](#setting-up-the-project)
+- [Usage](#usage)
 - [Testing the Project](#testing-the-project)
 - [Publishing Package](#publishing-package)
 
+## Setting up the Project
+
+- Install `wasm-pack`
+
+  ```bash
+  cargo install wasm-pack
+  ```
+
+- Install dependencies
+
+  ```bash
+  yarn
+  ```
+
+- Install playwright binaries
+
+  ```bash
+  npx playwright install
+  ```
+
+- Build project
+
+  ```bash
+  wasm-pack build
+  ```
+
 ## Usage
 
-Creating a new public directory.
+WNFS does not have an opinion on where you want to persist your content or the file tree. Instead, the API expects any object that implements the async [`BlockStore`][blockstore-trait] interface. This implementation also defers system-level operations to the user; requiring that operations like time and random number generation be passed in from the interface. This makes for a clean wasm interface that works everywhere.
+
+Let's see an example of working with a public directory. Here we are going to use a custom-written memory-based blockstore.
 
 ```js
+import { MemoryBlockStore } from "<custom>";
 import { PublicDirectory } from "wnfs";
 
-const time = new Date();
-const dir = new PublicDirectory(time);
-```
-
-The in-memory files and directories you create with `wnfs` will need to be sealed and stored somewhere. For that, an type that implements the BlockStore interface like [this one](https://github.com/WebNativeFileSystem/rs-wnfs/blob/8bb0fbb457051295f1ed4a4707dc230c04612658/crates/wasm/examples/graph/src/blockstore.ts#L9-L29) can be used.
-
-```js
-import { MemoryBlockStore } from "./store";
-import { PublicDirectory } from "wnfs";
-
-const time = new Date();
-const dir = new PublicDirectory(time);
+const dir = new PublicDirectory(new Date());
 const store = new MemoryBlockStore();
 
-// ...
-```
+var { rootDir } = await dir.mkdir(["pictures", "cats"], new Date(), store);
 
-The WNFS API is immutable, therefore, we need to keep track of the updated root directory after every change.
-
-Each fs operation returns a possibly updated root directory that subsequent changes can be applied on.
-
-```js
-// ...
-
-// Create a /pictures/cats directory.
-var { rootDir } = await dir.mkdir(["pictures", "cats"], time, store);
-
-// Get a sample CIDv1.
+// Create a sample CIDv1.
 const cid = Uint8Array.from([
   1, 112, 18, 32, 195, 196, 115, 62, 200, 175, 253, 6, 207, 158, 159, 245, 15,
   252, 107, 205, 46, 200, 90, 97, 112, 0, 75, 183, 9, 102, 156, 49, 222, 148,
@@ -77,31 +88,61 @@ var { result } = await rootDir.ls(["pictures"], store);
 console.log("Files in /pictures directory:", result);
 ```
 
-## Setting up the Project
+You may notice that we use the `rootDir`s returned by each operation in subseqent operations. That is because WNFS internal state is immutable and every operation potentially returns a new root directory. This allows us to track and rollback changes when needed. It also makes collaborative editing easier to implement and reason about. There is a basic demo of the filesystem immutability [here][wnfs-graph-demo].
 
-- Install `wasm-pack`
+The private filesystem, on the other hand, is a bit more involved. [Hash Array Mapped Trie (HAMT)][hamt-wiki] is used as the intermediate format of private file tree before it is persisted to the blockstore. HAMT helps us hide the hierarchy of the file tree.
 
-  ```bash
-  cargo install wasm-pack
-  ```
+```js
+import { MemoryBlockStore, Rng } from "<custom>";
+import { PrivateDirectory, PrivateForest, Namefilter } from "wnfs";
 
-- Install dependencies
+const initialHamt = new PrivateForest();
+const rng = new Rng();
+const store = new MemoryBlockStore();
+const dir = new PrivateDirectory(new Namefilter(), new Date(), rng);
 
-  ```bash
-  yarn
-  ```
+var { rootDir, hamt } = await root.mkdir(
+  ["pictures", "cats"],
+  true,
+  new Date(),
+  initialHamt,
+  store,
+  rng
+);
 
-- Install playwright binaries
+// Add a file to /pictures/cats.
+var { rootDir, hamt } = await rootDir.write(
+  ["pictures", "cats", "tabby.png"],
+  cid,
+  time,
+  store
+);
 
-  ```bash
-  npx playwright install
-  ```
+// Create and add a file to /pictures/dogs directory.
+var { rootDir, hamt } = await rootDir.write(
+  ["pictures", "cats", "billie.png"],
+  true,
+  new Uint8Array([1, 2, 3, 4, 5]),
+  new Date(),
+  hamt,
+  store,
+  rng
+);
 
-- Build project
+// Delete /pictures/cats directory.
+var { rootDir, hamt } = await rootDir.rm(
+  ["pictures", "cats"],
+  true,
+  hamt,
+  store,
+  rng
+);
 
-  ```bash
-  wasm-pack build
-  ```
+// List all files in /pictures directory.
+var { result } = await rootDir.ls(["pictures"], true, hamt, store);
+
+console.log("Files in /pictures directory:", result);
+```
 
 ## Testing the Project
 
@@ -128,3 +169,10 @@ console.log("Files in /pictures directory:", result);
   ```bash
   npm publish
   ```
+
+[wnfs-crate]: https://crates.io/crates/wnfs
+[blockstore-trait]: https://github.com/wnfs-wg/rs-wnfs/blob/main/crates/wasm/fs/blockstore.rs#L20-L29
+[wnfs-graph-demo]: https://calm-thin-barista.fission.app
+[hamt-wiki]: https://en.wikipedia.org/wiki/Hash_array_mapped_trie
+[ipld-spec]: https://ipld.io/
+[npm-ipld-tools]: https://www.npmjs.com/search?q=ipld

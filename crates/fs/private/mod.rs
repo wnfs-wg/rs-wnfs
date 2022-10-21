@@ -6,12 +6,12 @@ mod key;
 pub mod namefilter;
 mod node;
 mod previous;
-mod rng;
 
 pub use directory::*;
 pub use file::*;
 pub use forest::*;
+pub use hamt::*;
 pub use key::*;
+pub use namefilter::*;
 pub use node::*;
 pub use previous::*;
-pub use rng::*;

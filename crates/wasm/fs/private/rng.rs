@@ -1,6 +1,5 @@
 use rand_core::RngCore;
 use wasm_bindgen::prelude::wasm_bindgen;
-use wnfs::private::Rng as WnfsRng;
 
 //--------------------------------------------------------------------------------------------------
 // Externs
@@ -38,5 +37,3 @@ impl RngCore for Rng {
         Ok(self.fill_bytes(dest))
     }
 }
-
-impl WnfsRng for Rng {}

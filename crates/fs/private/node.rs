@@ -1,4 +1,4 @@
-use std::{cmp::Ordering, io::Cursor, rc::Rc};
+use std::{cmp::Ordering, fmt::Debug, io::Cursor, rc::Rc};
 
 use anyhow::{bail, Result};
 use async_recursion::async_recursion;
@@ -8,14 +8,15 @@ use libipld::{
     prelude::{Decode, Encode},
     serde as ipld_serde, Ipld,
 };
+use rand_core::RngCore;
 use serde::{Deserialize, Serialize};
 use sha3::Sha3_256;
 use skip_ratchet::{seek::JumpSize, Ratchet, RatchetSeeker};
 
-use crate::{BlockStore, FsError, HashOutput, Id, NodeType, HASH_BYTE_SIZE};
+use crate::{utils, BlockStore, FsError, HashOutput, Id, NodeType, HASH_BYTE_SIZE};
 
 use super::{
-    hamt::Hasher, namefilter::Namefilter, Key, PrivateDirectory, PrivateFile, PrivateForest, Rng,
+    hamt::Hasher, namefilter::Namefilter, Key, PrivateDirectory, PrivateFile, PrivateForest,
 };
 
 //--------------------------------------------------------------------------------------------------
@@ -24,25 +25,72 @@ use super::{
 
 pub type INumber = HashOutput;
 
+/// Represents a node in the WNFS private file system. This can either be a file or a directory.
+///
+/// # Examples
+///
+/// ```
+/// use wnfs::{PrivateDirectory, PrivateNode, Namefilter};
+/// use chrono::Utc;
+/// use std::rc::Rc;
+/// use rand::thread_rng;
+///
+/// let rng = &mut thread_rng();
+/// let dir = Rc::new(PrivateDirectory::new(
+///     Namefilter::default(),
+///     Utc::now(),
+///     rng,
+/// ));
+///
+/// let node = PrivateNode::Dir(dir);
+///
+/// println!("Node: {:?}", node);
+/// ```
 #[derive(Debug, Clone, PartialEq)]
 pub enum PrivateNode {
     File(Rc<PrivateFile>),
     Dir(Rc<PrivateDirectory>),
 }
 
+/// The key used to encrypt the content of a node.
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct ContentKey(pub Key);
 
+/// The key used to encrypt the header section of a node.
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct RatchetKey(pub Key);
 
+/// This is the header of a private node. It contains secret information about the node which includes
+/// the inumber, the ratchet, and the namefilter.
+///
+/// # Examples
+///
+/// ```
+/// use wnfs::{PrivateFile, Namefilter, Id};
+/// use chrono::Utc;
+/// use rand::thread_rng;
+///
+/// let rng = &mut thread_rng();
+/// let file = PrivateFile::new(
+///     Namefilter::default(),
+///     Utc::now(),
+///     b"hello world".to_vec(),
+///     rng,
+/// );
+///
+/// println!("Header: {:?}", file.header);
+/// ```
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PrivateNodeHeader {
-    pub(crate) bare_name: Namefilter,
-    pub(crate) ratchet: Ratchet,
+    /// A unique identifier of the node.
     pub(crate) inumber: INumber,
+    /// Used both for versioning and deriving keys for that enforces privacy.
+    pub(crate) ratchet: Ratchet,
+    /// Used for ancestry checks and as a key fot the HAMT.
+    pub(crate) bare_name: Namefilter,
 }
 
+/// PrivateRef holds the information to fetch associated node from a HAMT and decrypt it if it is present.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PrivateRef {
     /// Sha3-256 hash of saturated namefilter.
@@ -59,8 +107,38 @@ pub struct PrivateRef {
 
 impl PrivateNode {
     /// Creates node with upserted modified time.
-    pub fn upsert_mtime(&mut self, time: DateTime<Utc>) {
-        *self = match self {
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use wnfs::{PrivateDirectory, PrivateNode, Namefilter};
+    /// use chrono::{Utc, Duration, TimeZone};
+    /// use std::rc::Rc;
+    /// use rand::thread_rng;
+    ///
+    /// let rng = &mut thread_rng();
+    /// let dir = Rc::new(PrivateDirectory::new(
+    ///     Namefilter::default(),
+    ///     Utc::now(),
+    ///     rng,
+    /// ));
+    /// let node = PrivateNode::Dir(dir);
+    ///
+    /// let time = Utc::now() + Duration::days(1);
+    /// let node = node.upsert_mtime(time);
+    ///
+    /// let imprecise_time = Utc.timestamp(time.timestamp(), 0);
+    /// assert_eq!(
+    ///     imprecise_time,
+    ///     node.as_dir()
+    ///         .unwrap()
+    ///         .get_metadata()
+    ///         .get_modified()
+    ///         .unwrap()
+    /// );
+    /// ```
+    pub fn upsert_mtime(&self, time: DateTime<Utc>) -> Self {
+        match self {
             Self::File(file) => {
                 let mut file = (**file).clone();
                 file.metadata.upsert_mtime(time);
@@ -71,15 +149,15 @@ impl PrivateNode {
                 dir.metadata.upsert_mtime(time);
                 Self::Dir(Rc::new(dir))
             }
-        };
+        }
     }
 
     /// Generates two random set of bytes.
-    pub fn generate_double_random<R: Rng>(rng: &mut R) -> (HashOutput, HashOutput) {
+    pub(crate) fn generate_double_random<R: RngCore>(rng: &mut R) -> (HashOutput, HashOutput) {
         const _DOUBLE_SIZE: usize = HASH_BYTE_SIZE * 2;
         let [first, second] = unsafe {
             std::mem::transmute::<[u8; _DOUBLE_SIZE], [[u8; HASH_BYTE_SIZE]; 2]>(
-                rng.random_bytes::<_DOUBLE_SIZE>(),
+                utils::get_random_bytes::<_DOUBLE_SIZE>(rng),
             )
         };
         (first, second)
@@ -87,7 +165,7 @@ impl PrivateNode {
 
     /// Updates bare name ancestry of private sub tree.
     #[async_recursion(?Send)]
-    pub(crate) async fn update_ancestry<B: BlockStore, R: Rng>(
+    pub(crate) async fn update_ancestry<B: BlockStore, R: RngCore>(
         &mut self,
         parent_bare_name: Namefilter,
         hamt: Rc<PrivateForest>,
@@ -145,6 +223,25 @@ impl PrivateNode {
     }
 
     /// Gets the header of the node.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use wnfs::{PrivateDirectory, PrivateNode, Namefilter};
+    /// use chrono::Utc;
+    /// use std::rc::Rc;
+    /// use rand::thread_rng;
+    ///
+    /// let rng = &mut thread_rng();
+    /// let dir = Rc::new(PrivateDirectory::new(
+    ///     Namefilter::default(),
+    ///     Utc::now(),
+    ///     rng,
+    /// ));
+    /// let node = PrivateNode::Dir(Rc::clone(&dir));
+    ///
+    /// assert_eq!(&dir.header, node.get_header());
+    /// ```
     pub fn get_header(&self) -> &PrivateNodeHeader {
         match self {
             Self::File(file) => &file.header,
@@ -154,9 +251,24 @@ impl PrivateNode {
 
     /// Casts a node to a directory.
     ///
-    /// # Panics
+    /// # Examples
     ///
-    /// Panics if the node is not a directory.
+    /// ```
+    /// use wnfs::{PrivateDirectory, PrivateNode, Namefilter};
+    /// use chrono::Utc;
+    /// use std::rc::Rc;
+    /// use rand::thread_rng;
+    ///
+    /// let rng = &mut thread_rng();
+    /// let dir = Rc::new(PrivateDirectory::new(
+    ///     Namefilter::default(),
+    ///     Utc::now(),
+    ///     rng,
+    /// ));
+    /// let node = PrivateNode::Dir(Rc::clone(&dir));
+    ///
+    /// assert_eq!(node.as_dir().unwrap(), dir);
+    /// ```
     pub fn as_dir(&self) -> Result<Rc<PrivateDirectory>> {
         Ok(match self {
             Self::Dir(dir) => Rc::clone(dir),
@@ -166,9 +278,25 @@ impl PrivateNode {
 
     /// Casts a node to a file.
     ///
-    /// # Panics
+    /// # Examples
     ///
-    /// Panics if the node is not a file.
+    /// ```
+    /// use wnfs::{PrivateFile, PrivateNode, Namefilter};
+    /// use chrono::Utc;
+    /// use std::rc::Rc;
+    /// use rand::thread_rng;
+    ///
+    /// let rng = &mut thread_rng();
+    /// let file = Rc::new(PrivateFile::new(
+    ///     Namefilter::default(),
+    ///     Utc::now(),
+    ///     b"hello world".to_vec(),
+    ///     rng,
+    /// ));
+    /// let node = PrivateNode::File(Rc::clone(&file));
+    ///
+    /// assert_eq!(node.as_file().unwrap(), file);
+    /// ```
     pub fn as_file(&self) -> Result<Rc<PrivateFile>> {
         Ok(match self {
             Self::File(file) => Rc::clone(file),
@@ -177,8 +305,52 @@ impl PrivateNode {
     }
 
     /// Returns true if underlying node is a directory.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use wnfs::{PrivateDirectory, PrivateNode, Namefilter};
+    /// use chrono::Utc;
+    /// use std::rc::Rc;
+    /// use rand::thread_rng;
+    ///
+    /// let rng = &mut thread_rng();
+    /// let dir = Rc::new(PrivateDirectory::new(
+    ///     Namefilter::default(),
+    ///     Utc::now(),
+    ///     rng,
+    /// ));
+    /// let node = PrivateNode::Dir(dir);
+    ///
+    /// assert!(node.is_dir());
+    /// ```
     pub fn is_dir(&self) -> bool {
         matches!(self, Self::Dir(_))
+    }
+
+    /// Returns true if the underlying node is a file.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use wnfs::{PrivateFile, PrivateNode, Namefilter};
+    /// use chrono::Utc;
+    /// use std::rc::Rc;
+    /// use rand::thread_rng;
+    ///
+    /// let rng = &mut thread_rng();
+    /// let file = Rc::new(PrivateFile::new(
+    ///     Namefilter::default(),
+    ///     Utc::now(),
+    ///     b"hello world".to_vec(),
+    ///     rng,
+    /// ));
+    /// let node = PrivateNode::File(file);
+    ///
+    /// assert!(node.is_file());
+    /// ```
+    pub fn is_file(&self) -> bool {
+        matches!(self, Self::File(_))
     }
 
     /// Gets the latest version of the node using exponential search.
@@ -190,7 +362,7 @@ impl PrivateNode {
         let header = self.get_header();
 
         let private_ref = &header.get_private_ref()?;
-        if !forest.has(private_ref, store).await? {
+        if !forest.has(&private_ref.saturated_name_hash, store).await? {
             return Ok(self.clone());
         }
 
@@ -206,7 +378,10 @@ impl PrivateNode {
             current_header.ratchet = current.clone();
 
             let has_curr = forest
-                .has(&current_header.get_private_ref()?, store)
+                .has(
+                    &current_header.get_private_ref()?.saturated_name_hash,
+                    store,
+                )
                 .await?;
 
             let ord = if has_curr {
@@ -231,7 +406,11 @@ impl PrivateNode {
     }
 
     /// Serializes the node with provided Serde serialilzer.
-    pub fn serialize<S, R: Rng>(&self, serializer: S, rng: &mut R) -> Result<S::Ok, S::Error>
+    pub(crate) fn serialize<S, R: RngCore>(
+        &self,
+        serializer: S,
+        rng: &mut R,
+    ) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
     {
@@ -242,7 +421,7 @@ impl PrivateNode {
     }
 
     /// Serializes the node to dag-cbor bytes.
-    pub fn serialize_to_cbor<R: Rng>(&self, rng: &mut R) -> Result<Vec<u8>> {
+    pub(crate) fn serialize_to_cbor<R: RngCore>(&self, rng: &mut R) -> Result<Vec<u8>> {
         let ipld = self.serialize(ipld_serde::Serializer, rng)?;
         let mut bytes = Vec::new();
         ipld.encode(DagCborCodec, &mut bytes)?;
@@ -250,7 +429,7 @@ impl PrivateNode {
     }
 
     /// Deserializes the node from dag-cbor bytes.
-    pub fn deserialize_from_cbor(bytes: &[u8], key: &RatchetKey) -> Result<Self> {
+    pub(crate) fn deserialize_from_cbor(bytes: &[u8], key: &RatchetKey) -> Result<Self> {
         let ipld = Ipld::decode(DagCborCodec, &mut Cursor::new(bytes))?;
         (ipld, key).try_into()
     }
@@ -305,7 +484,7 @@ impl From<PrivateDirectory> for PrivateNode {
 
 impl PrivateNodeHeader {
     /// Creates a new PrivateNodeHeader.
-    pub fn new<R: Rng>(parent_bare_name: Namefilter, rng: &mut R) -> Self {
+    pub(crate) fn new<R: RngCore>(parent_bare_name: Namefilter, rng: &mut R) -> Self {
         let (inumber, ratchet_seed) = PrivateNode::generate_double_random(rng);
         Self {
             bare_name: {
@@ -319,43 +498,12 @@ impl PrivateNodeHeader {
     }
 
     /// Advances the ratchet.
-    pub fn advance_ratchet(&mut self) {
+    pub(crate) fn advance_ratchet(&mut self) {
         self.ratchet.inc();
     }
 
-    /// Gets the ratchet key used for en/decryption of the node header
-    pub fn get_ratchet_key(&self) -> RatchetKey {
-        RatchetKey(Key::new(self.ratchet.derive_key()))
-    }
-
-    /// Gets the private ref of the current header.
-    pub fn get_private_ref(&self) -> Result<PrivateRef> {
-        let ratchet_key = self.get_ratchet_key();
-        let saturated_name_hash = Sha3_256::hash(&self.get_saturated_name_with_key(&ratchet_key));
-
-        Ok(PrivateRef::from_ratchet_key(
-            saturated_name_hash,
-            ratchet_key,
-        ))
-    }
-
-    /// Gets the saturated namefilter for this node using the provided ratchet key.
-    pub fn get_saturated_name_with_key(&self, ratchet_key: &RatchetKey) -> Namefilter {
-        let RatchetKey(key) = ratchet_key;
-        let mut name = self.bare_name.clone();
-        name.add(&key.as_bytes());
-        name.saturate();
-        name
-    }
-
-    /// Gets the saturated namefilter for this node.
-    #[inline]
-    pub fn get_saturated_name(&self) -> Namefilter {
-        self.get_saturated_name_with_key(&self.get_ratchet_key())
-    }
-
     /// Updates the bare name of the node.
-    pub fn update_bare_name(&mut self, parent_bare_name: Namefilter) {
+    pub(crate) fn update_bare_name(&mut self, parent_bare_name: Namefilter) {
         self.bare_name = {
             let mut namefilter = parent_bare_name;
             namefilter.add(&self.inumber);
@@ -364,8 +512,99 @@ impl PrivateNodeHeader {
     }
 
     /// Resets the ratchet.
-    pub fn reset_ratchet<R: Rng>(&mut self, rng: &mut R) {
-        self.ratchet = Ratchet::zero(rng.random_bytes())
+    pub(crate) fn reset_ratchet<R: RngCore>(&mut self, rng: &mut R) {
+        self.ratchet = Ratchet::zero(utils::get_random_bytes(rng))
+    }
+
+    /// Gets the private ref of the current header.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use wnfs::{PrivateFile, Namefilter, Id};
+    /// use chrono::Utc;
+    /// use rand::thread_rng;
+    ///
+    /// let rng = &mut thread_rng();
+    /// let file = PrivateFile::new(
+    ///     Namefilter::default(),
+    ///     Utc::now(),
+    ///     b"hello world".to_vec(),
+    ///     rng,
+    /// );
+    ///
+    /// let private_ref = file.header.get_private_ref().unwrap();
+    ///
+    /// println!("Private ref: {:?}", private_ref);
+    /// ```
+    pub fn get_private_ref(&self) -> Result<PrivateRef> {
+        let ratchet_key = Key::new(self.ratchet.derive_key());
+        let saturated_name_hash = Sha3_256::hash(&self.get_saturated_name_with_key(&ratchet_key));
+
+        Ok(PrivateRef {
+            saturated_name_hash,
+            content_key: Key::new(Sha3_256::hash(&ratchet_key.as_bytes())).into(),
+            ratchet_key: ratchet_key.into(),
+        })
+    }
+
+    /// Gets the saturated namefilter for this node using the provided ratchet key.
+    pub(crate) fn get_saturated_name_with_key(&self, ratchet_key: &Key) -> Namefilter {
+        let mut name = self.bare_name.clone();
+        name.add(&ratchet_key.as_bytes());
+        name.saturate();
+        name
+    }
+
+    /// Gets the saturated namefilter for this node.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use wnfs::{PrivateFile, Namefilter, private::Key};
+    /// use chrono::Utc;
+    /// use rand::thread_rng;
+    ///
+    /// let rng = &mut thread_rng();
+    /// let file = PrivateFile::new(
+    ///     Namefilter::default(),
+    ///     Utc::now(),
+    ///     b"hello world".to_vec(),
+    ///     rng,
+    /// );
+    ///
+    /// let saturated_name = file.header.get_saturated_name();
+    ///
+    /// println!("Saturated name: {:?}", saturated_name);
+    /// ```
+    #[inline]
+    pub fn get_saturated_name(&self) -> Namefilter {
+        let ratchet_key = Key::new(self.ratchet.derive_key());
+        self.get_saturated_name_with_key(&ratchet_key)
+    }
+}
+
+impl From<Key> for RatchetKey {
+    fn from(key: Key) -> Self {
+        Self(key)
+    }
+}
+
+impl From<RatchetKey> for Key {
+    fn from(key: RatchetKey) -> Self {
+        key.0
+    }
+}
+
+impl From<Key> for ContentKey {
+    fn from(key: Key) -> Self {
+        Self(key)
+    }
+}
+
+impl From<ContentKey> for Key {
+    fn from(key: ContentKey) -> Self {
+        key.0
     }
 }
 
