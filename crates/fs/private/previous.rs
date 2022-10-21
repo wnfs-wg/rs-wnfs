@@ -150,6 +150,10 @@ impl PrivateNodeOnPathHistory {
     /// Returns errors when there is no private node at given path,
     /// or if the given `past_ratchet` is not within the `discrepancy_budget` to
     /// the given root `directory`, or simply unrelated.
+    ///
+    /// When `search_latest` is true, it follow the path in the current revision
+    /// down to the child, and then look for the latest revision of the target node,
+    /// including all in-between versions in the history.
     pub async fn of<B: BlockStore>(
         directory: Rc<PrivateDirectory>,
         past_ratchet: &Ratchet,
