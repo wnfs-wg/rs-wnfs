@@ -158,9 +158,7 @@ impl PrivateNodeOnPathHistory {
         //
         // Stepping that history forward is then done in `PrivateNodeOnPathHistory#previous`.
 
-        let new_ratchet = directory.header.ratchet.clone();
-
-        let (last, path_segments) = match path_segments.split_last() {
+        let (target_path, path_segments) = match path_segments.split_last() {
             None => {
                 return Ok(PrivateNodeOnPathHistory {
                     forest: Rc::clone(&forest),
@@ -177,7 +175,57 @@ impl PrivateNodeOnPathHistory {
             Some(split) => split,
         };
 
-        let path_nodes = match directory
+        let (path, target_history) = Self::path_nodes_and_target_history(
+            Rc::clone(&directory),
+            discrepancy_budget,
+            path_segments,
+            target_path,
+            search_latest,
+            Rc::clone(&forest),
+            store,
+        )
+        .await?;
+
+        let path =
+            Self::path_segment_empty_histories(path, Rc::clone(&forest), discrepancy_budget)?;
+
+        let mut previous_iter = PrivateNodeOnPathHistory {
+            forest: Rc::clone(&forest),
+            discrepancy_budget,
+            path,
+            target: target_history,
+        };
+
+        // For the first part of the path, we specifically set the history ourselves,
+        // because we've had `past_ratchet` passed in from the outside.
+
+        let new_ratchet = directory.header.ratchet.clone();
+
+        previous_iter.path[0].history.ratchets =
+            PreviousIterator::new(past_ratchet, &new_ratchet, discrepancy_budget)
+                .map_err(FsError::NoIntermediateRatchet)?;
+
+        Ok(previous_iter)
+    }
+
+    /// Accumulates the path nodes towards a target node and
+    /// creates a `PrivateNodeHistory` for that target node from
+    /// the latest version it could find (if `search_latest` is true)
+    /// until the current revision.
+    ///
+    /// If `search_latest` is false, the target history is empty.
+    async fn path_nodes_and_target_history<B: BlockStore>(
+        dir: Rc<PrivateDirectory>,
+        discrepancy_budget: usize,
+        path_segments: &[String],
+        target_path_segment: &String,
+        search_latest: bool,
+        forest: Rc<PrivateForest>,
+        store: &B,
+    ) -> Result<(Vec<(Rc<PrivateDirectory>, String)>, PrivateNodeHistory)> {
+        // We only search for the latest revision in the private node.
+        // It may have been deleted in future versions of its ancestor directories.
+        let path_nodes = match dir
             .get_path_nodes(path_segments, false, &forest, store)
             .await?
         {
@@ -187,9 +235,8 @@ impl PrivateNodeOnPathHistory {
         };
 
         // TODO(matheus23) refactor using let-else once rust stable 1.65 released (Nov 3rd)
-        let target = match path_nodes
-            .tail
-            .lookup_node(last, false, &forest, store)
+        let target = match (*path_nodes.tail)
+            .lookup_node(target_path_segment, false, &forest, store)
             .await?
         {
             Some(target) => target,
@@ -209,19 +256,22 @@ impl PrivateNodeOnPathHistory {
             Rc::clone(&forest),
         )?;
 
-        let mut previous_iter = PrivateNodeOnPathHistory {
-            forest: Rc::clone(&forest),
-            discrepancy_budget,
-            path: Vec::with_capacity(path_nodes.len() + 1),
-            target: target_history,
-        };
-
         let PathNodes { mut path, tail } = path_nodes;
 
-        path.push((tail, last.to_string()));
+        path.push((tail, target_path_segment.to_string()));
 
+        Ok((path, target_history))
+    }
+
+    /// Takes a path of directories and initializes each path segment with an empty history.
+    fn path_segment_empty_histories(
+        path: Vec<(Rc<PrivateDirectory>, String)>,
+        forest: Rc<PrivateForest>,
+        discrepancy_budget: usize,
+    ) -> Result<Vec<PathSegmentHistory>> {
+        let mut segments = Vec::new();
         for (dir, path_segment) in path {
-            previous_iter.path.push(PathSegmentHistory {
+            segments.push(PathSegmentHistory {
                 dir: Rc::clone(&dir),
                 history: PrivateNodeHistory::of(
                     &PrivateNode::Dir(Rc::clone(&dir)),
@@ -233,14 +283,7 @@ impl PrivateNodeOnPathHistory {
             });
         }
 
-        // For the first part of the path, we specifically set the history ourselves,
-        // because we've had `past_ratchet` passed in from the outside.
-
-        previous_iter.path[0].history.ratchets =
-            PreviousIterator::new(past_ratchet, &new_ratchet, discrepancy_budget)
-                .map_err(FsError::NoIntermediateRatchet)?;
-
-        Ok(previous_iter)
+        Ok(segments)
     }
 
     /// Step the history one revision back and retrieve the node at the configured path.
