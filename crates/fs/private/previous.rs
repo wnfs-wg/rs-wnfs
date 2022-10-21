@@ -313,14 +313,14 @@ impl PrivateNodeOnPathHistory {
             None => return Ok(None),
         };
 
-        let ancestor = self.path.last().unwrap();
-
         if !self
             .repopulate_segment_histories(working_stack, store)
             .await?
         {
             return Ok(None);
         }
+
+        let ancestor = self.path.last().unwrap();
 
         // TODO(matheus23) refactor using let-else once rust stable 1.65 released (Nov 3rd)
         let older_node = match ancestor
@@ -422,6 +422,8 @@ impl PrivateNodeOnPathHistory {
                 path_segment,
             });
         }
+
+        Ok(true)
     }
 }
 
