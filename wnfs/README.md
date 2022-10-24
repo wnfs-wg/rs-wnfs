@@ -149,7 +149,6 @@ Check the [`examples/`][wnfs-examples] folder for more examples.
 [hamt-wiki]: https://en.wikipedia.org/wiki/Hash_array_mapped_trie
 [ipld-spec]: https://ipld.io/
 [npm-ipld-tools]: https://www.npmjs.com/search?q=ipld
-[wnfs-examples]: examples/
+[wnfs-examples]: https://github.com/wnfs-wg/rs-wnfs/tree/main/wnfs/examples
 [wnfs-graph-demo]: https://calm-thin-barista.fission.app
 [wnfs-spec]: https://github.com/wnfs-wg/spec
-[wnfs-wasm-readme]: wnfs-wasm/README.md
