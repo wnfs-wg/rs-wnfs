@@ -1,6 +1,6 @@
 <div align="center">
   <a href="https://github.com/wnfs-wg" target="_blank">
-    <img src="../../assets/logo.png" alt="Fission Logo" width="100" height="100"></img>
+    <img src="../assets/logo.png" alt="Fission Logo" width="100" height="100"></img>
   </a>
 
   <h1 align="center">WebNative FileSystem (WNFS)</h1>
@@ -28,6 +28,8 @@
 </div>
 
 <div align="center"><sub>:warning: Work in progress :warning:</sub></div>
+
+##
 
 This is a Rust implementation of [the WebNative FileSystem (WNFS) specification][wnfs-spec]. WNFS is a versioned content-addressable distributed filesystem with private and public sub systems. The private filesystem is encrypted so that only users with the right keys can access its contents. It is designed to prevent inferring metadata like the structure of the file tree. The other part of the WNFS filesystem is a simpler public filesystem that is not encrypted and can be accessed by anyone with the right address.
 
@@ -70,7 +72,7 @@ async fn main() {
 }
 ```
 
-You may notice that we store the `root_dir` returned by the `mkdir` operation, not the `dir` we started with. That is because WNFS internal state is immutable and every operation potentially returns a new root directory. This allows us to track and rollback changes when needed. It also makes collaborative editing easier to implement and reason about. You can find more examples in the [`crates/fs/examples/`][wnfs-examples] folder. And there is a basic demo of the filesystem immutability [here][wnfs-graph-demo].
+You may notice that we store the `root_dir` returned by the `mkdir` operation, not the `dir` we started with. That is because WNFS internal state is immutable and every operation potentially returns a new root directory. This allows us to track and rollback changes when needed. It also makes collaborative editing easier to implement and reason about. You can find more examples in the [`wnfs/examples/`][wnfs-examples] folder. And there is a basic demo of the filesystem immutability [here][wnfs-graph-demo].
 
 The private filesystem, on the other hand, is a bit more involved. [Hash Array Mapped Trie (HAMT)][hamt-wiki] is used as the intermediate format of private file tree before it is persisted to the blockstore. HAMT helps us hide the hierarchy of the file tree.
 
@@ -143,7 +145,7 @@ Namefilters are currently how we identify private node blocks in the filesystem.
 
 Check the [`examples/`][wnfs-examples] folder for more examples.
 
-[blockstore-trait]: https://github.com/wnfs-wg/rs-wnfs/blob/07d026c1ef324597da9ac7897353015dd634af16/wnfs/common/blockstore.rs#L30-L85
+[blockstore-trait]: wnfs/common/blockstore.rs#L30-L86
 [hamt-wiki]: https://en.wikipedia.org/wiki/Hash_array_mapped_trie
 [ipld-spec]: https://ipld.io/
 [npm-ipld-tools]: https://www.npmjs.com/search?q=ipld

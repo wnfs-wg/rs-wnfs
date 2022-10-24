@@ -170,7 +170,7 @@ console.log("Files in /pictures directory:", result);
   npm publish
   ```
 
-[blockstore-trait]: https://github.com/wnfs-wg/rs-wnfs/blob/main/wnfs-wasm/fs/blockstore.rs#L20-L29
+[blockstore-trait]: wnfs/common/blockstore.rs#L30-L86
 [hamt-wiki]: https://en.wikipedia.org/wiki/Hash_array_mapped_trie
 [ipld-spec]: https://ipld.io/
 [npm-ipld-tools]: https://www.npmjs.com/search?q=ipld

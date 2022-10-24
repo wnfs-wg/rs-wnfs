@@ -306,7 +306,7 @@ We would be happy to try to answer your question or try opening a new issue on G
 
 This project is licensed under the [Apache License 2.0](https://github.com/wnfs-wg/rs-wnfs/blob/main/LICENSE).
 
-[blockstore-trait]: https://github.com/wnfs-wg/rs-wnfs/blob/07d026c1ef324597da9ac7897353015dd634af16/wnfs/common/blockstore.rs#L30-L85
+[blockstore-trait]: wnfs/common/blockstore.rs#L30-L86
 [hamt-wiki]: https://en.wikipedia.org/wiki/Hash_array_mapped_trie
 [ipld-spec]: https://ipld.io/
 [npm-ipld-tools]: https://www.npmjs.com/search?q=ipld
