@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use js_sys::{Error, Promise, Uint8Array};
+use js_sys::{Error, Promise};
 use wasm_bindgen::{prelude::wasm_bindgen, JsValue};
 use wasm_bindgen_futures::future_to_promise;
 use wnfs::{
