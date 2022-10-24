@@ -42,12 +42,12 @@ thiserror = "1.0"
 xxhash-rust = { version = "0.8", features = ["xxh3"] }
 
 [dev-dependencies]
+criterion = { version = "0.4", features = ["async_std"] }
 env_logger = "0.9"
 proptest = "1.0"
 rand = "0.8"
 test-log = "0.2"
 test-strategy = "0.2"
-criterion = { version = "0.4.0", features = ["async_std"] }
 
 [lib]
 crate-type = ["cdylib", "rlib"]
