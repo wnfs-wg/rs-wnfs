@@ -1,6 +1,6 @@
 <div align="center">
   <a href="https://github.com/wnfs-wg" target="_blank">
-    <img src="../assets/logo.png" alt="Fission Logo" width="100" height="100"></img>
+    <img src="https://raw.githubusercontent.com/wnfs-wg/rs-wnfs/main/assets/logo.png" alt="WNFS Logo" width="100" height="100"></img>
   </a>
 
   <h1 align="center">WebNative FileSystem (WNFS)</h1>
