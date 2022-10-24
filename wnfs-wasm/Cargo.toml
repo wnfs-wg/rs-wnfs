@@ -2,7 +2,7 @@
 name = "wasm-wnfs"
 version = "0.1.9"
 description = "WebNative Filesystem API (WebAssembly)"
-keywords = ["wnfs", "webnative", "ipfs", "decentralisation"]
+keywords = ["wnfs", "wasm", "webnative", "ipfs", "decentralisation"]
 categories = [
   "filesystem",
   "cryptography",
@@ -12,7 +12,7 @@ categories = [
 license = "Apache-2.0"
 readme = "README.md"
 edition = "2021"
-repository = "https://github.com/WebNativeFileSystem/rs-wnfs/tree/main/crates/wasm"
+repository = "https://github.com/WebNativeFileSystem/rs-wnfs/tree/main/wnfs-wasm"
 homepage = "https://fission.codes"
 authors = ["The Fission Authors"]
 
@@ -28,24 +28,24 @@ rand_core = "0.6"
 wasm-bindgen = { version = "0.2", optional = true, features = ["serde-serialize"] }
 wasm-bindgen-futures = { version = "0.4", optional = true }
 web-sys = { version = "0.3", optional = true }
-wnfs = { path = "../fs", version = "0.1.9" }
+wnfs = { path = "../wnfs", version = "0.1" }
 
 [dev-dependencies]
 wasm-bindgen-test = "0.3"
 
 [lib]
-path = "lib.rs"
 crate-type = ["cdylib", "rlib"]
+path = "lib.rs"
 
 [features]
 default = ["js"]
 wasm = ["wnfs/wasm"]
 js = [
-  "wasm",
-  "wasm-bindgen",
-  "wasm-bindgen-futures",
-  "js-sys",
   "chrono/wasmbind",
   "console_error_panic_hook",
+  "js-sys",
+  "wasm",
+  "wasm-bindgen",
+  "wasm-bindgen-futures"
 ]
 web = ["wasm", "web-sys"]

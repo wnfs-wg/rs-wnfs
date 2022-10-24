@@ -52,8 +52,8 @@ This library is designed with WebAssembly in mind. You can follow instructions o
 
 ## Crates
 
-- [wnfs](https://github.com/wnfs-wg/rs-wnfs/tree/main/crates/fs)
-- [wnfs-wasm](https://github.com/wnfs-wg/rs-wnfs/tree/main/crates/wasm)
+- [wnfs](https://github.com/wnfs-wg/rs-wnfs/tree/main/wnfs)
+- [wnfs-wasm](https://github.com/wnfs-wg/rs-wnfs/tree/main/wnfs-wasm)
 
 ## Building the Project
 
@@ -200,7 +200,7 @@ async fn main() {
 }
 ```
 
-You may notice that we store the `root_dir` returned by the `mkdir` operation, not the `dir` we started with. That is because WNFS internal state is immutable and every operation potentially returns a new root directory. This allows us to track and rollback changes when needed. It also makes collaborative editing easier to implement and reason about. You can find more examples in the [`crates/fs/examples/`][wnfs-examples] folder. And there is a basic demo of the filesystem immutability [here][wnfs-graph-demo].
+You may notice that we store the `root_dir` returned by the `mkdir` operation, not the `dir` we started with. That is because WNFS internal state is immutable and every operation potentially returns a new root directory. This allows us to track and rollback changes when needed. It also makes collaborative editing easier to implement and reason about. You can find more examples in the [`wnfs/examples/`][wnfs-examples] folder. And there is a basic demo of the filesystem immutability [here][wnfs-graph-demo].
 
 The private filesystem, on the other hand, is a bit more involved. [Hash Array Mapped Trie (HAMT)][hamt-wiki] is used as the intermediate format of private file tree before it is persisted to the blockstore. HAMT helps us hide the hierarchy of the file tree.
 
@@ -271,7 +271,7 @@ async fn main() {
 
 Namefilters are currently how we identify private node blocks in the filesystem. They have nice properties, one of which is the ability to check if one node belongs to another. This is necessary in a filesystem where metadata like hierarchy needs to be hidden from observing agents. One notable caveat with namefilters is that they can only reliably store information of a file tree 47 levels deep or less so there is a plan to replace them with other cryptographic accumlators in the near future.
 
-Check the [`crates/fs/examples/`][wnfs-examples] folder for more examples.
+Check the [`wnfs/examples/`][wnfs-examples] folder for more examples.
 
 ## Testing the Project
 
@@ -302,41 +302,22 @@ This library recommends using [pre-commit][pre-commit-guide] for running pre-com
 For usage questions, usecases, or issues reach out to us in our [Discord webnative-fs channel][webnative-discord].
 We would be happy to try to answer your question or try opening a new issue on Github.
 
-## External Resources
-
-This is a list of links to blog posts, confereence talks, and tutorials related to WNFS in general:
-
-### Talks
-
-- [A Distributed File System for Secure P2P Applications][distributed-fs-talk] by Brooklyn Zelenka (Strange Loop 2022)
-- [WebNative File System][wnfs-talk] by Brooklyn Zelenka (IPFS bing 2022)
-- [Shared Private Files Design in Webnative's WNFS][shared-private-fs-talk] by Brooklyn Zelenka
-
-### Related Implementations
-
-- [wnfs-go][wnfs-go-repo]
-- [WNFS (typescript) / Webnative SDK][webnative-sdk-repo]
-
 ## License
 
 This project is licensed under the [Apache License 2.0](https://github.com/wnfs-wg/rs-wnfs/blob/main/LICENSE).
 
-[wnfs-spec]: https://github.com/wnfs-wg/spec
-[wnfs-wasm-readme]: crates/wasm/README.md
-[rust-toolchain-guide]: https://doc.rust-lang.org/cargo/getting-started/installation.html
-[rust-analyzer-guide]: https://rust-analyzer.github.io/manual.html#installation
-[vscode-settings]: https://code.visualstudio.com/docs/getstarted/settings#_workspace-settings
-[playwright-guide]: https://playwright.dev/
-[blockstore-trait]: https://github.com/wnfs-wg/rs-wnfs/blob/07d026c1ef324597da9ac7897353015dd634af16/crates/fs/common/blockstore.rs#L30-L85
-[wnfs-examples]: crates/fs/examples/
-[wnfs-graph-demo]: https://calm-thin-barista.fission.app
+[blockstore-trait]: wnfs/common/blockstore.rs#L30-L86
 [hamt-wiki]: https://en.wikipedia.org/wiki/Hash_array_mapped_trie
 [ipld-spec]: https://ipld.io/
 [npm-ipld-tools]: https://www.npmjs.com/search?q=ipld
+[playwright-guide]: https://playwright.dev/
 [pre-commit-guide]: https://pre-commit.com/
-[webnative-discord]: https://discord.com/channels/478735028319158273/877623827331428403
-[distributed-fs-talk]: https://www.youtube.com/watch?v=-f4cH_HQU4U
-[wnfs-talk]: https://www.youtube.com/watch?v=3se17NAS-Lw
+[rust-analyzer-guide]: https://rust-analyzer.github.io/manual.html#installation
+[rust-toolchain-guide]: https://doc.rust-lang.org/cargo/getting-started/installation.html
 [shared-private-fs-talk]: https://vimeo.com/534517727
-[wnfs-go-repo]: https://github.com/wnfs-wg/wnfs-go
-[webnative-sdk-repo]: https://github.com/fission-codes/webnative/blob/main/README.md#web-native-file-system
+[vscode-settings]: https://code.visualstudio.com/docs/getstarted/settings#_workspace-settings
+[webnative-discord]: https://discord.gg/YbT6x7Wkvk
+[wnfs-examples]: wnfs/examples/
+[wnfs-graph-demo]: https://calm-thin-barista.fission.app
+[wnfs-spec]: https://github.com/wnfs-wg/spec
+[wnfs-wasm-readme]: wnfs-wasm/README.md

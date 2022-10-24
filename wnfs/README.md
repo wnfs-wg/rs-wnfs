@@ -1,13 +1,13 @@
 <div align="center">
   <a href="https://github.com/wnfs-wg" target="_blank">
-    <img src="../../assets/logo.png" alt="Fission Logo" width="100" height="100"></img>
+    <img src="../assets/logo.png" alt="Fission Logo" width="100" height="100"></img>
   </a>
 
   <h1 align="center">WebNative FileSystem (WNFS)</h1>
 
   <p>
     <a href="https://crates.io/crates/wnfs">
-      <img src="https://img.shields.io/crates/v/wnfs?label=crates" alt="Concurrency Docs">
+      <img src="https://img.shields.io/crates/v/wnfs?label=crates" alt="Docs">
     </a>
     <a href="https://codecov.io/gh/wnfs-wg/rs-wnfs">
       <img src="https://codecov.io/gh/wnfs-wg/rs-wnfs/branch/main/graph/badge.svg?token=95YHXFMFF4" alt="Code Coverage"/>
@@ -19,7 +19,7 @@
       <img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg" alt="License">
     </a>
     <a href="https://docs.rs/wnfs">
-      <img src="https://img.shields.io/static/v1?label=Docs&message=docs.rs&color=blue" alt="Concurrency Docs">
+      <img src="https://img.shields.io/static/v1?label=Docs&message=docs.rs&color=blue" alt="Docs">
     </a>
     <a href="https://discord.gg/zAQBDEq">
       <img src="https://img.shields.io/static/v1?label=Discord&message=join%20us!&color=mediumslateblue" alt="Discord">
@@ -72,7 +72,7 @@ async fn main() {
 }
 ```
 
-You may notice that we store the `root_dir` returned by the `mkdir` operation, not the `dir` we started with. That is because WNFS internal state is immutable and every operation potentially returns a new root directory. This allows us to track and rollback changes when needed. It also makes collaborative editing easier to implement and reason about. You can find more examples in the [`crates/fs/examples/`][wnfs-examples] folder. And there is a basic demo of the filesystem immutability [here][wnfs-graph-demo].
+You may notice that we store the `root_dir` returned by the `mkdir` operation, not the `dir` we started with. That is because WNFS internal state is immutable and every operation potentially returns a new root directory. This allows us to track and rollback changes when needed. It also makes collaborative editing easier to implement and reason about. You can find more examples in the [`wnfs/examples/`][wnfs-examples] folder. And there is a basic demo of the filesystem immutability [here][wnfs-graph-demo].
 
 The private filesystem, on the other hand, is a bit more involved. [Hash Array Mapped Trie (HAMT)][hamt-wiki] is used as the intermediate format of private file tree before it is persisted to the blockstore. HAMT helps us hide the hierarchy of the file tree.
 
@@ -145,11 +145,11 @@ Namefilters are currently how we identify private node blocks in the filesystem.
 
 Check the [`examples/`][wnfs-examples] folder for more examples.
 
-[wnfs-spec]: https://github.com/wnfs-wg/spec
-[wnfs-wasm-readme]: crates/wasm/README.md
-[blockstore-trait]: https://github.com/wnfs-wg/rs-wnfs/blob/07d026c1ef324597da9ac7897353015dd634af16/crates/fs/common/blockstore.rs#L30-L85
-[wnfs-examples]: examples/
-[wnfs-graph-demo]: https://calm-thin-barista.fission.app
+[blockstore-trait]: wnfs/common/blockstore.rs#L30-L86
 [hamt-wiki]: https://en.wikipedia.org/wiki/Hash_array_mapped_trie
 [ipld-spec]: https://ipld.io/
 [npm-ipld-tools]: https://www.npmjs.com/search?q=ipld
+[wnfs-examples]: examples/
+[wnfs-graph-demo]: https://calm-thin-barista.fission.app
+[wnfs-spec]: https://github.com/wnfs-wg/spec
+[wnfs-wasm-readme]: wnfs-wasm/README.md
