@@ -10,7 +10,7 @@ use wnfs::{
 };
 
 fn node_set(c: &mut Criterion) {
-    c.bench_function("Node set", |b| {
+    c.bench_function("node set", |b| {
         b.to_async(AsyncStdExecutor).iter(|| async {
             let store = &mut MemoryBlockStore::default();
             let mut node = black_box(Rc::new(<Node<_, _>>::default()));
@@ -39,9 +39,9 @@ fn node_load_get(c: &mut Criterion) {
         (cid, encoded_hamt)
     });
 
-    let mut group = c.benchmark_group("With throughput");
+    let mut group = c.benchmark_group("node load and get");
     group.throughput(Throughput::Bytes(bytes.len() as u64));
-    group.bench_function("Node load and get", |b| {
+    group.bench_function("0", |b| {
         b.to_async(AsyncStdExecutor).iter(|| async {
             let encoded_hamt = store.get_deserializable::<Vec<u8>>(&cid).await.unwrap();
             let hamt: Hamt<String, i32> = dagcbor::decode(encoded_hamt.as_ref()).unwrap();
@@ -77,9 +77,9 @@ fn node_load_remove(c: &mut Criterion) {
         (cid, encoded_hamt)
     });
 
-    let mut group = c.benchmark_group("With throughput");
+    let mut group = c.benchmark_group("node load and remove");
     group.throughput(Throughput::Bytes(bytes.len() as u64));
-    group.bench_function("Node load and remove", |b| {
+    group.bench_function("0", |b| {
         b.to_async(AsyncStdExecutor).iter(|| async {
             let encoded_hamt = store.get_deserializable::<Vec<u8>>(&cid).await.unwrap();
             let mut hamt: Hamt<String, i32> =
@@ -111,9 +111,9 @@ fn hamt_load_decode(c: &mut Criterion) {
         (cid, encoded_hamt)
     });
 
-    let mut group = c.benchmark_group("With throughput");
+    let mut group = c.benchmark_group("hamt load and decode");
     group.throughput(Throughput::Bytes(bytes.len() as u64));
-    group.bench_function("HAMT load and decode", |b| {
+    group.bench_function("0", |b| {
         b.to_async(AsyncStdExecutor).iter(|| async {
             let encoded_hamt = store.get_deserializable::<Vec<u8>>(&cid).await.unwrap();
             let _: Hamt<String, i32> = black_box(dagcbor::decode(encoded_hamt.as_ref()).unwrap());
@@ -122,7 +122,7 @@ fn hamt_load_decode(c: &mut Criterion) {
 }
 
 fn hamt_set_encode(c: &mut Criterion) {
-    c.bench_function("HAMT set and encode", |b| {
+    c.bench_function("hamt set and encode", |b| {
         b.to_async(AsyncStdExecutor).iter(|| async {
             let store = &mut MemoryBlockStore::default();
             let mut node = Rc::new(<Node<_, _>>::default());

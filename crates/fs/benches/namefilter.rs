@@ -1,8 +1,8 @@
-use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use criterion::{black_box, criterion_group, criterion_main, Criterion, Throughput};
 use wnfs::{dagcbor, private::namefilter::Namefilter};
 
 fn add(c: &mut Criterion) {
-    c.bench_function("Namefilter add", |b| {
+    c.bench_function("namefilter add", |b| {
         b.iter(|| {
             let mut namefilter = black_box(Namefilter::default());
             for i in 0..50 {
@@ -18,7 +18,7 @@ fn contains(c: &mut Criterion) {
         namefilter.add(&i.to_string());
     }
 
-    c.bench_function("Namefilter contains", |b| {
+    c.bench_function("namefilter contains", |b| {
         b.iter(|| {
             for i in 0..50 {
                 assert!(namefilter.contains(&i.to_string()));
@@ -33,7 +33,7 @@ fn saturate(c: &mut Criterion) {
         namefilter.add(&i.to_string());
     }
 
-    c.bench_function("Namefilter saturate", |b| {
+    c.bench_function("namefilter saturate", |b| {
         b.iter(|| {
             black_box(namefilter.saturate());
         })
@@ -46,7 +46,7 @@ fn encode(c: &mut Criterion) {
         namefilter.add(&i.to_string());
     }
 
-    c.bench_function("Namefilter encode", |b| {
+    c.bench_function("namefilter encode", |b| {
         b.iter(|| {
             let _ = black_box(dagcbor::encode(&namefilter).unwrap());
         })
@@ -60,8 +60,10 @@ fn decode(c: &mut Criterion) {
     }
     let encoded_namefilter = dagcbor::encode(&namefilter).unwrap();
 
-    c.bench_function("Namefilter decode", |b| {
-        b.iter(|| {
+    let mut group = c.benchmark_group("namefilter decode");
+    group.throughput(Throughput::Bytes(encoded_namefilter.len() as u64));
+    group.bench_function("0", |b| {
+        b.iter(|| async {
             let _ = black_box(dagcbor::decode::<Namefilter>(encoded_namefilter.as_ref()).unwrap());
         })
     });
