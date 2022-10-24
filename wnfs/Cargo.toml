@@ -52,6 +52,7 @@ test-strategy = "0.2"
 [lib]
 crate-type = ["cdylib", "rlib"]
 path = "lib.rs"
+bench = false
 
 [features]
 default = []

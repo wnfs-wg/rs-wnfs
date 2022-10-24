@@ -25,9 +25,7 @@ jobs:
         uses: Swatinem/rust-cache@v2
 
       - name: Run benchmark
-        env:
-          POLAR_IGNORE_NO_ALLOW_WARNING: 1
-        run: cargo bench -q -- --output-format bencher | tee output.txt
+        run: cargo bench -q -p wnfs -- --output-format bencher | tee output.txt
 
       - name: Store Benchmark Result
         uses: benchmark-action/github-action-benchmark@v1
