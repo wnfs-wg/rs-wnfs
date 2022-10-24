@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1666623775440,
+  "lastUpdate": 1666636561940,
   "repoUrl": "https://github.com/wnfs-wg/rs-wnfs",
   "entries": {
     "Rust Benchmark": [
@@ -158,6 +158,86 @@ window.BENCHMARK_DATA = {
           {
             "name": "namefilter decode/0",
             "value": 2,
+            "range": "± 0",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "wnfs-wg",
+            "username": "wnfs-wg"
+          },
+          "committer": {
+            "name": "wnfs-wg",
+            "username": "wnfs-wg"
+          },
+          "id": "1721644893fd8b23e3661553503743b845653c79",
+          "message": "Initial Benchmark Work",
+          "timestamp": "2022-10-24T16:32:34Z",
+          "url": "https://github.com/wnfs-wg/rs-wnfs/pull/75/commits/1721644893fd8b23e3661553503743b845653c79"
+        },
+        "date": 1666636560109,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "node set",
+            "value": 208929,
+            "range": "± 787",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and get/0",
+            "value": 156076,
+            "range": "± 126",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and remove/0",
+            "value": 264079,
+            "range": "± 1119",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt load and decode/0",
+            "value": 39073,
+            "range": "± 84",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt set and encode",
+            "value": 252909,
+            "range": "± 653",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter add",
+            "value": 13847,
+            "range": "± 44",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter contains",
+            "value": 11533,
+            "range": "± 28",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter saturate",
+            "value": 2453,
+            "range": "± 1",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter encode",
+            "value": 133,
+            "range": "± 0",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter decode/0",
+            "value": 1,
             "range": "± 0",
             "unit": "ns/iter"
           }
