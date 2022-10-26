@@ -76,7 +76,7 @@ where
     ///     assert_eq!(node.get(&String::from("key"), store).await.unwrap(), Some(&42));
     /// }
     /// ```
-    pub async fn set<B: BlockStore>(&self, key: K, value: V, store: &mut B) -> Result<Rc<Self>>
+    pub async fn set<B: BlockStore>(&self, key: K, value: V, store: &B) -> Result<Rc<Self>>
     where
         K: DeserializeOwned + Clone + AsRef<[u8]>,
         V: DeserializeOwned + Clone,
