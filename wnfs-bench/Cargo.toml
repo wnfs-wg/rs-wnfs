@@ -18,7 +18,8 @@ wnfs = { path = "../wnfs", optional = true }
 criterion = { version = "0.4", features = ["async_std"] }
 
 [lib]
-path = "lib.rs" # TODO(appcypher)
+path = "lib/lib.rs"
+bench = false
 
 [features]
 default = ["wnfs/test_strategies"]

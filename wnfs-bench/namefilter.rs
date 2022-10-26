@@ -26,13 +26,12 @@ fn add(c: &mut Criterion) {
 }
 
 fn contains(c: &mut Criterion) {
-    let mut runner = TestRunner::deterministic();
     c.bench_function("namefilter contains", |b| {
         b.iter_batched(
             || {
                 let mut namefilter = Namefilter::default();
-                for _ in 0..FILTER_CAPACITY {
-                    namefilter.add(&any::<[u8; 32]>().sample(&mut runner));
+                for i in 0..FILTER_CAPACITY {
+                    namefilter.add(&i.to_string());
                 }
                 namefilter
             },

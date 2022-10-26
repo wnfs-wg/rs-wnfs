@@ -82,7 +82,7 @@ impl Key {
 
         let cipher_text = Aes256Gcm::new(AesKey::from_slice(&self.0))
             .encrypt(nonce, data)
-            .map_err(|e| FsError::UnableToEncrypt(format!("{}", e)))?;
+            .map_err(|e| FsError::UnableToEncrypt(format!("{e}")))?;
 
         Ok([nonce_bytes.to_vec(), cipher_text].concat())
     }
@@ -153,7 +153,7 @@ impl Debug for Key {
                 write!(f, "..")?;
                 break;
             } else {
-                write!(f, "{:02X}", byte)?;
+                write!(f, "{byte:02X}")?;
             }
         }
 

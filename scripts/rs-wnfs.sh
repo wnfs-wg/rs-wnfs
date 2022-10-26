@@ -39,6 +39,9 @@ main() {
         test )
             test
         ;;
+        bench )
+            bench
+        ;;
         coverage )
             coverage
         ;;
@@ -72,6 +75,7 @@ help() {
     echo "COMMAND:"
     echo "   * build    [--fs|--wasm|--all]  - build projects"
     echo "   * test     [--fs|--wasm|--all]  - run tests"
+    echo "   * bench    [--fs|--wasm|--all]  - run benchmarks"
     echo "   * publish  [--fs|--wasm|--all]  - publish packages"
     echo "   * coverage [--fs|--wasm|--all]  - show code coverage"
     echo "   * setup                         - install rs-wnfs script"
@@ -143,6 +147,32 @@ test_wasm() {
     display_header "🧪 | RUNNING WASM-WNFS TESTS | 🧪"
     cd $script_dir/../wnfs-wasm
     yarn playwright test
+}
+
+# DESCRIPTION:
+#   Runs benchmarks.
+#
+# USAGE:
+#	rs-wnfs bench [--fs|--wasm|--all]
+#
+bench() {
+	if check_flag --fs; then
+        bench_fs
+    elif check_flag --wasm; then
+        bench_wasm
+    else
+        bench_fs
+    fi
+}
+
+bench_fs() {
+    display_header "📈 | RUNNING WNFS BENCHMARKS | 📈"
+    cargo bench -p wnfs-bench
+}
+
+bench_wasm() {
+    errorln "benchmarks for wnfs-wasm not implemented yet"
+    exit 1
 }
 
 # DESCRIPTION:

@@ -24,8 +24,14 @@ jobs:
       - name: Cache Project
         uses: Swatinem/rust-cache@v2
 
-      - name: Run benchmark
+      - name: Run Benchmark
         run: cargo bench -q -p wnfs-bench -- --output-format bencher | tee output.txt
+
+      - name: Upload Benchmark Result Artifact
+        uses: actions/upload-artifact@v2
+        with:
+          name: bench_result
+          path: output.txt
 
       - name: Store Benchmark Result
         uses: benchmark-action/github-action-benchmark@v1
@@ -34,7 +40,7 @@ jobs:
           tool: 'cargo'
           output-file-path: output.txt
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          auto-push: true
+          auto-push: ${{ github.event_name == 'push' && github.repository == 'wnfs-wg/rs-wnfs' && github.ref == 'refs/heads/main' }}
           alert-threshold: '200%'
           comment-on-alert: true
           fail-on-alert: true

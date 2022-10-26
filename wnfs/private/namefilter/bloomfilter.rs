@@ -264,7 +264,7 @@ impl<const N: usize, const K: usize> Debug for BloomFilter<N, K> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "0x")?;
         for byte in self.as_bytes().iter() {
-            write!(f, "{:02X}", byte)?;
+            write!(f, "{byte:02X}")?;
         }
 
         Ok(())

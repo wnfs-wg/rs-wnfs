@@ -19,7 +19,7 @@ impl<'de, const N: usize> Visitor<'de> for ByteArrayVisitor<N> {
     type Value = [u8; N];
 
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        write!(formatter, "a byte array of length {}", N)
+        write!(formatter, "a byte array of length {N}")
     }
 
     fn visit_bytes<E>(self, v: &[u8]) -> Result<Self::Value, E>
