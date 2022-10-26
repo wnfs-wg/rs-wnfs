@@ -1,4 +1,4 @@
-use std::rc::Rc;
+use std::{collections::BTreeSet, rc::Rc};
 
 use anyhow::{bail, Result};
 use skip_ratchet::{ratchet::PreviousIterator, Ratchet};
@@ -102,9 +102,10 @@ impl PrivateNodeHistory {
         match self.ratchets.next() {
             None => Ok(None),
             Some(previous_ratchet) => {
+                // TODO(matheus23) Make the `resolve_bias` be biased towards eventual `previous` backpointers.
                 self.header.ratchet = previous_ratchet;
                 self.forest
-                    .get(&self.header.get_private_ref()?, store)
+                    .get(&self.header.get_private_ref()?, BTreeSet::first, store)
                     .await
             }
         }
@@ -521,7 +522,7 @@ mod private_history_tests {
         let store = &mut store;
 
         let hamt = hamt
-            .set(
+            .put(
                 root_dir.header.get_saturated_name(),
                 &root_dir.header.get_private_ref().unwrap(),
                 &PrivateNode::Dir(Rc::clone(&root_dir)),
@@ -611,7 +612,7 @@ mod private_history_tests {
         let store = &mut store;
 
         let hamt = hamt
-            .set(
+            .put(
                 root_dir.header.get_saturated_name(),
                 &root_dir.header.get_private_ref().unwrap(),
                 &PrivateNode::Dir(Rc::clone(&root_dir)),
@@ -706,7 +707,7 @@ mod private_history_tests {
         let store = &mut store;
 
         let hamt = hamt
-            .set(
+            .put(
                 root_dir.header.get_saturated_name(),
                 &root_dir.header.get_private_ref().unwrap(),
                 &PrivateNode::Dir(Rc::clone(&root_dir)),
@@ -957,7 +958,7 @@ mod private_history_tests {
         };
 
         let hamt = hamt
-            .set(
+            .put(
                 root_dir.header.get_saturated_name(),
                 &root_dir.header.get_private_ref().unwrap(),
                 &PrivateNode::Dir(Rc::clone(&root_dir)),

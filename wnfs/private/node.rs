@@ -1,4 +1,4 @@
-use std::{cmp::Ordering, fmt::Debug, io::Cursor, rc::Rc};
+use std::{cmp::Ordering, collections::BTreeSet, fmt::Debug, io::Cursor, rc::Rc};
 
 use anyhow::{bail, Result};
 use async_recursion::async_recursion;
@@ -189,7 +189,7 @@ impl PrivateNode {
                 let mut working_hamt = Rc::clone(&hamt);
                 for (name, private_ref) in &old_dir.entries {
                     let mut node = hamt
-                        .get(private_ref, store)
+                        .get(private_ref, BTreeSet::first, store)
                         .await?
                         .ok_or(FsError::NotFound)?;
 
@@ -212,7 +212,7 @@ impl PrivateNode {
 
         let header = self.get_header();
 
-        hamt.set(
+        hamt.put(
             header.get_saturated_name(),
             &header.get_private_ref()?,
             self,
@@ -399,7 +399,10 @@ impl PrivateNode {
 
         let latest_private_ref = current_header.get_private_ref()?;
 
-        match forest.get(&latest_private_ref, store).await? {
+        match forest
+            .get(&latest_private_ref, BTreeSet::first, store)
+            .await?
+        {
             Some(node) => Ok(node),
             None => unreachable!(),
         }

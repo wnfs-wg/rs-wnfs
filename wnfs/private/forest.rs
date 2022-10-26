@@ -1,4 +1,4 @@
-use std::rc::Rc;
+use std::{collections::BTreeSet, rc::Rc};
 
 use anyhow::Result;
 use libipld::Cid;
@@ -30,8 +30,10 @@ use super::{hamt::Hamt, namefilter::Namefilter, Key, PrivateNode, PrivateRef};
 ///
 /// println!("{:?}", forest);
 /// ```
-// TODO(appcypher): Change Cid to PrivateLink<PrivateNode> to BTreeSet<PrivateLink<PrivateNode>>.
-pub type PrivateForest = Hamt<Namefilter, Cid>;
+// TODO(appcypher): Change Cid to PrivateLink<PrivateNode>.
+pub type PrivateForest = Hamt<Namefilter, BTreeSet<Cid>>;
+
+const EMPTY_SET: &BTreeSet<Cid> = &BTreeSet::new();
 
 //--------------------------------------------------------------------------------------------------
 // Implementations
@@ -43,12 +45,12 @@ impl PrivateForest {
         key.encrypt(&Key::generate_nonce(rng), data)
     }
 
-    /// Sets a new value at the given key.
+    /// Puts a new value at the given key.
     ///
     /// # Examples
     ///
     /// ```
-    /// use std::rc::Rc;
+    /// use std::{collections::BTreeSet, rc::Rc};
     ///
     /// use chrono::Utc;
     /// use rand::thread_rng;
@@ -73,11 +75,11 @@ impl PrivateForest {
     ///     let name = dir.header.get_saturated_name();
     ///     let node = PrivateNode::Dir(dir);
     ///
-    ///     let forest = forest.set(name, private_ref, &node, store, rng).await.unwrap();
-    ///     assert_eq!(forest.get(private_ref, store).await.unwrap(), Some(node));
+    ///     let forest = forest.put(name, private_ref, &node, store, rng).await.unwrap();
+    ///     assert_eq!(forest.get(private_ref, BTreeSet::first, store).await.unwrap(), Some(node));
     /// }
     /// ```
-    pub async fn set<B: BlockStore, R: RngCore>(
+    pub async fn put<B: BlockStore, R: RngCore>(
         self: Rc<Self>,
         saturated_name: Namefilter,
         private_ref: &PrivateRef,
@@ -97,15 +99,26 @@ impl PrivateForest {
         let content_cid = store.put_block(enc_bytes, libipld::IpldCodec::Raw).await?;
 
         // Store header and Cid in root node.
-        self.set_encrypted(saturated_name, content_cid, store).await
+        self.put_encrypted(saturated_name, content_cid, store).await
     }
 
     /// Gets the value at the given key.
     ///
+    /// The `resolve_bias` argument helps to pick a CID in case
+    /// there are multiple CIDs at this time-step.
+    ///
+    /// Reasonable values for `resolve_bias` include
+    /// - `BTreeSet::first`
+    /// - `|set| match &*set.iter().collect::<Vec<&Cid>>() { &[cid] => Some(cid), _ => None, }`
+    /// - Using external information to pick the 'best' CID.
+    ///
+    /// When `resolve_bias` returns `None`, then this function returns `Ok(None)` as well,
+    /// if it returns `Ok`.
+    ///
     /// # Examples
     ///
     /// ```
-    /// use std::rc::Rc;
+    /// use std::{collections::BTreeSet, rc::Rc};
     ///
     /// use chrono::Utc;
     /// use rand::thread_rng;
@@ -130,23 +143,25 @@ impl PrivateForest {
     ///     let name = dir.header.get_saturated_name();
     ///     let node = PrivateNode::Dir(dir);
     ///
-    ///     let forest = forest.set(name, private_ref, &node, store, rng).await.unwrap();
-    ///     assert_eq!(forest.get(private_ref, store).await.unwrap(), Some(node));
+    ///     let forest = forest.put(name, private_ref, &node, store, rng).await.unwrap();
+    ///     assert_eq!(forest.get(private_ref, BTreeSet::first, store).await.unwrap(), Some(node));
     /// }
     /// ```
     pub async fn get<B: BlockStore>(
         &self,
         private_ref: &PrivateRef,
+        resolve_bias: impl FnOnce(&BTreeSet<Cid>) -> Option<&Cid>,
         store: &B,
     ) -> Result<Option<PrivateNode>> {
         debug!("Private Forest Get: PrivateRef: {:?}", private_ref);
 
         // Fetch Cid from root node.
-        let cid = match self
+        let cids = self
             .get_encrypted(&private_ref.saturated_name_hash, store)
-            .await?
-        {
-            Some(value) => value,
+            .await?;
+
+        let cid = match resolve_bias(cids) {
+            Some(cid) => cid,
             None => return Ok(None),
         };
 
@@ -194,7 +209,7 @@ impl PrivateForest {
     ///     let private_ref = &dir.header.get_private_ref().unwrap();
     ///     let name = dir.header.get_saturated_name();
     ///     let node = PrivateNode::Dir(dir);
-    ///     let forest = forest.set(name.clone(), private_ref, &node, store, rng).await.unwrap();
+    ///     let forest = forest.put(name.clone(), private_ref, &node, store, rng).await.unwrap();
     ///
     ///     let name_hash = &Sha3_256::hash(&name.as_bytes());
     ///
@@ -214,14 +229,23 @@ impl PrivateForest {
     }
 
     /// Sets a new encrypted value at the given key.
-    pub async fn set_encrypted<B: BlockStore>(
+    pub async fn put_encrypted<B: BlockStore>(
         self: Rc<Self>,
         name: Namefilter,
         value: Cid,
         store: &mut B,
     ) -> Result<Rc<Self>> {
         let mut cloned = (*self).clone();
-        cloned.root = self.root.set(name, value, store).await?;
+        // TODO(matheus23): This iterates the path in the HAMT twice.
+        // We could consider implementing something like upsert instead.
+        let mut values = self
+            .root
+            .get(&name, store)
+            .await?
+            .cloned()
+            .unwrap_or_default();
+        values.insert(value);
+        cloned.root = self.root.set(name, values, store).await?;
         Ok(Rc::new(cloned))
     }
 
@@ -231,8 +255,12 @@ impl PrivateForest {
         &'b self,
         name_hash: &HashOutput,
         store: &B,
-    ) -> Result<Option<&'b Cid>> {
-        self.root.get_by_hash(name_hash, store).await
+    ) -> Result<&'b BTreeSet<Cid>> {
+        Ok(self
+            .root
+            .get_by_hash(name_hash, store)
+            .await?
+            .unwrap_or(EMPTY_SET))
     }
 
     /// Removes the encrypted value at the given key.
@@ -240,7 +268,7 @@ impl PrivateForest {
         self: Rc<Self>,
         name_hash: &HashOutput,
         store: &mut B,
-    ) -> Result<(Rc<Self>, Option<Cid>)> {
+    ) -> Result<(Rc<Self>, Option<BTreeSet<Cid>>)> {
         let mut cloned = (*self).clone();
         let (root, pair) = cloned.root.remove_by_hash(name_hash, store).await?;
         cloned.root = root;
@@ -280,11 +308,15 @@ mod hamt_store_tests {
         let private_node = PrivateNode::Dir(dir.clone());
 
         let hamt = hamt
-            .set(saturated_name, &private_ref, &private_node, store, rng)
+            .put(saturated_name, &private_ref, &private_node, store, rng)
             .await
             .unwrap();
 
-        let retrieved = hamt.get(&private_ref, store).await.unwrap().unwrap();
+        let retrieved = hamt
+            .get(&private_ref, BTreeSet::first, store)
+            .await
+            .unwrap()
+            .unwrap();
 
         assert_eq!(retrieved, private_node);
     }

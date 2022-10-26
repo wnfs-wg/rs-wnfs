@@ -4,7 +4,7 @@
 use chrono::Utc;
 use libipld::Cid;
 use rand::{thread_rng, RngCore};
-use std::rc::Rc;
+use std::{collections::BTreeSet, rc::Rc};
 use wnfs::{
     dagcbor,
     private::{PrivateForest, PrivateRef},
@@ -32,7 +32,10 @@ async fn main() {
     let forest = dagcbor::decode::<PrivateForest>(cbor_bytes.as_ref()).unwrap();
 
     // Fetch and decrypt a directory from the private forest using provided private ref.
-    let dir = forest.get(&private_ref, store).await.unwrap();
+    let dir = forest
+        .get(&private_ref, BTreeSet::first, store)
+        .await
+        .unwrap();
 
     // Print the directory.
     println!("{:#?}", dir);
