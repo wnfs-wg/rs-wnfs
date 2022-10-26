@@ -1,62 +1,94 @@
-use criterion::{black_box, criterion_group, criterion_main, Criterion, Throughput};
+mod sampleable;
+
+use criterion::{black_box, criterion_group, criterion_main, BatchSize, Criterion, Throughput};
+use proptest::{arbitrary::any, collection::vec, test_runner::TestRunner};
+use sampleable::Sampleable;
 use wnfs::{dagcbor, private::namefilter::Namefilter};
 
+const FILTER_CAPACITY: usize = 47;
+
 fn add(c: &mut Criterion) {
+    let mut runner = TestRunner::deterministic();
     c.bench_function("namefilter add", |b| {
-        b.iter(|| {
-            let mut namefilter = black_box(Namefilter::default());
-            for i in 0..50 {
-                black_box(namefilter.add(&i.to_string()));
-            }
-        })
+        b.iter_batched(
+            || {
+                (
+                    Namefilter::default(),
+                    vec(any::<[u8; 32]>(), FILTER_CAPACITY).sample(&mut runner),
+                )
+            },
+            |(mut namefilter, elements)| {
+                for element in elements {
+                    black_box(namefilter.add(&element));
+                }
+            },
+            BatchSize::SmallInput,
+        )
     });
 }
 
 fn contains(c: &mut Criterion) {
-    let mut namefilter = Namefilter::default();
-    for i in 0..50 {
-        namefilter.add(&i.to_string());
-    }
-
+    let mut runner = TestRunner::deterministic();
     c.bench_function("namefilter contains", |b| {
-        b.iter(|| {
-            for i in 0..50 {
-                assert!(namefilter.contains(&i.to_string()));
-            }
-        })
+        b.iter_batched(
+            || {
+                let mut namefilter = Namefilter::default();
+                for _ in 0..FILTER_CAPACITY {
+                    namefilter.add(&any::<[u8; 32]>().sample(&mut runner));
+                }
+                namefilter
+            },
+            |namefilter| {
+                for i in 0..FILTER_CAPACITY {
+                    assert!(namefilter.contains(&i.to_string()));
+                }
+            },
+            BatchSize::SmallInput,
+        )
     });
 }
 
 fn saturate(c: &mut Criterion) {
-    let mut namefilter = Namefilter::default();
-    for i in 0..50 {
-        namefilter.add(&i.to_string());
-    }
-
+    let mut runner = TestRunner::deterministic();
     c.bench_function("namefilter saturate", |b| {
-        b.iter(|| {
-            black_box(namefilter.saturate());
-        })
+        b.iter_batched(
+            || {
+                let mut namefilter = black_box(Namefilter::default());
+                namefilter.add(&any::<[u8; 32]>().sample(&mut runner));
+                namefilter
+            },
+            |mut namefilter| {
+                black_box(namefilter.saturate());
+            },
+            BatchSize::SmallInput,
+        )
     });
 }
 
 fn encode(c: &mut Criterion) {
-    let mut namefilter = Namefilter::default();
-    for i in 0..50 {
-        namefilter.add(&i.to_string());
-    }
-
+    let mut runner = TestRunner::deterministic();
     c.bench_function("namefilter encode", |b| {
-        b.iter(|| {
-            let _ = black_box(dagcbor::encode(&namefilter).unwrap());
-        })
+        b.iter_batched(
+            || {
+                let mut namefilter = Namefilter::default();
+                for _ in 0..FILTER_CAPACITY {
+                    namefilter.add(&any::<[u8; 32]>().sample(&mut runner));
+                }
+                namefilter
+            },
+            |namefilter| {
+                let _ = black_box(dagcbor::encode(black_box(&namefilter)).unwrap());
+            },
+            BatchSize::SmallInput,
+        )
     });
 }
 
 fn decode(c: &mut Criterion) {
+    let mut runner = TestRunner::deterministic();
     let mut namefilter = Namefilter::default();
-    for i in 0..50 {
-        namefilter.add(&i.to_string());
+    for _ in 0..FILTER_CAPACITY {
+        namefilter.add(&any::<[u8; 32]>().sample(&mut runner));
     }
     let encoded_namefilter = dagcbor::encode(&namefilter).unwrap();
 
