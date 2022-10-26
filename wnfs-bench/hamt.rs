@@ -1,24 +1,41 @@
 use criterion::{
-    async_executor::AsyncStdExecutor, black_box, criterion_group, criterion_main, Criterion,
-    Throughput,
+    async_executor::AsyncStdExecutor, black_box, criterion_group, criterion_main, BatchSize,
+    Criterion, Throughput,
 };
-use std::rc::Rc;
+use proptest::{arbitrary::any, test_runner::TestRunner};
+use std::{rc::Rc, sync::Arc, time::Duration};
 use wnfs::{
     dagcbor,
-    private::hamt::{Hamt, Node},
+    private::{
+        hamt::{Hamt, Node},
+        strategies::{node_from_operations, operations},
+    },
     BlockStore, MemoryBlockStore,
 };
+use wnfs_bench::sampleable::Sampleable;
 
 fn node_set(c: &mut Criterion) {
-    c.bench_function("node set", |b| {
-        b.to_async(AsyncStdExecutor).iter(|| async {
-            let store = &mut MemoryBlockStore::default();
-            let mut node = black_box(Rc::new(<Node<_, _>>::default()));
+    let mut runner = TestRunner::deterministic();
+    let mut store = MemoryBlockStore::default();
+    let operations = operations(any::<[u8; 32]>(), any::<u64>(), 1_000_000).sample(&mut runner);
+    let node =
+        &*async_std::task::block_on(async { node_from_operations(operations, &mut store).await })
+            .expect("Couldn't setup HAMT node from operations");
 
-            for i in 0..50 {
-                node = black_box(node.set(i.to_string(), i, store).await.unwrap());
-            }
-        })
+    let store = Arc::new(store);
+
+    c.bench_function("node set", |b| {
+        b.to_async(AsyncStdExecutor).iter_batched(
+            || {
+                let store = Arc::clone(&store);
+                let kv = (any::<[u8; 32]>(), any::<u64>()).sample(&mut runner);
+                (store, kv)
+            },
+            |(store, (key, value))| async move {
+                black_box(node.set(key, value, store.as_ref()).await.unwrap());
+            },
+            BatchSize::SmallInput,
+        );
     });
 }
 
@@ -138,12 +155,14 @@ fn hamt_set_encode(c: &mut Criterion) {
 }
 
 criterion_group!(
-    benches,
-    node_set,
-    node_load_get,
-    node_load_remove,
-    hamt_load_decode,
-    hamt_set_encode
+    name = benches;
+    config = Criterion::default().measurement_time(Duration::from_secs(10));
+    targets =
+        node_set,
+        node_load_get,
+        node_load_remove,
+        hamt_load_decode,
+        hamt_set_encode
 );
 
 criterion_main!(benches);
