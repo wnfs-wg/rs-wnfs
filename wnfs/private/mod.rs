@@ -4,7 +4,7 @@ mod forest;
 pub mod hamt;
 mod key;
 pub mod namefilter;
-mod node;
+pub mod node;
 mod previous;
 
 pub use directory::*;
