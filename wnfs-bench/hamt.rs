@@ -8,7 +8,6 @@ use wnfs::{
     private::hamt::{Hamt, Node},
     BlockStore, MemoryBlockStore,
 };
-use wnfs_bench::sampleable::Sampleable;
 
 fn node_set(c: &mut Criterion) {
     c.bench_function("node set", |b| {

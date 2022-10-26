@@ -10,9 +10,9 @@ homepage = "https://fission.codes"
 authors = ["The Fission Authors"]
 
 [dependencies]
+async-std = { version = "1.11", features = ["attributes"] }
 proptest = "1.0"
 wnfs = { path = "../wnfs", optional = true }
-async-std = { version = "1.11", features = ["attributes"] }
 
 [dev-dependencies]
 criterion = { version = "0.4", features = ["async_std"] }
