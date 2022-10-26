@@ -110,7 +110,7 @@ impl Key {
 
         Ok(Aes256Gcm::new(AesKey::from_slice(&self.0))
             .decrypt(Nonce::from_slice(nonce_bytes), data)
-            .map_err(|e| FsError::UnableToDecrypt(format!("{}", e)))?)
+            .map_err(|e| FsError::UnableToDecrypt(format!("{e}")))?)
     }
 
     /// Generates a nonce that can be used to encrypt data.
