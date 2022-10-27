@@ -33,8 +33,6 @@ use super::{hamt::Hamt, namefilter::Namefilter, Key, PrivateNode, PrivateRef};
 // TODO(appcypher): Change Cid to PrivateLink<PrivateNode>.
 pub type PrivateForest = Hamt<Namefilter, BTreeSet<Cid>>;
 
-const EMPTY_SET: &BTreeSet<Cid> = &BTreeSet::new();
-
 //--------------------------------------------------------------------------------------------------
 // Implementations
 //--------------------------------------------------------------------------------------------------
@@ -156,9 +154,13 @@ impl PrivateForest {
         debug!("Private Forest Get: PrivateRef: {:?}", private_ref);
 
         // Fetch Cid from root node.
-        let cids = self
+        let cids = match self
             .get_encrypted(&private_ref.saturated_name_hash, store)
-            .await?;
+            .await?
+        {
+            Some(cids) => cids,
+            None => return Ok(None),
+        };
 
         let cid = match resolve_bias(cids) {
             Some(cid) => cid,
@@ -255,12 +257,8 @@ impl PrivateForest {
         &'b self,
         name_hash: &HashOutput,
         store: &B,
-    ) -> Result<&'b BTreeSet<Cid>> {
-        Ok(self
-            .root
-            .get_by_hash(name_hash, store)
-            .await?
-            .unwrap_or(EMPTY_SET))
+    ) -> Result<Option<&'b BTreeSet<Cid>>> {
+        self.root.get_by_hash(name_hash, store).await
     }
 
     /// Removes the encrypted value at the given key.
@@ -393,6 +391,7 @@ mod hamt_store_tests {
         let ciphertext_cids = hamt
             .get_encrypted(&private_ref.saturated_name_hash, store)
             .await
+            .unwrap()
             .unwrap();
 
         // We expect there to be a conflict, a multivalue
