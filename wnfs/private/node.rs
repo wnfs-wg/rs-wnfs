@@ -9,7 +9,7 @@ use libipld::{
     serde as ipld_serde, Ipld,
 };
 use rand_core::RngCore;
-use serde::{Deserialize, Serialize};
+use serde::{de::Error as DeError, ser::Error as SerError, Deserialize, Serialize};
 use sha3::Sha3_256;
 use skip_ratchet::{seek::JumpSize, Ratchet, RatchetSeeker};
 
@@ -91,7 +91,7 @@ pub struct PrivateNodeHeader {
 }
 
 /// PrivateRef holds the information to fetch associated node from a HAMT and decrypt it if it is present.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PrivateRef {
     /// Sha3-256 hash of saturated namefilter.
     pub(crate) saturated_name_hash: HashOutput,
@@ -99,6 +99,16 @@ pub struct PrivateRef {
     pub(crate) content_key: ContentKey,
     /// Skip-ratchet-derived key.
     pub(crate) ratchet_key: RatchetKey,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub(crate) struct PrivateRefSerde {
+    #[serde(rename = "name")]
+    pub(crate) saturated_name_hash: HashOutput,
+    #[serde(rename = "contentKey")]
+    pub(crate) content_key: ContentKey,
+    #[serde(rename = "revisionKey")]
+    pub(crate) ratchet_key: Vec<u8>,
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -408,7 +418,7 @@ impl PrivateNode {
         }
     }
 
-    /// Serializes the node with provided Serde serialilzer.
+    /// Serializes the node with provided Serde serializer.
     pub(crate) fn serialize<S, R: RngCore>(
         &self,
         serializer: S,
@@ -618,6 +628,67 @@ impl PrivateRef {
             content_key: ratchet_key.derive_content_key(),
             ratchet_key,
         }
+    }
+
+    pub(crate) fn to_serde(
+        &self,
+        ratchet_key: &RatchetKey,
+        rng: &mut impl RngCore,
+    ) -> Result<PrivateRefSerde> {
+        // encrypt ratchet key
+        let ratchet_key = ratchet_key
+            .0
+            .encrypt(&Key::generate_nonce(rng), self.ratchet_key.0.as_bytes())?;
+        Ok(PrivateRefSerde {
+            saturated_name_hash: self.saturated_name_hash,
+            content_key: self.content_key,
+            ratchet_key,
+        })
+    }
+
+    pub(crate) fn from_serde(
+        private_ref: PrivateRefSerde,
+        ratchet_key: &RatchetKey,
+    ) -> Result<Self> {
+        let ratchet_key = RatchetKey(Key::new(
+            ratchet_key
+                .0
+                .decrypt(&private_ref.ratchet_key)?
+                .try_into()
+                .map_err(|e: Vec<u8>| {
+                    FsError::InvalidDeserialization(format!(
+                        "Expected 32 bytes for ratchet key, but got {}",
+                        e.len()
+                    ))
+                })?,
+        ));
+        Ok(Self {
+            saturated_name_hash: private_ref.saturated_name_hash,
+            content_key: private_ref.content_key,
+            ratchet_key,
+        })
+    }
+
+    pub fn serialize<S>(
+        &self,
+        serializer: S,
+        ratchet_key: &RatchetKey,
+        rng: &mut impl RngCore,
+    ) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        self.to_serde(ratchet_key, rng)
+            .map_err(SerError::custom)?
+            .serialize(serializer)
+    }
+
+    pub fn deserialize<'de, D>(deserializer: D, ratchet_key: &RatchetKey) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let private_ref = PrivateRefSerde::deserialize(deserializer)?;
+        PrivateRef::from_serde(private_ref, ratchet_key).map_err(DeError::custom)
     }
 }
 

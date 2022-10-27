@@ -8,7 +8,7 @@ use serde::{de::Error as DeError, ser::Error as SerError, Deserialize, Deseriali
 
 use super::{
     namefilter::Namefilter, Key, PrivateFile, PrivateForest, PrivateNode, PrivateNodeHeader,
-    PrivateRef, RatchetKey,
+    PrivateRef, PrivateRefSerde, RatchetKey,
 };
 
 use crate::{
@@ -54,7 +54,7 @@ struct PrivateDirectorySerde {
     pub version: Version,
     pub header: Vec<u8>,
     pub metadata: Metadata,
-    pub entries: BTreeMap<String, PrivateRef>,
+    pub entries: BTreeMap<String, PrivateRefSerde>,
 }
 
 /// The result of an operation applied to a directory.
@@ -1152,6 +1152,13 @@ impl PrivateDirectory {
             .map_err(SerError::custom)?
             .ratchet_key;
 
+        let mut entries = BTreeMap::new();
+
+        for (name, private_ref) in self.entries.iter() {
+            let private_ref_serde = private_ref.to_serde(&key, rng).map_err(SerError::custom)?;
+            entries.insert(name.clone(), private_ref_serde);
+        }
+
         (PrivateDirectorySerde {
             r#type: NodeType::PrivateDirectory,
             version: self.version.clone(),
@@ -1162,7 +1169,7 @@ impl PrivateDirectory {
                     .map_err(SerError::custom)?
             },
             metadata: self.metadata.clone(),
-            entries: self.entries.clone(),
+            entries,
         })
         .serialize(serializer)
     }
@@ -1176,9 +1183,17 @@ impl PrivateDirectory {
             version,
             metadata,
             header,
-            entries,
+            entries: entries_encrypted,
             ..
         } = PrivateDirectorySerde::deserialize(deserializer)?;
+
+        let mut entries = BTreeMap::new();
+
+        for (name, private_ref_serde) in entries_encrypted {
+            let private_ref =
+                PrivateRef::from_serde(private_ref_serde, key).map_err(DeError::custom)?;
+            entries.insert(name, private_ref);
+        }
 
         Ok(Self {
             version,
