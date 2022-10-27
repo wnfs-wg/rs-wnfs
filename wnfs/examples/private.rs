@@ -33,7 +33,7 @@ async fn main() {
 
     // Fetch and decrypt a directory from the private forest using provided private ref.
     let dir = forest
-        .get(&private_ref, BTreeSet::first, store)
+        .get(&private_ref, PrivateForest::resolve_lowest, store)
         .await
         .unwrap();
 

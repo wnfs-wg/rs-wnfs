@@ -1,4 +1,4 @@
-use std::{collections::BTreeSet, rc::Rc};
+use std::rc::Rc;
 
 use anyhow::{bail, Result};
 use skip_ratchet::{ratchet::PreviousIterator, Ratchet};
@@ -105,7 +105,11 @@ impl PrivateNodeHistory {
                 // TODO(matheus23) Make the `resolve_bias` be biased towards eventual `previous` backpointers.
                 self.header.ratchet = previous_ratchet;
                 self.forest
-                    .get(&self.header.get_private_ref()?, BTreeSet::first, store)
+                    .get(
+                        &self.header.get_private_ref()?,
+                        PrivateForest::resolve_lowest,
+                        store,
+                    )
                     .await
             }
         }

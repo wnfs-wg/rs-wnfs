@@ -1,7 +1,4 @@
-use std::{
-    collections::{BTreeMap, BTreeSet},
-    rc::Rc,
-};
+use std::{collections::BTreeMap, rc::Rc};
 
 use anyhow::{bail, ensure, Result};
 use chrono::{DateTime, Utc};
@@ -633,7 +630,9 @@ impl PrivateDirectory {
     ) -> Result<Option<PrivateNode>> {
         Ok(match self.entries.get(path_segment) {
             Some(private_ref) => {
-                let private_node = hamt.get(private_ref, BTreeSet::first, store).await?;
+                let private_node = hamt
+                    .get(private_ref, PrivateForest::resolve_lowest, store)
+                    .await?;
                 match (search_latest, private_node) {
                     (true, Some(node)) => Some(node.search_latest(hamt, store).await?),
                     (_, node) => node,
@@ -776,7 +775,10 @@ impl PrivateDirectory {
             PathNodesResult::Complete(path_nodes) => {
                 let mut result = vec![];
                 for (name, private_ref) in path_nodes.tail.entries.iter() {
-                    match hamt.get(private_ref, BTreeSet::first, store).await? {
+                    match hamt
+                        .get(private_ref, PrivateForest::resolve_lowest, store)
+                        .await?
+                    {
                         Some(PrivateNode::File(file)) => {
                             result.push((name.clone(), file.metadata.clone()));
                         }
@@ -879,7 +881,7 @@ impl PrivateDirectory {
         // Remove the entry from its parent directory
         let removed_node = match directory.entries.remove(node_name) {
             Some(ref private_ref) => hamt
-                .get(private_ref, BTreeSet::first, store)
+                .get(private_ref, PrivateForest::resolve_lowest, store)
                 .await?
                 .unwrap(),
             None => bail!(FsError::NotFound),
