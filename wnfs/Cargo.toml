@@ -12,7 +12,7 @@ categories = [
 license = "Apache-2.0"
 readme = "README.md"
 edition = "2021"
-repository = "https://github.com/WebNativeFileSystem/rs-wnfs/tree/main/wnfs"
+repository = "https://github.com/wnfs-wg/rs-wnfs/tree/main/wnfs"
 homepage = "https://fission.codes"
 authors = ["The Fission Authors"]
 

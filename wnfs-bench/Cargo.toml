@@ -5,7 +5,7 @@ description = "WNFS Benchmarks"
 keywords = ["wnfs", "webnative", "ipfs", "decentralisation", "benchmarks"]
 categories = ["filesystem", "cryptography", "web-programming", "wasm"]
 edition = "2021"
-repository = "https://github.com/WebNativeFileSystem/rs-wnfs/tree/main/bench"
+repository = "https://github.com/wnfs-wg/rs-wnfs/tree/main/bench"
 homepage = "https://fission.codes"
 authors = ["The Fission Authors"]
 
