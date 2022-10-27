@@ -880,7 +880,7 @@ impl AsyncSerialize for PublicDirectory {
                     *link
                         .resolve_cid(store)
                         .await
-                        .map_err(|e| SerError::custom(format!("{}", e)))?,
+                        .map_err(|e| SerError::custom(format!("{e}")))?,
                 );
             }
             map
