@@ -1,0 +1,47 @@
+name: 📈 Benchmark
+
+on:
+  push:
+    branches: [ main ]
+
+  pull_request:
+    branches: [ '*' ]
+
+jobs:
+  benchmark:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      - name: Install Rust Toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          override: true
+          toolchain: stable
+          profile: minimal
+
+      - name: Cache Project
+        uses: Swatinem/rust-cache@v2
+
+      - name: Run Benchmark
+        run: cargo bench -q -p wnfs-bench -- --output-format bencher | tee output.txt
+
+      - name: Upload Benchmark Result Artifact
+        uses: actions/upload-artifact@v2
+        with:
+          name: bench_result
+          path: output.txt
+
+      - name: Store Benchmark Result
+        uses: benchmark-action/github-action-benchmark@v1
+        with:
+          name: Rust Benchmark
+          tool: 'cargo'
+          output-file-path: output.txt
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          auto-push: ${{ github.event_name == 'push' && github.repository == 'wnfs-wg/rs-wnfs' && github.ref == 'refs/heads/main' }}
+          alert-threshold: '200%'
+          comment-on-alert: true
+          fail-on-alert: true
+          alert-comment-cc-users: '@wnfs-wg/fission'

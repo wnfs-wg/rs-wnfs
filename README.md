@@ -1,6 +1,6 @@
 <div align="center">
   <a href="https://github.com/wnfs-wg" target="_blank">
-    <img src="assets/logo.png" alt="Fission Logo" width="100" height="100"></img>
+    <img src="https://raw.githubusercontent.com/wnfs-wg/rs-wnfs/main/assets/logo.png" alt="WNFS Logo" width="100" height="100"></img>
   </a>
 
   <h1 align="center">WebNative FileSystem (WNFS)</h1>
@@ -126,7 +126,7 @@ This library is designed with WebAssembly in mind. You can follow instructions o
   - Install it using the following command:
 
     ```bash
-    sudo sh scripts/rs-wnfs.sh setup
+    sh ./scripts/rs-wnfs.sh setup
     ```
 
   - This lets you run the `rs-wnfs.sh` script as a command.
@@ -287,6 +287,14 @@ Check the [`wnfs/examples/`][wnfs-examples] folder for more examples.
   rs-wnfs coverage
   ```
 
+- Run benchmarks
+
+  ```bash
+  rs-wnfs bench
+  ```
+
+  You can also find a nice graph of the CI benchmarks [here][benchmarks].
+
 ## Contributing
 
 ### Pre-commit Hook
@@ -306,6 +314,7 @@ We would be happy to try to answer your question or try opening a new issue on G
 
 This project is licensed under the [Apache License 2.0](https://github.com/wnfs-wg/rs-wnfs/blob/main/LICENSE).
 
+[benchmarks]: https://wnfs-wg.github.io/rs-wnfs/dev/bench/
 [blockstore-trait]: wnfs/common/blockstore.rs#L30-L86
 [hamt-wiki]: https://en.wikipedia.org/wiki/Hash_array_mapped_trie
 [ipld-spec]: https://ipld.io/

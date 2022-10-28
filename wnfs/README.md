@@ -1,6 +1,6 @@
 <div align="center">
   <a href="https://github.com/wnfs-wg" target="_blank">
-    <img src="../assets/logo.png" alt="Fission Logo" width="100" height="100"></img>
+    <img src="https://raw.githubusercontent.com/wnfs-wg/rs-wnfs/main/assets/logo.png" alt="WNFS Logo" width="100" height="100"></img>
   </a>
 
   <h1 align="center">WebNative FileSystem (WNFS)</h1>
@@ -149,7 +149,6 @@ Check the [`examples/`][wnfs-examples] folder for more examples.
 [hamt-wiki]: https://en.wikipedia.org/wiki/Hash_array_mapped_trie
 [ipld-spec]: https://ipld.io/
 [npm-ipld-tools]: https://www.npmjs.com/search?q=ipld
-[wnfs-examples]: examples/
+[wnfs-examples]: https://github.com/wnfs-wg/rs-wnfs/tree/main/wnfs/examples
 [wnfs-graph-demo]: https://calm-thin-barista.fission.app
 [wnfs-spec]: https://github.com/wnfs-wg/spec
-[wnfs-wasm-readme]: wnfs-wasm/README.md

@@ -12,7 +12,7 @@ categories = [
 license = "Apache-2.0"
 readme = "README.md"
 edition = "2021"
-repository = "https://github.com/WebNativeFileSystem/rs-wnfs/tree/main/wnfs"
+repository = "https://github.com/wnfs-wg/rs-wnfs/tree/main/wnfs"
 homepage = "https://fission.codes"
 authors = ["The Fission Authors"]
 
@@ -33,6 +33,7 @@ lazy_static = "1.4"
 libipld = { version = "0.14", features = ["dag-cbor", "derive", "serde-codec"] }
 log = "0.4"
 multihash = "0.16"
+proptest = { version = "1.0", optional = true }
 rand_core = "0.6"
 semver = { version = "1.0", features = ["serde"] }
 serde = { version = "1.0", features = ["rc"] }
@@ -55,3 +56,4 @@ path = "lib.rs"
 [features]
 default = []
 wasm = []
+test_strategies = ["proptest"]

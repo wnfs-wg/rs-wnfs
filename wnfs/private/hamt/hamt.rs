@@ -143,7 +143,7 @@ where
 
                 Ok(Self { root, version })
             }
-            other => Err(format!("Expected `Ipld::Map`, got {:#?}", other)),
+            other => Err(format!("Expected `Ipld::Map`, got {other:#?}")),
         }
     }
 }

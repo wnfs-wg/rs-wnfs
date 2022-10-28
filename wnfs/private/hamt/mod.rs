@@ -14,3 +14,6 @@ pub use hamt::*;
 pub use hash::*;
 pub use node::*;
 pub use pointer::*;
+
+#[cfg(any(test, feature = "test_strategies"))]
+pub mod strategies;

@@ -1,15 +1,24 @@
+use crate::{error, FsError};
 use anyhow::Result;
+#[cfg(any(test, feature = "test_strategies"))]
+use proptest::{
+    strategy::{Strategy, ValueTree},
+    test_runner::TestRunner,
+};
 use rand_core::RngCore;
 use serde::de::Visitor;
 use std::fmt;
-
-use crate::{error, FsError};
-
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
 //--------------------------------------------------------------------------------------------------
 
 pub(crate) struct ByteArrayVisitor<const N: usize>;
+
+#[cfg(any(test, feature = "test_strategies"))]
+pub trait Sampleable {
+    type Value;
+    fn sample(&self, runner: &mut TestRunner) -> Self::Value;
+}
 
 //--------------------------------------------------------------------------------------------------
 // Implementations
@@ -19,7 +28,7 @@ impl<'de, const N: usize> Visitor<'de> for ByteArrayVisitor<N> {
     type Value = [u8; N];
 
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        write!(formatter, "a byte array of length {}", N)
+        write!(formatter, "a byte array of length {N}")
     }
 
     fn visit_bytes<E>(self, v: &[u8]) -> Result<Self::Value, E>
@@ -28,6 +37,20 @@ impl<'de, const N: usize> Visitor<'de> for ByteArrayVisitor<N> {
     {
         let bytes: [u8; N] = v.try_into().map_err(E::custom)?;
         Ok(bytes)
+    }
+}
+
+#[cfg(any(test, feature = "test_strategies"))]
+impl<V, S> Sampleable for S
+where
+    S: Strategy<Value = V>,
+{
+    type Value = V;
+
+    fn sample(&self, runner: &mut TestRunner) -> Self::Value {
+        self.new_tree(runner)
+            .expect("Couldn't generate test value")
+            .current()
     }
 }
 
