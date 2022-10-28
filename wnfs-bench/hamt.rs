@@ -3,16 +3,16 @@ use criterion::{
     Criterion, Throughput,
 };
 use proptest::{arbitrary::any, test_runner::TestRunner};
-use std::{rc::Rc, sync::Arc, time::Duration};
+use std::{rc::Rc, sync::Arc};
 use wnfs::{
     dagcbor,
     private::{
         hamt::{Hamt, Node},
         strategies::{node_from_operations, operations},
     },
+    utils::Sampleable,
     BlockStore, MemoryBlockStore,
 };
-use wnfs_bench::sampleable::Sampleable;
 
 fn node_set(c: &mut Criterion) {
     let mut runner = TestRunner::deterministic();
@@ -157,14 +157,12 @@ fn hamt_set_encode(c: &mut Criterion) {
 }
 
 criterion_group!(
-    name = benches;
-    config = Criterion::default().measurement_time(Duration::from_secs(10));
-    targets =
-        node_set,
-        node_load_get,
-        node_load_remove,
-        hamt_load_decode,
-        hamt_set_encode
+    benches,
+    node_set,
+    node_load_get,
+    node_load_remove,
+    hamt_load_decode,
+    hamt_set_encode
 );
 
 criterion_main!(benches);

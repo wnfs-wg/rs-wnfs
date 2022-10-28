@@ -140,7 +140,7 @@ test() {
 
 test_fs() {
     display_header "🧪 | RUNNING WNFS TESTS | 🧪"
-    cargo test -p wnfs --release -- --nocapture
+    cargo test -p wnfs --all-features
 }
 
 test_wasm() {

@@ -4,6 +4,20 @@ use proptest::{collection::*, prelude::*, strategy::Shuffleable};
 use serde::{de::DeserializeOwned, Serialize};
 use std::{collections::HashMap, fmt::Debug, hash::Hash, rc::Rc};
 
+/// Represents an operation that can be performed on a map-like data structure.
+///
+/// # Examples
+///
+/// ```
+/// use wnfs::private::hamt::strategies::{self, Operation, Operations};
+/// use wnfs::utils::Sampleable;
+/// use proptest::{arbitrary::any, test_runner::TestRunner};
+///
+/// let mut runner = &mut TestRunner::deterministic();
+/// let op = strategies::operation(any::<[u8; 32]>(), any::<String>()).sample(runner);
+///
+/// println!("{:?}", op);
+/// ```
 #[derive(Debug, Clone)]
 pub enum Operation<K, V> {
     Insert(K, V),
@@ -11,7 +25,7 @@ pub enum Operation<K, V> {
 }
 
 impl<K, V> Operation<K, V> {
-    pub fn can_be_swapped_with(&self, other: &Operation<K, V>) -> bool
+    fn can_be_swapped_with(&self, other: &Operation<K, V>) -> bool
     where
         K: PartialEq,
         V: PartialEq,
@@ -43,8 +57,22 @@ impl<K, V> Operation<K, V> {
     }
 }
 
+/// A list of operations that can be applied to a map-like data structure.
+///
+/// # Examples
+///
+/// ```
+/// use wnfs::private::hamt::strategies::{self, Operation, Operations};
+/// use wnfs::utils::Sampleable;
+/// use proptest::{arbitrary::any, test_runner::TestRunner};
+///
+/// let mut runner = &mut TestRunner::deterministic();
+/// let ops = strategies::operations(any::<[u8; 32]>(), any::<String>(), 2).sample(runner);
+///
+/// assert_eq!(ops.0.len(), 2);
+/// ```
 #[derive(Debug, Clone)]
-pub struct Operations<K, V>(Vec<Operation<K, V>>);
+pub struct Operations<K, V>(pub Vec<Operation<K, V>>);
 
 impl<K: PartialEq, V: PartialEq> Shuffleable for Operations<K, V> {
     fn shuffle_len(&self) -> usize {
@@ -94,6 +122,27 @@ impl<K: PartialEq, V: PartialEq> Shuffleable for Operations<K, V> {
     }
 }
 
+/// This creates a node from a list of operations.
+///
+/// # Examples
+///
+/// ```
+/// use wnfs::private::hamt::strategies::{self, Operation, Operations};
+/// use wnfs::utils::Sampleable;
+/// use wnfs::MemoryBlockStore;
+/// use proptest::{arbitrary::any, test_runner::TestRunner};
+///
+/// #[async_std::main]
+/// async fn main() {
+///     let mut runner = &mut TestRunner::deterministic();
+///     let ops = strategies::operations(any::<[u8; 32]>(), any::<String>(), 10).sample(runner);
+///
+///     let store = &mut MemoryBlockStore::new();
+///     let node = strategies::node_from_operations(ops, store).await.unwrap();
+///
+///     println!("{:?}", node);
+/// }
+/// ```
 pub async fn node_from_operations<K, V, B: BlockStore>(
     operations: Operations<K, V>,
     store: &mut B,
@@ -117,6 +166,21 @@ where
     Ok(node)
 }
 
+/// Create a hashmap based on provided operations.
+///
+/// # Examples
+///
+/// ```
+/// use wnfs::private::hamt::strategies::{self, Operation, Operations};
+/// use wnfs::utils::Sampleable;
+/// use proptest::{arbitrary::any, test_runner::TestRunner};
+///
+/// let mut runner = &mut TestRunner::deterministic();
+/// let ops = strategies::operations(any::<[u8; 32]>(), any::<String>(), 10).sample(runner);
+/// let hash_map = strategies::hash_map_from_operations(ops);
+///
+/// println!("{:?}", hash_map);
+/// ```
 pub fn hash_map_from_operations<K: Debug + Clone + Hash + Eq, V: Debug + Clone + Eq>(
     operations: Operations<K, V>,
 ) -> HashMap<K, V> {
@@ -134,6 +198,20 @@ pub fn hash_map_from_operations<K: Debug + Clone + Hash + Eq, V: Debug + Clone +
     map
 }
 
+/// Creates an insert or remove operation strategy based on the key and value provided.
+///
+/// # Examples
+///
+/// ```
+/// use wnfs::private::hamt::strategies::{self, Operation, Operations};
+/// use wnfs::utils::Sampleable;
+/// use proptest::{arbitrary::any, test_runner::TestRunner};
+///
+/// let mut runner = &mut TestRunner::deterministic();
+/// let op = strategies::operation(any::<[u8; 32]>(), any::<String>()).sample(runner);
+///
+/// println!("{:?}", op);
+/// ```
 pub fn operation<K: Debug, V: Debug>(
     key: impl Strategy<Value = K>,
     value: impl Strategy<Value = V>,
@@ -147,6 +225,20 @@ pub fn operation<K: Debug, V: Debug>(
     })
 }
 
+/// Creates a list of operations strategy based on provided key and value strategies.
+///
+/// # Examples
+///
+/// ```
+/// use wnfs::private::hamt::strategies::{self, Operation, Operations};
+/// use wnfs::utils::Sampleable;
+/// use proptest::{arbitrary::any, test_runner::TestRunner};
+///
+/// let mut runner = &mut TestRunner::deterministic();
+/// let ops = strategies::operations(any::<[u8; 32]>(), any::<String>(), 2).sample(runner);
+///
+/// assert_eq!(ops.0.len(), 2);
+/// ```
 pub fn operations<K: Debug, V: Debug>(
     key: impl Strategy<Value = K>,
     value: impl Strategy<Value = V>,
@@ -155,6 +247,20 @@ pub fn operations<K: Debug, V: Debug>(
     vec(operation(key, value), size).prop_map(|vec| Operations(vec))
 }
 
+/// Creates a list of operations with safe insert-remove shuffle.
+///
+/// # Examples
+///
+/// ```
+/// use wnfs::private::hamt::strategies::{self, Operation, Operations};
+/// use wnfs::utils::Sampleable;
+/// use proptest::{arbitrary::any, test_runner::TestRunner};
+///
+/// let mut runner = &mut TestRunner::deterministic();
+/// let ops = strategies::operations_and_shuffled(any::<[u8; 32]>(), any::<String>(), 2).sample(runner);
+///
+/// println!("{:?}", ops);
+/// ```
 pub fn operations_and_shuffled<K: PartialEq + Clone + Debug, V: PartialEq + Clone + Debug>(
     key: impl Strategy<Value = K>,
     value: impl Strategy<Value = V>,

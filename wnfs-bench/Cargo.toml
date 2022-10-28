@@ -18,7 +18,7 @@ wnfs = { path = "../wnfs", optional = true }
 criterion = { version = "0.4", features = ["async_std"] }
 
 [lib]
-path = "lib/lib.rs"
+path = "lib.rs"
 bench = false
 
 [features]

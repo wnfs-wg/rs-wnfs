@@ -78,7 +78,7 @@ jobs:
         uses: Swatinem/rust-cache@v2
 
       - name: Run Tests
-        run: cargo test --workspace
+        run: cargo test --all-features
 
 
   wasm-js-tests:
