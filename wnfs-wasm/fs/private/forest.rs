@@ -56,7 +56,7 @@ impl PrivateForest {
 
         Ok(future_to_promise(async move {
             let node_option = forest
-                .get(&private_ref, &store)
+                .get(&private_ref, WnfsPrivateForest::resolve_lowest, &store)
                 .await
                 .map_err(error("Cannot 'get' in forest"))?;
 

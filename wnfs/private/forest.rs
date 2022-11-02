@@ -1,4 +1,4 @@
-use std::rc::Rc;
+use std::{collections::BTreeSet, rc::Rc};
 
 use anyhow::Result;
 use libipld::Cid;
@@ -30,8 +30,8 @@ use super::{hamt::Hamt, namefilter::Namefilter, Key, PrivateNode, PrivateRef};
 ///
 /// println!("{:?}", forest);
 /// ```
-// TODO(appcypher): Change Cid to PrivateLink<PrivateNode> to BTreeSet<PrivateLink<PrivateNode>>.
-pub type PrivateForest = Hamt<Namefilter, Cid>;
+// TODO(appcypher): Change Cid to PrivateLink<PrivateNode>.
+pub type PrivateForest = Hamt<Namefilter, BTreeSet<Cid>>;
 
 //--------------------------------------------------------------------------------------------------
 // Implementations
@@ -43,7 +43,7 @@ impl PrivateForest {
         key.encrypt(&Key::generate_nonce(rng), data)
     }
 
-    /// Sets a new value at the given key.
+    /// Puts a new value at the given key.
     ///
     /// # Examples
     ///
@@ -73,11 +73,11 @@ impl PrivateForest {
     ///     let name = dir.header.get_saturated_name();
     ///     let node = PrivateNode::Dir(dir);
     ///
-    ///     let forest = forest.set(name, private_ref, &node, store, rng).await.unwrap();
-    ///     assert_eq!(forest.get(private_ref, store).await.unwrap(), Some(node));
+    ///     let forest = forest.put(name, private_ref, &node, store, rng).await.unwrap();
+    ///     assert_eq!(forest.get(private_ref, PrivateForest::resolve_lowest, store).await.unwrap(), Some(node));
     /// }
     /// ```
-    pub async fn set<B: BlockStore, R: RngCore>(
+    pub async fn put<B: BlockStore, R: RngCore>(
         self: Rc<Self>,
         saturated_name: Namefilter,
         private_ref: &PrivateRef,
@@ -97,10 +97,21 @@ impl PrivateForest {
         let content_cid = store.put_block(enc_bytes, libipld::IpldCodec::Raw).await?;
 
         // Store header and Cid in root node.
-        self.set_encrypted(saturated_name, content_cid, store).await
+        self.put_encrypted(saturated_name, content_cid, store).await
     }
 
     /// Gets the value at the given key.
+    ///
+    /// The `resolve_bias` argument helps to pick a CID in case
+    /// there are multiple CIDs at this time-step.
+    ///
+    /// Reasonable values for `resolve_bias` include
+    /// - `PrivateForest::resolve_lowest`
+    /// - `PrivateForest::resolve_single`
+    /// - Using external information to pick the 'best' CID, e.g. `PrivateForest::resolve_one_of(expected_set)`
+    ///
+    /// When `resolve_bias` returns `None`, then this function returns `Ok(None)` as well,
+    /// if it returns `Ok`.
     ///
     /// # Examples
     ///
@@ -130,23 +141,29 @@ impl PrivateForest {
     ///     let name = dir.header.get_saturated_name();
     ///     let node = PrivateNode::Dir(dir);
     ///
-    ///     let forest = forest.set(name, private_ref, &node, store, rng).await.unwrap();
-    ///     assert_eq!(forest.get(private_ref, store).await.unwrap(), Some(node));
+    ///     let forest = forest.put(name, private_ref, &node, store, rng).await.unwrap();
+    ///     assert_eq!(forest.get(private_ref, PrivateForest::resolve_lowest, store).await.unwrap(), Some(node));
     /// }
     /// ```
     pub async fn get<B: BlockStore>(
         &self,
         private_ref: &PrivateRef,
+        resolve_bias: impl FnOnce(&BTreeSet<Cid>) -> Option<&Cid>,
         store: &B,
     ) -> Result<Option<PrivateNode>> {
         debug!("Private Forest Get: PrivateRef: {:?}", private_ref);
 
         // Fetch Cid from root node.
-        let cid = match self
+        let cids = match self
             .get_encrypted(&private_ref.saturated_name_hash, store)
             .await?
         {
-            Some(value) => value,
+            Some(cids) => cids,
+            None => return Ok(None),
+        };
+
+        let cid = match resolve_bias(cids) {
+            Some(cid) => cid,
             None => return Ok(None),
         };
 
@@ -194,7 +211,7 @@ impl PrivateForest {
     ///     let private_ref = &dir.header.get_private_ref().unwrap();
     ///     let name = dir.header.get_saturated_name();
     ///     let node = PrivateNode::Dir(dir);
-    ///     let forest = forest.set(name.clone(), private_ref, &node, store, rng).await.unwrap();
+    ///     let forest = forest.put(name.clone(), private_ref, &node, store, rng).await.unwrap();
     ///
     ///     let name_hash = &Sha3_256::hash(&name.as_bytes());
     ///
@@ -214,14 +231,23 @@ impl PrivateForest {
     }
 
     /// Sets a new encrypted value at the given key.
-    pub async fn set_encrypted<B: BlockStore>(
+    pub async fn put_encrypted<B: BlockStore>(
         self: Rc<Self>,
         name: Namefilter,
         value: Cid,
         store: &mut B,
     ) -> Result<Rc<Self>> {
         let mut cloned = (*self).clone();
-        cloned.root = self.root.set(name, value, store).await?;
+        // TODO(matheus23): This iterates the path in the HAMT twice.
+        // We could consider implementing something like upsert instead.
+        let mut values = self
+            .root
+            .get(&name, store)
+            .await?
+            .cloned()
+            .unwrap_or_default();
+        values.insert(value);
+        cloned.root = self.root.set(name, values, store).await?;
         Ok(Rc::new(cloned))
     }
 
@@ -231,7 +257,7 @@ impl PrivateForest {
         &'b self,
         name_hash: &HashOutput,
         store: &B,
-    ) -> Result<Option<&'b Cid>> {
+    ) -> Result<Option<&'b BTreeSet<Cid>>> {
         self.root.get_by_hash(name_hash, store).await
     }
 
@@ -240,11 +266,35 @@ impl PrivateForest {
         self: Rc<Self>,
         name_hash: &HashOutput,
         store: &mut B,
-    ) -> Result<(Rc<Self>, Option<Cid>)> {
+    ) -> Result<(Rc<Self>, Option<BTreeSet<Cid>>)> {
         let mut cloned = (*self).clone();
         let (root, pair) = cloned.root.remove_by_hash(name_hash, store).await?;
         cloned.root = root;
         Ok((Rc::new(cloned), pair.map(|p| p.value)))
+    }
+
+    /// Convenience function for usage within `PrivateForest.get`.
+    /// Will return the first element in given BTreeSet.
+    pub fn resolve_lowest(set: &BTreeSet<Cid>) -> Option<&Cid> {
+        set.iter().next()
+    }
+
+    /// Convenience function for usage within `PrivateForest.get`.
+    /// Will return a CID in given set, if the set has exactly one element.
+    pub fn resolve_single(set: &BTreeSet<Cid>) -> Option<&Cid> {
+        match &*set.iter().collect::<Vec<&Cid>>() {
+            &[cid] => Some(cid),
+            _ => None,
+        }
+    }
+
+    /// Convenience function builder for `PrivateForest.get`.
+    /// The returned function will return the first CID in `set`
+    /// that also appears in `one_of`.
+    pub fn resolve_one_of<F>(
+        one_of: &BTreeSet<Cid>,
+    ) -> impl Fn(&BTreeSet<Cid>) -> Option<&Cid> + '_ {
+        |set: &BTreeSet<Cid>| set.iter().find(|cid| one_of.contains(cid))
     }
 }
 
@@ -280,12 +330,87 @@ mod hamt_store_tests {
         let private_node = PrivateNode::Dir(dir.clone());
 
         let hamt = hamt
-            .set(saturated_name, &private_ref, &private_node, store, rng)
+            .put(saturated_name, &private_ref, &private_node, store, rng)
             .await
             .unwrap();
 
-        let retrieved = hamt.get(&private_ref, store).await.unwrap().unwrap();
+        let retrieved = hamt
+            .get(&private_ref, PrivateForest::resolve_lowest, store)
+            .await
+            .unwrap()
+            .unwrap();
 
         assert_eq!(retrieved, private_node);
+    }
+
+    #[test(async_std::test)]
+    async fn inserted_multivalue_items_can_be_fetched_with_bias() {
+        let store = &mut MemoryBlockStore::new();
+        let hamt = Rc::new(PrivateForest::new());
+        let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
+
+        let dir = Rc::new(PrivateDirectory::new(
+            Namefilter::default(),
+            Utc::now(),
+            rng,
+        ));
+
+        let dir_conflict = {
+            let mut dir = (*dir).clone();
+            dir.metadata.upsert_mtime(Utc::now());
+            Rc::new(dir)
+        };
+
+        let private_ref = dir.header.get_private_ref().unwrap();
+        let private_ref_conflict = dir_conflict.header.get_private_ref().unwrap();
+        let saturated_name = dir.header.get_saturated_name();
+        let saturated_name_conflict = dir_conflict.header.get_saturated_name();
+        let private_node = PrivateNode::Dir(dir.clone());
+        let private_node_conflict = PrivateNode::Dir(dir_conflict.clone());
+
+        assert_eq!(saturated_name_conflict, saturated_name);
+
+        // Put the original node in the HAMT
+        let hamt = hamt
+            .put(saturated_name, &private_ref, &private_node, store, rng)
+            .await
+            .unwrap();
+
+        // Put the conflicting node in the HAMT at the same key
+        let hamt = hamt
+            .put(
+                saturated_name_conflict,
+                &private_ref_conflict,
+                &private_node_conflict,
+                store,
+                rng,
+            )
+            .await
+            .unwrap();
+
+        let ciphertext_cids = hamt
+            .get_encrypted(&private_ref.saturated_name_hash, store)
+            .await
+            .unwrap()
+            .unwrap();
+
+        // We expect there to be a conflict, a multivalue
+        assert_eq!(ciphertext_cids.len(), 2);
+
+        let conflict_cid = ciphertext_cids.iter().last().unwrap();
+
+        let retrieved = hamt
+            .get(
+                &private_ref,
+                PrivateForest::resolve_one_of::<fn(&BTreeSet<Cid>) -> Option<&Cid>>(
+                    &BTreeSet::from([*conflict_cid]),
+                ),
+                store,
+            )
+            .await
+            .unwrap()
+            .unwrap();
+
+        assert_eq!(retrieved, private_node_conflict);
     }
 }

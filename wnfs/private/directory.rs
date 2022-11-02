@@ -279,7 +279,7 @@ impl PrivateDirectory {
             let parent_dir = Rc::new(parent_dir);
 
             working_hamt = working_hamt
-                .set(
+                .put(
                     working_child_dir.header.get_saturated_name(),
                     &child_private_ref,
                     &PrivateNode::Dir(Rc::clone(&working_child_dir)),
@@ -292,7 +292,7 @@ impl PrivateDirectory {
         }
 
         working_hamt = working_hamt
-            .set(
+            .put(
                 working_child_dir.header.get_saturated_name(),
                 &working_child_dir.header.get_private_ref()?,
                 &PrivateNode::Dir(Rc::clone(&working_child_dir)),
@@ -555,7 +555,7 @@ impl PrivateDirectory {
 
         let child_private_ref = file.header.get_private_ref()?;
         let hamt = hamt
-            .set(
+            .put(
                 file.header.get_saturated_name(),
                 &child_private_ref,
                 &PrivateNode::File(Rc::new(file)),
@@ -630,7 +630,9 @@ impl PrivateDirectory {
     ) -> Result<Option<PrivateNode>> {
         Ok(match self.entries.get(path_segment) {
             Some(private_ref) => {
-                let private_node = hamt.get(private_ref, store).await?;
+                let private_node = hamt
+                    .get(private_ref, PrivateForest::resolve_lowest, store)
+                    .await?;
                 match (search_latest, private_node) {
                     (true, Some(node)) => Some(node.search_latest(hamt, store).await?),
                     (_, node) => node,
@@ -773,7 +775,10 @@ impl PrivateDirectory {
             PathNodesResult::Complete(path_nodes) => {
                 let mut result = vec![];
                 for (name, private_ref) in path_nodes.tail.entries.iter() {
-                    match hamt.get(private_ref, store).await? {
+                    match hamt
+                        .get(private_ref, PrivateForest::resolve_lowest, store)
+                        .await?
+                    {
                         Some(PrivateNode::File(file)) => {
                             result.push((name.clone(), file.metadata.clone()));
                         }
@@ -875,7 +880,10 @@ impl PrivateDirectory {
 
         // Remove the entry from its parent directory
         let removed_node = match directory.entries.remove(node_name) {
-            Some(ref private_ref) => hamt.get(private_ref, store).await?.unwrap(),
+            Some(ref private_ref) => hamt
+                .get(private_ref, PrivateForest::resolve_lowest, store)
+                .await?
+                .unwrap(),
             None => bail!(FsError::NotFound),
         };
 

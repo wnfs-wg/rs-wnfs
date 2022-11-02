@@ -32,7 +32,10 @@ async fn main() {
     let forest = dagcbor::decode::<PrivateForest>(cbor_bytes.as_ref()).unwrap();
 
     // Fetch and decrypt a directory from the private forest using provided private ref.
-    let dir = forest.get(&private_ref, store).await.unwrap();
+    let dir = forest
+        .get(&private_ref, PrivateForest::resolve_lowest, store)
+        .await
+        .unwrap();
 
     // Print the directory.
     println!("{:#?}", dir);
