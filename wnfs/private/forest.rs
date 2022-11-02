@@ -48,7 +48,7 @@ impl PrivateForest {
     /// # Examples
     ///
     /// ```
-    /// use std::{collections::BTreeSet, rc::Rc};
+    /// use std::rc::Rc;
     ///
     /// use chrono::Utc;
     /// use rand::thread_rng;
@@ -116,7 +116,7 @@ impl PrivateForest {
     /// # Examples
     ///
     /// ```
-    /// use std::{collections::BTreeSet, rc::Rc};
+    /// use std::rc::Rc;
     ///
     /// use chrono::Utc;
     /// use rand::thread_rng;

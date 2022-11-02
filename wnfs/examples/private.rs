@@ -4,7 +4,7 @@
 use chrono::Utc;
 use libipld::Cid;
 use rand::{thread_rng, RngCore};
-use std::{collections::BTreeSet, rc::Rc};
+use std::rc::Rc;
 use wnfs::{
     dagcbor,
     private::{PrivateForest, PrivateRef},
