@@ -50,8 +50,8 @@ test-log = "0.2"
 test-strategy = "0.2"
 
 [lib]
-crate-type = ["cdylib", "rlib"]
-path = "lib.rs"
+name = "wnfs"
+path = "src/lib.rs"
 
 [features]
 default = []
