@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1667395881029,
+  "lastUpdate": 1667487088414,
   "repoUrl": "https://github.com/wnfs-wg/rs-wnfs",
   "entries": {
     "Rust Benchmark": [
@@ -217,6 +217,90 @@ window.BENCHMARK_DATA = {
             "name": "namefilter encode",
             "value": 155,
             "range": "± 9",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter decode/0",
+            "value": 1,
+            "range": "± 0",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "zeeshan@fission.codes",
+            "name": "Zeeshan Lakhani",
+            "username": "zeeshanlakhani"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "ce7d988157884115e32d7db412b7d4cedf56d23e",
+          "message": "use src for lib.rs rust files (#82)",
+          "timestamp": "2022-11-03T10:40:59-04:00",
+          "tree_id": "af7f485524c747d850f31edc874af620bd675be5",
+          "url": "https://github.com/wnfs-wg/rs-wnfs/commit/ce7d988157884115e32d7db412b7d4cedf56d23e"
+        },
+        "date": 1667487087112,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "node set",
+            "value": 8464,
+            "range": "± 459",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and get",
+            "value": 172807,
+            "range": "± 12432",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and remove",
+            "value": 303618,
+            "range": "± 27865",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt load and decode/0",
+            "value": 44588,
+            "range": "± 1900",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt set and encode",
+            "value": 311641,
+            "range": "± 18767",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter add",
+            "value": 13401,
+            "range": "± 1067",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter contains",
+            "value": 13281,
+            "range": "± 426",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter saturate",
+            "value": 47916,
+            "range": "± 2071",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter encode",
+            "value": 217,
+            "range": "± 23",
             "unit": "ns/iter"
           },
           {
