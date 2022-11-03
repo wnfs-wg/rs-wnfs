@@ -8,7 +8,7 @@ use serde::{de::Error as DeError, ser::Error as SerError, Deserialize, Deseriali
 
 use super::{
     namefilter::Namefilter, Key, PrivateFile, PrivateForest, PrivateNode, PrivateNodeHeader,
-    PrivateRef, PrivateRefSerde, RatchetKey,
+    PrivateRef, PrivateRefSerde, RevisionKey,
 };
 
 use crate::{
@@ -1150,7 +1150,7 @@ impl PrivateDirectory {
             .header
             .get_private_ref()
             .map_err(SerError::custom)?
-            .ratchet_key;
+            .revision_key;
 
         let mut entries = BTreeMap::new();
 
@@ -1175,7 +1175,7 @@ impl PrivateDirectory {
     }
 
     /// Deserializes the directory with provided Serde deserializer and key.
-    pub(crate) fn deserialize<'de, D>(deserializer: D, key: &RatchetKey) -> Result<Self, D::Error>
+    pub(crate) fn deserialize<'de, D>(deserializer: D, key: &RevisionKey) -> Result<Self, D::Error>
     where
         D: Deserializer<'de>,
     {

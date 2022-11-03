@@ -5,7 +5,7 @@ use serde::{de::Error as DeError, ser::Error as SerError, Deserialize, Deseriali
 
 use crate::{dagcbor, Id, Metadata, NodeType};
 
-use super::{namefilter::Namefilter, Key, PrivateNodeHeader, RatchetKey};
+use super::{namefilter::Namefilter, Key, PrivateNodeHeader, RevisionKey};
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
@@ -98,7 +98,7 @@ impl PrivateFile {
             .header
             .get_private_ref()
             .map_err(SerError::custom)?
-            .ratchet_key;
+            .revision_key;
 
         (PrivateFileSerde {
             r#type: NodeType::PrivateFile,
@@ -116,7 +116,7 @@ impl PrivateFile {
     }
 
     /// Deserializes the file with provided Serde deserializer and key.
-    pub(crate) fn deserialize<'de, D>(deserializer: D, key: &RatchetKey) -> Result<Self, D::Error>
+    pub(crate) fn deserialize<'de, D>(deserializer: D, key: &RevisionKey) -> Result<Self, D::Error>
     where
         D: Deserializer<'de>,
     {

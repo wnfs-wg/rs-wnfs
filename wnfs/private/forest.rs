@@ -176,7 +176,7 @@ impl PrivateForest {
         // Deserialize bytes.
         Ok(Some(PrivateNode::deserialize_from_cbor(
             &cbor_bytes,
-            &private_ref.ratchet_key,
+            &private_ref.revision_key,
         )?))
     }
 

@@ -50,9 +50,9 @@ impl PrivateForest {
 
         let key_bytes = expect_bytes::<KEY_BYTE_SIZE>(revision_key)?;
         let key = Key::new(key_bytes);
-        let ratchet_key = RatchetKey(key);
+        let revision_key = RatchetKey(key);
 
-        let private_ref = PrivateRef::from_ratchet_key(saturated_name_hash, ratchet_key);
+        let private_ref = PrivateRef::from_revision_key(saturated_name_hash, revision_key);
 
         Ok(future_to_promise(async move {
             let node_option = forest
