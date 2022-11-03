@@ -35,7 +35,7 @@ wasm-bindgen-test = "0.3"
 
 [lib]
 crate-type = ["cdylib", "rlib"]
-path = "lib.rs"
+path = "src/lib.rs"
 
 [features]
 default = ["js"]
