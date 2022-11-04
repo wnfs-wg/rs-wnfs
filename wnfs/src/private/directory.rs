@@ -8,7 +8,7 @@ use serde::{de::Error as DeError, ser::Error as SerError, Deserialize, Deseriali
 
 use super::{
     namefilter::Namefilter, Key, PrivateFile, PrivateForest, PrivateNode, PrivateNodeHeader,
-    PrivateRef, PrivateRefSerde, RevisionKey,
+    PrivateRef, PrivateRefSerializable, RevisionKey,
 };
 
 use crate::{
@@ -49,12 +49,12 @@ pub struct PrivateDirectory {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-struct PrivateDirectorySerde {
+struct PrivateDirectorySerializable {
     pub r#type: NodeType,
     pub version: Version,
     pub header: Vec<u8>,
     pub metadata: Metadata,
-    pub entries: BTreeMap<String, PrivateRefSerde>,
+    pub entries: BTreeMap<String, PrivateRefSerializable>,
 }
 
 /// The result of an operation applied to a directory.
@@ -1155,11 +1155,13 @@ impl PrivateDirectory {
         let mut entries = BTreeMap::new();
 
         for (name, private_ref) in self.entries.iter() {
-            let private_ref_serde = private_ref.to_serde(&key, rng).map_err(SerError::custom)?;
+            let private_ref_serde = private_ref
+                .to_serializable(&key, rng)
+                .map_err(SerError::custom)?;
             entries.insert(name.clone(), private_ref_serde);
         }
 
-        (PrivateDirectorySerde {
+        (PrivateDirectorySerializable {
             r#type: NodeType::PrivateDirectory,
             version: self.version.clone(),
             header: {
@@ -1179,19 +1181,19 @@ impl PrivateDirectory {
     where
         D: Deserializer<'de>,
     {
-        let PrivateDirectorySerde {
+        let PrivateDirectorySerializable {
             version,
             metadata,
             header,
             entries: entries_encrypted,
             ..
-        } = PrivateDirectorySerde::deserialize(deserializer)?;
+        } = PrivateDirectorySerializable::deserialize(deserializer)?;
 
         let mut entries = BTreeMap::new();
 
         for (name, private_ref_serde) in entries_encrypted {
             let private_ref =
-                PrivateRef::from_serde(private_ref_serde, key).map_err(DeError::custom)?;
+                PrivateRef::from_serializable(private_ref_serde, key).map_err(DeError::custom)?;
             entries.insert(name, private_ref);
         }
 

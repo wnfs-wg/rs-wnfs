@@ -102,7 +102,7 @@ pub struct PrivateRef {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub(crate) struct PrivateRefSerde {
+pub(crate) struct PrivateRefSerializable {
     #[serde(rename = "name")]
     pub(crate) saturated_name_hash: HashOutput,
     #[serde(rename = "contentKey")]
@@ -630,24 +630,24 @@ impl PrivateRef {
         }
     }
 
-    pub(crate) fn to_serde(
+    pub(crate) fn to_serializable(
         &self,
         revision_key: &RevisionKey,
         rng: &mut impl RngCore,
-    ) -> Result<PrivateRefSerde> {
+    ) -> Result<PrivateRefSerializable> {
         // encrypt ratchet key
         let revision_key = revision_key
             .0
             .encrypt(&Key::generate_nonce(rng), self.revision_key.0.as_bytes())?;
-        Ok(PrivateRefSerde {
+        Ok(PrivateRefSerializable {
             saturated_name_hash: self.saturated_name_hash,
             content_key: self.content_key.clone(),
             revision_key,
         })
     }
 
-    pub(crate) fn from_serde(
-        private_ref: PrivateRefSerde,
+    pub(crate) fn from_serializable(
+        private_ref: PrivateRefSerializable,
         revision_key: &RevisionKey,
     ) -> Result<Self> {
         let revision_key = RevisionKey(Key::new(
@@ -678,7 +678,7 @@ impl PrivateRef {
     where
         S: serde::Serializer,
     {
-        self.to_serde(revision_key, rng)
+        self.to_serializable(revision_key, rng)
             .map_err(SerError::custom)?
             .serialize(serializer)
     }
@@ -690,8 +690,8 @@ impl PrivateRef {
     where
         D: serde::Deserializer<'de>,
     {
-        let private_ref = PrivateRefSerde::deserialize(deserializer)?;
-        PrivateRef::from_serde(private_ref, revision_key).map_err(DeError::custom)
+        let private_ref = PrivateRefSerializable::deserialize(deserializer)?;
+        PrivateRef::from_serializable(private_ref, revision_key).map_err(DeError::custom)
     }
 }
 

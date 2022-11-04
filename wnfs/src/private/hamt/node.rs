@@ -465,7 +465,7 @@ impl<K, V, H: Hasher> Node<K, V, H> {
         Ok(len)
     }
 
-    // TODO(appcypher): Do we really need this? Why not use PublicDirectorySerde style instead.
+    // TODO(appcypher): Do we really need this? Why not use PublicDirectorySerializable style instead.
     /// Converts a Node to an IPLD object.
     pub async fn to_ipld<B: BlockStore + ?Sized>(&self, store: &mut B) -> Result<Ipld>
     where

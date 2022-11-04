@@ -39,7 +39,7 @@ pub struct PrivateFile {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-struct PrivateFileSerde {
+struct PrivateFileSerializable {
     pub r#type: NodeType,
     pub version: Version,
     pub header: Vec<u8>,
@@ -100,7 +100,7 @@ impl PrivateFile {
             .map_err(SerError::custom)?
             .revision_key;
 
-        (PrivateFileSerde {
+        (PrivateFileSerializable {
             r#type: NodeType::PrivateFile,
             version: self.version.clone(),
             header: {
@@ -120,13 +120,13 @@ impl PrivateFile {
     where
         D: Deserializer<'de>,
     {
-        let PrivateFileSerde {
+        let PrivateFileSerializable {
             version,
             metadata,
             header,
             content,
             ..
-        } = PrivateFileSerde::deserialize(deserializer)?;
+        } = PrivateFileSerializable::deserialize(deserializer)?;
 
         Ok(Self {
             version,

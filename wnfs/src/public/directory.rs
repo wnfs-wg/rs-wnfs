@@ -47,7 +47,7 @@ pub struct PublicDirectory {
 }
 
 #[derive(Serialize, Deserialize)]
-struct PublicDirectorySerde {
+struct PublicDirectorySerializable {
     r#type: NodeType,
     version: Version,
     metadata: Metadata,
@@ -886,7 +886,7 @@ impl AsyncSerialize for PublicDirectory {
             map
         };
 
-        (PublicDirectorySerde {
+        (PublicDirectorySerializable {
             r#type: NodeType::PublicDirectory,
             version: self.version.clone(),
             metadata: self.metadata.clone(),
@@ -902,13 +902,13 @@ impl<'de> Deserialize<'de> for PublicDirectory {
     where
         D: Deserializer<'de>,
     {
-        let PublicDirectorySerde {
+        let PublicDirectorySerializable {
             version,
             metadata,
             userland,
             previous,
             ..
-        } = PublicDirectorySerde::deserialize(deserializer)?;
+        } = PublicDirectorySerializable::deserialize(deserializer)?;
 
         let userland = userland
             .into_iter()
