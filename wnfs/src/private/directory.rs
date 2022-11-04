@@ -1,14 +1,18 @@
-use std::{collections::BTreeMap, rc::Rc};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    rc::Rc,
+};
 
 use anyhow::{bail, ensure, Result};
 use chrono::{DateTime, Utc};
+use libipld::Cid;
 use rand_core::RngCore;
 use semver::Version;
 use serde::{de::Error as DeError, ser::Error as SerError, Deserialize, Deserializer, Serialize};
 
 use super::{
-    namefilter::Namefilter, Key, PrivateFile, PrivateForest, PrivateNode, PrivateNodeHeader,
-    PrivateRef, PrivateRefSerializable, RevisionKey,
+    encrypted::Encrypted, namefilter::Namefilter, Key, PrivateFile, PrivateForest, PrivateNode,
+    PrivateNodeHeader, PrivateRef, PrivateRefSerializable, RevisionKey,
 };
 
 use crate::{
@@ -44,6 +48,7 @@ pub type PrivatePathNodesResult = PathNodesResult<PrivateDirectory>;
 pub struct PrivateDirectory {
     pub version: Version,
     pub header: PrivateNodeHeader,
+    pub previous: Encrypted<BTreeSet<Cid>>,
     pub metadata: Metadata,
     pub entries: BTreeMap<String, PrivateRef>,
 }
@@ -53,6 +58,7 @@ struct PrivateDirectorySerializable {
     pub r#type: NodeType,
     pub version: Version,
     pub header: Vec<u8>,
+    pub previous: Vec<u8>,
     pub metadata: Metadata,
     pub entries: BTreeMap<String, PrivateRefSerializable>,
 }
@@ -95,6 +101,7 @@ impl PrivateDirectory {
         Self {
             version: Version::new(0, 2, 0),
             header: PrivateNodeHeader::new(parent_bare_name, rng),
+            previous: Encrypted::from_value(BTreeSet::new()),
             metadata: Metadata::new(time),
             entries: BTreeMap::new(),
         }
@@ -263,12 +270,14 @@ impl PrivateDirectory {
         let mut working_hamt = Rc::clone(&hamt);
         let mut working_child_dir = {
             let mut tmp = (*path_nodes.tail).clone();
+            // TODO(matheus23) abstract this into a 'upgrade version' function
             tmp.advance_ratchet();
             Rc::new(tmp)
         };
 
         for (parent_dir, segment) in path_nodes.path.iter().rev() {
             let mut parent_dir = (**parent_dir).clone();
+            // TODO(matheus23) Also here
             parent_dir.advance_ratchet();
             let child_private_ref = working_child_dir.header.get_private_ref()?;
 
@@ -1161,15 +1170,24 @@ impl PrivateDirectory {
             entries.insert(name.clone(), private_ref_serde);
         }
 
+        let header = {
+            let cbor_bytes = dagcbor::encode(&self.header).map_err(SerError::custom)?;
+            key.0
+                .encrypt(&Key::generate_nonce(rng), &cbor_bytes)
+                .map_err(SerError::custom)?
+        };
+
+        let previous = self
+            .previous
+            .resolve_ciphertext(&key.0, rng)
+            .map_err(SerError::custom)?
+            .clone();
+
         (PrivateDirectorySerializable {
             r#type: NodeType::PrivateDirectory,
             version: self.version.clone(),
-            header: {
-                let cbor_bytes = dagcbor::encode(&self.header).map_err(SerError::custom)?;
-                key.0
-                    .encrypt(&Key::generate_nonce(rng), &cbor_bytes)
-                    .map_err(SerError::custom)?
-            },
+            header,
+            previous,
             metadata: self.metadata.clone(),
             entries,
         })
@@ -1185,6 +1203,7 @@ impl PrivateDirectory {
             version,
             metadata,
             header,
+            previous,
             entries: entries_encrypted,
             ..
         } = PrivateDirectorySerializable::deserialize(deserializer)?;
@@ -1204,6 +1223,7 @@ impl PrivateDirectory {
                 let cbor_bytes = key.0.decrypt(&header).map_err(DeError::custom)?;
                 dagcbor::decode(&cbor_bytes).map_err(DeError::custom)?
             },
+            previous: Encrypted::from_ciphertext(previous),
             entries,
         })
     }

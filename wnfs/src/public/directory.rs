@@ -877,10 +877,7 @@ impl AsyncSerialize for PublicDirectory {
             for (name, link) in self.userland.iter() {
                 map.insert(
                     name.clone(),
-                    *link
-                        .resolve_cid(store)
-                        .await
-                        .map_err(|e| SerError::custom(format!("{e}")))?,
+                    *link.resolve_cid(store).await.map_err(SerError::custom)?,
                 );
             }
             map
