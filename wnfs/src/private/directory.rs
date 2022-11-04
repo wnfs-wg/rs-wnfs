@@ -1155,10 +1155,10 @@ impl PrivateDirectory {
         let mut entries = BTreeMap::new();
 
         for (name, private_ref) in self.entries.iter() {
-            let private_ref_serde = private_ref
+            let private_ref_serializable = private_ref
                 .to_serializable(&key, rng)
                 .map_err(SerError::custom)?;
-            entries.insert(name.clone(), private_ref_serde);
+            entries.insert(name.clone(), private_ref_serializable);
         }
 
         (PrivateDirectorySerializable {
@@ -1191,9 +1191,9 @@ impl PrivateDirectory {
 
         let mut entries = BTreeMap::new();
 
-        for (name, private_ref_serde) in entries_encrypted {
-            let private_ref =
-                PrivateRef::from_serializable(private_ref_serde, key).map_err(DeError::custom)?;
+        for (name, private_ref_serializable) in entries_encrypted {
+            let private_ref = PrivateRef::from_serializable(private_ref_serializable, key)
+                .map_err(DeError::custom)?;
             entries.insert(name, private_ref);
         }
 
