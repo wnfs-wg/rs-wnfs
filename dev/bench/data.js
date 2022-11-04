@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1667487088414,
+  "lastUpdate": 1667573042848,
   "repoUrl": "https://github.com/wnfs-wg/rs-wnfs",
   "entries": {
     "Rust Benchmark": [
@@ -301,6 +301,90 @@ window.BENCHMARK_DATA = {
             "name": "namefilter encode",
             "value": 217,
             "range": "± 23",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter decode/0",
+            "value": 1,
+            "range": "± 0",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "philipp.krueger1@gmail.com",
+            "name": "Philipp Krüger",
+            "username": "matheus23"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "80dbe82dd41e9eebda77960b930458d4d1feeb69",
+          "message": "Rename `RatchetKey` to `RevisionKey`, encrypt `RevisionKey` within `PrivateRef` (#83)\n\n* Encrypt the ratchet key\r\n\r\n* Rename `RatchetKey` to `RevisionKey`\r\n\r\n* Fix wasm crate\r\n\r\n* Rename `*Serde` into `*Serializable`\r\n\r\n* Rename `_serde` variables into `_serializable`",
+          "timestamp": "2022-11-04T15:40:44+01:00",
+          "tree_id": "c2b6a0faee05510ae00213db16d0fc01c4b5db6e",
+          "url": "https://github.com/wnfs-wg/rs-wnfs/commit/80dbe82dd41e9eebda77960b930458d4d1feeb69"
+        },
+        "date": 1667573041785,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "node set",
+            "value": 7811,
+            "range": "± 102",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and get",
+            "value": 146640,
+            "range": "± 290",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and remove",
+            "value": 258501,
+            "range": "± 933",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt load and decode/0",
+            "value": 33604,
+            "range": "± 92",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt set and encode",
+            "value": 261463,
+            "range": "± 861",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter add",
+            "value": 7704,
+            "range": "± 9",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter contains",
+            "value": 9870,
+            "range": "± 9",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter saturate",
+            "value": 40378,
+            "range": "± 293",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter encode",
+            "value": 163,
+            "range": "± 6",
             "unit": "ns/iter"
           },
           {
