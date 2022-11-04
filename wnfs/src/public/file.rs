@@ -33,7 +33,7 @@ pub struct PublicFile {
 }
 
 #[derive(Serialize, Deserialize)]
-struct PublicFileSerde {
+struct PublicFileSerializable {
     r#type: NodeType,
     version: Version,
     pub metadata: Metadata,
@@ -122,7 +122,7 @@ impl Serialize for PublicFile {
     where
         S: Serializer,
     {
-        PublicFileSerde {
+        PublicFileSerializable {
             r#type: NodeType::PublicFile,
             version: self.version.clone(),
             metadata: self.metadata.clone(),
@@ -138,13 +138,13 @@ impl<'de> Deserialize<'de> for PublicFile {
     where
         D: Deserializer<'de>,
     {
-        let PublicFileSerde {
+        let PublicFileSerializable {
             version,
             metadata,
             userland,
             previous,
             ..
-        } = PublicFileSerde::deserialize(deserializer)?;
+        } = PublicFileSerializable::deserialize(deserializer)?;
 
         Ok(Self {
             version,

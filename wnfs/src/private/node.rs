@@ -9,7 +9,7 @@ use libipld::{
     serde as ipld_serde, Ipld,
 };
 use rand_core::RngCore;
-use serde::{Deserialize, Serialize};
+use serde::{de::Error as DeError, ser::Error as SerError, Deserialize, Serialize};
 use sha3::Sha3_256;
 use skip_ratchet::{seek::JumpSize, Ratchet, RatchetSeeker};
 
@@ -58,7 +58,7 @@ pub struct ContentKey(pub Key);
 
 /// The key used to encrypt the header section of a node.
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
-pub struct RatchetKey(pub Key);
+pub struct RevisionKey(pub Key);
 
 /// This is the header of a private node. It contains secret information about the node which includes
 /// the inumber, the ratchet, and the namefilter.
@@ -91,14 +91,24 @@ pub struct PrivateNodeHeader {
 }
 
 /// PrivateRef holds the information to fetch associated node from a HAMT and decrypt it if it is present.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PrivateRef {
     /// Sha3-256 hash of saturated namefilter.
     pub(crate) saturated_name_hash: HashOutput,
     /// Sha3-256 hash of the ratchet key.
     pub(crate) content_key: ContentKey,
     /// Skip-ratchet-derived key.
-    pub(crate) ratchet_key: RatchetKey,
+    pub(crate) revision_key: RevisionKey,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub(crate) struct PrivateRefSerializable {
+    #[serde(rename = "name")]
+    pub(crate) saturated_name_hash: HashOutput,
+    #[serde(rename = "contentKey")]
+    pub(crate) content_key: ContentKey,
+    #[serde(rename = "revisionKey")]
+    pub(crate) revision_key: Vec<u8>,
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -408,7 +418,7 @@ impl PrivateNode {
         }
     }
 
-    /// Serializes the node with provided Serde serialilzer.
+    /// Serializes the node with provided Serde serializer.
     pub(crate) fn serialize<S, R: RngCore>(
         &self,
         serializer: S,
@@ -432,16 +442,16 @@ impl PrivateNode {
     }
 
     /// Deserializes the node from dag-cbor bytes.
-    pub(crate) fn deserialize_from_cbor(bytes: &[u8], key: &RatchetKey) -> Result<Self> {
+    pub(crate) fn deserialize_from_cbor(bytes: &[u8], key: &RevisionKey) -> Result<Self> {
         let ipld = Ipld::decode(DagCborCodec, &mut Cursor::new(bytes))?;
         (ipld, key).try_into()
     }
 }
 
-impl TryFrom<(Ipld, &RatchetKey)> for PrivateNode {
+impl TryFrom<(Ipld, &RevisionKey)> for PrivateNode {
     type Error = anyhow::Error;
 
-    fn try_from(pair: (Ipld, &RatchetKey)) -> Result<Self> {
+    fn try_from(pair: (Ipld, &RevisionKey)) -> Result<Self> {
         match pair {
             (Ipld::Map(map), key) => {
                 let r#type: NodeType = map
@@ -541,20 +551,20 @@ impl PrivateNodeHeader {
     /// println!("Private ref: {:?}", private_ref);
     /// ```
     pub fn get_private_ref(&self) -> Result<PrivateRef> {
-        let ratchet_key = Key::new(self.ratchet.derive_key());
-        let saturated_name_hash = Sha3_256::hash(&self.get_saturated_name_with_key(&ratchet_key));
+        let revision_key = Key::new(self.ratchet.derive_key());
+        let saturated_name_hash = Sha3_256::hash(&self.get_saturated_name_with_key(&revision_key));
 
         Ok(PrivateRef {
             saturated_name_hash,
-            content_key: Key::new(Sha3_256::hash(&ratchet_key.as_bytes())).into(),
-            ratchet_key: ratchet_key.into(),
+            content_key: Key::new(Sha3_256::hash(&revision_key.as_bytes())).into(),
+            revision_key: revision_key.into(),
         })
     }
 
     /// Gets the saturated namefilter for this node using the provided ratchet key.
-    pub(crate) fn get_saturated_name_with_key(&self, ratchet_key: &Key) -> Namefilter {
+    pub(crate) fn get_saturated_name_with_key(&self, revision_key: &Key) -> Namefilter {
         let mut name = self.bare_name.clone();
-        name.add(&ratchet_key.as_bytes());
+        name.add(&revision_key.as_bytes());
         name.saturate();
         name
     }
@@ -582,19 +592,19 @@ impl PrivateNodeHeader {
     /// ```
     #[inline]
     pub fn get_saturated_name(&self) -> Namefilter {
-        let ratchet_key = Key::new(self.ratchet.derive_key());
-        self.get_saturated_name_with_key(&ratchet_key)
+        let revision_key = Key::new(self.ratchet.derive_key());
+        self.get_saturated_name_with_key(&revision_key)
     }
 }
 
-impl From<Key> for RatchetKey {
+impl From<Key> for RevisionKey {
     fn from(key: Key) -> Self {
         Self(key)
     }
 }
 
-impl From<RatchetKey> for Key {
-    fn from(key: RatchetKey) -> Self {
+impl From<RevisionKey> for Key {
+    fn from(key: RevisionKey) -> Self {
         key.0
     }
 }
@@ -612,18 +622,82 @@ impl From<ContentKey> for Key {
 }
 
 impl PrivateRef {
-    pub fn from_ratchet_key(saturated_name_hash: HashOutput, ratchet_key: RatchetKey) -> Self {
+    pub fn from_revision_key(saturated_name_hash: HashOutput, revision_key: RevisionKey) -> Self {
         Self {
             saturated_name_hash,
-            content_key: ratchet_key.derive_content_key(),
-            ratchet_key,
+            content_key: revision_key.derive_content_key(),
+            revision_key,
         }
+    }
+
+    pub(crate) fn to_serializable(
+        &self,
+        revision_key: &RevisionKey,
+        rng: &mut impl RngCore,
+    ) -> Result<PrivateRefSerializable> {
+        // encrypt ratchet key
+        let revision_key = revision_key
+            .0
+            .encrypt(&Key::generate_nonce(rng), self.revision_key.0.as_bytes())?;
+        Ok(PrivateRefSerializable {
+            saturated_name_hash: self.saturated_name_hash,
+            content_key: self.content_key.clone(),
+            revision_key,
+        })
+    }
+
+    pub(crate) fn from_serializable(
+        private_ref: PrivateRefSerializable,
+        revision_key: &RevisionKey,
+    ) -> Result<Self> {
+        let revision_key = RevisionKey(Key::new(
+            revision_key
+                .0
+                .decrypt(&private_ref.revision_key)?
+                .try_into()
+                .map_err(|e: Vec<u8>| {
+                    FsError::InvalidDeserialization(format!(
+                        "Expected 32 bytes for ratchet key, but got {}",
+                        e.len()
+                    ))
+                })?,
+        ));
+        Ok(Self {
+            saturated_name_hash: private_ref.saturated_name_hash,
+            content_key: private_ref.content_key,
+            revision_key,
+        })
+    }
+
+    pub fn serialize<S>(
+        &self,
+        serializer: S,
+        revision_key: &RevisionKey,
+        rng: &mut impl RngCore,
+    ) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        self.to_serializable(revision_key, rng)
+            .map_err(SerError::custom)?
+            .serialize(serializer)
+    }
+
+    pub fn deserialize<'de, D>(
+        deserializer: D,
+        revision_key: &RevisionKey,
+    ) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let private_ref = PrivateRefSerializable::deserialize(deserializer)?;
+        PrivateRef::from_serializable(private_ref, revision_key).map_err(DeError::custom)
     }
 }
 
-impl RatchetKey {
+impl RevisionKey {
     pub fn derive_content_key(&self) -> ContentKey {
-        let RatchetKey(key) = self;
+        let RevisionKey(key) = self;
         ContentKey(Key::new(Sha3_256::hash(&key.as_bytes())))
     }
 }
@@ -651,7 +725,7 @@ mod private_node_tests {
 
         let bytes = original_file.serialize_to_cbor(rng).unwrap();
         let deserialized_node =
-            PrivateNode::deserialize_from_cbor(&bytes, &private_ref.ratchet_key).unwrap();
+            PrivateNode::deserialize_from_cbor(&bytes, &private_ref.revision_key).unwrap();
 
         assert_eq!(original_file, deserialized_node);
     }

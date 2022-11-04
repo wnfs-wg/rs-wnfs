@@ -5,7 +5,7 @@ use serde::{de::Error as DeError, ser::Error as SerError, Deserialize, Deseriali
 
 use crate::{dagcbor, Id, Metadata, NodeType};
 
-use super::{namefilter::Namefilter, Key, PrivateNodeHeader, RatchetKey};
+use super::{namefilter::Namefilter, Key, PrivateNodeHeader, RevisionKey};
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
@@ -39,7 +39,7 @@ pub struct PrivateFile {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-struct PrivateFileSerde {
+struct PrivateFileSerializable {
     pub r#type: NodeType,
     pub version: Version,
     pub header: Vec<u8>,
@@ -98,9 +98,9 @@ impl PrivateFile {
             .header
             .get_private_ref()
             .map_err(SerError::custom)?
-            .ratchet_key;
+            .revision_key;
 
-        (PrivateFileSerde {
+        (PrivateFileSerializable {
             r#type: NodeType::PrivateFile,
             version: self.version.clone(),
             header: {
@@ -116,17 +116,17 @@ impl PrivateFile {
     }
 
     /// Deserializes the file with provided Serde deserializer and key.
-    pub(crate) fn deserialize<'de, D>(deserializer: D, key: &RatchetKey) -> Result<Self, D::Error>
+    pub(crate) fn deserialize<'de, D>(deserializer: D, key: &RevisionKey) -> Result<Self, D::Error>
     where
         D: Deserializer<'de>,
     {
-        let PrivateFileSerde {
+        let PrivateFileSerializable {
             version,
             metadata,
             header,
             content,
             ..
-        } = PrivateFileSerde::deserialize(deserializer)?;
+        } = PrivateFileSerializable::deserialize(deserializer)?;
 
         Ok(Self {
             version,

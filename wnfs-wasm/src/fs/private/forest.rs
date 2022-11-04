@@ -4,7 +4,7 @@ use js_sys::{Error, Promise};
 use wasm_bindgen::{prelude::wasm_bindgen, JsValue};
 use wasm_bindgen_futures::future_to_promise;
 use wnfs::{
-    private::{Key, PrivateForest as WnfsPrivateForest, PrivateRef, RatchetKey, KEY_BYTE_SIZE},
+    private::{Key, PrivateForest as WnfsPrivateForest, PrivateRef, RevisionKey, KEY_BYTE_SIZE},
     HASH_BYTE_SIZE,
 };
 
@@ -50,9 +50,9 @@ impl PrivateForest {
 
         let key_bytes = expect_bytes::<KEY_BYTE_SIZE>(revision_key)?;
         let key = Key::new(key_bytes);
-        let ratchet_key = RatchetKey(key);
+        let revision_key = RevisionKey(key);
 
-        let private_ref = PrivateRef::from_ratchet_key(saturated_name_hash, ratchet_key);
+        let private_ref = PrivateRef::from_revision_key(saturated_name_hash, revision_key);
 
         Ok(future_to_promise(async move {
             let node_option = forest

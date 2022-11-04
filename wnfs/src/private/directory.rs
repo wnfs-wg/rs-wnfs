@@ -8,7 +8,7 @@ use serde::{de::Error as DeError, ser::Error as SerError, Deserialize, Deseriali
 
 use super::{
     namefilter::Namefilter, Key, PrivateFile, PrivateForest, PrivateNode, PrivateNodeHeader,
-    PrivateRef, RatchetKey,
+    PrivateRef, PrivateRefSerializable, RevisionKey,
 };
 
 use crate::{
@@ -49,12 +49,12 @@ pub struct PrivateDirectory {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-struct PrivateDirectorySerde {
+struct PrivateDirectorySerializable {
     pub r#type: NodeType,
     pub version: Version,
     pub header: Vec<u8>,
     pub metadata: Metadata,
-    pub entries: BTreeMap<String, PrivateRef>,
+    pub entries: BTreeMap<String, PrivateRefSerializable>,
 }
 
 /// The result of an operation applied to a directory.
@@ -1150,9 +1150,18 @@ impl PrivateDirectory {
             .header
             .get_private_ref()
             .map_err(SerError::custom)?
-            .ratchet_key;
+            .revision_key;
 
-        (PrivateDirectorySerde {
+        let mut entries = BTreeMap::new();
+
+        for (name, private_ref) in self.entries.iter() {
+            let private_ref_serializable = private_ref
+                .to_serializable(&key, rng)
+                .map_err(SerError::custom)?;
+            entries.insert(name.clone(), private_ref_serializable);
+        }
+
+        (PrivateDirectorySerializable {
             r#type: NodeType::PrivateDirectory,
             version: self.version.clone(),
             header: {
@@ -1162,23 +1171,31 @@ impl PrivateDirectory {
                     .map_err(SerError::custom)?
             },
             metadata: self.metadata.clone(),
-            entries: self.entries.clone(),
+            entries,
         })
         .serialize(serializer)
     }
 
     /// Deserializes the directory with provided Serde deserializer and key.
-    pub(crate) fn deserialize<'de, D>(deserializer: D, key: &RatchetKey) -> Result<Self, D::Error>
+    pub(crate) fn deserialize<'de, D>(deserializer: D, key: &RevisionKey) -> Result<Self, D::Error>
     where
         D: Deserializer<'de>,
     {
-        let PrivateDirectorySerde {
+        let PrivateDirectorySerializable {
             version,
             metadata,
             header,
-            entries,
+            entries: entries_encrypted,
             ..
-        } = PrivateDirectorySerde::deserialize(deserializer)?;
+        } = PrivateDirectorySerializable::deserialize(deserializer)?;
+
+        let mut entries = BTreeMap::new();
+
+        for (name, private_ref_serializable) in entries_encrypted {
+            let private_ref = PrivateRef::from_serializable(private_ref_serializable, key)
+                .map_err(DeError::custom)?;
+            entries.insert(name, private_ref);
+        }
 
         Ok(Self {
             version,
