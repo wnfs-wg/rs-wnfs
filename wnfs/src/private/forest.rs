@@ -237,7 +237,6 @@ impl PrivateForest {
         value: Cid,
         store: &mut B,
     ) -> Result<Rc<Self>> {
-        let mut cloned = (*self).clone();
         // TODO(matheus23): This iterates the path in the HAMT twice.
         // We could consider implementing something like upsert instead.
         let mut values = self
@@ -247,8 +246,10 @@ impl PrivateForest {
             .cloned()
             .unwrap_or_default();
         values.insert(value);
-        cloned.root = self.root.set(name, values, store).await?;
-        Ok(Rc::new(cloned))
+
+        let mut hamt = Rc::try_unwrap(self).unwrap_or_else(|rc| (*rc).clone());
+        hamt.root = hamt.root.set(name, values, store).await?;
+        Ok(Rc::new(hamt))
     }
 
     /// Gets the encrypted value at the given key.
