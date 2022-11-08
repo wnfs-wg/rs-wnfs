@@ -435,8 +435,12 @@ impl PrivateNode {
 
     /// Serializes the node to dag-cbor bytes.
     pub(crate) fn serialize_to_cbor<R: RngCore>(&self, rng: &mut R) -> Result<Vec<u8>> {
+        println!("Before serialize");
         let ipld = self.serialize(ipld_serde::Serializer, rng)?;
         let mut bytes = Vec::new();
+
+        println!("serialize ipld: {:?}", ipld);
+
         ipld.encode(DagCborCodec, &mut bytes)?;
         Ok(bytes)
     }
@@ -444,6 +448,9 @@ impl PrivateNode {
     /// Deserializes the node from dag-cbor bytes.
     pub(crate) fn deserialize_from_cbor(bytes: &[u8], key: &RevisionKey) -> Result<Self> {
         let ipld = Ipld::decode(DagCborCodec, &mut Cursor::new(bytes))?;
+
+        println!("deserialize ipld: {:?}", ipld);
+
         (ipld, key).try_into()
     }
 }
@@ -458,6 +465,8 @@ impl TryFrom<(Ipld, &RevisionKey)> for PrivateNode {
                     .get("type")
                     .ok_or(FsError::MissingNodeType)?
                     .try_into()?;
+
+                println!("type: {:?}", r#type);
 
                 Ok(match r#type {
                     NodeType::PrivateFile => {
@@ -710,23 +719,46 @@ impl RevisionKey {
 mod private_node_tests {
     use proptest::test_runner::{RngAlgorithm, TestRng};
 
+    use crate::MemoryBlockStore;
+
     use super::*;
 
-    #[test]
-    fn serialized_private_node_can_be_deserialized() {
+    #[async_std::test]
+    async fn serialized_private_node_can_be_deserialized() {
         let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
-        let original_file = PrivateNode::File(Rc::new(PrivateFile::new(
+        let content = b"Lorem ipsum dolor sit amet";
+        let hamt = Rc::new(PrivateForest::new());
+        let store = &mut MemoryBlockStore::new();
+
+        let (file, _) = PrivateFile::with_content(
             Namefilter::default(),
             Utc::now(),
-            b"Lorem ipsum dolor sit amet".to_vec(),
+            content.to_vec(),
+            hamt,
+            store,
             rng,
-        )));
-        let private_ref = original_file.get_header().get_private_ref().unwrap();
+        )
+        .await
+        .unwrap();
 
-        let bytes = original_file.serialize_to_cbor(rng).unwrap();
+        // let file = PrivateFile::empty(Namefilter::default(), Utc::now(), rng).await;
+
+        let file = PrivateNode::File(Rc::new(file));
+        let private_ref = file.get_header().get_private_ref().unwrap();
+
+        println!("Content length: {}", content.len());
+
+        let bytes = file.serialize_to_cbor(rng).unwrap();
+
+        println!("Serialized length: {}", bytes.len());
+
+        println!("Size of usize: {}", std::mem::size_of::<usize>());
+
+        // println!("Serialized bytes: {:#02x?}", bytes);
+
         let deserialized_node =
             PrivateNode::deserialize_from_cbor(&bytes, &private_ref.revision_key).unwrap();
 
-        assert_eq!(original_file, deserialized_node);
+        assert_eq!(file, deserialized_node);
     }
 }

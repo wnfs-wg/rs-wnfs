@@ -85,6 +85,73 @@ pub fn get_random_bytes<const N: usize>(rng: &mut impl RngCore) -> [u8; N] {
 }
 
 //--------------------------------------------------------------------------------------------------
+// Macros
+//--------------------------------------------------------------------------------------------------
+
+#[cfg(test)]
+pub(crate) mod test_setup {
+    #![allow(unused_macros)]
+    #![allow(unused_imports)]
+
+    macro_rules! init {
+        [ name ] => {
+            crate::private::Namefilter::default()
+        };
+        [ hamt ] => {
+            Rc::new(crate::private::PrivateForest::new())
+        };
+        [ rng ] => {
+            proptest::test_runner::TestRng::deterministic_rng(
+                proptest::test_runner::RngAlgorithm::ChaCha
+            )
+        };
+        [ store ] => {
+            crate::MemoryBlockStore::new()
+        };
+        [ mut $name:ident ] => {
+            &mut test_setup::init![ $name ]
+        };
+        [ $a0:ident $( $a1:ident )? $(, $b0:ident $( $b1:ident )? )+ ] => {(
+            test_setup::init![ $a0 $( $a1 )? ] $(, test_setup::init![ $b0 $( $b1 )? ] )+
+        )};
+    }
+
+    #[macro_export]
+    macro_rules! private {
+        [ dir ] => {{
+            let (name, mut rng) = test_setup::init!(name, rng);
+            let dir = Rc::new(PrivateDirectory::new(name, chrono::Utc::now(), &mut rng));
+
+            (dir, rng)
+        }};
+        [ file, $content:expr ] => {{
+            let (name, hamt, mut store, mut rng) = test_setup::init!(name, hamt, store, rng);
+            let (file, hamt) = PrivateFile::with_content(
+                name,
+                chrono::Utc::now(),
+                $content,
+                hamt,
+                &mut store,
+                &mut rng,
+            )
+            .await
+            .unwrap();
+
+            (file, (hamt, store, rng))
+        }};
+        [ file ] => {{
+            let (name, mut rng) = test_setup::init!(name, rng);
+            let file = PrivateFile::empty(name, chrono::Utc::now(), &mut rng).await;
+
+            (file, rng)
+        }}
+    }
+
+    pub(crate) use init;
+    pub(crate) use private;
+}
+
+//--------------------------------------------------------------------------------------------------
 // Tests
 //--------------------------------------------------------------------------------------------------
 

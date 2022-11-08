@@ -63,8 +63,11 @@ pub enum FsError {
     #[error("Found unexpected node type: {0:?}")]
     UnexpectedNodeType(NodeType),
 
-    #[error("Could not compute in-between ratchet {0}")]
+    #[error("Cannot compute in-between ratchet {0}")]
     NoIntermediateRatchet(PreviousErr),
+
+    #[error("Cannot find shard for file content")]
+    FileShardNotFound,
 }
 
 pub fn error<T>(err: impl std::error::Error + Send + Sync + 'static) -> Result<T> {
