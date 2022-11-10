@@ -55,6 +55,18 @@ const config: PlaywrightTestConfig = {
         ...devices["Desktop Firefox"],
       },
     },
+    {
+      name: "safari",
+      use: {
+        ...devices["Desktop Safari"],
+      },
+    },
+    {
+      name: "edge",
+      use: {
+        ...devices["Desktop Edge"],
+      },
+    },
   ],
 
   /* Folder for test artifacts such as screenshots, videos, traces, etc. */

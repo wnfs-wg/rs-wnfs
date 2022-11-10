@@ -95,10 +95,10 @@ pub(crate) mod test_setup {
 
     macro_rules! init {
         [ name ] => {
-            crate::private::Namefilter::default()
+            $crate::private::Namefilter::default()
         };
         [ hamt ] => {
-            Rc::new(crate::private::PrivateForest::new())
+            Rc::new($crate::private::PrivateForest::new())
         };
         [ rng ] => {
             proptest::test_runner::TestRng::deterministic_rng(
@@ -106,7 +106,7 @@ pub(crate) mod test_setup {
             )
         };
         [ store ] => {
-            crate::MemoryBlockStore::new()
+            $crate::MemoryBlockStore::new()
         };
         [ mut $name:ident ] => {
             &mut test_setup::init![ $name ]
@@ -116,17 +116,16 @@ pub(crate) mod test_setup {
         )};
     }
 
-    #[macro_export]
     macro_rules! private {
         [ dir ] => {{
             let (name, mut rng) = test_setup::init!(name, rng);
-            let dir = Rc::new(PrivateDirectory::new(name, chrono::Utc::now(), &mut rng));
+            let dir = Rc::new($crate::PrivateDirectory::new(name, chrono::Utc::now(), &mut rng));
 
             (dir, rng)
         }};
         [ file, $content:expr ] => {{
             let (name, hamt, mut store, mut rng) = test_setup::init!(name, hamt, store, rng);
-            let (file, hamt) = PrivateFile::with_content(
+            let (file, hamt) = $crate::PrivateFile::with_content(
                 name,
                 chrono::Utc::now(),
                 $content,
@@ -141,7 +140,7 @@ pub(crate) mod test_setup {
         }};
         [ file ] => {{
             let (name, mut rng) = test_setup::init!(name, rng);
-            let file = PrivateFile::empty(name, chrono::Utc::now(), &mut rng).await;
+            let file = $crate::PrivateFile::empty(name, chrono::Utc::now(), &mut rng);
 
             (file, rng)
         }}

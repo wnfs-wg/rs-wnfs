@@ -1,11 +1,18 @@
 //! The bindgen API for PrivateFile.
 
+use crate::{
+    fs::{
+        utils::{self, error},
+        BlockStore, ForeignBlockStore, JsResult, Namefilter, PrivateForest, Rng,
+    },
+    value,
+};
 use chrono::{DateTime, Utc};
-use js_sys::Date;
-use wasm_bindgen::prelude::wasm_bindgen;
+use js_sys::{Date, Promise, Uint8Array};
+use std::rc::Rc;
+use wasm_bindgen::{prelude::wasm_bindgen, JsValue};
+use wasm_bindgen_futures::future_to_promise;
 use wnfs::{Id, PrivateFile as WnfsPrivateFile};
-
-use crate::fs::{JsResult, Namefilter, Rng};
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
@@ -13,7 +20,7 @@ use crate::fs::{JsResult, Namefilter, Rng};
 
 /// A file in a WNFS public file system.
 #[wasm_bindgen]
-pub struct PrivateFile(WnfsPrivateFile);
+pub struct PrivateFile(pub(crate) Rc<WnfsPrivateFile>);
 
 //--------------------------------------------------------------------------------------------------
 // Implementations
@@ -21,22 +28,60 @@ pub struct PrivateFile(WnfsPrivateFile);
 
 #[wasm_bindgen]
 impl PrivateFile {
-    /// Creates a new private file.
-    #[wasm_bindgen(constructor)]
-    pub fn new(
+    /// Creates an empty private file.
+    pub fn empty(parent_bare_name: Namefilter, time: &Date, mut rng: Rng) -> JsResult<PrivateFile> {
+        let time = DateTime::<Utc>::from(time);
+
+        Ok(Self(Rc::new(WnfsPrivateFile::empty(
+            parent_bare_name.0,
+            time,
+            &mut rng,
+        ))))
+    }
+
+    /// Creates a file with provided content.
+    #[wasm_bindgen(js_name = "withContent")]
+    pub fn with_content(
         parent_bare_name: Namefilter,
         time: &Date,
         content: Vec<u8>,
+        hamt: PrivateForest,
+        store: BlockStore,
         mut rng: Rng,
-    ) -> JsResult<PrivateFile> {
+    ) -> JsResult<Promise> {
+        let mut store = ForeignBlockStore(store);
         let time = DateTime::<Utc>::from(time);
 
-        Ok(PrivateFile(WnfsPrivateFile::new(
-            parent_bare_name.0,
-            time,
-            content,
-            &mut rng,
-        )))
+        Ok(future_to_promise(async move {
+            let (file, hamt) = WnfsPrivateFile::with_content(
+                parent_bare_name.0,
+                time,
+                content,
+                hamt.0,
+                &mut store,
+                &mut rng,
+            )
+            .await
+            .map_err(error("Cannot create a file with provided content"))?;
+
+            Ok(utils::create_private_file_result(file, hamt)?)
+        }))
+    }
+
+    /// Gets the entire content of a file.
+    #[wasm_bindgen(js_name = "getContent")]
+    pub fn get_content(&self, hamt: PrivateForest, store: BlockStore) -> JsResult<Promise> {
+        let file = Rc::clone(&self.0);
+        let store = ForeignBlockStore(store);
+
+        Ok(future_to_promise(async move {
+            let content = file
+                .get_content(&hamt.0, &store)
+                .await
+                .map_err(error("Cannot get content of file"))?;
+
+            Ok(value!(Uint8Array::from(content.as_slice())))
+        }))
     }
 
     /// Gets a unique id for node.

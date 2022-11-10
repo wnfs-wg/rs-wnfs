@@ -1,4 +1,6 @@
-use super::{namefilter::Namefilter, Key, PrivateForest, PrivateNodeHeader};
+use super::{
+    namefilter::Namefilter, Key, PrivateForest, PrivateNodeHeader, RevisionKey, NONCE_SIZE,
+};
 use crate::{
     dagcbor, utils::get_random_bytes, BlockStore, FsError, Hasher, Id, Metadata, NodeType,
     MAX_BLOCK_SIZE,
@@ -17,7 +19,10 @@ use std::{iter, rc::Rc};
 // Constants
 //--------------------------------------------------------------------------------------------------
 
-
+/// The maximum block size is 2 ^ 18 but the first 12 bytes are reserved for the cipher text's initialization vector.
+/// This leaves a maximum of (2 ^ 18) - 12 = 262,132 bytes for the actual data.
+pub const MAX_BLOCK_CONTENT_SIZE: usize = MAX_BLOCK_SIZE - NONCE_SIZE;
+pub const MAX_INLINE_CONTENT_SIZE: usize = MAX_BLOCK_SIZE - 60_000;
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
@@ -28,19 +33,34 @@ use std::{iter, rc::Rc};
 /// # Examples
 ///
 /// ```
-/// use wnfs::{PrivateFile, Namefilter, Id};
+/// use std::rc::Rc;
 /// use chrono::Utc;
 /// use rand::thread_rng;
+/// use wnfs::{
+///     private::{PrivateForest, PrivateRef},
+///     MemoryBlockStore, Namefilter, PrivateFile,
+///     utils::get_random_bytes, MAX_BLOCK_SIZE
+/// };
 ///
-/// let rng = &mut thread_rng();
-/// let file = PrivateFile::new(
-///     Namefilter::default(),
-///     Utc::now(),
-///     b"hello world".to_vec(),
-///     rng,
-/// );
+/// #[async_std::main]
+/// async fn main() {
+///     let store = &mut MemoryBlockStore::default();
+///     let rng = &mut thread_rng();
+///     let hamt = Rc::new(PrivateForest::new());
 ///
-/// println!("file = {:?}", file);
+///     let (file, _) = PrivateFile::with_content(
+///         Namefilter::default(),
+///         Utc::now(),
+///         get_random_bytes::<100>(rng).to_vec(),
+///         hamt,
+///         store,
+///         rng,
+///     )
+///     .await
+///     .unwrap();
+///
+///     println!("file = {:?}", file);
+/// }
 /// ```
 #[derive(Debug, Clone, PartialEq)]
 pub struct PrivateFile {
@@ -50,7 +70,8 @@ pub struct PrivateFile {
     pub(crate) content: FileContent,
 }
 
-/// TODO(appcypher): Document
+/// The content of a file.
+/// It is stored inline or stored in blocks.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub(crate) enum FileContent {
     Inline {
@@ -69,7 +90,7 @@ struct PrivateFileSerializable {
     pub version: Version,
     pub header: Vec<u8>,
     pub metadata: Metadata,
-    pub content: Vec<u8>,
+    pub content: FileContent,
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -95,7 +116,7 @@ impl PrivateFile {
     ///
     /// println!("file = {:?}", file);
     /// ```
-    pub async fn empty<R: RngCore>(
+    pub fn empty<R: RngCore>(
         parent_bare_name: Namefilter,
         time: DateTime<Utc>,
         rng: &mut R,
@@ -108,23 +129,39 @@ impl PrivateFile {
         }
     }
 
-    /// Creates a file with specified content.
+    /// Creates a file with provided content.
     ///
     /// # Examples
     ///
     /// ```
-    /// use wnfs::{PrivateFile, Namefilter, Id};
+    /// use std::rc::Rc;
     /// use chrono::Utc;
     /// use rand::thread_rng;
+    /// use wnfs::{
+    ///     private::{PrivateForest, PrivateRef},
+    ///     MemoryBlockStore, Namefilter, PrivateFile,
+    ///     utils::get_random_bytes, MAX_BLOCK_SIZE
+    /// };
     ///
-    /// let rng = &mut thread_rng();
-    /// let file = PrivateFile::empty(
-    ///     Namefilter::default(),
-    ///     Utc::now(),
-    ///     rng,
-    /// );
+    /// #[async_std::main]
+    /// async fn main() {
+    ///     let store = &mut MemoryBlockStore::default();
+    ///     let rng = &mut thread_rng();
+    ///     let hamt = Rc::new(PrivateForest::new());
     ///
-    /// println!("file = {:?}", file);
+    ///     let (file, _) = PrivateFile::with_content(
+    ///         Namefilter::default(),
+    ///         Utc::now(),
+    ///         get_random_bytes::<100>(rng).to_vec(),
+    ///         hamt,
+    ///         store,
+    ///         rng,
+    ///     )
+    ///     .await
+    ///     .unwrap();
+    ///
+    ///     println!("file = {:?}", file);
+    /// }
     /// ```
     pub async fn with_content<B: BlockStore, R: RngCore>(
         parent_bare_name: Namefilter,
@@ -149,10 +186,51 @@ impl PrivateFile {
         ))
     }
 
-    /// TODO(appcypher): Document
+    /// Streams the content of a file as chunk of blocks.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use std::rc::Rc;
+    /// use chrono::Utc;
+    /// use rand::thread_rng;
+    /// use wnfs::{
+    ///     private::{PrivateForest, PrivateRef},
+    ///     MemoryBlockStore, Namefilter, PrivateFile,
+    ///     utils::get_random_bytes, MAX_BLOCK_SIZE
+    /// };
+    /// use futures::{StreamExt};
+    ///
+    /// #[async_std::main]
+    /// async fn main() {
+    ///     let store = &mut MemoryBlockStore::default();
+    ///     let rng = &mut thread_rng();
+    ///     let hamt = Rc::new(PrivateForest::new());
+    ///
+    ///     let content = get_random_bytes::<100>(rng).to_vec();
+    ///     let (file, hamt) = PrivateFile::with_content(
+    ///         Namefilter::default(),
+    ///         Utc::now(),
+    ///         content.clone(),
+    ///         hamt,
+    ///         store,
+    ///         rng,
+    ///     )
+    ///     .await
+    ///     .unwrap();
+    ///
+    ///     let mut stream_content = vec![];
+    ///     let mut stream = file.stream_content(&hamt, store);
+    ///     while let Some(block) = stream.next().await {
+    ///         stream_content.extend_from_slice(&block.unwrap());
+    ///     }
+    ///
+    ///     assert_eq!(content, stream_content);
+    /// }
+    /// ```
     pub fn stream_content<'a, B: BlockStore>(
         &'a self,
-        hamt: &'a Rc<PrivateForest>,
+        hamt: &'a PrivateForest,
         store: &'a B,
     ) -> impl Stream<Item = Result<Vec<u8>>> + 'a {
         Box::pin(try_stream! {
@@ -167,8 +245,6 @@ impl PrivateFile {
                 } => {
                     let bare_name = &self.header.bare_name;
                     for label in Self::generate_shard_labels(key, *block_count, bare_name) {
-                        println!("stream label = {:?}", label);
-
                         let bytes = Self::decrypt_block(key, &label, hamt, store).await?;
                         yield bytes
                     }
@@ -177,44 +253,123 @@ impl PrivateFile {
         })
     }
 
-    /// TODO(appcypher): Document
+    /// Gets the entire content of a file.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use std::rc::Rc;
+    /// use chrono::Utc;
+    /// use rand::thread_rng;
+    /// use wnfs::{
+    ///     private::{PrivateForest, PrivateRef},
+    ///     MemoryBlockStore, Namefilter, PrivateFile,
+    ///     utils::get_random_bytes, MAX_BLOCK_SIZE
+    /// };
+    ///
+    /// #[async_std::main]
+    /// async fn main() {
+    ///     let store = &mut MemoryBlockStore::default();
+    ///     let rng = &mut thread_rng();
+    ///     let hamt = Rc::new(PrivateForest::new());
+    ///
+    ///     let content = get_random_bytes::<100>(rng).to_vec();
+    ///     let (file, hamt) = PrivateFile::with_content(
+    ///         Namefilter::default(),
+    ///         Utc::now(),
+    ///         content.clone(),
+    ///         hamt,
+    ///         store,
+    ///         rng,
+    ///     )
+    ///     .await
+    ///     .unwrap();
+    ///
+    ///     let mut all_content = file.get_content(&hamt, store).await.unwrap();
+    ///
+    ///     assert_eq!(content, all_content);
+    /// }
+    /// ```
     pub async fn get_content<B: BlockStore>(
         &self,
-        hamt: &Rc<PrivateForest>,
+        hamt: &PrivateForest,
         store: &B,
     ) -> Result<Vec<u8>> {
-        let mut content = Vec::with_capacity(self.get_max_content_size());
-        while let Some(bytes) = self.stream_content(hamt, store).next().await {
+        let mut content = Vec::with_capacity(self.get_content_size_upper_bound());
+        let mut stream = self.stream_content(hamt, store);
+        while let Some(bytes) = stream.next().await {
             content.extend_from_slice(&bytes?);
         }
         Ok(content)
     }
 
-    /// TODO(appcypher): Document
+    /// Gets the block at specified index.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use std::rc::Rc;
+    /// use chrono::Utc;
+    /// use rand::thread_rng;
+    /// use wnfs::{
+    ///     private::{PrivateForest, PrivateRef},
+    ///     MemoryBlockStore, Namefilter, PrivateFile,
+    ///     utils::get_random_bytes, MAX_BLOCK_SIZE
+    /// };
+    ///
+    /// #[async_std::main]
+    /// async fn main() {
+    ///     let store = &mut MemoryBlockStore::default();
+    ///     let rng = &mut thread_rng();
+    ///     let hamt = Rc::new(PrivateForest::new());
+    ///
+    ///     let content = get_random_bytes::<100>(rng).to_vec();
+    ///     let (file, hamt) = PrivateFile::with_content(
+    ///         Namefilter::default(),
+    ///         Utc::now(),
+    ///         content.clone(),
+    ///         hamt,
+    ///         store,
+    ///         rng,
+    ///     )
+    ///     .await
+    ///     .unwrap();
+    ///
+    ///     let mut content_at_0 = file.get_block_at(0, &hamt, store).await.unwrap();
+    ///
+    ///     assert_eq!(content, content_at_0.unwrap());
+    /// }
+    /// ```
     pub async fn get_block_at<B: BlockStore>(
         &self,
         index: usize,
         hamt: &Rc<PrivateForest>,
-        store: &mut B,
+        store: &B,
     ) -> Result<Option<Vec<u8>>> {
-        if let FileContent::External {
-            key, block_count, ..
-        } = &self.content
-        {
-            if index >= *block_count {
-                return Ok(None);
+        match &self.content {
+            FileContent::Inline { data } => {
+                if index == 0 {
+                    return Ok(Some(data.clone()));
+                }
+
+                Ok(None)
             }
+            FileContent::External {
+                key, block_count, ..
+            } => {
+                if index < *block_count {
+                    let label = Self::create_block_label(key, *block_count, &self.header.bare_name);
+                    let bytes = Self::decrypt_block(key, &label, hamt, store).await?;
+                    return Ok(Some(bytes));
+                }
 
-            let label = Self::create_block_label(key, *block_count, &self.header.bare_name);
-            let bytes = Self::decrypt_block(key, &label, hamt, store).await?;
-            return Ok(Some(bytes));
+                Ok(None)
+            }
         }
-
-        Ok(None)
     }
 
-    /// TODO(appcypher): Document
-    pub(crate) async fn prepare_content<B: BlockStore, R: RngCore>(
+    /// Determines where to put the content of a file. This can either be inline or stored up in chunks in a HAMT.
+    pub(super) async fn prepare_content<B: BlockStore, R: RngCore>(
         bare_name: &Namefilter,
         content: Vec<u8>,
         mut hamt: Rc<PrivateForest>,
@@ -231,14 +386,9 @@ impl PrivateFile {
 
         for (index, label) in Self::generate_shard_labels(&key, block_count, bare_name).enumerate()
         {
-            println!("index = {}", index);
-            println!("label = {:?}", label);
-
             let start = index * MAX_BLOCK_CONTENT_SIZE;
             let end = content.len().min((index + 1) * MAX_BLOCK_CONTENT_SIZE);
             let slice = &content[start..end];
-
-            println!("slice = {:?}", slice);
 
             let enc_bytes = key.encrypt(&Key::generate_nonce(rng), slice)?;
             let content_cid = store.put_block(enc_bytes, libipld::IpldCodec::Raw).await?;
@@ -256,8 +406,8 @@ impl PrivateFile {
         ))
     }
 
-    /// TODO(appcypher): Document
-    fn get_max_content_size(&self) -> usize {
+    /// Gets the upper bound of a file content size.
+    pub(crate) fn get_content_size_upper_bound(&self) -> usize {
         match &self.content {
             FileContent::Inline { data } => data.len(),
             FileContent::External {
@@ -268,11 +418,11 @@ impl PrivateFile {
         }
     }
 
-    /// TODO(appcypher): Document
+    /// Decrypts a block of a file's content.
     async fn decrypt_block<B: BlockStore>(
         key: &Key,
         label: &Namefilter,
-        hamt: &Rc<PrivateForest>,
+        hamt: &PrivateForest,
         store: &B,
     ) -> Result<Vec<u8>> {
         let label_hash = &Sha3_256::hash(&label.as_bytes());
@@ -293,7 +443,7 @@ impl PrivateFile {
         Ok(bytes)
     }
 
-    /// TODO(appcypher): Document
+    /// Generates the labels for the shards of a file.
     fn generate_shard_labels<'a>(
         key: &'a Key,
         mut block_count: usize,
@@ -310,13 +460,10 @@ impl PrivateFile {
         })
     }
 
-    /// TODO(appcypher): Document
+    /// Creates the label for a block of a file.
     fn create_block_label(key: &Key, index: usize, bare_name: &Namefilter) -> Namefilter {
-        println!("key = {:?}", key);
         let key_bytes = key.as_bytes();
         let key_hash = Sha3_256::hash(&[key_bytes, &index.to_le_bytes()[..]].concat());
-
-        println!("key_hash = {:?}", key_hash);
 
         let mut label = bare_name.clone();
         label.add(&key_bytes);
@@ -392,12 +539,43 @@ mod prop_tests {
     use crate::utils::test_setup;
     use test_strategy::proptest;
 
-    // #[proptest]
     #[async_std::test]
     async fn can_create_empty_file() {
-        let _ = test_setup::init!(rng);
-        let (file, _) = test_setup::private!(file, vec![]);
+        let (file, _) = test_setup::private!(file);
+        let (ref hamt, ref store) = test_setup::init!(hamt, store);
+        let file_content = file.get_content(hamt, store).await.unwrap();
 
-        println!("file = {:?}", file);
+        assert!(file_content.is_empty());
+    }
+
+    #[proptest(cases = 100)]
+    fn can_include_and_get_content_from_file(
+        #[strategy(0..(MAX_BLOCK_CONTENT_SIZE * 2))] length: usize,
+    ) {
+        async_std::task::block_on(async {
+            let content = vec![0u8; length];
+            let (file, (ref hamt, ref store, _)) = test_setup::private!(file, content.clone());
+            let file_content = file.get_content(hamt, store).await.unwrap();
+
+            assert_eq!(file_content, content);
+        })
+    }
+
+    #[proptest(cases = 100)]
+    fn can_include_and_stream_content_from_file(
+        #[strategy(0..(MAX_BLOCK_CONTENT_SIZE * 2))] length: usize,
+    ) {
+        async_std::task::block_on(async {
+            let content = vec![0u8; length];
+            let (file, (ref hamt, ref store, _)) = test_setup::private!(file, content.clone());
+
+            let mut file_content = Vec::new();
+            let mut stream = file.stream_content(hamt, store);
+            while let Some(chunk) = stream.next().await {
+                file_content.extend_from_slice(&chunk.unwrap());
+            }
+
+            assert_eq!(file_content, content);
+        })
     }
 }
