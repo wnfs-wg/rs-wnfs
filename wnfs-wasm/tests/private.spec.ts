@@ -341,7 +341,7 @@ test.describe("PrivateDirectory", () => {
 });
 
 test.describe("PrivateFile", () => {
-  test("can create empty file", async ({ page }) => {
+  test("empty can create empty file", async ({ page }) => {
     const result = await page.evaluate(async () => {
       const {
         wnfs: { PrivateFile, Namefilter },
@@ -357,7 +357,7 @@ test.describe("PrivateFile", () => {
     expect(result).toBeDefined();
   });
 
-  test("can create file with content", async ({ page }) => {
+  test("withContent can create file with content", async ({ page }) => {
     const result = await page.evaluate(async () => {
       const {
         wnfs: { PrivateFile, PrivateForest, Namefilter },
@@ -382,7 +382,7 @@ test.describe("PrivateFile", () => {
     expect(result).toBeDefined();
   });
 
-  test("can fetch file's entire content", async ({ page }) => {
+  test("getContent can fetch file's entire content", async ({ page }) => {
     const [length, type] = await page.evaluate(async () => {
       const {
         wnfs: { PrivateFile, PrivateForest, Namefilter },

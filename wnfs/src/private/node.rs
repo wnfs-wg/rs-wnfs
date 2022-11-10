@@ -531,6 +531,7 @@ impl PrivateNodeHeader {
     /// # Examples
     ///
     /// ```
+    /// use std::rc::Rc;
     /// use wnfs::{PrivateFile, Namefilter, Id};
     /// use chrono::Utc;
     /// use rand::thread_rng;
@@ -569,6 +570,7 @@ impl PrivateNodeHeader {
     /// # Examples
     ///
     /// ```
+    /// use std::rc::Rc;
     /// use wnfs::{PrivateFile, Namefilter, private::Key};
     /// use chrono::Utc;
     /// use rand::thread_rng;
