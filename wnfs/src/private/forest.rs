@@ -7,7 +7,7 @@ use rand_core::RngCore;
 
 use crate::{BlockStore, HashOutput};
 
-use super::{hamt::Hamt, namefilter::Namefilter, Key, PrivateNode, PrivateRef};
+use super::{hamt::Hamt, namefilter::Namefilter, PrivateNode, PrivateRef};
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
@@ -38,11 +38,6 @@ pub type PrivateForest = Hamt<Namefilter, BTreeSet<Cid>>;
 //--------------------------------------------------------------------------------------------------
 
 impl PrivateForest {
-    /// Encrypts supplied bytes with a random nonce and AES key.
-    pub(crate) fn encrypt<R: RngCore>(key: &Key, data: &[u8], rng: &mut R) -> Result<Vec<u8>> {
-        key.encrypt(&Key::generate_nonce(rng), data)
-    }
-
     /// Puts a new value at the given key.
     ///
     /// # Examples
@@ -87,14 +82,7 @@ impl PrivateForest {
     ) -> Result<Rc<Self>> {
         debug!("Private Forest Set: PrivateRef: {:?}", private_ref);
 
-        // Serialize node to cbor.
-        let cbor_bytes = value.serialize_to_cbor(rng)?;
-
-        // Encrypt bytes with content key.
-        let enc_bytes = Self::encrypt(&private_ref.content_key.0, &cbor_bytes, rng)?;
-
-        // Store content section in blockstore and get Cid.
-        let content_cid = store.put_block(enc_bytes, libipld::IpldCodec::Raw).await?;
+        let content_cid = value.store(store, rng).await?;
 
         // Store header and Cid in root node.
         self.put_encrypted(saturated_name, content_cid, store).await
@@ -173,11 +161,11 @@ impl PrivateForest {
         // Decrypt bytes
         let cbor_bytes = private_ref.content_key.0.decrypt(&enc_bytes)?;
 
+        let private_node =
+            PrivateNode::deserialize_from_cbor(&cbor_bytes, &private_ref.revision_key, *cid)?;
+
         // Deserialize bytes.
-        Ok(Some(PrivateNode::deserialize_from_cbor(
-            &cbor_bytes,
-            &private_ref.revision_key,
-        )?))
+        Ok(Some(private_node))
     }
 
     /// Checks that a value with the given saturated name hash key exists.
@@ -246,6 +234,10 @@ impl PrivateForest {
             .await?
             .cloned()
             .unwrap_or_default();
+
+        if !values.is_empty() {
+            println!("Duplicate put");
+        }
         values.insert(value);
         cloned.root = self.root.set(name, values, store).await?;
         Ok(Rc::new(cloned))

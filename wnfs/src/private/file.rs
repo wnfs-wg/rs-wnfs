@@ -1,9 +1,11 @@
+use anyhow::Result;
 use chrono::{DateTime, Utc};
+use libipld::{cbor::DagCborCodec, prelude::Encode, Cid};
 use rand_core::RngCore;
 use semver::Version;
 use serde::{de::Error as DeError, ser::Error as SerError, Deserialize, Deserializer, Serialize};
 
-use crate::{dagcbor, Id, Metadata, NodeType};
+use crate::{dagcbor, BlockStore, Id, Metadata, NodeType};
 
 use super::{namefilter::Namefilter, Key, PrivateNodeHeader, RevisionKey};
 
@@ -137,6 +139,29 @@ impl PrivateFile {
             },
             content,
         })
+    }
+
+    pub(crate) async fn store<B: BlockStore>(
+        &self,
+        store: &mut B,
+        rng: &mut impl RngCore,
+    ) -> Result<Cid> {
+        // TODO(matheus23) revisit
+        let private_ref = &self.header.get_private_ref()?;
+
+        // Serialize node to cbor.
+        let ipld = self.serialize(libipld::serde::Serializer, rng)?;
+        let mut bytes = Vec::new();
+        ipld.encode(DagCborCodec, &mut bytes)?;
+
+        // Encrypt bytes with content key.
+        let enc_bytes = private_ref
+            .content_key
+            .0
+            .encrypt(&Key::generate_nonce(rng), &bytes)?;
+
+        // Store content section in blockstore and get Cid.
+        store.put_block(enc_bytes, libipld::IpldCodec::Raw).await
     }
 }
 

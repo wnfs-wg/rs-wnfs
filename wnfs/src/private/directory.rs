@@ -4,8 +4,9 @@ use std::{
 };
 
 use anyhow::{bail, ensure, Result};
+use async_once_cell::OnceCell;
 use chrono::{DateTime, Utc};
-use libipld::Cid;
+use libipld::{cbor::DagCborCodec, prelude::Encode, Cid};
 use rand_core::RngCore;
 use semver::Version;
 use serde::{de::Error as DeError, ser::Error as SerError, Deserialize, Deserializer, Serialize};
@@ -44,13 +45,37 @@ pub type PrivatePathNodesResult = PathNodesResult<PrivateDirectory>;
 ///
 /// println!("dir = {:?}", dir);
 /// ```
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug)]
 pub struct PrivateDirectory {
+    persisted_as: OnceCell<Cid>,
     pub version: Version,
     pub header: PrivateNodeHeader,
-    pub previous: Encrypted<BTreeSet<Cid>>,
+    pub previous: Option<Encrypted<BTreeSet<Cid>>>,
     pub metadata: Metadata,
     pub entries: BTreeMap<String, PrivateRef>,
+}
+
+impl PartialEq for PrivateDirectory {
+    fn eq(&self, other: &Self) -> bool {
+        self.version == other.version
+            && self.header == other.header
+            && self.previous == other.previous
+            && self.metadata == other.metadata
+            && self.entries == other.entries
+    }
+}
+
+impl Clone for PrivateDirectory {
+    fn clone(&self) -> Self {
+        Self {
+            persisted_as: OnceCell::new_with(self.persisted_as.get().cloned()),
+            version: self.version.clone(),
+            header: self.header.clone(),
+            previous: self.previous.clone(),
+            metadata: self.metadata.clone(),
+            entries: self.entries.clone(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -58,7 +83,7 @@ struct PrivateDirectorySerializable {
     pub r#type: NodeType,
     pub version: Version,
     pub header: Vec<u8>,
-    pub previous: Vec<u8>,
+    pub previous: Option<Vec<u8>>,
     pub metadata: Metadata,
     pub entries: BTreeMap<String, PrivateRefSerializable>,
 }
@@ -99,9 +124,10 @@ impl PrivateDirectory {
     /// ```
     pub fn new<R: RngCore>(parent_bare_name: Namefilter, time: DateTime<Utc>, rng: &mut R) -> Self {
         Self {
+            persisted_as: OnceCell::new(),
             version: Version::new(0, 2, 0),
             header: PrivateNodeHeader::new(parent_bare_name, rng),
-            previous: Encrypted::from_value(BTreeSet::new()),
+            previous: None,
             metadata: Metadata::new(time),
             entries: BTreeMap::new(),
         }
@@ -260,25 +286,36 @@ impl PrivateDirectory {
         }
     }
 
+    async fn next_revision<B: BlockStore>(
+        self: Rc<Self>,
+        store: &mut B,
+        rng: &mut impl RngCore,
+    ) -> Result<Self> {
+        let cid = self.store(store, rng).await?;
+
+        let mut cloned = Rc::try_unwrap(self).unwrap_or_else(|rc| (*rc).clone());
+        cloned.persisted_as = OnceCell::new();
+        let key = Key::new(cloned.header.ratchet.derive_key()); // TODO(matheus23) go via private ref
+        let previous = Encrypted::from_value(BTreeSet::from([cid]), &key, rng)?;
+
+        cloned.previous = Some(previous);
+        cloned.advance_ratchet();
+
+        Ok(cloned)
+    }
+
     /// Fix up `PathNodes` so that parents refer to the newly updated children.
     async fn fix_up_path_nodes<B: BlockStore, R: RngCore>(
         path_nodes: PrivatePathNodes,
-        hamt: Rc<PrivateForest>,
+        mut forest: Rc<PrivateForest>,
         store: &mut B,
         rng: &mut R,
     ) -> Result<(Rc<Self>, Rc<PrivateForest>)> {
-        let mut working_hamt = Rc::clone(&hamt);
-        let mut working_child_dir = {
-            let mut tmp = (*path_nodes.tail).clone();
-            // TODO(matheus23) abstract this into a 'upgrade version' function
-            tmp.advance_ratchet();
-            Rc::new(tmp)
-        };
+        let mut working_child_dir = Rc::new(path_nodes.tail.next_revision(store, rng).await?);
 
         for (parent_dir, segment) in path_nodes.path.iter().rev() {
-            let mut parent_dir = (**parent_dir).clone();
-            // TODO(matheus23) Also here
-            parent_dir.advance_ratchet();
+            let mut parent_dir = Rc::clone(parent_dir).next_revision(store, rng).await?;
+
             let child_private_ref = working_child_dir.header.get_private_ref()?;
 
             parent_dir
@@ -287,7 +324,7 @@ impl PrivateDirectory {
 
             let parent_dir = Rc::new(parent_dir);
 
-            working_hamt = working_hamt
+            forest = forest
                 .put(
                     working_child_dir.header.get_saturated_name(),
                     &child_private_ref,
@@ -300,7 +337,7 @@ impl PrivateDirectory {
             working_child_dir = parent_dir;
         }
 
-        working_hamt = working_hamt
+        forest = forest
             .put(
                 working_child_dir.header.get_saturated_name(),
                 &working_child_dir.header.get_private_ref()?,
@@ -310,7 +347,7 @@ impl PrivateDirectory {
             )
             .await?;
 
-        Ok((working_child_dir, working_hamt))
+        Ok((working_child_dir, forest))
     }
 
     /// Follows a path and fetches the node at the end of the path.
@@ -1177,11 +1214,7 @@ impl PrivateDirectory {
                 .map_err(SerError::custom)?
         };
 
-        let previous = self
-            .previous
-            .resolve_ciphertext(&key.0, rng)
-            .map_err(SerError::custom)?
-            .clone();
+        let previous = self.previous.clone().map(Encrypted::to_ciphertext);
 
         (PrivateDirectorySerializable {
             r#type: NodeType::PrivateDirectory,
@@ -1195,7 +1228,11 @@ impl PrivateDirectory {
     }
 
     /// Deserializes the directory with provided Serde deserializer and key.
-    pub(crate) fn deserialize<'de, D>(deserializer: D, key: &RevisionKey) -> Result<Self, D::Error>
+    pub(crate) fn deserialize<'de, D>(
+        deserializer: D,
+        key: &RevisionKey,
+        from_cid: Cid,
+    ) -> Result<Self, D::Error>
     where
         D: Deserializer<'de>,
     {
@@ -1217,15 +1254,41 @@ impl PrivateDirectory {
         }
 
         Ok(Self {
+            persisted_as: OnceCell::new_with(Some(from_cid)),
             version,
             metadata,
             header: {
                 let cbor_bytes = key.0.decrypt(&header).map_err(DeError::custom)?;
                 dagcbor::decode(&cbor_bytes).map_err(DeError::custom)?
             },
-            previous: Encrypted::from_ciphertext(previous),
+            previous: previous.map(|prev| Encrypted::from_ciphertext(prev)),
             entries,
         })
+    }
+
+    pub async fn store<B: BlockStore>(&self, store: &mut B, rng: &mut impl RngCore) -> Result<Cid> {
+        let cid = self
+            .persisted_as
+            .get_or_try_init::<anyhow::Error>(async {
+                let private_ref = &self.header.get_private_ref()?;
+
+                // Serialize node to cbor.
+                let ipld = self.serialize(libipld::serde::Serializer, rng)?;
+                let mut bytes = Vec::new();
+                ipld.encode(DagCborCodec, &mut bytes)?;
+
+                // Encrypt bytes with content key.
+                let enc_bytes = private_ref
+                    .content_key
+                    .0
+                    .encrypt(&Key::generate_nonce(rng), &bytes)?;
+
+                // Store content section in blockstore and get Cid.
+                store.put_block(enc_bytes, libipld::IpldCodec::Raw).await
+            })
+            .await?;
+
+        Ok(*cid)
     }
 }
 

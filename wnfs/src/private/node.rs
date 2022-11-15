@@ -6,7 +6,7 @@ use chrono::{DateTime, Utc};
 use libipld::{
     cbor::DagCborCodec,
     prelude::{Decode, Encode},
-    serde as ipld_serde, Ipld,
+    serde as ipld_serde, Cid, Ipld,
 };
 use rand_core::RngCore;
 use serde::{de::Error as DeError, ser::Error as SerError, Deserialize, Serialize};
@@ -441,19 +441,34 @@ impl PrivateNode {
         Ok(bytes)
     }
 
+    pub(crate) async fn store<B: BlockStore>(
+        &self,
+        store: &mut B,
+        rng: &mut impl RngCore,
+    ) -> Result<Cid> {
+        match self {
+            PrivateNode::File(file) => file.store(store, rng).await,
+            PrivateNode::Dir(dir) => dir.store(store, rng).await,
+        }
+    }
+
     /// Deserializes the node from dag-cbor bytes.
-    pub(crate) fn deserialize_from_cbor(bytes: &[u8], key: &RevisionKey) -> Result<Self> {
+    pub(crate) fn deserialize_from_cbor(
+        bytes: &[u8],
+        key: &RevisionKey,
+        from_cid: Cid,
+    ) -> Result<Self> {
         let ipld = Ipld::decode(DagCborCodec, &mut Cursor::new(bytes))?;
-        (ipld, key).try_into()
+        (ipld, key, from_cid).try_into()
     }
 }
 
-impl TryFrom<(Ipld, &RevisionKey)> for PrivateNode {
+impl TryFrom<(Ipld, &RevisionKey, Cid)> for PrivateNode {
     type Error = anyhow::Error;
 
-    fn try_from(pair: (Ipld, &RevisionKey)) -> Result<Self> {
-        match pair {
-            (Ipld::Map(map), key) => {
+    fn try_from(triple: (Ipld, &RevisionKey, Cid)) -> Result<Self> {
+        match triple {
+            (Ipld::Map(map), key, from_cid) => {
                 let r#type: NodeType = map
                     .get("type")
                     .ok_or(FsError::MissingNodeType)?
@@ -463,9 +478,11 @@ impl TryFrom<(Ipld, &RevisionKey)> for PrivateNode {
                     NodeType::PrivateFile => {
                         PrivateNode::from(PrivateFile::deserialize(Ipld::Map(map), key)?)
                     }
-                    NodeType::PrivateDirectory => {
-                        PrivateNode::from(PrivateDirectory::deserialize(Ipld::Map(map), key)?)
-                    }
+                    NodeType::PrivateDirectory => PrivateNode::from(PrivateDirectory::deserialize(
+                        Ipld::Map(map),
+                        key,
+                        from_cid,
+                    )?),
                     other => bail!(FsError::UnexpectedNodeType(other)),
                 })
             }
@@ -512,7 +529,16 @@ impl PrivateNodeHeader {
 
     /// Advances the ratchet.
     pub(crate) fn advance_ratchet(&mut self) {
+        println!("Advancing the ratchet.");
+        println!(
+            "Key before: {:?}",
+            self.get_private_ref().unwrap().content_key.0
+        );
         self.ratchet.inc();
+        println!(
+            "Key after:  {:?}",
+            self.get_private_ref().unwrap().content_key.0
+        );
     }
 
     /// Updates the bare name of the node.
@@ -723,9 +749,14 @@ mod private_node_tests {
         )));
         let private_ref = original_file.get_header().get_private_ref().unwrap();
 
+        // Using an arbitrary CID here since we don't test this aspect.
+        // Otherwise we would have to spin up a PrivateForest & BlockStore to get an actual CID.
+        let from_cid = Cid::default();
+
         let bytes = original_file.serialize_to_cbor(rng).unwrap();
         let deserialized_node =
-            PrivateNode::deserialize_from_cbor(&bytes, &private_ref.revision_key).unwrap();
+            PrivateNode::deserialize_from_cbor(&bytes, &private_ref.revision_key, from_cid)
+                .unwrap();
 
         assert_eq!(original_file, deserialized_node);
     }
