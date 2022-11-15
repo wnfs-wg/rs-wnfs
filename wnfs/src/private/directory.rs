@@ -68,7 +68,7 @@ impl PartialEq for PrivateDirectory {
 impl Clone for PrivateDirectory {
     fn clone(&self) -> Self {
         Self {
-            persisted_as: OnceCell::new_with(self.persisted_as.get().cloned()),
+            persisted_as: OnceCell::new(),
             version: self.version.clone(),
             header: self.header.clone(),
             previous: self.previous.clone(),
@@ -286,7 +286,7 @@ impl PrivateDirectory {
         }
     }
 
-    async fn next_revision<B: BlockStore>(
+    pub(crate) async fn next_revision<B: BlockStore>(
         self: Rc<Self>,
         store: &mut B,
         rng: &mut impl RngCore,
@@ -294,7 +294,7 @@ impl PrivateDirectory {
         let cid = self.store(store, rng).await?;
 
         let mut cloned = Rc::try_unwrap(self).unwrap_or_else(|rc| (*rc).clone());
-        cloned.persisted_as = OnceCell::new();
+        cloned.persisted_as = OnceCell::new(); // Also done in `.clone()`, but need this to work in case try_unwrap optimizes.
         let key = Key::new(cloned.header.ratchet.derive_key()); // TODO(matheus23) go via private ref
         let previous = Encrypted::from_value(BTreeSet::from([cid]), &key, rng)?;
 

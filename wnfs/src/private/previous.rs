@@ -955,11 +955,7 @@ mod private_history_tests {
 
         let past_ratchet = root_dir.header.ratchet.clone();
 
-        let root_dir = {
-            let mut tmp = (*root_dir).clone();
-            tmp.advance_ratchet();
-            Rc::new(tmp)
-        };
+        let root_dir = Rc::new(root_dir.next_revision(store, rng).await.unwrap());
 
         let hamt = hamt
             .put(

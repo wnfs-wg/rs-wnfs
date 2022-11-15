@@ -529,16 +529,7 @@ impl PrivateNodeHeader {
 
     /// Advances the ratchet.
     pub(crate) fn advance_ratchet(&mut self) {
-        println!("Advancing the ratchet.");
-        println!(
-            "Key before: {:?}",
-            self.get_private_ref().unwrap().content_key.0
-        );
         self.ratchet.inc();
-        println!(
-            "Key after:  {:?}",
-            self.get_private_ref().unwrap().content_key.0
-        );
     }
 
     /// Updates the bare name of the node.
