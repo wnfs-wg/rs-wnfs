@@ -182,6 +182,7 @@ impl PrivateFile {
         let cid = self
             .persisted_as
             .get_or_try_init::<anyhow::Error>(async {
+                // TODO(matheus23) deduplicate when reworking serialization
                 let private_ref = &self.header.get_private_ref()?;
 
                 // Serialize node to cbor.
