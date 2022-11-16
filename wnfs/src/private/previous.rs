@@ -1,9 +1,13 @@
-use std::rc::Rc;
+use std::{collections::BTreeSet, rc::Rc};
 
 use anyhow::{bail, Result};
+use libipld::Cid;
 use skip_ratchet::{ratchet::PreviousIterator, Ratchet};
 
-use super::{PrivateDirectory, PrivateFile, PrivateForest, PrivateNode, PrivateNodeHeader};
+use super::{
+    encrypted::Encrypted, PrivateDirectory, PrivateFile, PrivateForest, PrivateNode,
+    PrivateNodeHeader,
+};
 
 use crate::{BlockStore, FsError, PathNodes, PathNodesResult};
 
@@ -47,6 +51,8 @@ pub struct PrivateNodeHistory {
     /// This will always be the header of the *next* version after what's retrieved from
     /// the `ratchets` iterator.
     header: PrivateNodeHeader,
+    /// The private node tracks which previous revision's value it was a modification of.
+    previous: Option<Encrypted<BTreeSet<Cid>>>,
     /// The iterator for previous revision ratchets.
     ratchets: PreviousIterator,
 }
@@ -66,6 +72,7 @@ impl PrivateNodeHistory {
     ) -> Result<Self> {
         Self::from_header(
             node.get_header().clone(),
+            node.get_previous().clone(),
             past_ratchet,
             discrepancy_budget,
             forest,
@@ -77,6 +84,7 @@ impl PrivateNodeHistory {
     /// See also `PrivateNodeHistory::of`.
     pub fn from_header(
         header: PrivateNodeHeader,
+        previous: Option<Encrypted<BTreeSet<Cid>>>,
         past_ratchet: &Ratchet,
         discrepancy_budget: usize,
         forest: Rc<PrivateForest>,
@@ -87,6 +95,7 @@ impl PrivateNodeHistory {
         Ok(PrivateNodeHistory {
             forest,
             header,
+            previous,
             ratchets,
         })
     }
@@ -337,13 +346,14 @@ impl PrivateNodeOnPathHistory {
         let Some(older_node) = ancestor
             .dir
             .lookup_node(&ancestor.path_segment, false, &self.forest, store)
-            .await? else
-        {
+            .await?
+        else {
             return Ok(None);
         };
 
         self.target = match PrivateNodeHistory::from_header(
             self.target.header.clone(),
+            self.target.previous.clone(),
             &older_node.get_header().ratchet,
             self.discrepancy_budget,
             Rc::clone(&self.forest),

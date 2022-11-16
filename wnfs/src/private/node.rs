@@ -1,4 +1,4 @@
-use std::{cmp::Ordering, fmt::Debug, io::Cursor, rc::Rc};
+use std::{cmp::Ordering, collections::BTreeSet, fmt::Debug, io::Cursor, rc::Rc};
 
 use anyhow::{bail, Result};
 use async_recursion::async_recursion;
@@ -12,7 +12,8 @@ use skip_ratchet::{seek::JumpSize, Ratchet, RatchetSeeker};
 use crate::{utils, BlockStore, FsError, HashOutput, Id, NodeType, HASH_BYTE_SIZE};
 
 use super::{
-    hamt::Hasher, namefilter::Namefilter, Key, PrivateDirectory, PrivateFile, PrivateForest,
+    encrypted::Encrypted, hamt::Hasher, namefilter::Namefilter, Key, PrivateDirectory, PrivateFile,
+    PrivateForest,
 };
 
 //--------------------------------------------------------------------------------------------------
@@ -252,6 +253,34 @@ impl PrivateNode {
         match self {
             Self::File(file) => &file.header,
             Self::Dir(dir) => &dir.header,
+        }
+    }
+
+    /// Gets the previous links of the node.
+    ///
+    /// The previous links are encrypted with the previous revision's
+    /// revision key, so you need to know an 'older' revision of the
+    /// skip ratchet to decrypt these.
+    ///
+    /// The previous links is exactly one Cid in most cases and refers
+    /// to the ciphertext Cid from the previous revision that this
+    /// node is an update of.
+    ///
+    /// If this node is a merge-node, it has two or more previous Cids.
+    /// A single previous Cid must be from the previous revision, but all
+    /// other Cids may appear in even older revisions.
+    ///
+    /// The previous links is `None`, it doesn't have previous Cids.
+    /// The node is malformed if the previous links are `Some`, but
+    /// the `BTreeSet` inside is empty.
+    ///
+    /// # Examples
+    ///
+    /// TODO(matheus23)
+    pub fn get_previous(&self) -> &Option<Encrypted<BTreeSet<Cid>>> {
+        match self {
+            Self::File(file) => &file.previous,
+            Self::Dir(dir) => &dir.previous,
         }
     }
 
