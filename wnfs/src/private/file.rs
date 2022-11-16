@@ -219,7 +219,7 @@ impl PrivateFile {
     ///     .unwrap();
     ///
     ///     let mut stream_content = vec![];
-    ///     let mut stream = file.stream_content(0, None, &hamt, store);
+    ///     let mut stream = file.stream_content(0, &hamt, store);
     ///     while let Some(block) = stream.next().await {
     ///         stream_content.extend_from_slice(&block.unwrap());
     ///     }
@@ -230,7 +230,6 @@ impl PrivateFile {
     pub fn stream_content<'a, B: BlockStore>(
         &'a self,
         index: usize,
-        limit: Option<usize>,
         hamt: &'a PrivateForest,
         store: &'a B,
     ) -> impl Stream<Item = Result<Vec<u8>>> + 'a {
@@ -249,7 +248,7 @@ impl PrivateFile {
                     ..
                 } => {
                     let bare_name = &self.header.bare_name;
-                    for label in Self::generate_shard_labels(key, index, limit,  *block_count, bare_name) {
+                    for label in Self::generate_shard_labels(key, index,  *block_count, bare_name) {
                         let bytes = Self::decrypt_block(key, &label, hamt, store).await?;
                         yield bytes
                     }
@@ -301,7 +300,7 @@ impl PrivateFile {
         store: &B,
     ) -> Result<Vec<u8>> {
         let mut content = Vec::with_capacity(self.get_content_size_upper_bound());
-        let mut stream = self.stream_content(0, None, hamt, store);
+        let mut stream = self.stream_content(0, hamt, store);
         while let Some(bytes) = stream.next().await {
             content.extend_from_slice(&bytes?);
         }
@@ -321,7 +320,7 @@ impl PrivateFile {
         let block_count = (content.len() as f64 / MAX_BLOCK_CONTENT_SIZE as f64).ceil() as usize;
 
         for (index, label) in
-            Self::generate_shard_labels(&key, 0, None, block_count, bare_name).enumerate()
+            Self::generate_shard_labels(&key, 0, block_count, bare_name).enumerate()
         {
             let start = index * MAX_BLOCK_CONTENT_SIZE;
             let end = content.len().min((index + 1) * MAX_BLOCK_CONTENT_SIZE);
@@ -384,17 +383,11 @@ impl PrivateFile {
     fn generate_shard_labels<'a>(
         key: &'a Key,
         mut index: usize,
-        limit: Option<usize>,
         block_count: usize,
         bare_name: &'a Namefilter,
     ) -> impl Iterator<Item = Namefilter> + 'a {
-        let limit = limit
-            .map(|l| l + index)
-            .unwrap_or(usize::MAX)
-            .min(block_count);
-
         iter::from_fn(move || {
-            if index >= limit {
+            if index >= block_count {
                 return None;
             }
 
@@ -505,9 +498,15 @@ mod tests {
         let (file, (ref hamt, ref store, _)) = test_setup::private!(file, content.clone());
 
         let mut collected_content = Vec::new();
-        let mut stream = file.stream_content(2, Some(2), hamt, store);
+        let mut stream = file.stream_content(2, hamt, store);
+        let mut block_limit = 2;
         while let Some(chunk) = stream.next().await {
+            if block_limit == 0 {
+                break;
+            }
+
             collected_content.extend_from_slice(&chunk.unwrap());
+            block_limit -= 1;
         }
 
         assert_eq!(
@@ -515,6 +514,7 @@ mod tests {
             content[2 * MAX_BLOCK_CONTENT_SIZE..4 * MAX_BLOCK_CONTENT_SIZE]
         );
     }
+
     #[proptest(cases = 100)]
     fn can_include_and_get_content_from_file(
         #[strategy(0..(MAX_BLOCK_CONTENT_SIZE * 2))] length: usize,
@@ -537,7 +537,7 @@ mod tests {
             let (file, (ref hamt, ref store, _)) = test_setup::private!(file, content.clone());
 
             let mut collected_content = Vec::new();
-            let mut stream = file.stream_content(0, None, hamt, store);
+            let mut stream = file.stream_content(0, hamt, store);
             while let Some(chunk) = stream.next().await {
                 collected_content.extend_from_slice(&chunk.unwrap());
             }
