@@ -136,14 +136,13 @@ impl PrivateNode {
     /// let time = Utc::now() + Duration::days(1);
     /// let node = node.upsert_mtime(time);
     ///
-    /// let imprecise_time = Utc.timestamp_opt(time.timestamp(), 0).unwrap();
+    /// let imprecise_time = Utc.timestamp_opt(time.timestamp(), 0).single();
     /// assert_eq!(
     ///     imprecise_time,
     ///     node.as_dir()
     ///         .unwrap()
     ///         .get_metadata()
     ///         .get_modified()
-    ///         .unwrap()
     /// );
     /// ```
     pub fn upsert_mtime(&self, time: DateTime<Utc>) -> Self {
