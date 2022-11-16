@@ -136,7 +136,7 @@ impl PrivateNode {
     /// let time = Utc::now() + Duration::days(1);
     /// let node = node.upsert_mtime(time);
     ///
-    /// let imprecise_time = Utc.timestamp(time.timestamp(), 0);
+    /// let imprecise_time = Utc.timestamp_opt(time.timestamp(), 0).unwrap();
     /// assert_eq!(
     ///     imprecise_time,
     ///     node.as_dir()

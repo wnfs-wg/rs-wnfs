@@ -73,7 +73,7 @@ impl Metadata {
     ///
     /// metadata.upsert_mtime(time);
     ///
-    /// let imprecise_time = Utc.timestamp(time.timestamp(), 0);
+    /// let imprecise_time = Utc.timestamp_opt(time.timestamp(), 0).unwrap();
     /// assert_eq!(metadata.get_modified(), Some(imprecise_time));
     /// ```
     pub fn upsert_mtime(&mut self, time: DateTime<Utc>) {
@@ -91,12 +91,12 @@ impl Metadata {
     /// let time = Utc::now();
     /// let metadata = Metadata::new(time);
     ///
-    /// let imprecise_time = Utc.timestamp(time.timestamp(), 0);
+    /// let imprecise_time = Utc.timestamp_opt(time.timestamp(), 0).unwrap();
     /// assert_eq!(metadata.get_created(), Some(imprecise_time));
     /// ```
     pub fn get_created(&self) -> Option<DateTime<Utc>> {
         self.0.get("created").and_then(|ipld| match ipld {
-            Ipld::Integer(i) => Some(Utc.timestamp(i64::try_from(*i).ok()?, 0)),
+            Ipld::Integer(i) => Some(Utc.timestamp_opt(i64::try_from(*i).ok()?, 0).unwrap()),
             _ => None,
         })
     }
@@ -112,12 +112,12 @@ impl Metadata {
     /// let time = Utc::now();
     /// let metadata = Metadata::new(time);
     ///
-    /// let imprecise_time = Utc.timestamp(time.timestamp(), 0);
+    /// let imprecise_time = Utc.timestamp_opt(time.timestamp(), 0).unwrap();
     /// assert_eq!(metadata.get_modified(), Some(imprecise_time));
     /// ```
     pub fn get_modified(&self) -> Option<DateTime<Utc>> {
         self.0.get("modified").and_then(|ipld| match ipld {
-            Ipld::Integer(i) => Some(Utc.timestamp(i64::try_from(*i).ok()?, 0)),
+            Ipld::Integer(i) => Some(Utc.timestamp_opt(i64::try_from(*i).ok()?, 0).unwrap()),
             _ => None,
         })
     }
