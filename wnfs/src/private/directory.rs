@@ -54,36 +54,12 @@ pub struct PrivateDirectory {
     pub metadata: Metadata,
     pub entries: BTreeMap<String, PrivateRef>,
 }
-
-impl PartialEq for PrivateDirectory {
-    fn eq(&self, other: &Self) -> bool {
-        self.version == other.version
-            && self.header == other.header
-            && self.previous == other.previous
-            && self.metadata == other.metadata
-            && self.entries == other.entries
-    }
-}
-
-impl Clone for PrivateDirectory {
-    fn clone(&self) -> Self {
-        Self {
-            persisted_as: OnceCell::new(),
-            version: self.version.clone(),
-            header: self.header.clone(),
-            previous: self.previous.clone(),
-            metadata: self.metadata.clone(),
-            entries: self.entries.clone(),
-        }
-    }
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct PrivateDirectorySerializable {
     pub r#type: NodeType,
     pub version: Version,
     pub header: Vec<u8>,
-    pub previous: Option<Vec<u8>>,
+    pub previous: Option<Encrypted<BTreeSet<Cid>>>,
     pub metadata: Metadata,
     pub entries: BTreeMap<String, PrivateRefSerializable>,
 }
@@ -156,11 +132,6 @@ impl PrivateDirectory {
     #[inline]
     pub fn get_metadata<'a>(self: &'a Rc<Self>) -> &'a Metadata {
         &self.metadata
-    }
-
-    /// Advances the ratchet.
-    pub(crate) fn advance_ratchet(&mut self) {
-        self.header.advance_ratchet();
     }
 
     /// Creates a new `PathNodes` that is not based on an existing file tree.
@@ -286,7 +257,7 @@ impl PrivateDirectory {
         }
     }
 
-    pub(crate) async fn next_revision<B: BlockStore>(
+    pub(crate) async fn prepare_next_revision<B: BlockStore>(
         self: Rc<Self>,
         store: &mut B,
         rng: &mut impl RngCore,
@@ -295,11 +266,11 @@ impl PrivateDirectory {
 
         let mut cloned = Rc::try_unwrap(self).unwrap_or_else(|rc| (*rc).clone());
         cloned.persisted_as = OnceCell::new(); // Also done in `.clone()`, but need this to work in case try_unwrap optimizes.
-        let key = Key::new(cloned.header.ratchet.derive_key()); // TODO(matheus23) go via private ref
+        let key = cloned.header.get_private_ref()?.revision_key.0;
         let previous = Encrypted::from_value(BTreeSet::from([cid]), &key, rng)?;
 
         cloned.previous = Some(previous);
-        cloned.advance_ratchet();
+        cloned.header.advance_ratchet();
 
         Ok(cloned)
     }
@@ -311,10 +282,13 @@ impl PrivateDirectory {
         store: &mut B,
         rng: &mut R,
     ) -> Result<(Rc<Self>, Rc<PrivateForest>)> {
-        let mut working_child_dir = Rc::new(path_nodes.tail.next_revision(store, rng).await?);
+        let mut working_child_dir =
+            Rc::new(path_nodes.tail.prepare_next_revision(store, rng).await?);
 
         for (parent_dir, segment) in path_nodes.path.iter().rev() {
-            let mut parent_dir = Rc::clone(parent_dir).next_revision(store, rng).await?;
+            let mut parent_dir = Rc::clone(parent_dir)
+                .prepare_next_revision(store, rng)
+                .await?;
 
             let child_private_ref = working_child_dir.header.get_private_ref()?;
 
@@ -589,10 +563,9 @@ impl PrivateDirectory {
             .await?
         {
             Some(PrivateNode::File(file_before)) => {
-                let mut file = (*file_before).clone();
+                let mut file = file_before.prepare_next_revision(store, rng).await?;
                 file.content = content;
                 file.metadata.upsert_mtime(time);
-                file.header.advance_ratchet();
                 file
             }
             Some(PrivateNode::Dir(_)) => bail!(FsError::DirectoryAlreadyExists),
@@ -1214,13 +1187,11 @@ impl PrivateDirectory {
                 .map_err(SerError::custom)?
         };
 
-        let previous = self.previous.clone().map(Encrypted::to_ciphertext);
-
         (PrivateDirectorySerializable {
             r#type: NodeType::PrivateDirectory,
             version: self.version.clone(),
             header,
-            previous,
+            previous: self.previous.clone(),
             metadata: self.metadata.clone(),
             entries,
         })
@@ -1261,7 +1232,7 @@ impl PrivateDirectory {
                 let cbor_bytes = key.0.decrypt(&header).map_err(DeError::custom)?;
                 dagcbor::decode(&cbor_bytes).map_err(DeError::custom)?
             },
-            previous: previous.map(|prev| Encrypted::from_ciphertext(prev)),
+            previous,
             entries,
         })
     }
@@ -1289,6 +1260,29 @@ impl PrivateDirectory {
             .await?;
 
         Ok(*cid)
+    }
+}
+
+impl PartialEq for PrivateDirectory {
+    fn eq(&self, other: &Self) -> bool {
+        self.version == other.version
+            && self.header == other.header
+            && self.previous == other.previous
+            && self.metadata == other.metadata
+            && self.entries == other.entries
+    }
+}
+
+impl Clone for PrivateDirectory {
+    fn clone(&self) -> Self {
+        Self {
+            persisted_as: OnceCell::new(),
+            version: self.version.clone(),
+            header: self.header.clone(),
+            previous: self.previous.clone(),
+            metadata: self.metadata.clone(),
+            entries: self.entries.clone(),
+        }
     }
 }
 

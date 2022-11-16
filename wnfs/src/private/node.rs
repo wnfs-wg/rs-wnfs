@@ -3,11 +3,7 @@ use std::{cmp::Ordering, fmt::Debug, io::Cursor, rc::Rc};
 use anyhow::{bail, Result};
 use async_recursion::async_recursion;
 use chrono::{DateTime, Utc};
-use libipld::{
-    cbor::DagCborCodec,
-    prelude::{Decode, Encode},
-    serde as ipld_serde, Cid, Ipld,
-};
+use libipld::{cbor::DagCborCodec, prelude::Decode, Cid, Ipld};
 use rand_core::RngCore;
 use serde::{de::Error as DeError, ser::Error as SerError, Deserialize, Serialize};
 use sha3::Sha3_256;
@@ -418,27 +414,19 @@ impl PrivateNode {
         }
     }
 
-    /// Serializes the node with provided Serde serializer.
-    pub(crate) fn serialize<S, R: RngCore>(
-        &self,
-        serializer: S,
-        rng: &mut R,
-    ) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        match self {
-            PrivateNode::File(file) => file.serialize(serializer, rng),
-            PrivateNode::Dir(dir) => dir.serialize(serializer, rng),
-        }
-    }
+    pub(crate) async fn load<B: BlockStore>(
+        cid: Cid,
+        private_ref: &PrivateRef,
+        store: &B,
+    ) -> Result<PrivateNode> {
+        // Fetch encrypted bytes from blockstore.
+        let enc_bytes = store.get_block(&cid).await?;
 
-    /// Serializes the node to dag-cbor bytes.
-    pub(crate) fn serialize_to_cbor<R: RngCore>(&self, rng: &mut R) -> Result<Vec<u8>> {
-        let ipld = self.serialize(ipld_serde::Serializer, rng)?;
-        let mut bytes = Vec::new();
-        ipld.encode(DagCborCodec, &mut bytes)?;
-        Ok(bytes)
+        // Decrypt bytes
+        let cbor_bytes = private_ref.content_key.0.decrypt(&enc_bytes)?;
+
+        // Deserialize
+        PrivateNode::deserialize_from_cbor(&cbor_bytes, &private_ref.revision_key, cid)
     }
 
     pub(crate) async fn store<B: BlockStore>(
@@ -476,7 +464,7 @@ impl TryFrom<(Ipld, &RevisionKey, Cid)> for PrivateNode {
 
                 Ok(match r#type {
                     NodeType::PrivateFile => {
-                        PrivateNode::from(PrivateFile::deserialize(Ipld::Map(map), key)?)
+                        PrivateNode::from(PrivateFile::deserialize(Ipld::Map(map), key, from_cid)?)
                     }
                     NodeType::PrivateDirectory => PrivateNode::from(PrivateDirectory::deserialize(
                         Ipld::Map(map),
@@ -727,10 +715,13 @@ impl RevisionKey {
 mod private_node_tests {
     use proptest::test_runner::{RngAlgorithm, TestRng};
 
+    use crate::MemoryBlockStore;
+
     use super::*;
 
-    #[test]
-    fn serialized_private_node_can_be_deserialized() {
+    #[async_std::test]
+    async fn serialized_private_node_can_be_deserialized() {
+        let store = &mut MemoryBlockStore::new();
         let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
         let original_file = PrivateNode::File(Rc::new(PrivateFile::new(
             Namefilter::default(),
@@ -738,16 +729,11 @@ mod private_node_tests {
             b"Lorem ipsum dolor sit amet".to_vec(),
             rng,
         )));
+
         let private_ref = original_file.get_header().get_private_ref().unwrap();
 
-        // Using an arbitrary CID here since we don't test this aspect.
-        // Otherwise we would have to spin up a PrivateForest & BlockStore to get an actual CID.
-        let from_cid = Cid::default();
-
-        let bytes = original_file.serialize_to_cbor(rng).unwrap();
-        let deserialized_node =
-            PrivateNode::deserialize_from_cbor(&bytes, &private_ref.revision_key, from_cid)
-                .unwrap();
+        let cid = original_file.store(store, rng).await.unwrap();
+        let deserialized_node = PrivateNode::load(cid, &private_ref, store).await.unwrap();
 
         assert_eq!(original_file, deserialized_node);
     }

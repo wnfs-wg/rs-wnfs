@@ -16,15 +16,6 @@ pub struct Encrypted<T> {
     value_cache: OnceCell<T>,
 }
 
-impl<'de, T> Deserialize<'de> for Encrypted<T> {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        Ok(Self::from_ciphertext(Vec::<u8>::deserialize(deserializer)?))
-    }
-}
-
 impl<T> Encrypted<T> {
     pub fn from_value(value: T, key: &Key, rng: &mut impl RngCore) -> Result<Self>
     where
@@ -64,12 +55,30 @@ impl<T> Encrypted<T> {
         &self.ciphertext
     }
 
-    pub fn to_ciphertext(self) -> Vec<u8> {
+    pub fn take_ciphertext(self) -> Vec<u8> {
         self.ciphertext
     }
 
     pub fn get_value(&self) -> Option<&T> {
         self.value_cache.get()
+    }
+}
+
+impl<'de, T> Deserialize<'de> for Encrypted<T> {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        Ok(Self::from_ciphertext(Vec::<u8>::deserialize(deserializer)?))
+    }
+}
+
+impl<T> Serialize for Encrypted<T> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        self.ciphertext.serialize(serializer)
     }
 }
 

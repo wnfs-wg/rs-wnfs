@@ -155,17 +155,7 @@ impl PrivateForest {
             None => return Ok(None),
         };
 
-        // Fetch encrypted bytes from blockstore.
-        let enc_bytes = store.get_block(cid).await?;
-
-        // Decrypt bytes
-        let cbor_bytes = private_ref.content_key.0.decrypt(&enc_bytes)?;
-
-        let private_node =
-            PrivateNode::deserialize_from_cbor(&cbor_bytes, &private_ref.revision_key, *cid)?;
-
-        // Deserialize bytes.
-        Ok(Some(private_node))
+        Ok(Some(PrivateNode::load(*cid, private_ref, store).await?))
     }
 
     /// Checks that a value with the given saturated name hash key exists.
