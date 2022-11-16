@@ -52,17 +52,13 @@ where
     hasher: PhantomData<H>,
 }
 
-/// A type alias for the return value from `Node::remove_value`
-// TODO(matheus23) this is not the best way to handle this.
-pub type RemovedResult<K, V, H> = (Rc<Node<K, V, H>>, Option<Pair<K, V>>);
-
 //--------------------------------------------------------------------------------------------------
 // Implementations
 //--------------------------------------------------------------------------------------------------
 
 impl<K, V, H> Node<K, V, H>
 where
-    H: Hasher + Clone,
+    H: Hasher + Clone + 'static,
 {
     /// Sets a new value at the given key.
     ///
@@ -377,15 +373,18 @@ where
         }
     }
 
-    fn remove_value<'a, B: BlockStore>(
+    // It's internal and is only more complex because async_recursion doesn't work here
+    #[allow(clippy::type_complexity)]
+    fn remove_value<'k, 'v, 'a, B: BlockStore>(
         self: Rc<Self>,
         hashnibbles: &'a mut HashNibbles,
         store: &'a B,
-    ) -> LocalBoxFuture<'a, Result<RemovedResult<K, V, H>>>
+    ) -> LocalBoxFuture<'a, Result<(Rc<Node<K, V, H>>, Option<Pair<K, V>>)>>
     where
-        K: DeserializeOwned + Clone + AsRef<[u8]> + 'a,
-        V: DeserializeOwned + Clone + 'a,
-        H: 'a,
+        K: DeserializeOwned + Clone + AsRef<[u8]> + 'k,
+        V: DeserializeOwned + Clone + 'v,
+        'k: 'a,
+        'v: 'a,
     {
         Box::pin(async move {
             let bit_index = hashnibbles.try_next()?;
