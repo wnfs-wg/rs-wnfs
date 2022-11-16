@@ -399,34 +399,33 @@ where
             let mut node = Rc::try_unwrap(self).unwrap_or_else(|rc| (*rc).clone());
 
             let removed = match &mut node.pointers[value_index] {
-                Pointer::Values(values) => {
-                    if values.len() == 1 {
-                        // If the key doesn't match, return without removing.
-                        if &H::hash(&values[0].key) != hashnibbles.digest {
-                            None
-                        } else {
-                            // If there is only one value, we can remove the entire pointer.
-                            node.bitmask.set(bit_index, false);
-                            match node.pointers.remove(value_index) {
-                                Pointer::Values(mut values) => Some(values.pop().unwrap()),
-                                _ => unreachable!(),
-                            }
-                        }
+                // If there is only one value, we can remove the entire pointer.
+                Pointer::Values(values) if values.len() == 1 => {
+                    // If the key doesn't match, return without removing.
+                    if &H::hash(&values[0].key) != hashnibbles.digest {
+                        None
                     } else {
-                        // Otherwise, remove just the value.
-                        match values
-                            .iter()
-                            .position(|p| &H::hash(&p.key) == hashnibbles.digest)
-                        {
-                            Some(i) => {
-                                let value = values.remove(i);
-                                // We can take here because we replace the node.pointers here afterwards anyway
-                                let values = std::mem::take(values);
-                                node.pointers[value_index] = Pointer::Values(values);
-                                Some(value)
-                            }
-                            None => None,
+                        node.bitmask.set(bit_index, false);
+                        match node.pointers.remove(value_index) {
+                            Pointer::Values(mut values) => Some(values.pop().unwrap()),
+                            _ => unreachable!(),
                         }
+                    }
+                }
+                // Otherwise, remove just the value.
+                Pointer::Values(values) => {
+                    match values
+                        .iter()
+                        .position(|p| &H::hash(&p.key) == hashnibbles.digest)
+                    {
+                        Some(i) => {
+                            let value = values.remove(i);
+                            // We can take here because we replace the node.pointers here afterwards anyway
+                            let values = std::mem::take(values);
+                            node.pointers[value_index] = Pointer::Values(values);
+                            Some(value)
+                        }
+                        None => None,
                     }
                 }
                 Pointer::Link(link) => {
