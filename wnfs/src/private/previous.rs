@@ -252,13 +252,9 @@ impl PrivateNodeOnPathHistory {
             PathNodesResult::NotADirectory(_, _) => bail!(FsError::NotADirectory),
         };
 
-        // TODO(matheus23) refactor using let-else once rust stable 1.65 released (Nov 3rd)
-        let target = match (*path_nodes.tail)
-            .lookup_node(target_path_segment, false, &forest, store)
-            .await?
-        {
-            Some(target) => target,
-            None => bail!(FsError::NotFound),
+        let Some(target) = (*path_nodes.tail).lookup_node(target_path_segment, false, &forest, store).await?
+        else {
+            bail!(FsError::NotFound);
         };
 
         let target_latest = if search_latest {
@@ -322,10 +318,9 @@ impl PrivateNodeOnPathHistory {
             return Ok(Some(node));
         }
 
-        // TODO(matheus23) refactor using let-else once rust stable 1.65 released (Nov 3rd)
-        let working_stack = match self.find_and_step_segment_history(store).await? {
-            Some(stack) => stack,
-            None => return Ok(None),
+        let Some(working_stack) = self.find_and_step_segment_history(store).await?
+        else {
+            return Ok(None);
         };
 
         if !self
@@ -339,14 +334,12 @@ impl PrivateNodeOnPathHistory {
             "Should not happen: path stack was empty after call to repopulate_segment_histories",
         );
 
-        // TODO(matheus23) refactor using let-else once rust stable 1.65 released (Nov 3rd)
-        let older_node = match ancestor
+        let Some(older_node) = ancestor
             .dir
             .lookup_node(&ancestor.path_segment, false, &self.forest, store)
-            .await?
+            .await? else
         {
-            Some(older_node) => older_node,
-            None => return Ok(None),
+            return Ok(None);
         };
 
         self.target = match PrivateNodeHistory::from_header(
@@ -425,14 +418,12 @@ impl PrivateNodeOnPathHistory {
                 .expect("Should not happen: repopulate_segment_histories called when the path stack was empty.");
 
             // Go down from the older ancestor directory parallel to the new revision's path
-            // TODO(matheus23) refactor using let-else once rust stable 1.65 released (Nov 3rd)
-            let older_directory = match ancestor
+            let Some(PrivateNode::Dir(older_directory)) = ancestor
                 .dir
                 .lookup_node(&ancestor.path_segment, false, &self.forest, store)
                 .await?
-            {
-                Some(PrivateNode::Dir(older_directory)) => older_directory,
-                _ => return Ok(false),
+            else {
+                return Ok(false);
             };
 
             let mut directory_history = match PrivateNodeHistory::of(
@@ -452,10 +443,9 @@ impl PrivateNodeOnPathHistory {
             };
 
             // We need to find the in-between history entry! See the test case `previous_with_multiple_child_changes`.
-            // TODO(matheus23) refactor using let-else once rust stable 1.65 released (Nov 3rd)
-            let directory_prev = match directory_history.get_previous_dir(store).await? {
-                Some(dir) => dir,
-                _ => return Ok(false),
+            let Some(directory_prev) = directory_history.get_previous_dir(store).await?
+            else {
+                return Ok(false);
             };
 
             self.path.push(PathSegmentHistory {
