@@ -529,9 +529,25 @@ where
     where
         D: Deserializer<'de>,
     {
-        let (bitmask, pointers): (BitMaskType, _) = Deserialize::deserialize(deserializer)?;
+        let (bitmask, pointers): (BitMaskType, Vec<Pointer<K, V, H>>) =
+            Deserialize::deserialize(deserializer)?;
+        let bitmask = BitArray::<BitMaskType>::from(bitmask);
+        if bitmask.len() != HAMT_BITMASK_BIT_SIZE {
+            return Err(serde::de::Error::custom(format!(
+                "invalid bitmask length, expected {HAMT_BITMASK_BIT_SIZE}, but got {}",
+                bitmask.len()
+            )));
+        }
+        let bitmask_bits_set = bitmask.count_ones();
+        if pointers.len() != bitmask_bits_set {
+            return Err(serde::de::Error::custom(format!(
+                "pointers length does not match bitmask, bitmask bits set: {}, pointers length: {}",
+                bitmask_bits_set,
+                pointers.len()
+            )));
+        }
         Ok(Node {
-            bitmask: BitArray::<BitMaskType>::from(bitmask),
+            bitmask,
             pointers,
             hasher: PhantomData,
         })
