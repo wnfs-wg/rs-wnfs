@@ -91,6 +91,12 @@ pub trait BlockStore {
 #[derive(Debug, Default)]
 pub struct MemoryBlockStore(HashMap<String, Vec<u8>>);
 
+/// A MergeStore combines two block stores into one.
+pub struct MergeStore<'a, M: BlockStore, A: BlockStore> {
+    main: M,
+    alt: &'a A,
+}
+
 //--------------------------------------------------------------------------------------------------
 // Implementations
 //--------------------------------------------------------------------------------------------------
@@ -125,12 +131,35 @@ impl BlockStore for MemoryBlockStore {
     }
 }
 
+impl<'a, M: BlockStore, A: BlockStore> MergeStore<'a, M, A> {
+    /// Creates a new MergeStore.
+    pub fn new(main: M, alt: &'a A) -> Self {
+        Self { main, alt }
+    }
+}
+
+#[async_trait(?Send)]
+impl<'a, M: BlockStore, A: BlockStore> BlockStore for MergeStore<'a, M, A> {
+    /// Stores an array of bytes in the main block store.
+    async fn put_block(&mut self, bytes: Vec<u8>, codec: IpldCodec) -> Result<Cid> {
+        self.main.put_block(bytes, codec).await
+    }
+
+    /// Retrieves an array of bytes from either block store with given CID.
+    async fn get_block<'b>(&'b self, cid: &Cid) -> Result<Cow<'b, Vec<u8>>> {
+        match self.main.get_block(cid).await {
+            Ok(bytes) => Ok(bytes),
+            Err(_) => self.alt.get_block(cid).await,
+        }
+    }
+}
+
 //--------------------------------------------------------------------------------------------------
 // Functions
 //--------------------------------------------------------------------------------------------------
 
 #[cfg(test)]
-mod blockstore_tests {
+mod tests {
     use libipld::{cbor::DagCborCodec, codec::Encode};
 
     use super::*;
@@ -172,5 +201,23 @@ mod blockstore_tests {
 
         assert_eq!(first_loaded, vec![1, 2, 3, 4, 5]);
         assert_eq!(second_loaded, b"hello world".to_vec());
+    }
+
+    #[async_std::test]
+    async fn merge_store_inserted_items_can_be_retrieved() {
+        let mut store_alt = MemoryBlockStore::new();
+        let cid_alt = store_alt
+            .put_block(vec![10, 20, 35], IpldCodec::DagCbor)
+            .await
+            .unwrap();
+
+        let merge_store = &mut MergeStore::new(MemoryBlockStore::new(), &store_alt);
+        let cid_main = merge_store
+            .put_block(vec![55, 40, 77], IpldCodec::DagCbor)
+            .await
+            .unwrap();
+
+        assert!(merge_store.get_block(&cid_alt).await.is_ok());
+        assert!(merge_store.get_block(&cid_main).await.is_ok());
     }
 }
