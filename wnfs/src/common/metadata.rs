@@ -94,9 +94,12 @@ impl Metadata {
     /// let imprecise_time = Utc.timestamp(time.timestamp(), 0);
     /// assert_eq!(metadata.get_created(), Some(imprecise_time));
     /// ```
+    ///
+    /// Will return `None` if there's no created metadata on the
+    /// node or if it's not a second-based POSIX timestamp integer.
     pub fn get_created(&self) -> Option<DateTime<Utc>> {
         self.0.get("created").and_then(|ipld| match ipld {
-            Ipld::Integer(i) => Some(Utc.timestamp(i64::try_from(*i).ok()?, 0)),
+            Ipld::Integer(i) => Utc.timestamp_opt(i64::try_from(*i).ok()?, 0).single(),
             _ => None,
         })
     }
@@ -115,9 +118,12 @@ impl Metadata {
     /// let imprecise_time = Utc.timestamp(time.timestamp(), 0);
     /// assert_eq!(metadata.get_modified(), Some(imprecise_time));
     /// ```
+    ///
+    /// Will return `None` if there's no created metadata on the
+    /// node or if it's not a second-based POSIX timestamp integer.
     pub fn get_modified(&self) -> Option<DateTime<Utc>> {
         self.0.get("modified").and_then(|ipld| match ipld {
-            Ipld::Integer(i) => Some(Utc.timestamp(i64::try_from(*i).ok()?, 0)),
+            Ipld::Integer(i) => Utc.timestamp_opt(i64::try_from(*i).ok()?, 0).single(),
             _ => None,
         })
     }

@@ -6,6 +6,7 @@ use async_recursion::async_recursion;
 use async_trait::async_trait;
 use bitvec::array::BitArray;
 
+use futures::future::LocalBoxFuture;
 use libipld::{serde as ipld_serde, Ipld};
 use log::debug;
 use serde::{
@@ -57,7 +58,7 @@ where
 
 impl<K, V, H> Node<K, V, H>
 where
-    H: Hasher + Clone,
+    H: Hasher + Clone + 'static,
 {
     /// Sets a new value at the given key.
     ///
@@ -76,7 +77,7 @@ where
     ///     assert_eq!(node.get(&String::from("key"), store).await.unwrap(), Some(&42));
     /// }
     /// ```
-    pub async fn set<B: BlockStore>(&self, key: K, value: V, store: &B) -> Result<Rc<Self>>
+    pub async fn set<B: BlockStore>(self: Rc<Self>, key: K, value: V, store: &B) -> Result<Rc<Self>>
     where
         K: DeserializeOwned + Clone + AsRef<[u8]>,
         V: DeserializeOwned + Clone,
@@ -261,50 +262,47 @@ where
         (mask & self.bitmask).count_ones()
     }
 
-    #[async_recursion(?Send)]
-    async fn set_value<B: BlockStore>(
-        &self,
-        hashnibbles: &mut HashNibbles,
+    fn set_value<'a, B: BlockStore>(
+        self: Rc<Self>,
+        hashnibbles: &'a mut HashNibbles,
         key: K,
         value: V,
-        store: &B,
-    ) -> Result<Rc<Self>>
+        store: &'a B,
+    ) -> LocalBoxFuture<'a, Result<Rc<Self>>>
     where
-        K: DeserializeOwned + Clone + AsRef<[u8]>,
-        V: DeserializeOwned + Clone,
+        K: DeserializeOwned + Clone + AsRef<[u8]> + 'a,
+        V: DeserializeOwned + Clone + 'a,
+        H: 'a,
     {
-        let bit_index = hashnibbles.try_next()?;
-        let value_index = self.get_value_index(bit_index);
+        Box::pin(async move {
+            let bit_index = hashnibbles.try_next()?;
+            let value_index = self.get_value_index(bit_index);
 
-        debug!(
-            "set_value: bit_index = {}, value_index = {}",
-            bit_index, value_index
-        );
+            debug!(
+                "set_value: bit_index = {}, value_index = {}",
+                bit_index, value_index
+            );
 
-        // If the bit is not set yet, insert a new pointer.
-        if !self.bitmask[bit_index] {
-            let mut node = self.clone();
+            let mut node = Rc::try_unwrap(self).unwrap_or_else(|rc| (*rc).clone());
 
-            node.pointers
-                .insert(value_index, Pointer::Values(vec![Pair { key, value }]));
+            // If the bit is not set yet, insert a new pointer.
+            if !node.bitmask[bit_index] {
+                node.pointers
+                    .insert(value_index, Pointer::Values(vec![Pair { key, value }]));
 
-            node.bitmask.set(bit_index, true);
+                node.bitmask.set(bit_index, true);
 
-            return Ok(Rc::new(node));
-        }
+                return Ok(Rc::new(node));
+            }
 
-        Ok(match &self.pointers[value_index] {
-            Pointer::Values(values) => {
-                let mut node = self.clone();
-                let pointers: Pointer<_, _, H> = {
-                    let mut values = (*values).clone();
+            match &mut node.pointers[value_index] {
+                Pointer::Values(values) => {
                     if let Some(i) = values
                         .iter()
                         .position(|p| &H::hash(&p.key) == hashnibbles.digest)
                     {
                         // If the key is already present, update the value.
                         values[i] = Pair::new(key, value);
-                        Pointer::Values(values)
                     } else {
                         // Otherwise, insert the new value if bucket is not full. Create new node if it is.
                         if values.len() < HAMT_VALUES_BUCKET_SIZE {
@@ -314,11 +312,13 @@ where
                                 .position(|p| &H::hash(&p.key) > hashnibbles.digest)
                                 .unwrap_or(values.len());
                             values.insert(index, Pair::new(key, value));
-                            Pointer::Values(values)
                         } else {
                             // If values has reached threshold, we need to create a node link that splits it.
                             let mut sub_node = Rc::new(Node::<K, V, H>::default());
                             let cursor = hashnibbles.get_cursor();
+                            // We can take because
+                            // Pointer::Values() gets replaced with Pointer::Link at the end
+                            let values = std::mem::take(values);
                             for Pair { key, value } in
                                 values.into_iter().chain(Some(Pair::new(key, value)))
                             {
@@ -327,21 +327,18 @@ where
                                 sub_node =
                                     sub_node.set_value(hashnibbles, key, value, store).await?;
                             }
-                            Pointer::Link(Link::from(sub_node))
+                            node.pointers[value_index] = Pointer::Link(Link::from(sub_node));
                         }
                     }
-                };
+                }
+                Pointer::Link(link) => {
+                    let child = Rc::clone(link.resolve_value(store).await?);
+                    let child = child.set_value(hashnibbles, key, value, store).await?;
+                    node.pointers[value_index] = Pointer::Link(Link::from(child));
+                }
+            }
 
-                node.pointers[value_index] = pointers;
-                Rc::new(node)
-            }
-            Pointer::Link(link) => {
-                let child = Rc::clone(link.resolve_value(store).await?);
-                let child = child.set_value(hashnibbles, key, value, store).await?;
-                let mut node = self.clone();
-                node.pointers[value_index] = Pointer::Link(Link::from(child));
-                Rc::new(node)
-            }
+            Ok(Rc::new(node))
         })
     }
 
@@ -376,76 +373,83 @@ where
         }
     }
 
-    #[async_recursion(?Send)]
-    async fn remove_value<'a, 'b, B: BlockStore>(
-        self: &'a Rc<Self>,
-        hashnibbles: &'b mut HashNibbles,
-        store: &B,
-    ) -> Result<(Rc<Self>, Option<Pair<K, V>>)>
+    // It's internal and is only more complex because async_recursion doesn't work here
+    #[allow(clippy::type_complexity)]
+    fn remove_value<'k, 'v, 'a, B: BlockStore>(
+        self: Rc<Self>,
+        hashnibbles: &'a mut HashNibbles,
+        store: &'a B,
+    ) -> LocalBoxFuture<'a, Result<(Rc<Node<K, V, H>>, Option<Pair<K, V>>)>>
     where
-        K: DeserializeOwned + Clone + AsRef<[u8]>,
-        V: DeserializeOwned + Clone,
+        K: DeserializeOwned + Clone + AsRef<[u8]> + 'k,
+        V: DeserializeOwned + Clone + 'v,
+        'k: 'a,
+        'v: 'a,
     {
-        let bit_index = hashnibbles.try_next()?;
+        Box::pin(async move {
+            let bit_index = hashnibbles.try_next()?;
 
-        // If the bit is not set yet, return None.
-        if !self.bitmask[bit_index] {
-            return Ok((Rc::clone(self), None));
-        }
+            // If the bit is not set yet, return None.
+            if !self.bitmask[bit_index] {
+                return Ok((self, None));
+            }
 
-        let value_index = self.get_value_index(bit_index);
-        Ok(match &self.pointers[value_index] {
-            Pointer::Values(values) => {
-                let mut node = (**self).clone();
-                let value = if values.len() == 1 {
+            let value_index = self.get_value_index(bit_index);
+
+            let mut node = Rc::try_unwrap(self).unwrap_or_else(|rc| (*rc).clone());
+
+            let removed = match &mut node.pointers[value_index] {
+                // If there is only one value, we can remove the entire pointer.
+                Pointer::Values(values) if values.len() == 1 => {
                     // If the key doesn't match, return without removing.
                     if &H::hash(&values[0].key) != hashnibbles.digest {
-                        return Ok((Rc::clone(self), None));
+                        None
+                    } else {
+                        node.bitmask.set(bit_index, false);
+                        match node.pointers.remove(value_index) {
+                            Pointer::Values(mut values) => Some(values.pop().unwrap()),
+                            _ => unreachable!(),
+                        }
                     }
-                    // If there is only one value, we can remove the entire pointer.
-                    node.bitmask.set(bit_index, false);
-                    match node.pointers.remove(value_index) {
-                        Pointer::Values(mut values) => Some(values.pop().unwrap()),
-                        _ => unreachable!(),
-                    }
-                } else {
-                    // Otherwise, remove just the value.
-                    let mut values = (*values).clone();
-                    values
+                }
+                // Otherwise, remove just the value.
+                Pointer::Values(values) => {
+                    match values
                         .iter()
                         .position(|p| &H::hash(&p.key) == hashnibbles.digest)
-                        .map(|i| {
-                            let value = values.remove(i);
-                            node.pointers[value_index] = Pointer::Values(values);
-                            value
-                        })
-                };
-
-                (Rc::new(node), value)
-            }
-            Pointer::Link(link) => {
-                let child = Rc::clone(link.resolve_value(store).await?);
-                let (child, value) = child.remove_value(hashnibbles, store).await?;
-
-                let mut node = (**self).clone();
-                if value.is_some() {
-                    // If something has been deleted, we attempt toc canonicalize the pointer.
-                    if let Some(pointer) =
-                        Pointer::Link(Link::from(child)).canonicalize(store).await?
                     {
-                        node.pointers[value_index] = pointer;
-                    } else {
-                        // This is None if the pointer now points to an empty node.
-                        // In that case, we remove it from the parent.
-                        node.bitmask.set(bit_index, false);
-                        node.pointers.remove(value_index);
+                        Some(i) => {
+                            let value = values.remove(i);
+                            // We can take here because we replace the node.pointers here afterwards anyway
+                            let values = std::mem::take(values);
+                            node.pointers[value_index] = Pointer::Values(values);
+                            Some(value)
+                        }
+                        None => None,
                     }
-                } else {
-                    node.pointers[value_index] = Pointer::Link(Link::from(child))
-                };
-
-                (Rc::new(node), value)
-            }
+                }
+                Pointer::Link(link) => {
+                    let child = Rc::clone(link.resolve_value(store).await?);
+                    let (child, removed) = child.remove_value(hashnibbles, store).await?;
+                    if removed.is_some() {
+                        // If something has been deleted, we attempt toc canonicalize the pointer.
+                        if let Some(pointer) =
+                            Pointer::Link(Link::from(child)).canonicalize(store).await?
+                        {
+                            node.pointers[value_index] = pointer;
+                        } else {
+                            // This is None if the pointer now points to an empty node.
+                            // In that case, we remove it from the parent.
+                            node.bitmask.set(bit_index, false);
+                            node.pointers.remove(value_index);
+                        }
+                    } else {
+                        node.pointers[value_index] = Pointer::Link(Link::from(child))
+                    };
+                    removed
+                }
+            };
+            Ok((Rc::new(node), removed))
         })
     }
 }
@@ -524,9 +528,25 @@ where
     where
         D: Deserializer<'de>,
     {
-        let (bitmask, pointers): (BitMaskType, _) = Deserialize::deserialize(deserializer)?;
+        let (bitmask, pointers): (BitMaskType, Vec<Pointer<K, V, H>>) =
+            Deserialize::deserialize(deserializer)?;
+        let bitmask = BitArray::<BitMaskType>::from(bitmask);
+        if bitmask.len() != HAMT_BITMASK_BIT_SIZE {
+            return Err(serde::de::Error::custom(format!(
+                "invalid bitmask length, expected {HAMT_BITMASK_BIT_SIZE}, but got {}",
+                bitmask.len()
+            )));
+        }
+        let bitmask_bits_set = bitmask.count_ones();
+        if pointers.len() != bitmask_bits_set {
+            return Err(serde::de::Error::custom(format!(
+                "pointers length does not match bitmask, bitmask bits set: {}, pointers length: {}",
+                bitmask_bits_set,
+                pointers.len()
+            )));
+        }
         Ok(Node {
-            bitmask: BitArray::<BitMaskType>::from(bitmask),
+            bitmask,
             pointers,
             hasher: PhantomData,
         })
