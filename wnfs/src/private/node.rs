@@ -183,8 +183,7 @@ impl PrivateNode {
             Self::File(file) => {
                 let mut file = (**file).clone();
 
-                file.header.update_bare_name(parent_bare_name);
-                file.header.reset_ratchet(rng);
+                file.prepare_key_rotation(parent_bare_name, rng);
 
                 *self = Self::File(Rc::new(file));
 
@@ -208,8 +207,7 @@ impl PrivateNode {
                         .insert(name.clone(), node.get_header().get_private_ref()?);
                 }
 
-                dir.header.update_bare_name(parent_bare_name);
-                dir.header.reset_ratchet(rng);
+                dir.prepare_key_rotation(parent_bare_name, rng);
 
                 *self = Self::Dir(Rc::new(dir));
 
@@ -585,13 +583,14 @@ impl PrivateNodeHeader {
     /// println!("Private ref: {:?}", private_ref);
     /// ```
     pub fn get_private_ref(&self) -> Result<PrivateRef> {
-        let revision_key = Key::new(self.ratchet.derive_key());
-        let saturated_name_hash = Sha3_256::hash(&self.get_saturated_name_with_key(&revision_key));
+        let revision_key = RevisionKey::from(&self.ratchet);
+        let saturated_name_hash =
+            Sha3_256::hash(&self.get_saturated_name_with_key(&revision_key.0));
 
         Ok(PrivateRef {
             saturated_name_hash,
-            content_key: Key::new(Sha3_256::hash(&revision_key.as_bytes())).into(),
-            revision_key: revision_key.into(),
+            content_key: Key::new(Sha3_256::hash(&revision_key.0.as_bytes())).into(),
+            revision_key,
         })
     }
 
@@ -626,14 +625,20 @@ impl PrivateNodeHeader {
     /// ```
     #[inline]
     pub fn get_saturated_name(&self) -> Namefilter {
-        let revision_key = Key::new(self.ratchet.derive_key());
-        self.get_saturated_name_with_key(&revision_key)
+        let revision_key = RevisionKey::from(&self.ratchet);
+        self.get_saturated_name_with_key(&revision_key.0)
     }
 }
 
 impl From<Key> for RevisionKey {
     fn from(key: Key) -> Self {
         Self(key)
+    }
+}
+
+impl From<&Ratchet> for RevisionKey {
+    fn from(ratchet: &Ratchet) -> Self {
+        Self::from(Key::new(ratchet.derive_key()))
     }
 }
 

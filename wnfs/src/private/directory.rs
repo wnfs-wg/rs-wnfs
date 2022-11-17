@@ -257,6 +257,7 @@ impl PrivateDirectory {
         }
     }
 
+    // TODO(matheus23) docs
     pub(crate) async fn prepare_next_revision<B: BlockStore>(
         self: Rc<Self>,
         store: &mut B,
@@ -273,6 +274,17 @@ impl PrivateDirectory {
         cloned.header.advance_ratchet();
 
         Ok(cloned)
+    }
+
+    // TODO(matheus23) docs
+    pub(crate) fn prepare_key_rotation(
+        &mut self,
+        parent_bare_name: Namefilter,
+        rng: &mut impl RngCore,
+    ) {
+        self.header.update_bare_name(parent_bare_name);
+        self.header.reset_ratchet(rng);
+        self.persisted_as = OnceCell::new();
     }
 
     /// Fix up `PathNodes` so that parents refer to the newly updated children.
@@ -1277,7 +1289,7 @@ impl PartialEq for PrivateDirectory {
 impl Clone for PrivateDirectory {
     fn clone(&self) -> Self {
         Self {
-            persisted_as: OnceCell::new(),
+            persisted_as: OnceCell::new_with(self.persisted_as.get().cloned()),
             version: self.version.clone(),
             header: self.header.clone(),
             previous: self.previous.clone(),

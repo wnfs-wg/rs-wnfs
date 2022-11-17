@@ -6,7 +6,7 @@ use skip_ratchet::{ratchet::PreviousIterator, Ratchet};
 
 use super::{
     encrypted::Encrypted, PrivateDirectory, PrivateFile, PrivateForest, PrivateNode,
-    PrivateNodeHeader,
+    PrivateNodeHeader, RevisionKey,
 };
 
 use crate::{BlockStore, FsError, PathNodes, PathNodesResult};
@@ -108,19 +108,39 @@ impl PrivateNodeHistory {
         &mut self,
         store: &B,
     ) -> Result<Option<PrivateNode>> {
-        match self.ratchets.next() {
-            None => Ok(None),
-            Some(previous_ratchet) => {
-                // TODO(matheus23) Make the `resolve_bias` be biased towards eventual `previous` backpointers.
-                self.header.ratchet = previous_ratchet;
-                self.forest
-                    .get(
-                        &self.header.get_private_ref()?,
-                        PrivateForest::resolve_lowest,
-                        store,
-                    )
-                    .await
-            }
+        let Some(previous_ratchet) = self.ratchets.next()
+        else {
+            return Ok(None);
+        };
+
+        let previous_cids = self.resolve_previous_cids(&previous_ratchet)?;
+
+        self.header.ratchet = previous_ratchet;
+
+        let previous_node = self
+            .forest
+            .get(
+                &self.header.get_private_ref()?,
+                PrivateForest::resolve_one_of::<fn(&BTreeSet<Cid>) -> Option<&Cid>>(&previous_cids),
+                store,
+            )
+            .await?;
+
+        if let Some(previous_node) = previous_node {
+            self.previous = previous_node.get_previous().clone();
+            Ok(Some(previous_node))
+        } else {
+            Ok(None)
+        }
+    }
+
+    fn resolve_previous_cids(&self, previous_ratchet: &Ratchet) -> Result<BTreeSet<Cid>> {
+        if let Some(encrypted) = &self.previous {
+            let revision_key = RevisionKey::from(previous_ratchet);
+            // Cloning here because otherwise lifetimes are hard
+            Ok(encrypted.resolve_value(&revision_key.0)?.clone())
+        } else {
+            Ok(BTreeSet::new())
         }
     }
 
