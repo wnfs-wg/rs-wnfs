@@ -349,7 +349,7 @@ test.describe("PrivateFile", () => {
       } = await window.setup();
 
       const rng = new Rng();
-      const file = PrivateFile.empty(new Namefilter(), new Date(), rng);
+      const file = new PrivateFile(new Namefilter(), new Date(), rng);
 
       return file.getId();
     });
@@ -367,7 +367,7 @@ test.describe("PrivateFile", () => {
       const hamt = new PrivateForest();
       const rng = new Rng();
       const store = new MemoryBlockStore();
-      const { file } = await PrivateFile.withContent(
+      const [file] = await PrivateFile.withContent(
         new Namefilter(),
         new Date(),
         new Uint8Array([1, 2, 3, 4, 5]),
@@ -392,7 +392,7 @@ test.describe("PrivateFile", () => {
       const initialHamt = new PrivateForest();
       const rng = new Rng();
       const store = new MemoryBlockStore();
-      var { file, hamt } = await PrivateFile.withContent(
+      var [file, hamt] = await PrivateFile.withContent(
         new Namefilter(),
         new Date(),
         new Uint8Array([1, 2, 3, 4, 5]),

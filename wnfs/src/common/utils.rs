@@ -140,7 +140,7 @@ pub(crate) mod test_setup {
         }};
         [ file ] => {{
             let (name, mut rng) = test_setup::init!(name, rng);
-            let file = $crate::PrivateFile::empty(name, chrono::Utc::now(), &mut rng);
+            let file = $crate::PrivateFile::new(name, chrono::Utc::now(), &mut rng);
 
             (file, rng)
         }}

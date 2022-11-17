@@ -20,7 +20,7 @@ use wnfs::{Id, PrivateFile as WnfsPrivateFile};
 
 /// A file in a WNFS public file system.
 #[wasm_bindgen]
-pub struct PrivateFile(pub(crate) Rc<WnfsPrivateFile>);
+pub struct PrivateFile(Rc<WnfsPrivateFile>);
 
 //--------------------------------------------------------------------------------------------------
 // Implementations
@@ -29,10 +29,11 @@ pub struct PrivateFile(pub(crate) Rc<WnfsPrivateFile>);
 #[wasm_bindgen]
 impl PrivateFile {
     /// Creates an empty private file.
-    pub fn empty(parent_bare_name: Namefilter, time: &Date, mut rng: Rng) -> JsResult<PrivateFile> {
+    #[wasm_bindgen(constructor)]
+    pub fn new(parent_bare_name: Namefilter, time: &Date, mut rng: Rng) -> JsResult<PrivateFile> {
         let time = DateTime::<Utc>::from(time);
 
-        Ok(Self(Rc::new(WnfsPrivateFile::empty(
+        Ok(Self(Rc::new(WnfsPrivateFile::new(
             parent_bare_name.0,
             time,
             &mut rng,
@@ -64,7 +65,10 @@ impl PrivateFile {
             .await
             .map_err(error("Cannot create a file with provided content"))?;
 
-            Ok(utils::create_private_file_result(file, hamt)?)
+            Ok(utils::create_private_file_result(
+                PrivateFile(Rc::new(file)),
+                PrivateForest(hamt),
+            )?)
         }))
     }
 

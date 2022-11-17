@@ -107,7 +107,7 @@ impl PrivateFile {
     /// use rand::thread_rng;
     ///
     /// let rng = &mut thread_rng();
-    /// let file = PrivateFile::empty(
+    /// let file = PrivateFile::new(
     ///     Namefilter::default(),
     ///     Utc::now(),
     ///     rng,
@@ -115,11 +115,7 @@ impl PrivateFile {
     ///
     /// println!("file = {:?}", file);
     /// ```
-    pub fn empty<R: RngCore>(
-        parent_bare_name: Namefilter,
-        time: DateTime<Utc>,
-        rng: &mut R,
-    ) -> Self {
+    pub fn new<R: RngCore>(parent_bare_name: Namefilter, time: DateTime<Utc>, rng: &mut R) -> Self {
         Self {
             version: Version::new(0, 2, 0),
             metadata: Metadata::new(time),

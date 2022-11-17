@@ -71,7 +71,7 @@ pub struct RevisionKey(pub Key);
 /// use rand::thread_rng;
 ///
 /// let rng = &mut thread_rng();
-/// let file = PrivateFile::empty(
+/// let file = PrivateFile::new(
 ///     Namefilter::default(),
 ///     Utc::now(),
 ///     rng,
@@ -295,7 +295,7 @@ impl PrivateNode {
     /// use rand::thread_rng;
     ///
     /// let rng = &mut thread_rng();
-    /// let file = Rc::new(PrivateFile::empty(
+    /// let file = Rc::new(PrivateFile::new(
     ///     Namefilter::default(),
     ///     Utc::now(),
     ///     rng,
@@ -346,7 +346,7 @@ impl PrivateNode {
     /// use rand::thread_rng;
     ///
     /// let rng = &mut thread_rng();
-    /// let file = Rc::new(PrivateFile::empty(
+    /// let file = Rc::new(PrivateFile::new(
     ///     Namefilter::default(),
     ///     Utc::now(),
     ///     rng,
@@ -536,7 +536,7 @@ impl PrivateNodeHeader {
     /// use rand::thread_rng;
     ///
     /// let rng = &mut thread_rng();
-    /// let file = Rc::new(PrivateFile::empty(
+    /// let file = Rc::new(PrivateFile::new(
     ///     Namefilter::default(),
     ///     Utc::now(),
     ///     rng,
@@ -575,7 +575,7 @@ impl PrivateNodeHeader {
     /// use rand::thread_rng;
     ///
     /// let rng = &mut thread_rng();
-    /// let file = Rc::new(PrivateFile::empty(
+    /// let file = Rc::new(PrivateFile::new(
     ///     Namefilter::default(),
     ///     Utc::now(),
     ///     rng,
