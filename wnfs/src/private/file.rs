@@ -7,7 +7,7 @@ use semver::Version;
 use serde::{de::Error as DeError, ser::Error as SerError, Deserialize, Deserializer, Serialize};
 use std::{collections::BTreeSet, rc::Rc};
 
-use crate::{dagcbor, BlockStore, Id, Metadata, NodeType};
+use crate::{dagcbor, utils, BlockStore, Id, Metadata, NodeType};
 
 use super::{encrypted::Encrypted, namefilter::Namefilter, Key, PrivateNodeHeader, RevisionKey};
 
@@ -131,6 +131,7 @@ impl PrivateFile {
         parent_bare_name: Namefilter,
         rng: &mut impl RngCore,
     ) {
+        self.header.inumber = utils::get_random_bytes(rng);
         self.header.update_bare_name(parent_bare_name);
         self.header.reset_ratchet(rng);
         self.persisted_as = OnceCell::new();

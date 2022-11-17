@@ -294,6 +294,7 @@ impl PrivateDirectory {
         parent_bare_name: Namefilter,
         rng: &mut impl RngCore,
     ) {
+        self.header.inumber = utils::get_random_bytes(rng);
         self.header.update_bare_name(parent_bare_name);
         self.header.reset_ratchet(rng);
         self.persisted_as = OnceCell::new();
