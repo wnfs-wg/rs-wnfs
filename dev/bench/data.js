@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1667573042848,
+  "lastUpdate": 1668689371236,
   "repoUrl": "https://github.com/wnfs-wg/rs-wnfs",
   "entries": {
     "Rust Benchmark": [
@@ -384,6 +384,96 @@ window.BENCHMARK_DATA = {
           {
             "name": "namefilter encode",
             "value": 163,
+            "range": "± 6",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter decode/0",
+            "value": 1,
+            "range": "± 0",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "philipp.krueger1@gmail.com",
+            "name": "Philipp Krüger",
+            "username": "matheus23"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "9ff76f6c1b8ff5dee39c2c0637e578aa5fbcc278",
+          "message": "Use `Rc::try_unwrap` for (possibly?) better performance (#85)\n\n* Benchmarks first\r\n\r\n* Use `Rc::try_unwrap` in `Node::set_value`\r\n\r\nAnd in `Node::remove_value`\r\n\r\n* Remove `RemoveResult` type alias\r\n\r\n* Add invariant checks on deserialization\r\n\r\n* Merge a level of `if`s into `match`\r\n\r\n* clippy: Use non-panicing `Utc.timestamp_opt`",
+          "timestamp": "2022-11-17T13:41:06+01:00",
+          "tree_id": "ea0698c82673a989f0192df90a66e9eeca14a6f3",
+          "url": "https://github.com/wnfs-wg/rs-wnfs/commit/9ff76f6c1b8ff5dee39c2c0637e578aa5fbcc278"
+        },
+        "date": 1668689370632,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "node set",
+            "value": 6813,
+            "range": "± 112",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node set 1000 consecutive",
+            "value": 4278406,
+            "range": "± 16527",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and get",
+            "value": 148662,
+            "range": "± 167",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and remove",
+            "value": 167000,
+            "range": "± 872",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt load and decode/0",
+            "value": 34230,
+            "range": "± 94",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt set and encode",
+            "value": 170223,
+            "range": "± 317",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter add",
+            "value": 8987,
+            "range": "± 12",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter contains",
+            "value": 11934,
+            "range": "± 20",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter saturate",
+            "value": 40980,
+            "range": "± 47",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter encode",
+            "value": 166,
             "range": "± 6",
             "unit": "ns/iter"
           },
