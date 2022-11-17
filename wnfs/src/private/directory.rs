@@ -257,7 +257,12 @@ impl PrivateDirectory {
         }
     }
 
-    // TODO(matheus23) docs
+    /// This should be called to prepare a node for modifications,
+    /// if it's meant to be a successor revision of the current revision.
+    ///
+    /// It will store the current revision in the given `BlockStore` to
+    /// retrieve its CID and put that into the `previous` links,
+    /// as well as advancing the ratchet and resetting the `persisted_as` pointer.
     pub(crate) async fn prepare_next_revision<B: BlockStore>(
         self: Rc<Self>,
         store: &mut B,
@@ -276,7 +281,14 @@ impl PrivateDirectory {
         Ok(cloned)
     }
 
-    // TODO(matheus23) docs
+    /// This prepares this file for key rotation, usually for moving or
+    /// copying the file to some other place.
+    ///
+    /// Will reset the ratchet, so a different key is necessary for read access,
+    /// will reset the inumber to reset write access,
+    /// will update the bare namefilter to match the new parent's namefilter,
+    /// so it inherits the write access rules from the new parent and
+    /// resets the `persisted_as` pointer.
     pub(crate) fn prepare_key_rotation(
         &mut self,
         parent_bare_name: Namefilter,
@@ -2021,5 +2033,44 @@ mod private_directory_tests {
             .await;
 
         assert!(result.is_err());
+    }
+
+    #[async_std::test]
+    async fn write_generates_previous_link() {
+        let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
+        let store = &mut MemoryBlockStore::new();
+        let hamt = Rc::new(PrivateForest::new());
+        let old_dir = Rc::new(PrivateDirectory::new(
+            Namefilter::default(),
+            Utc::now(),
+            rng,
+        ));
+
+        let PrivateOpResult {
+            root_dir: new_dir, ..
+        } = Rc::clone(&old_dir)
+            .write(
+                &["file.txt".into()],
+                false,
+                Utc::now(),
+                b"Hello".to_vec(),
+                hamt,
+                store,
+                rng,
+            )
+            .await
+            .unwrap();
+
+        assert!(old_dir.previous.is_none());
+
+        let old_key = RevisionKey::from(&old_dir.header.ratchet);
+        let previous_encrypted = new_dir.previous.clone();
+        let previous_links = previous_encrypted
+            .unwrap()
+            .resolve_value(&old_key.0)
+            .cloned()
+            .unwrap();
+
+        assert_eq!(previous_links.len(), 1);
     }
 }

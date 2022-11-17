@@ -94,7 +94,12 @@ impl PrivateFile {
         }
     }
 
-    // TODO(matheus23) docs
+    /// This should be called to prepare a node for modifications,
+    /// if it's meant to be a successor revision of the current revision.
+    ///
+    /// It will store the current revision in the given `BlockStore` to
+    /// retrieve its CID and put that into the `previous` links,
+    /// as well as advancing the ratchet and resetting the `persisted_as` pointer.
     pub(crate) async fn prepare_next_revision<B: BlockStore>(
         self: Rc<Self>,
         store: &mut B,
@@ -113,7 +118,14 @@ impl PrivateFile {
         Ok(cloned)
     }
 
-    // TODO(matheus23) docs
+    /// This prepares this file for key rotation, usually for moving or
+    /// copying the file to some other place.
+    ///
+    /// Will reset the ratchet, so a different key is necessary for read access,
+    /// will reset the inumber to reset write access,
+    /// will update the bare namefilter to match the new parent's namefilter,
+    /// so it inherits the write access rules from the new parent and
+    /// resets the `persisted_as` pointer.
     pub(crate) fn prepare_key_rotation(
         &mut self,
         parent_bare_name: Namefilter,

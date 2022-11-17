@@ -271,10 +271,6 @@ impl PrivateNode {
     /// The previous links is `None`, it doesn't have previous Cids.
     /// The node is malformed if the previous links are `Some`, but
     /// the `BTreeSet` inside is empty.
-    ///
-    /// # Examples
-    ///
-    /// TODO(matheus23)
     pub fn get_previous(&self) -> &Option<Encrypted<BTreeSet<Cid>>> {
         match self {
             Self::File(file) => &file.previous,
@@ -749,7 +745,7 @@ impl RevisionKey {
 mod private_node_tests {
     use proptest::test_runner::{RngAlgorithm, TestRng};
 
-    use crate::MemoryBlockStore;
+    use crate::{MemoryBlockStore, PrivateOpResult};
 
     use super::*;
 
