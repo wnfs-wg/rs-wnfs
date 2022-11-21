@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1668689371236,
+  "lastUpdate": 1669052045299,
   "repoUrl": "https://github.com/wnfs-wg/rs-wnfs",
   "entries": {
     "Rust Benchmark": [
@@ -475,6 +475,96 @@ window.BENCHMARK_DATA = {
             "name": "namefilter encode",
             "value": 166,
             "range": "± 6",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter decode/0",
+            "value": 1,
+            "range": "± 0",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "appcypher@outlook.com",
+            "name": "Stephen",
+            "username": "appcypher"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "9d3b5c2d4357f57919668e3bc31aea497f41b6a4",
+          "message": "Private File Sharding (#88)\n\n* Implement file content with default sharding\r\n\r\n* Fix tests and wasm/js apis\r\n\r\n* Fix doc tests\r\n\r\n* Try wasm-js-tests on maco-latest\r\n\r\n* Refactor `stream_content` to accept index and limit arg, etc.\r\n\r\n- Remove basic heuristic and default to file sharding\r\n- Fix shard label generation to conform with spec\r\n\r\n* Fix deprecated timestamp and remove edge browser tests\r\n\r\n* Remove limit param\r\n\r\n* Remove unwraps in timestamp conversion\r\n\r\n* Fix link in readmes\r\n\r\n* Change empty function to new\r\n\r\n- Use array in create_private_file_result\r\n\r\n* Add docs to test_setup macros\r\n\r\n- Add spec reference to `MAX_BLOCK_CONTENT_SIZE` constant",
+          "timestamp": "2022-11-21T18:27:45+01:00",
+          "tree_id": "e1ffb9365cf9bc6bb3063208fe3f11752d567cc7",
+          "url": "https://github.com/wnfs-wg/rs-wnfs/commit/9d3b5c2d4357f57919668e3bc31aea497f41b6a4"
+        },
+        "date": 1669052044214,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "node set",
+            "value": 7142,
+            "range": "± 62",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node set 1000 consecutive",
+            "value": 4394527,
+            "range": "± 18958",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and get",
+            "value": 152359,
+            "range": "± 273",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and remove",
+            "value": 170235,
+            "range": "± 1530",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt load and decode/0",
+            "value": 35207,
+            "range": "± 130",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt set and encode",
+            "value": 169346,
+            "range": "± 362",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter add",
+            "value": 8566,
+            "range": "± 216",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter contains",
+            "value": 9590,
+            "range": "± 78",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter saturate",
+            "value": 41358,
+            "range": "± 118",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter encode",
+            "value": 155,
+            "range": "± 9",
             "unit": "ns/iter"
           },
           {
