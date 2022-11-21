@@ -74,7 +74,6 @@ pub struct RevisionKey(pub Key);
 /// let file = PrivateFile::new(
 ///     Namefilter::default(),
 ///     Utc::now(),
-///     b"hello world".to_vec(),
 ///     rng,
 /// );
 ///
@@ -137,14 +136,13 @@ impl PrivateNode {
     /// let time = Utc::now() + Duration::days(1);
     /// let node = node.upsert_mtime(time);
     ///
-    /// let imprecise_time = Utc.timestamp(time.timestamp(), 0);
+    /// let imprecise_time = Utc.timestamp_opt(time.timestamp(), 0).single();
     /// assert_eq!(
     ///     imprecise_time,
     ///     node.as_dir()
     ///         .unwrap()
     ///         .get_metadata()
     ///         .get_modified()
-    ///         .unwrap()
     /// );
     /// ```
     pub fn upsert_mtime(&self, time: DateTime<Utc>) -> Self {
@@ -300,7 +298,6 @@ impl PrivateNode {
     /// let file = Rc::new(PrivateFile::new(
     ///     Namefilter::default(),
     ///     Utc::now(),
-    ///     b"hello world".to_vec(),
     ///     rng,
     /// ));
     /// let node = PrivateNode::File(Rc::clone(&file));
@@ -352,7 +349,6 @@ impl PrivateNode {
     /// let file = Rc::new(PrivateFile::new(
     ///     Namefilter::default(),
     ///     Utc::now(),
-    ///     b"hello world".to_vec(),
     ///     rng,
     /// ));
     /// let node = PrivateNode::File(file);
@@ -534,18 +530,17 @@ impl PrivateNodeHeader {
     /// # Examples
     ///
     /// ```
+    /// use std::rc::Rc;
     /// use wnfs::{PrivateFile, Namefilter, Id};
     /// use chrono::Utc;
     /// use rand::thread_rng;
     ///
     /// let rng = &mut thread_rng();
-    /// let file = PrivateFile::new(
+    /// let file = Rc::new(PrivateFile::new(
     ///     Namefilter::default(),
     ///     Utc::now(),
-    ///     b"hello world".to_vec(),
     ///     rng,
-    /// );
-    ///
+    /// ));
     /// let private_ref = file.header.get_private_ref().unwrap();
     ///
     /// println!("Private ref: {:?}", private_ref);
@@ -574,18 +569,17 @@ impl PrivateNodeHeader {
     /// # Examples
     ///
     /// ```
+    /// use std::rc::Rc;
     /// use wnfs::{PrivateFile, Namefilter, private::Key};
     /// use chrono::Utc;
     /// use rand::thread_rng;
     ///
     /// let rng = &mut thread_rng();
-    /// let file = PrivateFile::new(
+    /// let file = Rc::new(PrivateFile::new(
     ///     Namefilter::default(),
     ///     Utc::now(),
-    ///     b"hello world".to_vec(),
     ///     rng,
-    /// );
-    ///
+    /// ));
     /// let saturated_name = file.header.get_saturated_name();
     ///
     /// println!("Saturated name: {:?}", saturated_name);
@@ -710,23 +704,35 @@ impl RevisionKey {
 mod private_node_tests {
     use proptest::test_runner::{RngAlgorithm, TestRng};
 
+    use crate::MemoryBlockStore;
+
     use super::*;
 
-    #[test]
-    fn serialized_private_node_can_be_deserialized() {
+    #[async_std::test]
+    async fn serialized_private_node_can_be_deserialized() {
         let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
-        let original_file = PrivateNode::File(Rc::new(PrivateFile::new(
+        let content = b"Lorem ipsum dolor sit amet";
+        let hamt = Rc::new(PrivateForest::new());
+        let store = &mut MemoryBlockStore::new();
+
+        let (file, _) = PrivateFile::with_content(
             Namefilter::default(),
             Utc::now(),
-            b"Lorem ipsum dolor sit amet".to_vec(),
+            content.to_vec(),
+            hamt,
+            store,
             rng,
-        )));
-        let private_ref = original_file.get_header().get_private_ref().unwrap();
+        )
+        .await
+        .unwrap();
 
-        let bytes = original_file.serialize_to_cbor(rng).unwrap();
+        let file = PrivateNode::File(Rc::new(file));
+        let private_ref = file.get_header().get_private_ref().unwrap();
+        let bytes = file.serialize_to_cbor(rng).unwrap();
+
         let deserialized_node =
             PrivateNode::deserialize_from_cbor(&bytes, &private_ref.revision_key).unwrap();
 
-        assert_eq!(original_file, deserialized_node);
+        assert_eq!(file, deserialized_node);
     }
 }

@@ -191,7 +191,6 @@ impl PrivateForest {
     /// use rand::thread_rng;
     /// use sha3::Sha3_256;
     ///
-    ///
     /// use wnfs::{
     ///     private::{PrivateForest, PrivateRef}, PrivateNode,
     ///     BlockStore, MemoryBlockStore, Namefilter, PrivateDirectory, PrivateOpResult, Hasher

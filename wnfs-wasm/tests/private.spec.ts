@@ -339,3 +339,74 @@ test.describe("PrivateDirectory", () => {
     expect(picturesContent[0].name).toEqual("cats");
   });
 });
+
+test.describe("PrivateFile", () => {
+  test("empty can create empty file", async ({ page }) => {
+    const result = await page.evaluate(async () => {
+      const {
+        wnfs: { PrivateFile, Namefilter },
+        mock: { Rng },
+      } = await window.setup();
+
+      const rng = new Rng();
+      const file = new PrivateFile(new Namefilter(), new Date(), rng);
+
+      return file.getId();
+    });
+
+    expect(result).toBeDefined();
+  });
+
+  test("withContent can create file with content", async ({ page }) => {
+    const result = await page.evaluate(async () => {
+      const {
+        wnfs: { PrivateFile, PrivateForest, Namefilter },
+        mock: { MemoryBlockStore, Rng },
+      } = await window.setup();
+
+      const hamt = new PrivateForest();
+      const rng = new Rng();
+      const store = new MemoryBlockStore();
+      const [file] = await PrivateFile.withContent(
+        new Namefilter(),
+        new Date(),
+        new Uint8Array([1, 2, 3, 4, 5]),
+        hamt,
+        store,
+        rng
+      );
+
+      return file.getId();
+    });
+
+    expect(result).toBeDefined();
+  });
+
+  test("getContent can fetch file's entire content", async ({ page }) => {
+    const [length, type] = await page.evaluate(async () => {
+      const {
+        wnfs: { PrivateFile, PrivateForest, Namefilter },
+        mock: { MemoryBlockStore, Rng },
+      } = await window.setup();
+
+      const initialHamt = new PrivateForest();
+      const rng = new Rng();
+      const store = new MemoryBlockStore();
+      var [file, hamt] = await PrivateFile.withContent(
+        new Namefilter(),
+        new Date(),
+        new Uint8Array([1, 2, 3, 4, 5]),
+        initialHamt,
+        store,
+        rng
+      );
+
+      let content = await file.getContent(hamt, store);
+
+      return [content.length, content.constructor.name, content];
+    });
+
+    expect(length).toEqual(5);
+    expect(type).toEqual("Uint8Array");
+  });
+});

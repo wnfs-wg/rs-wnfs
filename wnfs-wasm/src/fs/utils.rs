@@ -9,11 +9,18 @@ use wnfs::{
     Metadata,
 };
 
-use super::{metadata::JsMetadata, PrivateDirectory, PrivateForest, PublicDirectory};
+use super::{metadata::JsMetadata, PrivateDirectory, PrivateFile, PrivateForest, PublicDirectory};
 
 //--------------------------------------------------------------------------------------------------
 // Functions
 //--------------------------------------------------------------------------------------------------
+
+pub(crate) fn error<E>(message: &str) -> impl FnOnce(E) -> js_sys::Error + '_
+where
+    E: Debug,
+{
+    move |e| Error::new(&format!("{message}: {e:?}"))
+}
 
 pub(crate) fn map_to_rust_vec<T, F: FnMut(JsValue) -> JsResult<T>>(
     array: &Array,
@@ -43,8 +50,10 @@ pub(crate) fn create_public_op_result<T: Into<JsValue>>(
         &op_result,
         &value!("rootDir"),
         &PublicDirectory(root_dir).into(),
-    )?;
-    Reflect::set(&op_result, &value!("result"), &result.into())?;
+    )
+    .map_err(error("Failed to set rootDir"))?;
+    Reflect::set(&op_result, &value!("result"), &result.into())
+        .map_err(error("Failed to set result"))?;
 
     Ok(value!(op_result))
 }
@@ -54,35 +63,44 @@ pub(crate) fn create_private_op_result<T: Into<JsValue>>(
     hamt: Rc<WnfsPrivateForest>,
     result: T,
 ) -> JsResult<JsValue> {
-    let op_result = Object::new();
+    let op_result = Array::new();
 
     Reflect::set(
         &op_result,
         &value!("rootDir"),
         &PrivateDirectory(root_dir).into(),
-    )?;
-    Reflect::set(&op_result, &value!("hamt"), &PrivateForest(hamt).into())?;
-    Reflect::set(&op_result, &value!("result"), &result.into())?;
+    )
+    .map_err(error("Failed to set rootDir"))?;
+    Reflect::set(&op_result, &value!("hamt"), &PrivateForest(hamt).into())
+        .map_err(error("Failed to set hamt"))?;
+    Reflect::set(&op_result, &value!("result"), &result.into())
+        .map_err(error("Failed to set result"))?;
 
     Ok(value!(op_result))
 }
 
-pub(crate) fn error<E>(message: &str) -> impl FnOnce(E) -> js_sys::Error + '_
-where
-    E: Debug,
-{
-    move |e| Error::new(&format!("{message}: {e:?}"))
+pub(crate) fn create_private_file_result(
+    file: PrivateFile,
+    hamt: PrivateForest,
+) -> JsResult<JsValue> {
+    let op_result = Array::new();
+
+    Reflect::set(&op_result, &value!(0), &file.into()).map_err(error("Failed to set file"))?;
+    Reflect::set(&op_result, &value!(1), &hamt.into()).map_err(error("Failed to set hamt"))?;
+
+    Ok(value!(op_result))
 }
 
 pub(crate) fn create_ls_entry(name: &String, metadata: &Metadata) -> JsResult<JsValue> {
     let entry = Object::new();
 
-    Reflect::set(&entry, &value!("name"), &value!(name))?;
+    Reflect::set(&entry, &value!("name"), &value!(name)).map_err(error("Failed to set name"))?;
     Reflect::set(
         &entry,
         &value!("metadata"),
         &JsMetadata(metadata).try_into()?,
-    )?;
+    )
+    .map_err(error("Failed to set metadata"))?;
 
     Ok(value!(entry))
 }

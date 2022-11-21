@@ -73,8 +73,8 @@ impl Metadata {
     ///
     /// metadata.upsert_mtime(time);
     ///
-    /// let imprecise_time = Utc.timestamp(time.timestamp(), 0);
-    /// assert_eq!(metadata.get_modified(), Some(imprecise_time));
+    /// let imprecise_time = Utc.timestamp_opt(time.timestamp(), 0).single();
+    /// assert_eq!(metadata.get_modified(), imprecise_time);
     /// ```
     pub fn upsert_mtime(&mut self, time: DateTime<Utc>) {
         self.0.insert("modified".into(), time.timestamp().into());
@@ -91,8 +91,8 @@ impl Metadata {
     /// let time = Utc::now();
     /// let metadata = Metadata::new(time);
     ///
-    /// let imprecise_time = Utc.timestamp(time.timestamp(), 0);
-    /// assert_eq!(metadata.get_created(), Some(imprecise_time));
+    /// let imprecise_time = Utc.timestamp_opt(time.timestamp(), 0).single();
+    /// assert_eq!(metadata.get_created(), imprecise_time);
     /// ```
     ///
     /// Will return `None` if there's no created metadata on the
@@ -115,8 +115,8 @@ impl Metadata {
     /// let time = Utc::now();
     /// let metadata = Metadata::new(time);
     ///
-    /// let imprecise_time = Utc.timestamp(time.timestamp(), 0);
-    /// assert_eq!(metadata.get_modified(), Some(imprecise_time));
+    /// let imprecise_time = Utc.timestamp_opt(time.timestamp(), 0).single();
+    /// assert_eq!(metadata.get_modified(), imprecise_time);
     /// ```
     ///
     /// Will return `None` if there's no created metadata on the

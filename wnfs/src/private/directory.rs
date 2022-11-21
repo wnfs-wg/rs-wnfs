@@ -454,11 +454,14 @@ impl PrivateDirectory {
                     .lookup_node(filename, search_latest, &hamt, store)
                     .await?
                 {
-                    Some(PrivateNode::File(file)) => Ok(PrivateOpResult {
-                        root_dir,
-                        hamt,
-                        result: file.content.clone(),
-                    }),
+                    Some(PrivateNode::File(file)) => {
+                        let result = file.get_content(&hamt, store).await?;
+                        Ok(PrivateOpResult {
+                            root_dir,
+                            hamt,
+                            result,
+                        })
+                    }
                     Some(PrivateNode::Dir(_)) => error(FsError::NotAFile),
                     None => error(FsError::NotFound),
                 }
@@ -538,19 +541,34 @@ impl PrivateDirectory {
         let mut directory = (*directory_path_nodes.tail).clone();
 
         // Modify the file if it already exists, otherwise create a new file with expected content
-        let file = match directory
+        let (file, hamt) = match directory
             .lookup_node(filename, search_latest, &hamt, store)
             .await?
         {
             Some(PrivateNode::File(file_before)) => {
                 let mut file = (*file_before).clone();
+
+                let (content, hamt) =
+                    PrivateFile::prepare_content(&file.header.bare_name, content, hamt, store, rng)
+                        .await?;
                 file.content = content;
                 file.metadata.upsert_mtime(time);
                 file.header.advance_ratchet();
-                file
+
+                (file, hamt)
             }
             Some(PrivateNode::Dir(_)) => bail!(FsError::DirectoryAlreadyExists),
-            None => PrivateFile::new(directory.header.bare_name.clone(), time, content, rng),
+            None => {
+                PrivateFile::with_content(
+                    directory.header.bare_name.clone(),
+                    time,
+                    content,
+                    hamt,
+                    store,
+                    rng,
+                )
+                .await?
+            }
         };
 
         let child_private_ref = file.header.get_private_ref()?;

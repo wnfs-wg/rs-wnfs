@@ -660,7 +660,9 @@ mod private_history_tests {
                 .unwrap()
                 .as_file()
                 .unwrap()
-                .content,
+                .get_content(&hamt, store)
+                .await
+                .unwrap(),
             b"Hi".to_vec()
         );
 
@@ -775,7 +777,9 @@ mod private_history_tests {
                 .unwrap()
                 .as_file()
                 .unwrap()
-                .content,
+                .get_content(&hamt, store)
+                .await
+                .unwrap(),
             b"Hi".to_vec()
         );
 
@@ -884,7 +888,9 @@ mod private_history_tests {
                 .unwrap()
                 .as_file()
                 .unwrap()
-                .content,
+                .get_content(&hamt, store)
+                .await
+                .unwrap(),
             b"rev 1".to_vec()
         );
 
@@ -896,7 +902,9 @@ mod private_history_tests {
                 .unwrap()
                 .as_file()
                 .unwrap()
-                .content,
+                .get_content(&hamt, store)
+                .await
+                .unwrap(),
             b"rev 0".to_vec()
         );
 
@@ -1002,7 +1010,9 @@ mod private_history_tests {
                 .unwrap()
                 .as_file()
                 .unwrap()
-                .content,
+                .get_content(&hamt, store)
+                .await
+                .unwrap(),
             b"rev 0".to_vec()
         );
 
