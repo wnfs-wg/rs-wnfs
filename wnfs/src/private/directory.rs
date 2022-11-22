@@ -12,7 +12,8 @@ use super::{
 };
 
 use crate::{
-    dagcbor, error, utils, BlockStore, FsError, Id, Metadata, NodeType, PathNodes, PathNodesResult,
+    dagcbor, error, utils, BlockStore, FsError, HashOutput, Id, Metadata, NodeType, PathNodes,
+    PathNodesResult,
 };
 
 //--------------------------------------------------------------------------------------------------
@@ -95,6 +96,41 @@ impl PrivateDirectory {
         Self {
             version: Version::new(0, 2, 0),
             header: PrivateNodeHeader::new(parent_bare_name, rng),
+            metadata: Metadata::new(time),
+            entries: BTreeMap::new(),
+        }
+    }
+
+    /// TODO(appcypher): Add tests
+    /// Creates a new directory with provided seed and other details.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use wnfs::{PrivateDirectory, Namefilter};
+    /// use chrono::Utc;
+    /// use rand::{thread_rng, Rng};
+    ///
+    /// let rng = &mut thread_rng();
+    /// let seed = rng.gen::<[u8; 32]>();
+    /// let dir = PrivateDirectory::with_seed(
+    ///     Namefilter::default(),
+    ///     Utc::now(),
+    ///     seed,
+    ///     rng,
+    /// );
+    ///
+    /// println!("dir = {:?}", dir);
+    /// ```
+    pub fn with_seed<R: RngCore>(
+        parent_bare_name: Namefilter,
+        time: DateTime<Utc>,
+        ratchet_seed: HashOutput,
+        rng: &mut R,
+    ) -> Self {
+        Self {
+            version: Version::new(0, 2, 0),
+            header: PrivateNodeHeader::with_seed(parent_bare_name, ratchet_seed, rng),
             metadata: Metadata::new(time),
             entries: BTreeMap::new(),
         }

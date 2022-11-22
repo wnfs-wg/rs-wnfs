@@ -506,6 +506,24 @@ impl PrivateNodeHeader {
         }
     }
 
+    /// Creates a new PrivateNodeHeader with provided seed.
+    pub(crate) fn with_seed<R: RngCore>(
+        parent_bare_name: Namefilter,
+        ratchet_seed: HashOutput,
+        rng: &mut R,
+    ) -> Self {
+        let inumber = utils::get_random_bytes::<HASH_BYTE_SIZE>(rng);
+        Self {
+            bare_name: {
+                let mut namefilter = parent_bare_name;
+                namefilter.add(&inumber);
+                namefilter
+            },
+            ratchet: Ratchet::zero(ratchet_seed),
+            inumber,
+        }
+    }
+
     /// Advances the ratchet.
     pub(crate) fn advance_ratchet(&mut self) {
         self.ratchet.inc();
