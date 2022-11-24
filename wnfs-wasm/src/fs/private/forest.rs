@@ -55,7 +55,7 @@ impl PrivateForest {
         let key = Key::new(key_bytes);
         let revision_key = RevisionKey(key);
 
-        let private_ref = PrivateRef::from_revision_key(saturated_name_hash, revision_key);
+        let private_ref = PrivateRef::with_revision_key(saturated_name_hash, revision_key);
 
         Ok(future_to_promise(async move {
             let node_option = forest

@@ -80,7 +80,7 @@ where
     let forest_cid = store.put_serializable(&cbor_bytes).await.unwrap();
 
     // Private ref contains data and keys for fetching and decrypting the directory node in the private forest.
-    let private_ref = root_dir.header.get_private_ref().unwrap();
+    let private_ref = root_dir.header.get_private_ref();
 
     (forest_cid, private_ref)
 }

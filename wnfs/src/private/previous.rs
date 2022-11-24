@@ -106,7 +106,7 @@ impl PrivateNodeHistory {
                 self.header.ratchet = previous_ratchet;
                 self.forest
                     .get(
-                        &self.header.get_private_ref()?,
+                        &self.header.get_private_ref(),
                         PrivateForest::resolve_lowest,
                         store,
                     )
@@ -528,7 +528,7 @@ mod private_history_tests {
         let hamt = hamt
             .put(
                 root_dir.header.get_saturated_name(),
-                &root_dir.header.get_private_ref().unwrap(),
+                &root_dir.header.get_private_ref(),
                 &PrivateNode::Dir(Rc::clone(&root_dir)),
                 store,
                 rng,
@@ -618,7 +618,7 @@ mod private_history_tests {
         let hamt = hamt
             .put(
                 root_dir.header.get_saturated_name(),
-                &root_dir.header.get_private_ref().unwrap(),
+                &root_dir.header.get_private_ref(),
                 &PrivateNode::Dir(Rc::clone(&root_dir)),
                 store,
                 rng,
@@ -715,7 +715,7 @@ mod private_history_tests {
         let hamt = hamt
             .put(
                 root_dir.header.get_saturated_name(),
-                &root_dir.header.get_private_ref().unwrap(),
+                &root_dir.header.get_private_ref(),
                 &PrivateNode::Dir(Rc::clone(&root_dir)),
                 store,
                 rng,
@@ -972,7 +972,7 @@ mod private_history_tests {
         let hamt = hamt
             .put(
                 root_dir.header.get_saturated_name(),
-                &root_dir.header.get_private_ref().unwrap(),
+                &root_dir.header.get_private_ref(),
                 &PrivateNode::Dir(Rc::clone(&root_dir)),
                 store,
                 rng,

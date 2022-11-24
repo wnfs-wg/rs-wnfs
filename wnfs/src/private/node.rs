@@ -206,7 +206,7 @@ impl PrivateNode {
                         .await?;
 
                     dir.entries
-                        .insert(name.clone(), node.get_header().get_private_ref()?);
+                        .insert(name.clone(), node.get_header().get_private_ref());
                 }
 
                 dir.header.update_bare_name(parent_bare_name);
@@ -222,7 +222,7 @@ impl PrivateNode {
 
         hamt.put(
             header.get_saturated_name(),
-            &header.get_private_ref()?,
+            &header.get_private_ref(),
             self,
             store,
             rng,
@@ -367,7 +367,7 @@ impl PrivateNode {
     ) -> Result<PrivateNode> {
         let header = self.get_header();
 
-        let private_ref = &header.get_private_ref()?;
+        let private_ref = &header.get_private_ref();
         if !forest.has(&private_ref.saturated_name_hash, store).await? {
             return Ok(self.clone());
         }
@@ -384,10 +384,7 @@ impl PrivateNode {
             current_header.ratchet = current.clone();
 
             let has_curr = forest
-                .has(
-                    &current_header.get_private_ref()?.saturated_name_hash,
-                    store,
-                )
+                .has(&current_header.get_private_ref().saturated_name_hash, store)
                 .await?;
 
             let ord = if has_curr {
@@ -403,7 +400,7 @@ impl PrivateNode {
 
         current_header.ratchet = search.current().clone();
 
-        let latest_private_ref = current_header.get_private_ref()?;
+        let latest_private_ref = current_header.get_private_ref();
 
         match forest
             .get(&latest_private_ref, PrivateForest::resolve_lowest, store)
@@ -558,19 +555,19 @@ impl PrivateNodeHeader {
     ///     Utc::now(),
     ///     rng,
     /// ));
-    /// let private_ref = file.header.get_private_ref().unwrap();
+    /// let private_ref = file.header.get_private_ref();
     ///
     /// println!("Private ref: {:?}", private_ref);
     /// ```
-    pub fn get_private_ref(&self) -> Result<PrivateRef> {
+    pub fn get_private_ref(&self) -> PrivateRef {
         let revision_key = Key::new(self.ratchet.derive_key());
         let saturated_name_hash = Sha3_256::hash(&self.get_saturated_name_with_key(&revision_key));
 
-        Ok(PrivateRef {
+        PrivateRef {
             saturated_name_hash,
             content_key: Key::new(Sha3_256::hash(&revision_key.as_bytes())).into(),
             revision_key: revision_key.into(),
-        })
+        }
     }
 
     /// Gets the saturated namefilter for this node using the provided ratchet key.
@@ -633,12 +630,50 @@ impl From<ContentKey> for Key {
 }
 
 impl PrivateRef {
-    pub fn from_revision_key(saturated_name_hash: HashOutput, revision_key: RevisionKey) -> Self {
+    /// Creates a PrivateRef from provided saturated name and revision key.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use wnfs::{private::{PrivateRef, RevisionKey}, private::Key};
+    /// use rand::{thread_rng, Rng};
+    ///
+    /// let rng = &mut thread_rng();
+    /// let private_ref = PrivateRef::with_revision_key(
+    ///     rng.gen::<[u8; 32]>(),
+    ///     RevisionKey::from(Key::new(rng.gen::<[u8; 32]>())),
+    /// );
+    ///
+    /// println!("Private ref: {:?}", private_ref);
+    /// ```
+    pub fn with_revision_key(saturated_name_hash: HashOutput, revision_key: RevisionKey) -> Self {
         Self {
             saturated_name_hash,
             content_key: revision_key.derive_content_key(),
             revision_key,
         }
+    }
+
+    /// Creates a PrivateRef from provided namefilter, ratchet seed and inumber.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use wnfs::{private::PrivateRef, Namefilter};
+    /// use rand::{thread_rng, Rng};
+    ///
+    /// let rng = &mut thread_rng();
+    /// let private_ref = PrivateRef::with_seed(
+    ///     Namefilter::default(),
+    ///     rng.gen::<[u8; 32]>(),
+    ///     rng.gen::<[u8; 32]>(),
+    /// );
+    ///
+    /// println!("Private ref: {:?}", private_ref);
+    /// ```
+    pub fn with_seed(name: Namefilter, ratchet_seed: HashOutput, inumber: HashOutput) -> Self {
+        let h = PrivateNodeHeader::with_seed(name, ratchet_seed, inumber);
+        h.get_private_ref()
     }
 
     pub(crate) fn to_serializable(
@@ -744,7 +779,7 @@ mod private_node_tests {
         .unwrap();
 
         let file = PrivateNode::File(Rc::new(file));
-        let private_ref = file.get_header().get_private_ref().unwrap();
+        let private_ref = file.get_header().get_private_ref();
         let bytes = file.serialize_to_cbor(rng).unwrap();
 
         let deserialized_node =

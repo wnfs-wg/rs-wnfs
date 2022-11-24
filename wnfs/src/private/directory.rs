@@ -304,7 +304,7 @@ impl PrivateDirectory {
         for (parent_dir, segment) in path_nodes.path.iter().rev() {
             let mut parent_dir = (**parent_dir).clone();
             parent_dir.advance_ratchet();
-            let child_private_ref = working_child_dir.header.get_private_ref()?;
+            let child_private_ref = working_child_dir.header.get_private_ref();
 
             parent_dir
                 .entries
@@ -328,7 +328,7 @@ impl PrivateDirectory {
         working_hamt = working_hamt
             .put(
                 working_child_dir.header.get_saturated_name(),
-                &working_child_dir.header.get_private_ref()?,
+                &working_child_dir.header.get_private_ref(),
                 &PrivateNode::Dir(Rc::clone(&working_child_dir)),
                 store,
                 rng,
@@ -605,7 +605,7 @@ impl PrivateDirectory {
             }
         };
 
-        let child_private_ref = file.header.get_private_ref()?;
+        let child_private_ref = file.header.get_private_ref();
         let hamt = hamt
             .put(
                 file.header.get_saturated_name(),
@@ -990,7 +990,7 @@ impl PrivateDirectory {
 
         directory
             .entries
-            .insert(filename.clone(), node.get_header().get_private_ref()?);
+            .insert(filename.clone(), node.get_header().get_private_ref());
 
         path_nodes.tail = Rc::new(directory);
 
@@ -1198,11 +1198,7 @@ impl PrivateDirectory {
     where
         S: serde::Serializer,
     {
-        let key = self
-            .header
-            .get_private_ref()
-            .map_err(SerError::custom)?
-            .revision_key;
+        let key = self.header.get_private_ref().revision_key;
 
         let mut entries = BTreeMap::new();
 
@@ -1292,18 +1288,18 @@ mod tests {
             PrivateDirectory::with_seed(Namefilter::default(), Utc::now(), ratchet_seed, inumber);
 
         assert_eq!(
-            dir1.header.get_private_ref().unwrap().revision_key,
-            dir2.header.get_private_ref().unwrap().revision_key
+            dir1.header.get_private_ref().revision_key,
+            dir2.header.get_private_ref().revision_key
         );
 
         assert_eq!(
-            dir1.header.get_private_ref().unwrap().content_key,
-            dir2.header.get_private_ref().unwrap().content_key
+            dir1.header.get_private_ref().content_key,
+            dir2.header.get_private_ref().content_key
         );
 
         assert_eq!(
-            dir1.header.get_private_ref().unwrap().saturated_name_hash,
-            dir2.header.get_private_ref().unwrap().saturated_name_hash
+            dir1.header.get_private_ref().saturated_name_hash,
+            dir2.header.get_private_ref().saturated_name_hash
         );
     }
 

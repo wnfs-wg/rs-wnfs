@@ -418,11 +418,7 @@ impl PrivateFile {
     where
         S: serde::Serializer,
     {
-        let key = self
-            .header
-            .get_private_ref()
-            .map_err(SerError::custom)?
-            .revision_key;
+        let key = self.header.get_private_ref().revision_key;
 
         (PrivateFileSerializable {
             r#type: NodeType::PrivateFile,
