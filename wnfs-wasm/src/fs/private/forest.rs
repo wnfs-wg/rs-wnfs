@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use js_sys::{Error, Promise};
+use js_sys::Promise;
 use wasm_bindgen::{prelude::wasm_bindgen, JsValue};
 use wasm_bindgen_futures::future_to_promise;
 use wnfs::{
@@ -9,7 +9,10 @@ use wnfs::{
 };
 
 use crate::{
-    fs::{utils::error, BlockStore, ForeignBlockStore, JsResult},
+    fs::{
+        utils::{self, error},
+        BlockStore, ForeignBlockStore, JsResult,
+    },
     value,
 };
 
@@ -46,9 +49,9 @@ impl PrivateForest {
         let store = ForeignBlockStore(store);
         let forest = self.0.clone();
 
-        let saturated_name_hash = expect_bytes::<HASH_BYTE_SIZE>(saturated_namefilter_hash)?;
+        let saturated_name_hash = utils::expect_bytes::<HASH_BYTE_SIZE>(saturated_namefilter_hash)?;
 
-        let key_bytes = expect_bytes::<KEY_BYTE_SIZE>(revision_key)?;
+        let key_bytes = utils::expect_bytes::<KEY_BYTE_SIZE>(revision_key)?;
         let key = Key::new(key_bytes);
         let revision_key = RevisionKey(key);
 
@@ -66,14 +69,4 @@ impl PrivateForest {
             })
         }))
     }
-}
-
-#[inline]
-fn expect_bytes<const N: usize>(bytes: Vec<u8>) -> JsResult<[u8; N]> {
-    bytes.try_into().map_err(|v: Vec<u8>| {
-        Error::new(&format!(
-            "Unexpected number of bytes received. Expected {N}, but got {}",
-            v.len()
-        ))
-    })
 }

@@ -104,3 +104,13 @@ pub(crate) fn create_ls_entry(name: &String, metadata: &Metadata) -> JsResult<Js
 
     Ok(value!(entry))
 }
+
+#[inline]
+pub(crate) fn expect_bytes<const N: usize>(bytes: Vec<u8>) -> JsResult<[u8; N]> {
+    bytes.try_into().map_err(|v: Vec<u8>| {
+        Error::new(&format!(
+            "Unexpected number of bytes received. Expected {N}, but got {}",
+            v.len()
+        ))
+    })
+}
