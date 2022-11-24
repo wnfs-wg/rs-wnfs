@@ -1280,7 +1280,7 @@ mod tests {
     use test_log::test;
 
     #[test(async_std::test)]
-    async fn can_create_deterministic_directories_with_user_provided_seeds() {
+    async fn can_create_directories_deterministically_with_user_provided_seeds() {
         let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
         let ratchet_seed = utils::get_random_bytes::<32>(rng);
         let inumber = utils::get_random_bytes::<32>(rng);
