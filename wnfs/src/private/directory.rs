@@ -101,8 +101,7 @@ impl PrivateDirectory {
         }
     }
 
-    /// TODO(appcypher): Add tests
-    /// Creates a new directory with provided seed and other details.
+    /// Creates a new directory with the ratchet seed and inumber provided.
     ///
     /// # Examples
     ///
@@ -112,25 +111,24 @@ impl PrivateDirectory {
     /// use rand::{thread_rng, Rng};
     ///
     /// let rng = &mut thread_rng();
-    /// let seed = rng.gen::<[u8; 32]>();
     /// let dir = PrivateDirectory::with_seed(
     ///     Namefilter::default(),
     ///     Utc::now(),
-    ///     seed,
-    ///     rng,
+    ///     rng.gen::<[u8; 32]>(),
+    ///     rng.gen::<[u8; 32]>(),
     /// );
     ///
     /// println!("dir = {:?}", dir);
     /// ```
-    pub fn with_seed<R: RngCore>(
+    pub fn with_seed(
         parent_bare_name: Namefilter,
         time: DateTime<Utc>,
         ratchet_seed: HashOutput,
-        rng: &mut R,
+        inumber: HashOutput,
     ) -> Self {
         Self {
             version: Version::new(0, 2, 0),
-            header: PrivateNodeHeader::with_seed(parent_bare_name, ratchet_seed, rng),
+            header: PrivateNodeHeader::with_seed(parent_bare_name, ratchet_seed, inumber),
             metadata: Metadata::new(time),
             entries: BTreeMap::new(),
         }
@@ -1274,12 +1272,40 @@ impl Id for PrivateDirectory {
 //--------------------------------------------------------------------------------------------------
 
 #[cfg(test)]
-mod private_directory_tests {
+mod tests {
     use super::*;
     use crate::MemoryBlockStore;
     use proptest::test_runner::{RngAlgorithm, TestRng};
 
     use test_log::test;
+
+    #[test(async_std::test)]
+    async fn can_create_deterministic_directories_with_user_provided_seeds() {
+        let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
+        let ratchet_seed = utils::get_random_bytes::<32>(rng);
+        let inumber = utils::get_random_bytes::<32>(rng);
+
+        let dir1 =
+            PrivateDirectory::with_seed(Namefilter::default(), Utc::now(), ratchet_seed, inumber);
+
+        let dir2 =
+            PrivateDirectory::with_seed(Namefilter::default(), Utc::now(), ratchet_seed, inumber);
+
+        assert_eq!(
+            dir1.header.get_private_ref().unwrap().revision_key,
+            dir2.header.get_private_ref().unwrap().revision_key
+        );
+
+        assert_eq!(
+            dir1.header.get_private_ref().unwrap().content_key,
+            dir2.header.get_private_ref().unwrap().content_key
+        );
+
+        assert_eq!(
+            dir1.header.get_private_ref().unwrap().saturated_name_hash,
+            dir2.header.get_private_ref().unwrap().saturated_name_hash
+        );
+    }
 
     #[test(async_std::test)]
     async fn look_up_can_fetch_file_added_to_directory() {

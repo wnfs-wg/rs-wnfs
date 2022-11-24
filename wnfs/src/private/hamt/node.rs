@@ -756,13 +756,10 @@ mod hamt_node_unit_tests {
 
     #[test(async_std::test)]
     async fn node_can_insert_pair_and_retrieve() {
-        let mut store = MemoryBlockStore::default();
+        let store = MemoryBlockStore::default();
         let node = Rc::new(Node::<String, (i32, f64)>::default());
 
-        let node = node
-            .set("pill".into(), (10, 0.315), &mut store)
-            .await
-            .unwrap();
+        let node = node.set("pill".into(), (10, 0.315), &store).await.unwrap();
 
         let value = node.get(&"pill".into(), &store).await.unwrap().unwrap();
 
