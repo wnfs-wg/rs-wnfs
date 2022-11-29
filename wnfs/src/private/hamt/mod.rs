@@ -1,6 +1,7 @@
 //! This implementation is based on [ipld_hamt](https://github.com/filecoin-project/ref-fvm/tree/master/ipld/hamt).
 
 mod constants;
+mod diff;
 mod error;
 #[allow(clippy::module_inception)]
 mod hamt;
@@ -10,6 +11,7 @@ mod pointer;
 
 pub(crate) use constants::*;
 
+pub use diff::*;
 pub use hamt::*;
 pub use hash::*;
 pub use node::*;

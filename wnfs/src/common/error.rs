@@ -68,6 +68,9 @@ pub enum FsError {
 
     #[error("Cannot find shard for file content")]
     FileShardNotFound,
+
+    #[error("The hashkey index is out of bounds")]
+    InvalidHashKeyIndex,
 }
 
 pub fn error<T>(err: impl std::error::Error + Send + Sync + 'static) -> Result<T> {

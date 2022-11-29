@@ -1,9 +1,9 @@
-use anyhow::{bail, Result};
-use sha3::{Digest, Sha3_256};
-
-use crate::{HashOutput, HASH_BYTE_SIZE};
+use std::fmt::Debug;
 
 use super::error::HamtError;
+use crate::{HashOutput, HASH_BYTE_SIZE};
+use anyhow::{bail, Result};
+use sha3::{Digest, Sha3_256};
 
 //--------------------------------------------------------------------------------------------------
 // Constants
@@ -40,9 +40,16 @@ pub trait Hasher {
 
 /// HashNibbles is a wrapper around a byte slice that provides a cursor for traversing the nibbles.
 #[derive(Debug, Clone)]
-pub(super) struct HashNibbles<'a> {
+pub(crate) struct HashNibbles<'a> {
     pub digest: &'a HashOutput,
     cursor: usize,
+}
+
+/// TODO(appcypher): Add docs.
+#[derive(Clone, Default)]
+pub struct HashKey {
+    pub digest: HashOutput,
+    length: u8,
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -51,17 +58,17 @@ pub(super) struct HashNibbles<'a> {
 
 impl<'a> HashNibbles<'a> {
     /// Creates a new `HashNibbles` instance from a `[u8; 32]` hash.
-    pub fn new(digest: &'a HashOutput) -> HashNibbles<'a> {
+    pub(crate) fn new(digest: &'a HashOutput) -> HashNibbles<'a> {
         Self::with_cursor(digest, 0)
     }
 
-    /// Constructs hash nibbles with custom cursor index.
-    pub fn with_cursor(digest: &'a HashOutput, cursor: usize) -> HashNibbles<'a> {
+    /// Constructs a `HashNibbles` with custom cursor index.
+    pub(crate) fn with_cursor(digest: &'a HashOutput, cursor: usize) -> HashNibbles<'a> {
         Self { digest, cursor }
     }
 
     /// Gets the next nibble from the hash.
-    pub fn try_next(&mut self) -> Result<usize> {
+    pub(crate) fn try_next(&mut self) -> Result<usize> {
         if let Some(nibble) = self.next() {
             return Ok(nibble as usize);
         }
@@ -70,7 +77,7 @@ impl<'a> HashNibbles<'a> {
 
     /// Gets the current cursor position.
     #[inline]
-    pub fn get_cursor(&self) -> usize {
+    pub(crate) fn get_cursor(&self) -> usize {
         self.cursor
     }
 }
@@ -100,6 +107,69 @@ impl Hasher for Sha3_256 {
         let mut hasher = Self::default();
         hasher.update(data.as_ref());
         hasher.finalize().into()
+    }
+}
+
+impl HashKey {
+    /// Creates a new `HashKey` instance from a `[u8; 32]` hash.
+    pub(crate) fn with_length(digest: HashOutput, length: u8) -> HashKey {
+        Self { digest, length }
+    }
+
+    /// Pushes a nibble to the end of the hash.
+    pub fn push(&mut self, nibble: u8) {
+        let offset = self.length as usize / 2;
+        let byte = self.digest[offset];
+        let byte = if self.length as usize % 2 == 0 {
+            nibble << 4
+        } else {
+            byte | (nibble & 0x0F)
+        };
+
+        self.digest[offset] = byte;
+        self.length += 1;
+    }
+
+    #[inline(always)]
+    /// Gets the length of the hash.
+    /// TODO(appcypher): Add examples.
+    pub fn len(&self) -> usize {
+        self.length as usize
+    }
+
+    /// Checks if the hash is empty.
+    /// TODO(appcypher): Add examples.
+    pub fn is_empty(&self) -> bool {
+        self.length == 0
+    }
+
+    /// Get the nibble at specified offset.
+    /// TODO(appcypher): Add examples.
+    pub fn get(&self, index: u8) -> Option<u8> {
+        if index >= self.length {
+            return None;
+        }
+
+        let byte = self.digest.get(index as usize / 2)?;
+        Some(if index % 2 == 0 {
+            byte >> 4
+        } else {
+            byte & 0x0F
+        })
+    }
+}
+
+impl Debug for HashKey {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "0x")?;
+
+        let mut index = 0;
+        while let Some(byte) = self.get(index) {
+            write!(f, "{byte:1X}")?;
+            index += 1;
+        }
+
+        Ok(())
     }
 }
 
@@ -137,5 +207,19 @@ mod tests {
             .collect::<Vec<_>>();
 
         assert_eq!(hashnibbles.next(), None);
+    }
+
+    #[test]
+    fn can_push_and_get_nibbles_from_hashkey() {
+        let mut hashkey = HashKey::default();
+        for i in 0..HASH_BYTE_SIZE {
+            hashkey.push((i % 16) as u8);
+            hashkey.push((15 - i % 16) as u8);
+        }
+
+        for i in 0..HASH_BYTE_SIZE {
+            assert_eq!(hashkey.get(i as u8 * 2).unwrap(), (i % 16) as u8);
+            assert_eq!(hashkey.get(i as u8 * 2 + 1).unwrap(), (15 - i % 16) as u8);
+        }
     }
 }

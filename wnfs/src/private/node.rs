@@ -222,6 +222,8 @@ impl PrivateNode {
     /// let dir = Rc::new(PrivateDirectory::new(
     ///     Namefilter::default(),
     ///     Utc::now(),
+    ///
+    ///
     ///     rng,
     /// ));
     /// let node = PrivateNode::Dir(Rc::clone(&dir));

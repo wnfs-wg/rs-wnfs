@@ -91,7 +91,7 @@ impl<T> Link<T> {
     }
 
     /// Gets an owned value from type. It attempts to it get from the store if it is not present in type.
-    pub async fn get_owned_value<B: BlockStore>(self, store: &B) -> Result<T>
+    pub async fn resolve_owned_value<B: BlockStore>(self, store: &B) -> Result<T>
     where
         T: DeserializeOwned,
     {

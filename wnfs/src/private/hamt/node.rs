@@ -1,11 +1,16 @@
-use std::{fmt::Debug, marker::PhantomData, rc::Rc};
-
-use crate::{private::HAMT_VALUES_BUCKET_SIZE, AsyncSerialize, BlockStore, HashOutput, Link};
+use super::{
+    error::HamtError,
+    hash::{HashNibbles, Hasher},
+    HashKey, Pair, Pointer, HAMT_BITMASK_BIT_SIZE, HAMT_BITMASK_BYTE_SIZE,
+};
+use crate::{
+    private::HAMT_VALUES_BUCKET_SIZE, AsyncSerialize, BlockStore, FsError, HashOutput, Link,
+};
 use anyhow::{bail, Result};
 use async_recursion::async_recursion;
 use async_trait::async_trait;
 use bitvec::array::BitArray;
-
+use either::{Either, Either::*};
 use futures::future::LocalBoxFuture;
 use libipld::{serde as ipld_serde, Ipld};
 use log::debug;
@@ -15,12 +20,7 @@ use serde::{
     Deserializer, Serialize, Serializer,
 };
 use sha3::Sha3_256;
-
-use super::{
-    error::HamtError,
-    hash::{HashNibbles, Hasher},
-    Pair, Pointer, HAMT_BITMASK_BIT_SIZE, HAMT_BITMASK_BYTE_SIZE,
-};
+use std::{fmt::Debug, marker::PhantomData, rc::Rc};
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
@@ -249,7 +249,7 @@ where
     }
 
     /// Calculates the value index from the bitmask index.
-    fn get_value_index(&self, bit_index: usize) -> usize {
+    pub(crate) fn get_value_index(&self, bit_index: usize) -> usize {
         let shift_amount = HAMT_BITMASK_BIT_SIZE - bit_index;
         let mask = if shift_amount < HAMT_BITMASK_BIT_SIZE {
             let mut tmp = BitArray::<BitMaskType>::new([0xff, 0xff]);
@@ -262,7 +262,7 @@ where
         (mask & self.bitmask).count_ones()
     }
 
-    fn set_value<'a, B: BlockStore>(
+    pub(super) fn set_value<'a, B: BlockStore>(
         self: Rc<Self>,
         hashnibbles: &'a mut HashNibbles,
         key: K,
@@ -343,7 +343,7 @@ where
     }
 
     #[async_recursion(?Send)]
-    async fn get_value<'a, B: BlockStore>(
+    pub(super) async fn get_value<'a, B: BlockStore>(
         &'a self,
         hashnibbles: &mut HashNibbles,
         store: &B,
@@ -375,7 +375,7 @@ where
 
     // It's internal and is only more complex because async_recursion doesn't work here
     #[allow(clippy::type_complexity)]
-    fn remove_value<'k, 'v, 'a, B: BlockStore>(
+    pub(super) fn remove_value<'k, 'v, 'a, B: BlockStore>(
         self: Rc<Self>,
         hashnibbles: &'a mut HashNibbles,
         store: &'a B,
@@ -451,6 +451,75 @@ where
             };
             Ok((Rc::new(node), removed))
         })
+    }
+
+    // TODO(appcypher): Add docs.
+    // TODO(appcypher): Add tests.
+    #[async_recursion(?Send)]
+    pub async fn flat_map<F, T, B>(self: &Rc<Self>, f: &F, store: &B) -> Result<Vec<T>>
+    where
+        B: BlockStore,
+        F: Fn(&Pair<K, V>) -> Result<T>,
+        K: DeserializeOwned + Clone,
+        V: DeserializeOwned + Clone,
+    {
+        let mut items = <Vec<T>>::new();
+        for p in self.pointers.iter() {
+            match p {
+                Pointer::Values(values) => {
+                    for pair in values {
+                        items.push(f(pair)?);
+                    }
+                }
+                Pointer::Link(link) => {
+                    let child = link.resolve_value(store).await?;
+                    items.extend(child.flat_map(f, store).await?);
+                }
+            }
+        }
+
+        Ok(items)
+    }
+
+    // TODO(appcypher): Add docs.
+    // TODO(appcypher): Add tests.
+    #[async_recursion(?Send)]
+    pub async fn get_node_at<'a, B>(
+        &'a self,
+        hashkey: &HashKey,
+        index: u8,
+        store: &B,
+    ) -> Result<Option<Either<&'a Pair<K, V>, &'a Rc<Self>>>>
+    where
+        K: DeserializeOwned + AsRef<[u8]>,
+        V: DeserializeOwned,
+        B: BlockStore,
+    {
+        let bit_index = hashkey.get(index).ok_or(FsError::InvalidHashKeyIndex)? as usize;
+        if !self.bitmask[bit_index] {
+            return Ok(None);
+        }
+
+        let value_index = self.get_value_index(bit_index);
+        match &self.pointers[value_index] {
+            Pointer::Values(values) => Ok({
+                values
+                    .iter()
+                    .find(|p| {
+                        let hashkey_len = hashkey.len();
+                        H::hash(&p.key)[..hashkey_len] == hashkey.digest[..hashkey_len]
+                    })
+                    .map(Left)
+            }),
+            Pointer::Link(link) => {
+                let child = link.resolve_value(store).await?;
+                if index == hashkey.len() as u8 - 1 {
+                    return Ok(Some(Right(child)));
+                }
+
+                child.get_node_at(hashkey, index + 1, store).await
+            }
+        }
     }
 }
 
