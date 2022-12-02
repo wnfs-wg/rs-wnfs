@@ -1,4 +1,6 @@
 # See https://pre-commit.com for more information
+# pre-commit install
+# pre-commit install --hook-type commit-msg
 repos:
   - repo: local
     hooks:
@@ -32,6 +34,13 @@ repos:
     hooks:
       - id: cargo-sort
         args: ["-w"]
+
+  - repo: https://github.com/compilerla/conventional-pre-commit
+    rev: v2.1.1
+    hooks:
+      - id: conventional-pre-commit
+        stages:
+          - commit-msg
 
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.0.1
