@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1669052045299,
+  "lastUpdate": 1669978108993,
   "repoUrl": "https://github.com/wnfs-wg/rs-wnfs",
   "entries": {
     "Rust Benchmark": [
@@ -564,6 +564,96 @@ window.BENCHMARK_DATA = {
           {
             "name": "namefilter encode",
             "value": 155,
+            "range": "± 9",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter decode/0",
+            "value": 1,
+            "range": "± 0",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "appcypher@outlook.com",
+            "name": "Stephen A",
+            "username": "appcypher"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "f6cadeb3765f0cd2f6e7b4f0e42ed657d956be82",
+          "message": "Allow user-provided ratchet seed and inumber (#91)\n\n* Support user-specified ratchet seed\r\n\r\n* Support user-provided inumber\r\n\r\n- Add tests\r\n\r\n* Add js api and bump versions\r\n\r\n* Rename test\r\n\r\n* Add `PrivateRef::with_seed`\r\n\r\n- Remove Result from `PrivateNodeHeader::get_private_ref`\r\n\r\n* Add new test for creating deterministic privateref",
+          "timestamp": "2022-12-02T11:41:09+01:00",
+          "tree_id": "6e70654fcfa8f0df971a00214c8ab6fc2a8c9a74",
+          "url": "https://github.com/wnfs-wg/rs-wnfs/commit/f6cadeb3765f0cd2f6e7b4f0e42ed657d956be82"
+        },
+        "date": 1669978107686,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "node set",
+            "value": 7159,
+            "range": "± 79",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node set 1000 consecutive",
+            "value": 4460920,
+            "range": "± 17185",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and get",
+            "value": 154707,
+            "range": "± 184",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and remove",
+            "value": 170069,
+            "range": "± 226",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt load and decode/0",
+            "value": 34819,
+            "range": "± 85",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt set and encode",
+            "value": 171164,
+            "range": "± 347",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter add",
+            "value": 16275,
+            "range": "± 19",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter contains",
+            "value": 10654,
+            "range": "± 29",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter saturate",
+            "value": 42339,
+            "range": "± 340",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter encode",
+            "value": 171,
             "range": "± 9",
             "unit": "ns/iter"
           },
