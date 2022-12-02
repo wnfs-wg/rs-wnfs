@@ -246,9 +246,9 @@ impl PrivateForest {
             .unwrap_or_default();
         values.insert(value);
 
-        let mut hamt = Rc::try_unwrap(self).unwrap_or_else(|rc| (*rc).clone());
-        hamt.root = hamt.root.set(name, values, store).await?;
-        Ok(Rc::new(hamt))
+        let mut forest = Rc::try_unwrap(self).unwrap_or_else(|rc| (*rc).clone());
+        forest.root = forest.root.set(name, values, store).await?;
+        Ok(Rc::new(forest))
     }
 
     /// Gets the encrypted value at the given key.
@@ -303,7 +303,7 @@ impl PrivateForest {
 // //--------------------------------------------------------------------------------------------------
 
 #[cfg(test)]
-mod hamt_store_tests {
+mod tests {
     use proptest::test_runner::{RngAlgorithm, TestRng};
     use std::rc::Rc;
     use test_log::test;
@@ -316,7 +316,7 @@ mod hamt_store_tests {
     #[test(async_std::test)]
     async fn inserted_items_can_be_fetched() {
         let store = &mut MemoryBlockStore::new();
-        let hamt = Rc::new(PrivateForest::new());
+        let forest = Rc::new(PrivateForest::new());
         let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
 
         let dir = Rc::new(PrivateDirectory::new(
@@ -329,12 +329,12 @@ mod hamt_store_tests {
         let saturated_name = dir.header.get_saturated_name();
         let private_node = PrivateNode::Dir(dir.clone());
 
-        let hamt = hamt
+        let forest = forest
             .put(saturated_name, &private_ref, &private_node, store, rng)
             .await
             .unwrap();
 
-        let retrieved = hamt
+        let retrieved = forest
             .get(&private_ref, PrivateForest::resolve_lowest, store)
             .await
             .unwrap()
@@ -346,7 +346,7 @@ mod hamt_store_tests {
     #[test(async_std::test)]
     async fn inserted_multivalue_items_can_be_fetched_with_bias() {
         let store = &mut MemoryBlockStore::new();
-        let hamt = Rc::new(PrivateForest::new());
+        let forest = Rc::new(PrivateForest::new());
         let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
 
         let dir = Rc::new(PrivateDirectory::new(
@@ -371,13 +371,13 @@ mod hamt_store_tests {
         assert_eq!(saturated_name_conflict, saturated_name);
 
         // Put the original node in the HAMT
-        let hamt = hamt
+        let forest = forest
             .put(saturated_name, &private_ref, &private_node, store, rng)
             .await
             .unwrap();
 
         // Put the conflicting node in the HAMT at the same key
-        let hamt = hamt
+        let forest = forest
             .put(
                 saturated_name_conflict,
                 &private_ref_conflict,
@@ -388,7 +388,7 @@ mod hamt_store_tests {
             .await
             .unwrap();
 
-        let ciphertext_cids = hamt
+        let ciphertext_cids = forest
             .get_encrypted(&private_ref.saturated_name_hash, store)
             .await
             .unwrap()
@@ -399,7 +399,7 @@ mod hamt_store_tests {
 
         let conflict_cid = ciphertext_cids.iter().last().unwrap();
 
-        let retrieved = hamt
+        let retrieved = forest
             .get(
                 &private_ref,
                 PrivateForest::resolve_one_of::<fn(&BTreeSet<Cid>) -> Option<&Cid>>(

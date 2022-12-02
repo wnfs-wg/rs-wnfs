@@ -322,7 +322,7 @@ impl AsyncSerialize for PublicNode {
 //--------------------------------------------------------------------------------------------------
 
 #[cfg(test)]
-mod public_node_tests {
+mod tests {
     use std::rc::Rc;
 
     use chrono::Utc;

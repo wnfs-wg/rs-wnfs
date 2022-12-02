@@ -153,11 +153,11 @@ impl PrivateNode {
     pub(crate) async fn update_ancestry<B: BlockStore, R: RngCore>(
         &mut self,
         parent_bare_name: Namefilter,
-        hamt: Rc<PrivateForest>,
+        forest: Rc<PrivateForest>,
         store: &mut B,
         rng: &mut R,
     ) -> Result<Rc<PrivateForest>> {
-        let hamt = match self {
+        let forest = match self {
             Self::File(file) => {
                 let mut file = (**file).clone();
 
@@ -166,20 +166,20 @@ impl PrivateNode {
 
                 *self = Self::File(Rc::new(file));
 
-                hamt
+                forest
             }
             Self::Dir(old_dir) => {
                 let mut dir = (**old_dir).clone();
 
-                let mut working_hamt = Rc::clone(&hamt);
+                let mut working_forest = Rc::clone(&forest);
                 for (name, private_ref) in &old_dir.entries {
-                    let mut node = hamt
+                    let mut node = forest
                         .get(private_ref, PrivateForest::resolve_lowest, store)
                         .await?
                         .ok_or(FsError::NotFound)?;
 
-                    working_hamt = node
-                        .update_ancestry(dir.header.bare_name.clone(), working_hamt, store, rng)
+                    working_forest = node
+                        .update_ancestry(dir.header.bare_name.clone(), working_forest, store, rng)
                         .await?;
 
                     dir.entries
@@ -191,20 +191,21 @@ impl PrivateNode {
 
                 *self = Self::Dir(Rc::new(dir));
 
-                working_hamt
+                working_forest
             }
         };
 
         let header = self.get_header();
 
-        hamt.put(
-            header.get_saturated_name(),
-            &header.get_private_ref(),
-            self,
-            store,
-            rng,
-        )
-        .await
+        forest
+            .put(
+                header.get_saturated_name(),
+                &header.get_private_ref(),
+                self,
+                store,
+                rng,
+            )
+            .await
     }
 
     /// Gets the header of the node.
@@ -629,14 +630,14 @@ mod tests {
     async fn serialized_private_node_can_be_deserialized() {
         let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
         let content = b"Lorem ipsum dolor sit amet";
-        let hamt = Rc::new(PrivateForest::new());
+        let forest = Rc::new(PrivateForest::new());
         let store = &mut MemoryBlockStore::new();
 
         let (file, _) = PrivateFile::with_content(
             Namefilter::default(),
             Utc::now(),
             content.to_vec(),
-            hamt,
+            forest,
             store,
             rng,
         )

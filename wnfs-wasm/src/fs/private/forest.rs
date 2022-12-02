@@ -22,7 +22,7 @@ use super::PrivateNode;
 // Type Definitions
 //--------------------------------------------------------------------------------------------------
 
-/// A HAMT forest in a WNFS public file system.
+/// A reference to a private forest. Used for the private file system.
 #[wasm_bindgen]
 pub struct PrivateForest(pub(crate) Rc<WnfsPrivateForest>);
 
@@ -32,7 +32,7 @@ pub struct PrivateForest(pub(crate) Rc<WnfsPrivateForest>);
 
 #[wasm_bindgen]
 impl PrivateForest {
-    /// Creates a new HAMT forest.
+    /// Creates a new private forest.
     #[wasm_bindgen(constructor)]
     #[allow(clippy::new_without_default)]
     pub fn new() -> PrivateForest {

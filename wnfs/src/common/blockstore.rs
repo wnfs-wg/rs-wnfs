@@ -130,7 +130,7 @@ impl BlockStore for MemoryBlockStore {
 //--------------------------------------------------------------------------------------------------
 
 #[cfg(test)]
-mod blockstore_tests {
+mod tests {
     use libipld::{cbor::DagCborCodec, codec::Encode};
 
     use super::*;

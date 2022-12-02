@@ -166,7 +166,7 @@ impl Debug for Key {
 //--------------------------------------------------------------------------------------------------
 
 #[cfg(test)]
-mod key_prop_tests {
+mod proptests {
     use super::*;
     use proptest::{
         prelude::any,

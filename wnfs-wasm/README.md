@@ -90,28 +90,28 @@ console.log("Files in /pictures directory:", result);
 
 You may notice that we use the `rootDir`s returned by each operation in subseqent operations. That is because WNFS internal state is immutable and every operation potentially returns a new root directory. This allows us to track and rollback changes when needed. It also makes collaborative editing easier to implement and reason about. There is a basic demo of the filesystem immutability [here][wnfs-graph-demo].
 
-The private filesystem, on the other hand, is a bit more involved. [Hash Array Mapped Trie (HAMT)][hamt-wiki] is used as the intermediate format of private file tree before it is persisted to the blockstore. HAMT helps us hide the hierarchy of the file tree.
+The private filesystem, on the other hand, is a bit more involved. [Hash Array Mapped Trie (HAMT)][hamt-wiki] is used as the intermediate format of private file tree before it is persisted to the blockstore. Our use of HAMTs obfuscate the file tree hierarchy.
 
 ```js
 import { MemoryBlockStore, Rng } from "<custom>";
 import { PrivateDirectory, PrivateForest, Namefilter } from "wnfs";
 
-const initialHamt = new PrivateForest();
+const initialForest = new PrivateForest();
 const rng = new Rng();
 const store = new MemoryBlockStore();
 const dir = new PrivateDirectory(new Namefilter(), new Date(), rng);
 
-var { rootDir, hamt } = await root.mkdir(
+var { rootDir, forest } = await root.mkdir(
   ["pictures", "cats"],
   true,
   new Date(),
-  initialHamt,
+  initialForest,
   store,
   rng
 );
 
 // Add a file to /pictures/cats.
-var { rootDir, hamt } = await rootDir.write(
+var { rootDir, forest } = await rootDir.write(
   ["pictures", "cats", "tabby.png"],
   cid,
   time,
@@ -119,27 +119,27 @@ var { rootDir, hamt } = await rootDir.write(
 );
 
 // Create and add a file to /pictures/dogs directory.
-var { rootDir, hamt } = await rootDir.write(
+var { rootDir, forest } = await rootDir.write(
   ["pictures", "cats", "billie.png"],
   true,
   new Uint8Array([1, 2, 3, 4, 5]),
   new Date(),
-  hamt,
+  forest,
   store,
   rng
 );
 
 // Delete /pictures/cats directory.
-var { rootDir, hamt } = await rootDir.rm(
+var { rootDir, forest } = await rootDir.rm(
   ["pictures", "cats"],
   true,
-  hamt,
+  forest,
   store,
   rng
 );
 
 // List all files in /pictures directory.
-var { result } = await rootDir.ls(["pictures"], true, hamt, store);
+var { result } = await rootDir.ls(["pictures"], true, forest, store);
 
 console.log("Files in /pictures directory:", result);
 ```

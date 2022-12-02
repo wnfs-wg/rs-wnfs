@@ -209,7 +209,7 @@ where
 //--------------------------------------------------------------------------------------------------
 
 #[cfg(test)]
-mod ipld_link_tests {
+mod tests {
     use crate::{BlockStore, Link, MemoryBlockStore};
 
     #[async_std::test]

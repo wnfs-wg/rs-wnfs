@@ -569,7 +569,7 @@ where
 //--------------------------------------------------------------------------------------------------
 
 #[cfg(test)]
-mod hamt_node_unit_tests {
+mod tests {
     use super::*;
     use crate::{HashOutput, MemoryBlockStore};
     use lazy_static::lazy_static;
@@ -810,7 +810,7 @@ mod hamt_node_unit_tests {
 }
 
 #[cfg(test)]
-mod hamt_node_prop_tests {
+mod proptests {
 
     use crate::private::hamt::strategies::*;
     use proptest::prelude::*;

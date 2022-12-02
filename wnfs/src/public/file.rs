@@ -166,7 +166,7 @@ impl Id for PublicFile {
 //--------------------------------------------------------------------------------------------------
 
 #[cfg(test)]
-mod public_file_tests {
+mod tests {
     use chrono::Utc;
     use libipld::Cid;
 

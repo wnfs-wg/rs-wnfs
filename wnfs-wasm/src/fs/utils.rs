@@ -60,7 +60,7 @@ pub(crate) fn create_public_op_result<T: Into<JsValue>>(
 
 pub(crate) fn create_private_op_result<T: Into<JsValue>>(
     root_dir: Rc<WnfsPrivateDirectory>,
-    hamt: Rc<WnfsPrivateForest>,
+    forest: Rc<WnfsPrivateForest>,
     result: T,
 ) -> JsResult<JsValue> {
     let op_result = Array::new();
@@ -71,8 +71,8 @@ pub(crate) fn create_private_op_result<T: Into<JsValue>>(
         &PrivateDirectory(root_dir).into(),
     )
     .map_err(error("Failed to set rootDir"))?;
-    Reflect::set(&op_result, &value!("hamt"), &PrivateForest(hamt).into())
-        .map_err(error("Failed to set hamt"))?;
+    Reflect::set(&op_result, &value!("forest"), &PrivateForest(forest).into())
+        .map_err(error("Failed to set forest"))?;
     Reflect::set(&op_result, &value!("result"), &result.into())
         .map_err(error("Failed to set result"))?;
 
@@ -81,12 +81,12 @@ pub(crate) fn create_private_op_result<T: Into<JsValue>>(
 
 pub(crate) fn create_private_file_result(
     file: PrivateFile,
-    hamt: PrivateForest,
+    forest: PrivateForest,
 ) -> JsResult<JsValue> {
     let op_result = Array::new();
 
     Reflect::set(&op_result, &value!(0), &file.into()).map_err(error("Failed to set file"))?;
-    Reflect::set(&op_result, &value!(1), &hamt.into()).map_err(error("Failed to set hamt"))?;
+    Reflect::set(&op_result, &value!(1), &forest.into()).map_err(error("Failed to set forest"))?;
 
     Ok(value!(op_result))
 }

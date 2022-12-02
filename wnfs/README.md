@@ -74,7 +74,7 @@ async fn main() {
 
 You may notice that we store the `root_dir` returned by the `mkdir` operation, not the `dir` we started with. That is because WNFS internal state is immutable and every operation potentially returns a new root directory. This allows us to track and rollback changes when needed. It also makes collaborative editing easier to implement and reason about. You can find more examples in the [`wnfs/examples/`][wnfs-examples] folder. And there is a basic demo of the filesystem immutability [here][wnfs-graph-demo].
 
-The private filesystem, on the other hand, is a bit more involved. [Hash Array Mapped Trie (HAMT)][hamt-wiki] is used as the intermediate format of private file tree before it is persisted to the blockstore. HAMT helps us hide the hierarchy of the file tree.
+The private filesystem, on the other hand, is a bit more involved. [Hash Array Mapped Trie (HAMT)][hamt-wiki] is used as the intermediate format of private file tree before it is persisted to the blockstore. Our use of HAMTs obfuscate the file tree hierarchy.
 
 ```rust
 use wnfs::{
@@ -94,8 +94,8 @@ async fn main() {
     // A random number generator the private filesystem can use.
     let rng = &mut thread_rng();
 
-    // Create HAMT intermediate data structure.
-    let hamt = Rc::new(PrivateForest::new());
+    // Create private forest.
+    let forest = Rc::new(PrivateForest::new());
 
     // Create a new private directory.
     let dir = Rc::new(PrivateDirectory::new(
@@ -105,12 +105,12 @@ async fn main() {
     ));
 
     // Add a file to /pictures/cats directory.
-    let PrivateOpResult { root_dir, hamt, .. } = dir
+    let PrivateOpResult { root_dir, forest, .. } = dir
         .mkdir(
             &["pictures".into(), "cats".into()],
             true,
             Utc::now(),
-            hamt,
+            forest,
             store,
             rng,
         )
@@ -118,13 +118,13 @@ async fn main() {
         .unwrap();
 
     // Add a file to /pictures/dogs/billie.jpg file.
-    let PrivateOpResult { root_dir, hamt, .. } = root_dir
+    let PrivateOpResult { root_dir, forest, .. } = root_dir
         .write(
             &["pictures".into(), "dogs".into(), "billie.jpeg".into()],
             true,
             Utc::now(),
             b"hello world".to_vec(),
-            hamt,
+            forest,
             store,
             rng,
         )
@@ -133,7 +133,7 @@ async fn main() {
 
     // List all files in /pictures directory.
     let PrivateOpResult { result, .. } = root_dir
-        .ls(&["pictures".into()], true, hamt, store)
+        .ls(&["pictures".into()], true, forest, store)
         .await
         .unwrap();
 

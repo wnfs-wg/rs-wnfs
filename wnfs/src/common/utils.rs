@@ -94,19 +94,19 @@ pub(crate) mod test_setup {
     #![allow(unused_imports)]
 
     /// This macro is useful for setting up intial states commonly used in tests.
-    /// It lets you create hamt, default namefilters, memory blockstore, etc. in a single line.
+    /// It lets you create a private forest, default namefilters, memory blockstore, etc. in a single line.
     ///
     /// # Examples
     ///
     /// ```
     /// use crate::utils::test_setup;
-    /// let (name, hamt, store, rng) = test_setup::init!(name, hamt, mut store, mut rng);
+    /// let (name, forest, store, rng) = test_setup::init!(name, forest, mut store, mut rng);
     /// ```
     macro_rules! init {
         [ name ] => {
             $crate::private::Namefilter::default()
         };
-        [ hamt ] => {
+        [ forest ] => {
             std::rc::Rc::new($crate::private::PrivateForest::new())
         };
         [ rng ] => {
@@ -134,7 +134,7 @@ pub(crate) mod test_setup {
     /// use crate::utils::test_setup;
     /// let (dir, _) = test_setup::private!(dir);
     /// let (file, _) = test_setup::private!(file);
-    /// let (file, (hamt, store, rng)) = test_setup::private!(file, vec![1, 2, 3]);
+    /// let (file, (forest, store, rng)) = test_setup::private!(file, vec![1, 2, 3]);
     /// ```
     macro_rules! private {
         [ dir ] => {{
@@ -144,19 +144,19 @@ pub(crate) mod test_setup {
             (dir, rng)
         }};
         [ file, $content:expr ] => {{
-            let (name, hamt, mut store, mut rng) = test_setup::init!(name, hamt, store, rng);
-            let (file, hamt) = $crate::PrivateFile::with_content(
+            let (name, forest, mut store, mut rng) = test_setup::init!(name, forest, store, rng);
+            let (file, forest) = $crate::PrivateFile::with_content(
                 name,
                 chrono::Utc::now(),
                 $content,
-                hamt,
+                forest,
                 &mut store,
                 &mut rng,
             )
             .await
             .unwrap();
 
-            (file, (hamt, store, rng))
+            (file, (forest, store, rng))
         }};
         [ file ] => {{
             let (name, mut rng) = test_setup::init!(name, rng);
@@ -175,7 +175,7 @@ pub(crate) mod test_setup {
 //--------------------------------------------------------------------------------------------------
 
 #[cfg(test)]
-mod public_directory_tests {
+mod tests {
     use super::*;
 
     #[test]

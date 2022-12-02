@@ -46,7 +46,7 @@ impl PrivateFile {
         parent_bare_name: Namefilter,
         time: &Date,
         content: Vec<u8>,
-        hamt: PrivateForest,
+        forest: PrivateForest,
         store: BlockStore,
         mut rng: Rng,
     ) -> JsResult<Promise> {
@@ -54,11 +54,11 @@ impl PrivateFile {
         let time = DateTime::<Utc>::from(time);
 
         Ok(future_to_promise(async move {
-            let (file, hamt) = WnfsPrivateFile::with_content(
+            let (file, forest) = WnfsPrivateFile::with_content(
                 parent_bare_name.0,
                 time,
                 content,
-                hamt.0,
+                forest.0,
                 &mut store,
                 &mut rng,
             )
@@ -67,20 +67,20 @@ impl PrivateFile {
 
             Ok(utils::create_private_file_result(
                 PrivateFile(Rc::new(file)),
-                PrivateForest(hamt),
+                PrivateForest(forest),
             )?)
         }))
     }
 
     /// Gets the entire content of a file.
     #[wasm_bindgen(js_name = "getContent")]
-    pub fn get_content(&self, hamt: PrivateForest, store: BlockStore) -> JsResult<Promise> {
+    pub fn get_content(&self, forest: PrivateForest, store: BlockStore) -> JsResult<Promise> {
         let file = Rc::clone(&self.0);
         let store = ForeignBlockStore(store);
 
         Ok(future_to_promise(async move {
             let content = file
-                .get_content(&hamt.0, &store)
+                .get_content(&forest.0, &store)
                 .await
                 .map_err(error("Cannot get content of file"))?;
 

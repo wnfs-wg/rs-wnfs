@@ -108,7 +108,7 @@ impl Hasher for Sha3_256 {
 //--------------------------------------------------------------------------------------------------
 
 #[cfg(test)]
-mod hash_nibbles_tests {
+mod tests {
     use super::*;
 
     #[test]
