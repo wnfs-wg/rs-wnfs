@@ -107,7 +107,7 @@ pub(crate) mod test_setup {
             $crate::private::Namefilter::default()
         };
         [ hamt ] => {
-            Rc::new($crate::private::PrivateForest::new())
+            std::rc::Rc::new($crate::private::PrivateForest::new())
         };
         [ rng ] => {
             proptest::test_runner::TestRng::deterministic_rng(
