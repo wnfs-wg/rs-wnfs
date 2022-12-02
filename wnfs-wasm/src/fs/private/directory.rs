@@ -6,7 +6,10 @@ use chrono::{DateTime, Utc};
 use js_sys::{Array, Date, Promise, Uint8Array};
 use wasm_bindgen::{prelude::wasm_bindgen, JsValue};
 use wasm_bindgen_futures::future_to_promise;
-use wnfs::{Id, PrivateDirectory as WnfsPrivateDirectory, PrivateOpResult as WnfsPrivateOpResult};
+use wnfs::{
+    Id, PrivateDirectory as WnfsPrivateDirectory, PrivateOpResult as WnfsPrivateOpResult,
+    HASH_BYTE_SIZE,
+};
 
 use crate::{
     fs::{
@@ -43,6 +46,26 @@ impl PrivateDirectory {
             parent_bare_name.0,
             time,
             &mut rng,
+        ))))
+    }
+
+    /// Creates a new directory with the ratchet seed and inumber provided.
+    #[wasm_bindgen(js_name = "withSeed")]
+    pub fn with_seed(
+        parent_bare_name: Namefilter,
+        time: &Date,
+        ratchet_seed: Vec<u8>,
+        inumber: Vec<u8>,
+    ) -> JsResult<PrivateDirectory> {
+        let time = DateTime::<Utc>::from(time);
+        let ratchet_seed = utils::expect_bytes::<HASH_BYTE_SIZE>(ratchet_seed)?;
+        let inumber = utils::expect_bytes::<HASH_BYTE_SIZE>(inumber)?;
+
+        Ok(Self(Rc::new(WnfsPrivateDirectory::with_seed(
+            parent_bare_name.0,
+            time,
+            ratchet_seed,
+            inumber,
         ))))
     }
 

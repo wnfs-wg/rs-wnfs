@@ -12,7 +12,8 @@ use super::{
 };
 
 use crate::{
-    dagcbor, error, utils, BlockStore, FsError, Id, Metadata, NodeType, PathNodes, PathNodesResult,
+    dagcbor, error, utils, BlockStore, FsError, HashOutput, Id, Metadata, NodeType, PathNodes,
+    PathNodesResult,
 };
 
 //--------------------------------------------------------------------------------------------------
@@ -95,6 +96,39 @@ impl PrivateDirectory {
         Self {
             version: Version::new(0, 2, 0),
             header: PrivateNodeHeader::new(parent_bare_name, rng),
+            metadata: Metadata::new(time),
+            entries: BTreeMap::new(),
+        }
+    }
+
+    /// Creates a new directory with the ratchet seed and inumber provided.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use wnfs::{PrivateDirectory, Namefilter};
+    /// use chrono::Utc;
+    /// use rand::{thread_rng, Rng};
+    ///
+    /// let rng = &mut thread_rng();
+    /// let dir = PrivateDirectory::with_seed(
+    ///     Namefilter::default(),
+    ///     Utc::now(),
+    ///     rng.gen::<[u8; 32]>(),
+    ///     rng.gen::<[u8; 32]>(),
+    /// );
+    ///
+    /// println!("dir = {:?}", dir);
+    /// ```
+    pub fn with_seed(
+        parent_bare_name: Namefilter,
+        time: DateTime<Utc>,
+        ratchet_seed: HashOutput,
+        inumber: HashOutput,
+    ) -> Self {
+        Self {
+            version: Version::new(0, 2, 0),
+            header: PrivateNodeHeader::with_seed(parent_bare_name, ratchet_seed, inumber),
             metadata: Metadata::new(time),
             entries: BTreeMap::new(),
         }
@@ -270,7 +304,7 @@ impl PrivateDirectory {
         for (parent_dir, segment) in path_nodes.path.iter().rev() {
             let mut parent_dir = (**parent_dir).clone();
             parent_dir.advance_ratchet();
-            let child_private_ref = working_child_dir.header.get_private_ref()?;
+            let child_private_ref = working_child_dir.header.get_private_ref();
 
             parent_dir
                 .entries
@@ -294,7 +328,7 @@ impl PrivateDirectory {
         working_hamt = working_hamt
             .put(
                 working_child_dir.header.get_saturated_name(),
-                &working_child_dir.header.get_private_ref()?,
+                &working_child_dir.header.get_private_ref(),
                 &PrivateNode::Dir(Rc::clone(&working_child_dir)),
                 store,
                 rng,
@@ -571,7 +605,7 @@ impl PrivateDirectory {
             }
         };
 
-        let child_private_ref = file.header.get_private_ref()?;
+        let child_private_ref = file.header.get_private_ref();
         let hamt = hamt
             .put(
                 file.header.get_saturated_name(),
@@ -956,7 +990,7 @@ impl PrivateDirectory {
 
         directory
             .entries
-            .insert(filename.clone(), node.get_header().get_private_ref()?);
+            .insert(filename.clone(), node.get_header().get_private_ref());
 
         path_nodes.tail = Rc::new(directory);
 
@@ -1164,11 +1198,7 @@ impl PrivateDirectory {
     where
         S: serde::Serializer,
     {
-        let key = self
-            .header
-            .get_private_ref()
-            .map_err(SerError::custom)?
-            .revision_key;
+        let key = self.header.get_private_ref().revision_key;
 
         let mut entries = BTreeMap::new();
 
@@ -1238,12 +1268,40 @@ impl Id for PrivateDirectory {
 //--------------------------------------------------------------------------------------------------
 
 #[cfg(test)]
-mod private_directory_tests {
+mod tests {
     use super::*;
     use crate::MemoryBlockStore;
     use proptest::test_runner::{RngAlgorithm, TestRng};
 
     use test_log::test;
+
+    #[test(async_std::test)]
+    async fn can_create_directories_deterministically_with_user_provided_seeds() {
+        let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
+        let ratchet_seed = utils::get_random_bytes::<32>(rng);
+        let inumber = utils::get_random_bytes::<32>(rng);
+
+        let dir1 =
+            PrivateDirectory::with_seed(Namefilter::default(), Utc::now(), ratchet_seed, inumber);
+
+        let dir2 =
+            PrivateDirectory::with_seed(Namefilter::default(), Utc::now(), ratchet_seed, inumber);
+
+        assert_eq!(
+            dir1.header.get_private_ref().revision_key,
+            dir2.header.get_private_ref().revision_key
+        );
+
+        assert_eq!(
+            dir1.header.get_private_ref().content_key,
+            dir2.header.get_private_ref().content_key
+        );
+
+        assert_eq!(
+            dir1.header.get_private_ref().saturated_name_hash,
+            dir2.header.get_private_ref().saturated_name_hash
+        );
+    }
 
     #[test(async_std::test)]
     async fn look_up_can_fetch_file_added_to_directory() {

@@ -69,7 +69,7 @@ impl PrivateForest {
     ///         rng,
     ///     ));
     ///
-    ///     let private_ref = &dir.header.get_private_ref().unwrap();
+    ///     let private_ref = &dir.header.get_private_ref();
     ///     let name = dir.header.get_saturated_name();
     ///     let node = PrivateNode::Dir(dir);
     ///
@@ -137,7 +137,7 @@ impl PrivateForest {
     ///         rng,
     ///     ));
     ///
-    ///     let private_ref = &dir.header.get_private_ref().unwrap();
+    ///     let private_ref = &dir.header.get_private_ref();
     ///     let name = dir.header.get_saturated_name();
     ///     let node = PrivateNode::Dir(dir);
     ///
@@ -207,7 +207,7 @@ impl PrivateForest {
     ///         rng,
     ///     ));
     ///
-    ///     let private_ref = &dir.header.get_private_ref().unwrap();
+    ///     let private_ref = &dir.header.get_private_ref();
     ///     let name = dir.header.get_saturated_name();
     ///     let node = PrivateNode::Dir(dir);
     ///     let forest = forest.put(name.clone(), private_ref, &node, store, rng).await.unwrap();
@@ -325,7 +325,7 @@ mod hamt_store_tests {
             rng,
         ));
 
-        let private_ref = dir.header.get_private_ref().unwrap();
+        let private_ref = dir.header.get_private_ref();
         let saturated_name = dir.header.get_saturated_name();
         let private_node = PrivateNode::Dir(dir.clone());
 
@@ -361,8 +361,8 @@ mod hamt_store_tests {
             Rc::new(dir)
         };
 
-        let private_ref = dir.header.get_private_ref().unwrap();
-        let private_ref_conflict = dir_conflict.header.get_private_ref().unwrap();
+        let private_ref = dir.header.get_private_ref();
+        let private_ref_conflict = dir_conflict.header.get_private_ref();
         let saturated_name = dir.header.get_saturated_name();
         let saturated_name_conflict = dir_conflict.header.get_saturated_name();
         let private_node = PrivateNode::Dir(dir.clone());
