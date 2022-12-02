@@ -305,6 +305,22 @@ This library recommends using [pre-commit][pre-commit-guide] for running pre-com
 - If you are doing interim commits locally, and for some reason if you _don't_ want pre-commit hooks to fire, you can run
   `git commit -a -m "Your message here" --no-verify`.
 
+### Conventional Commits
+
+This project *lightly* follows the [Conventional Commits convention][commit-spec-site]
+to help explain commit history and tie in with our release process. The full
+specification can be found [here][commit-spec]. We recommend prefixing your
+commits with a type of `fix`, `feat`, `docs`, `ci`, `refactor`, etc...,
+structured like so:
+
+```
+<type>[optional scope]: <description>
+
+[optional body]
+
+[optional footer(s)]
+```
+
 ## Getting Help
 
 For usage questions, usecases, or issues reach out to us in our [Discord webnative-fs channel][webnative-discord].
@@ -316,6 +332,8 @@ This project is licensed under the [Apache License 2.0](https://github.com/wnfs-
 
 [benchmarks]: https://wnfs-wg.github.io/rs-wnfs/dev/bench/
 [blockstore-trait]: https://github.com/wnfs-wg/rs-wnfs/blob/main/wnfs/src/common/blockstore.rs
+[commit-spec]: https://www.conventionalcommits.org/en/v1.0.0/#specification
+[commit-spec-site]: https://www.conventionalcommits.org/{% if bench %}
 [hamt-wiki]: https://en.wikipedia.org/wiki/Hash_array_mapped_trie
 [ipld-spec]: https://ipld.io/
 [npm-ipld-tools]: https://www.npmjs.com/search?q=ipld
