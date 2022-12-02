@@ -92,9 +92,9 @@ pub trait BlockStore {
 pub struct MemoryBlockStore(HashMap<String, Vec<u8>>);
 
 /// A MergeStore combines two block stores into one.
-pub struct MergeStore<'a, M: BlockStore, A: BlockStore> {
-    main: M,
-    alt: &'a A,
+pub struct MergeStore<'m, 'o, M: BlockStore, O: BlockStore> {
+    main: &'m mut M,
+    other: &'o O,
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -131,15 +131,15 @@ impl BlockStore for MemoryBlockStore {
     }
 }
 
-impl<'a, M: BlockStore, A: BlockStore> MergeStore<'a, M, A> {
-    /// Creates a new MergeStore.
-    pub fn new(main: M, alt: &'a A) -> Self {
-        Self { main, alt }
+impl<'m, 'o, M: BlockStore, O: BlockStore> MergeStore<'m, 'o, M, O> {
+    /// Creates a new MergeStore from one main mutable store and one other immutable store.
+    pub fn new(main: &'m mut M, other: &'o O) -> Self {
+        Self { main, other }
     }
 }
 
 #[async_trait(?Send)]
-impl<'a, M: BlockStore, A: BlockStore> BlockStore for MergeStore<'a, M, A> {
+impl<'m, 'o, M: BlockStore, O: BlockStore> BlockStore for MergeStore<'m, 'o, M, O> {
     /// Stores an array of bytes in the main block store.
     async fn put_block(&mut self, bytes: Vec<u8>, codec: IpldCodec) -> Result<Cid> {
         self.main.put_block(bytes, codec).await
@@ -149,7 +149,7 @@ impl<'a, M: BlockStore, A: BlockStore> BlockStore for MergeStore<'a, M, A> {
     async fn get_block<'b>(&'b self, cid: &Cid) -> Result<Cow<'b, Vec<u8>>> {
         match self.main.get_block(cid).await {
             Ok(bytes) => Ok(bytes),
-            Err(_) => self.alt.get_block(cid).await,
+            Err(_) => self.other.get_block(cid).await,
         }
     }
 }
@@ -205,19 +205,20 @@ mod tests {
 
     #[async_std::test]
     async fn merge_store_inserted_items_can_be_retrieved() {
-        let mut store_alt = MemoryBlockStore::new();
-        let cid_alt = store_alt
+        let mut main_store = MemoryBlockStore::new();
+        let mut other_store = MemoryBlockStore::new();
+        let other_cid = other_store
             .put_block(vec![10, 20, 35], IpldCodec::DagCbor)
             .await
             .unwrap();
 
-        let merge_store = &mut MergeStore::new(MemoryBlockStore::new(), &store_alt);
-        let cid_main = merge_store
+        let merge_store = &mut MergeStore::new(&mut main_store, &other_store);
+        let main_cid = merge_store
             .put_block(vec![55, 40, 77], IpldCodec::DagCbor)
             .await
             .unwrap();
 
-        assert!(merge_store.get_block(&cid_alt).await.is_ok());
-        assert!(merge_store.get_block(&cid_main).await.is_ok());
+        assert!(merge_store.get_block(&other_cid).await.is_ok());
+        assert!(merge_store.get_block(&main_cid).await.is_ok());
     }
 }
