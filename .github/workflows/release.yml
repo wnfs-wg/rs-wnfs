@@ -77,10 +77,6 @@ jobs:
       contents: write
       pull-requests: write
 
-    defaults:
-      run:
-        working-directory: ./wnfs-wasm
-
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v3
@@ -104,15 +100,13 @@ jobs:
       - name: Install wasm-pack
         run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
 
-      # Builds output via wasm-pack and renames package.json name to remove
-      # `-wasm`.
+      # Builds output via wasm-pack and renames package.json name
       - name: Build
-        run: |
-          wasm-pack build --target web --out-name wnfs
-          sed -i -e 's/"name": "wasm-wnfs"/"name": "wnfs",\n  "type": "module"/g' pkg/package.json
+        run: ./scripts/rs-wnfs.sh build --wasm
+        shell: bash
 
       - name: Publish to npm
         run: wasm-pack publish
-        working-directory: pkg
+        working-directory: wnfs-wasm/pkg
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
