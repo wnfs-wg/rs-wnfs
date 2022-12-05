@@ -15,7 +15,7 @@ updates:
     schedule:
       interval: "weekly"
     labels:
-      - 'type: chore'
+      - "chore"
 
   - package-ecosystem: "cargo"
     directory: "/wnfs-wasm"
@@ -26,7 +26,7 @@ updates:
     schedule:
       interval: "weekly"
     labels:
-      - 'type: chore'
+      - "chore"
 
   - package-ecosystem: "npm"
     directory: "/wnfs-wasm"
@@ -36,6 +36,8 @@ updates:
     target-branch: "main"
     schedule:
       interval: "weekly"
+    labels:
+      - "chore"
 
   - package-ecosystem: "github-actions"
     directory: "/"
@@ -46,4 +48,4 @@ updates:
     schedule:
       interval: "weekly"
     labels:
-      - 'type: chore'
+      - "chore"
