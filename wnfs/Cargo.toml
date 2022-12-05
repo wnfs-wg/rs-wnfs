@@ -43,7 +43,7 @@ thiserror = "1.0"
 xxhash-rust = { version = "0.8", features = ["xxh3"] }
 
 [dev-dependencies]
-env_logger = "0.9"
+env_logger = "0.10"
 proptest = "1.0"
 rand = "0.8"
 test-log = "0.2"
