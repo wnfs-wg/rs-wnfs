@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1669978108993,
+  "lastUpdate": 1670274295627,
   "repoUrl": "https://github.com/wnfs-wg/rs-wnfs",
   "entries": {
     "Rust Benchmark": [
@@ -660,6 +660,96 @@ window.BENCHMARK_DATA = {
           {
             "name": "namefilter decode/0",
             "value": 1,
+            "range": "± 0",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "zeeshan@fission.codes",
+            "name": "Zeeshan Lakhani",
+            "username": "zeeshanlakhani"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "3e926129e4e135af75275570841519a86c1c69a3",
+          "message": "chore: put release-please process in place (#96)\n\nIncludes:\r\n    * pre-commit update for conventional commits\r\n    * dependabot addition for deps\r\n    * reverts *.toml v0.1.10 so that we can use the automated process on the next `fix`\r\n      commit\r\n    * won't publish bench and 0's out its version",
+          "timestamp": "2022-12-05T15:56:34-05:00",
+          "tree_id": "3e89518af97ea199e180be7cbf552d9c25134c47",
+          "url": "https://github.com/wnfs-wg/rs-wnfs/commit/3e926129e4e135af75275570841519a86c1c69a3"
+        },
+        "date": 1670274294292,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "node set",
+            "value": 10148,
+            "range": "± 316",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node set 1000 consecutive",
+            "value": 5360826,
+            "range": "± 210156",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and get",
+            "value": 199081,
+            "range": "± 6694",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and remove",
+            "value": 218893,
+            "range": "± 13692",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt load and decode/0",
+            "value": 48577,
+            "range": "± 5193",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt set and encode",
+            "value": 213854,
+            "range": "± 7102",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter add",
+            "value": 13203,
+            "range": "± 711",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter contains",
+            "value": 13369,
+            "range": "± 915",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter saturate",
+            "value": 56286,
+            "range": "± 2113",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter encode",
+            "value": 253,
+            "range": "± 26",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter decode/0",
+            "value": 2,
             "range": "± 0",
             "unit": "ns/iter"
           }
