@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1670274295627,
+  "lastUpdate": 1670277022370,
   "repoUrl": "https://github.com/wnfs-wg/rs-wnfs",
   "entries": {
     "Rust Benchmark": [
@@ -750,6 +750,96 @@ window.BENCHMARK_DATA = {
           {
             "name": "namefilter decode/0",
             "value": 2,
+            "range": "± 0",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "49699333+dependabot[bot]@users.noreply.github.com",
+            "name": "dependabot[bot]",
+            "username": "dependabot[bot]"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "43a109d6d99a23cb804d5ba3d64ca3d967662e94",
+          "message": "chore(ci)(deps): bump actions/upload-artifact from 2 to 3 (#97)\n\nBumps [actions/upload-artifact](https://github.com/actions/upload-artifact) from 2 to 3.\r\n- [Release notes](https://github.com/actions/upload-artifact/releases)\r\n- [Commits](https://github.com/actions/upload-artifact/compare/v2...v3)\r\n\r\n---\r\nupdated-dependencies:\r\n- dependency-name: actions/upload-artifact\r\n  dependency-type: direct:production\r\n  update-type: version-update:semver-major\r\n...\r\n\r\nSigned-off-by: dependabot[bot] <support@github.com>\r\n\r\nSigned-off-by: dependabot[bot] <support@github.com>\r\nCo-authored-by: dependabot[bot] <49699333+dependabot[bot]@users.noreply.github.com>",
+          "timestamp": "2022-12-05T16:16:12-05:00",
+          "tree_id": "a481772b90e2dd6a1cddb65a7a7cd379dc39f288",
+          "url": "https://github.com/wnfs-wg/rs-wnfs/commit/43a109d6d99a23cb804d5ba3d64ca3d967662e94"
+        },
+        "date": 1670277021139,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "node set",
+            "value": 9186,
+            "range": "± 516",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node set 1000 consecutive",
+            "value": 5141129,
+            "range": "± 346692",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and get",
+            "value": 185897,
+            "range": "± 17185",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and remove",
+            "value": 207105,
+            "range": "± 12770",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt load and decode/0",
+            "value": 44211,
+            "range": "± 2066",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt set and encode",
+            "value": 207999,
+            "range": "± 8587",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter add",
+            "value": 12640,
+            "range": "± 727",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter contains",
+            "value": 12580,
+            "range": "± 673",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter saturate",
+            "value": 50523,
+            "range": "± 1767",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter encode",
+            "value": 227,
+            "range": "± 21",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter decode/0",
+            "value": 1,
             "range": "± 0",
             "unit": "ns/iter"
           }
