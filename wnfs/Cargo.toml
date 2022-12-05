@@ -17,7 +17,7 @@ homepage = "https://fission.codes"
 authors = ["The Fission Authors"]
 
 [dependencies]
-aes-gcm = "0.9"
+aes-gcm = "0.10"
 anyhow = "1.0"
 async-once-cell = "0.4"
 async-recursion = "1.0"
