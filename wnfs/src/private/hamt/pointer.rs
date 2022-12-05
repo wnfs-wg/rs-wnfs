@@ -179,8 +179,7 @@ where
             }
             Ipld::Link(cid) => Ok(Self::Link(Link::from_cid(cid))),
             other => Err(format!(
-                "Expected `Ipld::List` or `Ipld::Link`, got {:#?}",
-                other
+                "Expected `Ipld::List` or `Ipld::Link`, got {other:?}",
             )),
         }
     }
