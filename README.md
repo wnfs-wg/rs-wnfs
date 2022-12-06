@@ -333,7 +333,7 @@ This project is licensed under the [Apache License 2.0](https://github.com/wnfs-
 [benchmarks]: https://wnfs-wg.github.io/rs-wnfs/dev/bench/
 [blockstore-trait]: https://github.com/wnfs-wg/rs-wnfs/blob/main/wnfs/src/common/blockstore.rs
 [commit-spec]: https://www.conventionalcommits.org/en/v1.0.0/#specification
-[commit-spec-site]: https://www.conventionalcommits.org/{% if bench %}
+[commit-spec-site]: https://www.conventionalcommits.org/
 [hamt-wiki]: https://en.wikipedia.org/wiki/Hash_array_mapped_trie
 [ipld-spec]: https://ipld.io/
 [npm-ipld-tools]: https://www.npmjs.com/search?q=ipld
