@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1670317976320,
+  "lastUpdate": 1670319176466,
   "repoUrl": "https://github.com/wnfs-wg/rs-wnfs",
   "entries": {
     "Rust Benchmark": [
@@ -1284,6 +1284,96 @@ window.BENCHMARK_DATA = {
           {
             "name": "namefilter encode",
             "value": 161,
+            "range": "± 7",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter decode/0",
+            "value": 1,
+            "range": "± 0",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "49699333+dependabot[bot]@users.noreply.github.com",
+            "name": "dependabot[bot]",
+            "username": "dependabot[bot]"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "fd7da466d477e264d797d279e0eb10bbbb42c6cf",
+          "message": "chore(npm)(deps-dev): bump ts-loader from 9.3.0 to 9.4.2 in /wnfs-wasm (#111)\n\nBumps [ts-loader](https://github.com/TypeStrong/ts-loader) from 9.3.0 to 9.4.2.\r\n- [Release notes](https://github.com/TypeStrong/ts-loader/releases)\r\n- [Changelog](https://github.com/TypeStrong/ts-loader/blob/main/CHANGELOG.md)\r\n- [Commits](https://github.com/TypeStrong/ts-loader/compare/v9.3.0...v9.4.2)\r\n\r\n---\r\nupdated-dependencies:\r\n- dependency-name: ts-loader\r\n  dependency-type: direct:development\r\n  update-type: version-update:semver-minor\r\n...\r\n\r\nSigned-off-by: dependabot[bot] <support@github.com>\r\n\r\nSigned-off-by: dependabot[bot] <support@github.com>\r\nCo-authored-by: dependabot[bot] <49699333+dependabot[bot]@users.noreply.github.com>",
+          "timestamp": "2022-12-06T10:29:19+01:00",
+          "tree_id": "95f94647208a05cea5dc5e353e7286e1af239e74",
+          "url": "https://github.com/wnfs-wg/rs-wnfs/commit/fd7da466d477e264d797d279e0eb10bbbb42c6cf"
+        },
+        "date": 1670319175898,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "node set",
+            "value": 7025,
+            "range": "± 116",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node set 1000 consecutive",
+            "value": 4240116,
+            "range": "± 17066",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and get",
+            "value": 148994,
+            "range": "± 1811",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and remove",
+            "value": 166399,
+            "range": "± 139",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt load and decode/0",
+            "value": 34394,
+            "range": "± 158",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt set and encode",
+            "value": 168712,
+            "range": "± 303",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter add",
+            "value": 7574,
+            "range": "± 10",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter contains",
+            "value": 9785,
+            "range": "± 8",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter saturate",
+            "value": 40342,
+            "range": "± 41",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter encode",
+            "value": 171,
             "range": "± 7",
             "unit": "ns/iter"
           },
