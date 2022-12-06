@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1670289195429,
+  "lastUpdate": 1670317885080,
   "repoUrl": "https://github.com/wnfs-wg/rs-wnfs",
   "entries": {
     "Rust Benchmark": [
@@ -1105,6 +1105,96 @@ window.BENCHMARK_DATA = {
             "name": "namefilter encode",
             "value": 170,
             "range": "± 6",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter decode/0",
+            "value": 1,
+            "range": "± 0",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "49699333+dependabot[bot]@users.noreply.github.com",
+            "name": "dependabot[bot]",
+            "username": "dependabot[bot]"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "549d51548d4bb4660c8bab930ef6e2c4ca9d00f6",
+          "message": "chore(rust)(deps): update env_logger requirement in /wnfs (#102)\n\nUpdates the requirements on [env_logger](https://github.com/rust-cli/env_logger) to permit the latest version.\r\n- [Release notes](https://github.com/rust-cli/env_logger/releases)\r\n- [Changelog](https://github.com/rust-cli/env_logger/blob/main/CHANGELOG.md)\r\n- [Commits](https://github.com/rust-cli/env_logger/compare/v0.9.0...v0.10.0)\r\n\r\n---\r\nupdated-dependencies:\r\n- dependency-name: env_logger\r\n  dependency-type: direct:production\r\n...\r\n\r\nSigned-off-by: dependabot[bot] <support@github.com>\r\n\r\nSigned-off-by: dependabot[bot] <support@github.com>\r\nCo-authored-by: dependabot[bot] <49699333+dependabot[bot]@users.noreply.github.com>",
+          "timestamp": "2022-12-06T04:07:48-05:00",
+          "tree_id": "e5060a3fe0fc55b334a780dade5a7e063d6d28f2",
+          "url": "https://github.com/wnfs-wg/rs-wnfs/commit/549d51548d4bb4660c8bab930ef6e2c4ca9d00f6"
+        },
+        "date": 1670317884078,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "node set",
+            "value": 7064,
+            "range": "± 187",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node set 1000 consecutive",
+            "value": 4445511,
+            "range": "± 16834",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and get",
+            "value": 152768,
+            "range": "± 193",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and remove",
+            "value": 169551,
+            "range": "± 739",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt load and decode/0",
+            "value": 35244,
+            "range": "± 126",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt set and encode",
+            "value": 170977,
+            "range": "± 429",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter add",
+            "value": 7476,
+            "range": "± 19",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter contains",
+            "value": 9390,
+            "range": "± 57",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter saturate",
+            "value": 42971,
+            "range": "± 506",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter encode",
+            "value": 163,
+            "range": "± 8",
             "unit": "ns/iter"
           },
           {
