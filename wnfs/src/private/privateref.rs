@@ -8,7 +8,7 @@ use serde::{de::Error as DeError, ser::Error as SerError, Deserialize, Serialize
 // Type Definitions
 //--------------------------------------------------------------------------------------------------
 
-/// PrivateRef holds the information to fetch associated node from a HAMT and decrypt it if it is present.
+/// PrivateRef holds the information to fetch associated node from a private forest and decrypt it if it is present.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PrivateRef {
     /// Sha3-256 hash of saturated namefilter.

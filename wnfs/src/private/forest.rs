@@ -370,13 +370,13 @@ mod tests {
 
         assert_eq!(saturated_name_conflict, saturated_name);
 
-        // Put the original node in the HAMT
+        // Put the original node in the private forest
         let forest = forest
             .put(saturated_name, &private_ref, &private_node, store, rng)
             .await
             .unwrap();
 
-        // Put the conflicting node in the HAMT at the same key
+        // Put the conflicting node in the private forest at the same key
         let forest = forest
             .put(
                 saturated_name_conflict,
