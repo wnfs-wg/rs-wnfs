@@ -37,7 +37,7 @@ jobs:
             Cargo.toml
 
   publish-release-crates:
-    if: ${{ needs.release.outputs.releases_created || github.event.inputs.force-publish }}
+    if: ${{ needs.release-please.outputs.releases_created || github.event.inputs.force-publish }}
 
     runs-on: ubuntu-latest
     needs: [ release-please ]
