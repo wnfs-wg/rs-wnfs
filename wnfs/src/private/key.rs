@@ -1,9 +1,6 @@
 use std::fmt::Debug;
 
-use aes_gcm::{
-    aead::{Aead, NewAead},
-    Aes256Gcm, Key as AesKey, Nonce,
-};
+use aes_gcm::{aead::Aead, Aes256Gcm, KeyInit, Nonce};
 use anyhow::Result;
 use rand_core::RngCore;
 use serde::{Deserialize, Serialize};
@@ -80,7 +77,7 @@ impl Key {
     pub fn encrypt(&self, nonce_bytes: &[u8; NONCE_SIZE], data: &[u8]) -> Result<Vec<u8>> {
         let nonce = Nonce::from_slice(nonce_bytes);
 
-        let cipher_text = Aes256Gcm::new(AesKey::from_slice(&self.0))
+        let cipher_text = Aes256Gcm::new_from_slice(&self.0)?
             .encrypt(nonce, data)
             .map_err(|e| FsError::UnableToEncrypt(format!("{e}")))?;
 
@@ -108,7 +105,7 @@ impl Key {
     pub fn decrypt(&self, cipher_text: &[u8]) -> Result<Vec<u8>> {
         let (nonce_bytes, data) = cipher_text.split_at(NONCE_SIZE);
 
-        Ok(Aes256Gcm::new(AesKey::from_slice(&self.0))
+        Ok(Aes256Gcm::new_from_slice(&self.0)?
             .decrypt(Nonce::from_slice(nonce_bytes), data)
             .map_err(|e| FsError::UnableToDecrypt(format!("{e}")))?)
     }
