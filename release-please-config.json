@@ -6,6 +6,6 @@
   "bump-patch-for-minor-pre-major": true,
   "packages": {
     "wnfs": {},
-    "wasm-wnfs": {}
+    "wnfs-wasm": {}
   }
 }
