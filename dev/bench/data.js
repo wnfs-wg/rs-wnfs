@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1670319176466,
+  "lastUpdate": 1670319243934,
   "repoUrl": "https://github.com/wnfs-wg/rs-wnfs",
   "entries": {
     "Rust Benchmark": [
@@ -1375,6 +1375,96 @@ window.BENCHMARK_DATA = {
             "name": "namefilter encode",
             "value": 171,
             "range": "± 7",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter decode/0",
+            "value": 1,
+            "range": "± 0",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "49699333+dependabot[bot]@users.noreply.github.com",
+            "name": "dependabot[bot]",
+            "username": "dependabot[bot]"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "e8e8824441571acc5dc1ac300cf3a735161cd8d7",
+          "message": "chore(rust)(deps): update hashbrown requirement in /wnfs (#106)\n\nUpdates the requirements on [hashbrown](https://github.com/rust-lang/hashbrown) to permit the latest version.\r\n- [Release notes](https://github.com/rust-lang/hashbrown/releases)\r\n- [Changelog](https://github.com/rust-lang/hashbrown/blob/master/CHANGELOG.md)\r\n- [Commits](https://github.com/rust-lang/hashbrown/compare/v0.12.0...v0.13.1)\r\n\r\n---\r\nupdated-dependencies:\r\n- dependency-name: hashbrown\r\n  dependency-type: direct:production\r\n...\r\n\r\nSigned-off-by: dependabot[bot] <support@github.com>\r\n\r\nSigned-off-by: dependabot[bot] <support@github.com>\r\nCo-authored-by: dependabot[bot] <49699333+dependabot[bot]@users.noreply.github.com>",
+          "timestamp": "2022-12-06T10:30:05+01:00",
+          "tree_id": "8a0b1fea2f0e3edd78f909a5c3e03523132d7af3",
+          "url": "https://github.com/wnfs-wg/rs-wnfs/commit/e8e8824441571acc5dc1ac300cf3a735161cd8d7"
+        },
+        "date": 1670319242040,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "node set",
+            "value": 7479,
+            "range": "± 124",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node set 1000 consecutive",
+            "value": 4200207,
+            "range": "± 16663",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and get",
+            "value": 147525,
+            "range": "± 151",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and remove",
+            "value": 166254,
+            "range": "± 203",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt load and decode/0",
+            "value": 33991,
+            "range": "± 99",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt set and encode",
+            "value": 168444,
+            "range": "± 274",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter add",
+            "value": 8599,
+            "range": "± 20",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter contains",
+            "value": 11745,
+            "range": "± 22",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter saturate",
+            "value": 40988,
+            "range": "± 61",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter encode",
+            "value": 173,
+            "range": "± 9",
             "unit": "ns/iter"
           },
           {
