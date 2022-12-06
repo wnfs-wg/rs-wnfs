@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1670323601289,
+  "lastUpdate": 1670331432991,
   "repoUrl": "https://github.com/wnfs-wg/rs-wnfs",
   "entries": {
     "Rust Benchmark": [
@@ -1735,6 +1735,96 @@ window.BENCHMARK_DATA = {
             "name": "namefilter encode",
             "value": 155,
             "range": "± 4",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter decode/0",
+            "value": 1,
+            "range": "± 0",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "philipp.krueger1@gmail.com",
+            "name": "Philipp Krüger",
+            "username": "matheus23"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "2a6897f7872efa5e4bd7e5b506720dec1d6ae90b",
+          "message": "Some renaming pre-release (#95)\n\n* Rename  ->  & mod tests\r\n\r\n* Convert more mentions of \"HAMT\" into private forest\r\n\r\n* Upgrade `libipld` and `aes-gcm`. Remove `multihash`\r\n\r\n* Enable `fs` feature for getrandom",
+          "timestamp": "2022-12-06T13:53:22+01:00",
+          "tree_id": "a9d5dbdd912a5e454331ffc0921e6f82df489bc8",
+          "url": "https://github.com/wnfs-wg/rs-wnfs/commit/2a6897f7872efa5e4bd7e5b506720dec1d6ae90b"
+        },
+        "date": 1670331431916,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "node set",
+            "value": 6991,
+            "range": "± 138",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node set 1000 consecutive",
+            "value": 4254907,
+            "range": "± 15723",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and get",
+            "value": 149243,
+            "range": "± 134",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and remove",
+            "value": 167562,
+            "range": "± 282",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt load and decode/0",
+            "value": 33914,
+            "range": "± 26",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt set and encode",
+            "value": 170302,
+            "range": "± 411",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter add",
+            "value": 8602,
+            "range": "± 121",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter contains",
+            "value": 11722,
+            "range": "± 35",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter saturate",
+            "value": 41014,
+            "range": "± 69",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter encode",
+            "value": 175,
+            "range": "± 9",
             "unit": "ns/iter"
           },
           {
