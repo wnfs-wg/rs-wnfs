@@ -188,7 +188,7 @@ impl<'de> Deserialize<'de> for NodeType {
 //--------------------------------------------------------------------------------------------------
 
 #[cfg(test)]
-mod metadata_tests {
+mod tests {
     use chrono::Utc;
 
     use crate::{dagcbor, Metadata};

@@ -82,7 +82,7 @@ impl AsRef<[u8]> for Namefilter {
 //--------------------------------------------------------------------------------------------------
 
 #[cfg(test)]
-mod namefilter_tests {
+mod tests {
     use super::*;
 
     #[test]

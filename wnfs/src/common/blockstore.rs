@@ -9,9 +9,9 @@ use libipld::{
     cbor::DagCborCodec,
     cid::Version,
     codec::{Decode, Encode},
+    multihash::{Code, MultihashDigest},
     serde as ipld_serde, Cid, Ipld, IpldCodec,
 };
-use multihash::{Code, MultihashDigest};
 use rand_core::RngCore;
 use serde::{de::DeserializeOwned, Serialize};
 
@@ -130,7 +130,7 @@ impl BlockStore for MemoryBlockStore {
 //--------------------------------------------------------------------------------------------------
 
 #[cfg(test)]
-mod blockstore_tests {
+mod tests {
     use libipld::{cbor::DagCborCodec, codec::Encode};
 
     use super::*;

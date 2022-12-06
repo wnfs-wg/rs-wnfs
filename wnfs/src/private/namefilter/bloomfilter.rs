@@ -276,7 +276,7 @@ impl<const N: usize, const K: usize> Debug for BloomFilter<N, K> {
 //------------------------------------------------------------------------------
 
 #[cfg(test)]
-mod bloomfilter_unit_tests {
+mod tests {
     use super::*;
     use libipld::serde as ipld_serde;
 
@@ -313,7 +313,7 @@ mod bloomfilter_unit_tests {
 }
 
 #[cfg(test)]
-mod bloomfilter_prop_tests {
+mod proptests {
     use test_strategy::proptest;
 
     use super::HashIndexIterator;

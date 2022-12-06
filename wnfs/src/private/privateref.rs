@@ -8,7 +8,7 @@ use serde::{de::Error as DeError, ser::Error as SerError, Deserialize, Serialize
 // Type Definitions
 //--------------------------------------------------------------------------------------------------
 
-/// PrivateRef holds the information to fetch associated node from a HAMT and decrypt it if it is present.
+/// PrivateRef holds the information to fetch associated node from a private forest and decrypt it if it is present.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PrivateRef {
     /// Sha3-256 hash of saturated namefilter.
@@ -162,7 +162,7 @@ mod tests {
 
     #[async_std::test]
     async fn can_create_privateref_deterministically_with_user_provided_seeds() {
-        let (hamt, store, rng) = test_setup::init!(hamt, mut store, mut rng);
+        let (forest, store, rng) = test_setup::init!(forest, mut store, mut rng);
         let ratchet_seed = utils::get_random_bytes::<32>(rng);
         let inumber = utils::get_random_bytes::<32>(rng);
 
@@ -174,7 +174,7 @@ mod tests {
         ));
 
         let header = dir.get_header();
-        let hamt = hamt
+        let forest = forest
             .put(
                 header.get_saturated_name(),
                 &header.get_private_ref(),
@@ -187,7 +187,7 @@ mod tests {
 
         // Creating deterministic privateref.
         let private_ref = PrivateRef::with_seed(Default::default(), ratchet_seed, inumber);
-        let retrieved_node = hamt
+        let retrieved_node = forest
             .get(&private_ref, PrivateForest::resolve_lowest, store)
             .await
             .unwrap()

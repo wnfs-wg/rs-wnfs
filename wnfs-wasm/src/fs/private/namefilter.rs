@@ -14,7 +14,7 @@ pub struct Namefilter(pub(crate) WnfsNamefilter);
 
 #[wasm_bindgen]
 impl Namefilter {
-    /// Creates a new HAMT forest.
+    /// Creates a new namefilter.
     #[wasm_bindgen(constructor)]
     #[allow(clippy::new_without_default)]
     pub fn new() -> Namefilter {

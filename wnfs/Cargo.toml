@@ -17,7 +17,7 @@ homepage = "https://fission.codes"
 authors = ["The Fission Authors"]
 
 [dependencies]
-aes-gcm = "0.9"
+aes-gcm = "0.10"
 anyhow = "1.0"
 async-once-cell = "0.4"
 async-recursion = "1.0"
@@ -30,9 +30,8 @@ futures = "0.3"
 futures-util = "0.3"
 hashbrown = "0.13"
 lazy_static = "1.4"
-libipld = { version = "0.14", features = ["dag-cbor", "derive", "serde-codec"] }
+libipld = { version = "0.15", features = ["dag-cbor", "derive", "serde-codec"] }
 log = "0.4"
-multihash = "0.16"
 proptest = { version = "1.0", optional = true }
 rand_core = "0.6"
 semver = { version = "1.0", features = ["serde"] }
