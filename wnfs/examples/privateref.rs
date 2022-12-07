@@ -6,8 +6,8 @@ use skip_ratchet::Ratchet;
 use std::{io::Cursor, rc::Rc};
 use wnfs::{
     ipld::{DagCborCodec, Decode, Encode},
-    private::{Key, PrivateForest, PrivateRef, RevisionKey},
-    utils, Hasher, MemoryBlockStore, Namefilter, PrivateDirectory, PrivateOpResult,
+    private::{self, Key, PrivateForest, PrivateRef, RevisionKey},
+    utils, Hasher, MemoryBlockStore, Namefilter, PrivateDirectory, PrivateNode, PrivateOpResult,
 };
 
 #[async_std::main]
@@ -32,6 +32,21 @@ async fn main() -> anyhow::Result<()> {
         inumber,
     ));
 
+    // Get the privateref from the root_dir.
+    let private_ref = root_dir.header.get_private_ref();
+    let name = root_dir.header.get_saturated_name();
+
+    // Store the directory in the forest.
+    let forest = forest
+        .put(
+            name,
+            &private_ref,
+            &PrivateNode::Dir(Rc::clone(&root_dir)),
+            store,
+            rng,
+        )
+        .await?;
+
     // Add a /movies/anime to the directory.
     let PrivateOpResult {
         forest, root_dir, ..
@@ -46,24 +61,42 @@ async fn main() -> anyhow::Result<()> {
         )
         .await?;
 
-    // We can create a revision_key from the ratcet_seed.
+    // We can create a revision_key from the ratchet_seed.
     let ratchet = Ratchet::zero(ratchet_seed);
     let revision_key = RevisionKey::from(Key::new(ratchet.derive_key()));
 
     // Now let's serialize the root_dir's private_ref.
-    let private_ref = root_dir.header.get_private_ref();
-    println!("Private ref: {:?}", private_ref);
-    let cbor = encode_ipld(private_ref.serialize(Serializer, &revision_key, rng)?)?;
+    let cbor = encode_ipld(root_dir.header.get_private_ref().serialize(
+        Serializer,
+        &revision_key,
+        rng,
+    )?)?;
 
     // We can deserialize the private_ref using the information we have.
     let private_ref = decode_ipld(cbor, &revision_key)?;
 
     // Now we can fetch the directory from the forest.
-    let dir = forest
+    let fetched_dir = forest
         .get(&private_ref, PrivateForest::resolve_lowest, store)
         .await?;
 
-    println!("{:#?}", dir);
+    println!("{:#?}", fetched_dir);
+
+    // We can also create one from scratch.
+    let private_ref = PrivateRef::with_seed(Namefilter::default(), ratchet_seed, inumber);
+    println!("Private ref: {:?}", private_ref);
+
+    // Again we can fetch the directory from the forest.
+    let fetched_dir = forest
+        .get(&private_ref, PrivateForest::resolve_lowest, store)
+        .await?;
+
+    println!("{:#?}", fetched_dir);
+
+    if let PrivateNode::Dir(fetched_dir) = fetched_dir.unwrap() {
+        let PrivateOpResult { result, .. } = fetched_dir.get_node(&[], true, forest, store).await?;
+        println!("{:#?}", result);
+    }
 
     Ok(())
 }

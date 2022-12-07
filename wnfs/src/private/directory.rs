@@ -455,11 +455,14 @@ impl PrivateDirectory {
                     NotADirectory(_, _) => bail!(FsError::NotFound),
                 }
             }
-            None => PrivateOpResult {
-                root_dir,
-                forest,
-                result: Some(PrivateNode::Dir(self)),
-            },
+            None => {
+                let result = self.lookup_node("", search_latest, &forest, store).await?;
+                PrivateOpResult {
+                    root_dir,
+                    forest,
+                    result,
+                }
+            }
         })
     }
 
@@ -728,6 +731,21 @@ impl PrivateDirectory {
         forest: &PrivateForest,
         store: &impl BlockStore,
     ) -> Result<Option<PrivateNode>> {
+        if path_segment.is_empty() {
+            let private_node = forest
+                .get(
+                    &self.header.get_private_ref(),
+                    PrivateForest::resolve_lowest,
+                    store,
+                )
+                .await?;
+
+            return Ok(match (search_latest, private_node) {
+                (true, Some(node)) => Some(node.search_latest(forest, store).await?),
+                (_, node) => node,
+            });
+        }
+
         Ok(match self.entries.get(path_segment) {
             Some(private_ref) => {
                 let private_node = forest
