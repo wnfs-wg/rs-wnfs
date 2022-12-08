@@ -1,5 +1,5 @@
-use super::{Node, HAMT_VERSION};
-use crate::{AsyncSerialize, BlockStore, Hasher};
+use super::{diff, KeyValueChange, Node, NodeChange, HAMT_VERSION};
+use crate::{AsyncSerialize, BlockStore, Hasher, Link};
 use anyhow::Result;
 use async_trait::async_trait;
 use libipld::{serde as ipld_serde, Ipld};
@@ -10,7 +10,7 @@ use serde::{
     Deserialize, Deserializer, Serialize, Serializer,
 };
 use sha3::Sha3_256;
-use std::{collections::BTreeMap, rc::Rc, str::FromStr};
+use std::{collections::BTreeMap, fmt, hash::Hash, rc::Rc, str::FromStr};
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
@@ -29,7 +29,7 @@ use std::{collections::BTreeMap, rc::Rc, str::FromStr};
 /// let hamt = Hamt::<String, usize>::new();
 /// println!("HAMT: {:?}", hamt);
 /// ```
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub struct Hamt<K, V, H = Sha3_256>
 where
     H: Hasher,
@@ -76,6 +76,56 @@ impl<K, V, H: Hasher> Hamt<K, V, H> {
             root,
             version: HAMT_VERSION,
         }
+    }
+
+    /// TODO(appcypher): Add docs.
+    pub async fn node_diff<B: BlockStore>(
+        &self,
+        other: &Self,
+        depth: Option<u8>,
+        store: &mut B,
+    ) -> Result<Vec<NodeChange>>
+    where
+        K: DeserializeOwned + Clone + fmt::Debug + Eq + Hash + AsRef<[u8]>,
+        V: DeserializeOwned + Clone + fmt::Debug + Eq,
+        H: Clone + fmt::Debug + 'static,
+    {
+        if self.version == other.version {
+            return diff::node_diff(
+                Link::from(Rc::clone(&self.root)),
+                Link::from(Rc::clone(&other.root)),
+                depth,
+                store,
+            )
+            .await;
+        }
+
+        Ok(vec![])
+    }
+
+    /// TODO(appcypher): Add docs.
+    pub async fn kv_diff<B: BlockStore>(
+        &self,
+        other: &Self,
+        depth: Option<u8>,
+        store: &mut B,
+    ) -> Result<Vec<KeyValueChange<K, V>>>
+    where
+        K: DeserializeOwned + Clone + fmt::Debug + Eq + Hash + AsRef<[u8]>,
+        V: DeserializeOwned + Clone + fmt::Debug + Eq,
+        H: Clone + fmt::Debug + 'static,
+    {
+        if self.version == other.version {
+            return diff::kv_diff(
+                Link::from(Rc::clone(&self.root)),
+                Link::from(Rc::clone(&other.root)),
+                depth,
+                store,
+            )
+            .await;
+        }
+
+        Ok(vec![])
     }
 
     async fn to_ipld<B: BlockStore + ?Sized>(&self, store: &mut B) -> Result<Ipld>
@@ -155,6 +205,17 @@ impl<K, V, H: Hasher> Default for Hamt<K, V, H> {
     }
 }
 
+impl<K, V, H> PartialEq for Hamt<K, V, H>
+where
+    K: PartialEq,
+    V: PartialEq,
+    H: Hasher,
+{
+    fn eq(&self, other: &Self) -> bool {
+        self.root == other.root && self.version == other.version
+    }
+}
+
 //--------------------------------------------------------------------------------------------------
 // Tests
 //--------------------------------------------------------------------------------------------------
@@ -171,8 +232,8 @@ mod tests {
         let hamt: Hamt<String, i32> = Hamt::with_root(root);
 
         let encoded_hamt = dagcbor::async_encode(&hamt, store).await.unwrap();
-        let _decoded_hamt = dagcbor::decode::<Hamt<String, i32>>(encoded_hamt.as_ref()).unwrap();
+        let decoded_hamt = dagcbor::decode::<Hamt<String, i32>>(encoded_hamt.as_ref()).unwrap();
 
-        // assert_eq!(hamt, decoded_hamt);
+        assert_eq!(hamt, decoded_hamt);
     }
 }

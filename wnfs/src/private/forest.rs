@@ -1,10 +1,9 @@
-use super::{diff, hamt::Hamt, namefilter::Namefilter, ChangeType, Key, PrivateNode, PrivateRef};
-use crate::{BlockStore, HashOutput, Hasher, Link};
+use super::{hamt::Hamt, namefilter::Namefilter, ChangeType, Key, PrivateNode, PrivateRef};
+use crate::{BlockStore, HashOutput, Hasher};
 use anyhow::Result;
 use libipld::Cid;
 use log::debug;
 use rand_core::RngCore;
-use sha3::Sha3_256;
 use std::{collections::BTreeSet, fmt, rc::Rc};
 
 //--------------------------------------------------------------------------------------------------
@@ -29,7 +28,7 @@ use std::{collections::BTreeSet, fmt, rc::Rc};
 /// println!("{:?}", forest);
 /// ```
 // TODO(appcypher): Change Cid to PrivateLink<PrivateNode>.
-pub type PrivateForest<H = Sha3_256> = Hamt<Namefilter, BTreeSet<Cid>, H>;
+pub type PrivateForest = Hamt<Namefilter, BTreeSet<Cid>>;
 
 //--------------------------------------------------------------------------------------------------
 // Implementations
@@ -296,19 +295,13 @@ impl PrivateForest {
     }
 }
 
-impl<H> PrivateForest<H>
+impl<H> Hamt<Namefilter, BTreeSet<Cid>, H>
 where
     H: Hasher + fmt::Debug + Clone + 'static,
 {
     /// TODO(appcypher): Add docs.
     pub async fn merge<B: BlockStore>(&self, other: &Self, store: &mut B) -> Result<Self> {
-        let kv_changes = diff::kv_diff(
-            Link::from(Rc::clone(&self.root)),
-            Link::from(Rc::clone(&other.root)),
-            None,
-            store,
-        )
-        .await?;
+        let kv_changes = self.kv_diff(other, None, store).await?;
 
         let mut merge_node = Rc::clone(&self.root);
         for change in kv_changes {
@@ -334,6 +327,7 @@ where
                             .cloned()
                             .unwrap_or_default(),
                     );
+
                     merge_node = merge_node.set(change.key, merge_values, store).await?;
                 }
                 _ => (),
@@ -362,8 +356,6 @@ mod tests {
     use std::rc::Rc;
 
     mod helper {
-        use std::collections::BTreeSet;
-
         use crate::{utils, HashOutput, Hasher, Namefilter};
         use lazy_static::lazy_static;
         use libipld::{Cid, Multihash};
@@ -585,8 +577,8 @@ mod tests {
                 .unwrap();
         }
 
-        let main_forest = PrivateForest::with_root(main_node);
-        let other_forest = PrivateForest::with_root(other_node);
+        let main_forest = Hamt::<Namefilter, BTreeSet<Cid>, _>::with_root(main_node);
+        let other_forest = Hamt::<Namefilter, BTreeSet<Cid>, _>::with_root(other_node);
 
         let merge_forest = main_forest.merge(&other_forest, store).await.unwrap();
 
@@ -600,7 +592,5 @@ mod tests {
                 assert!(retrieved.unwrap().contains(&HASH_KV_PAIRS[1].2));
             }
         }
-
-        println!("Merge forest: {:#?}", merge_forest);
     }
 }
