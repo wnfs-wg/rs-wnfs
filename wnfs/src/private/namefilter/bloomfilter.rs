@@ -27,7 +27,7 @@ use crate::utils::ByteArrayVisitor;
 ///
 /// assert!(filter.contains(&[0xF5u8; 32]));
 /// ```
-#[derive(Clone, PartialEq, Eq, PartialOrd)]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Hash)]
 pub struct BloomFilter<const N: usize, const K: usize> {
     pub(super) bits: BitArray<[u8; N]>,
 }

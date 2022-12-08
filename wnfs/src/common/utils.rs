@@ -1,3 +1,5 @@
+#[cfg(test)]
+use crate::HashOutput;
 use crate::{error, FsError};
 use anyhow::Result;
 #[cfg(any(test, feature = "test_strategies"))]
@@ -8,6 +10,7 @@ use proptest::{
 use rand_core::RngCore;
 use serde::de::Visitor;
 use std::fmt;
+
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
 //--------------------------------------------------------------------------------------------------
@@ -82,6 +85,13 @@ pub fn get_random_bytes<const N: usize>(rng: &mut impl RngCore) -> [u8; N] {
     let mut bytes = [0u8; N];
     rng.fill_bytes(&mut bytes);
     bytes
+}
+
+#[cfg(test)]
+pub(crate) fn make_digest(bytes: &[u8]) -> HashOutput {
+    let mut nibbles = [0u8; 32];
+    nibbles[..bytes.len()].copy_from_slice(bytes);
+    nibbles
 }
 
 //--------------------------------------------------------------------------------------------------

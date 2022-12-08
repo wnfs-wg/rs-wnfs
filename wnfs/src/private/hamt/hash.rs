@@ -39,7 +39,7 @@ pub trait Hasher {
 }
 
 /// HashNibbles is a wrapper around a byte slice that provides a cursor for traversing the nibbles.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub(crate) struct HashNibbles<'a> {
     pub digest: &'a HashOutput,
     cursor: usize,
@@ -50,6 +50,13 @@ pub(crate) struct HashNibbles<'a> {
 pub struct HashKey {
     pub digest: HashOutput,
     length: u8,
+}
+
+/// TODO(appcypher): Add docs.
+#[derive(Clone)]
+pub struct HashKeyIterator<'a> {
+    pub hash_key: &'a HashKey,
+    cursor: u8,
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -99,6 +106,20 @@ impl Iterator for HashNibbles<'_> {
 
         self.cursor += 1;
         Some(byte)
+    }
+}
+
+impl Debug for HashNibbles<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut nibbles_str = String::new();
+        for nibble in HashNibbles::with_cursor(self.digest, 0) {
+            nibbles_str.push_str(&format!("{:1X}", nibble));
+        }
+
+        f.debug_struct("HashNibbles")
+            .field("hash", &nibbles_str)
+            .field("cursor", &self.cursor)
+            .finish()
     }
 }
 
@@ -157,19 +178,45 @@ impl HashKey {
             byte & 0x0F
         })
     }
+
+    /// Creates an iterator over the nibbles of the hash.
+    /// TODO(appcypher): Add examples.
+    pub fn iter(&self) -> HashKeyIterator {
+        HashKeyIterator {
+            hash_key: self,
+            cursor: 0,
+        }
+    }
 }
 
 impl Debug for HashKey {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "0x")?;
-
-        let mut index = 0;
-        while let Some(byte) = self.get(index) {
-            write!(f, "{byte:1X}")?;
-            index += 1;
+        for nibble in self.iter() {
+            write!(f, "{:1X}", nibble)?;
         }
 
         Ok(())
+    }
+}
+
+impl PartialEq for HashKey {
+    fn eq(&self, other: &Self) -> bool {
+        self.iter().eq(other.iter())
+    }
+}
+
+impl Iterator for HashKeyIterator<'_> {
+    type Item = u8;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.cursor >= self.hash_key.length {
+            return None;
+        }
+
+        let byte = self.hash_key.get(self.cursor)?;
+        self.cursor += 1;
+        Some(byte)
     }
 }
 

@@ -20,7 +20,11 @@ use serde::{
     Deserializer, Serialize, Serializer,
 };
 use sha3::Sha3_256;
-use std::{fmt::Debug, marker::PhantomData, rc::Rc};
+use std::{
+    fmt::{self, Debug, Formatter},
+    marker::PhantomData,
+    rc::Rc,
+};
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
@@ -42,7 +46,7 @@ pub type BitMaskType = [u8; HAMT_BITMASK_BYTE_SIZE];
 ///
 /// assert!(node.is_empty());
 /// ```
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct Node<K, V, H = Sha3_256>
 where
     H: Hasher,
@@ -262,7 +266,7 @@ where
         (mask & self.bitmask).count_ones()
     }
 
-    pub(super) fn set_value<'a, B: BlockStore>(
+    pub(crate) fn set_value<'a, B: BlockStore>(
         self: Rc<Self>,
         hashnibbles: &'a mut HashNibbles,
         key: K,
@@ -343,7 +347,7 @@ where
     }
 
     #[async_recursion(?Send)]
-    pub(super) async fn get_value<'a, B: BlockStore>(
+    pub(crate) async fn get_value<'a, B: BlockStore>(
         &'a self,
         hashnibbles: &mut HashNibbles,
         store: &B,
@@ -375,7 +379,7 @@ where
 
     // It's internal and is only more complex because async_recursion doesn't work here
     #[allow(clippy::type_complexity)]
-    pub(super) fn remove_value<'k, 'v, 'a, B: BlockStore>(
+    pub(crate) fn remove_value<'k, 'v, 'a, B: BlockStore>(
         self: Rc<Self>,
         hashnibbles: &'a mut HashNibbles,
         store: &'a B,
@@ -432,7 +436,7 @@ where
                     let child = Rc::clone(link.resolve_value(store).await?);
                     let (child, removed) = child.remove_value(hashnibbles, store).await?;
                     if removed.is_some() {
-                        // If something has been deleted, we attempt toc canonicalize the pointer.
+                        // If something has been deleted, we attempt to canonicalize the pointer.
                         if let Some(pointer) =
                             Pointer::Link(Link::from(child)).canonicalize(store).await?
                         {
@@ -633,6 +637,25 @@ where
     }
 }
 
+impl<K, V, H> Debug for Node<K, V, H>
+where
+    K: Debug,
+    V: Debug,
+    H: Hasher + Debug,
+{
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        let mut bitmask_str = String::new();
+        for i in self.bitmask.as_raw_slice().iter().rev() {
+            bitmask_str.push_str(&format!("{:08b}", i));
+        }
+
+        f.debug_struct("Node")
+            .field("bitmask", &bitmask_str)
+            .field("pointers", &self.pointers)
+            .finish()
+    }
+}
+
 //--------------------------------------------------------------------------------------------------
 // Tests
 //--------------------------------------------------------------------------------------------------
@@ -640,31 +663,33 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{HashOutput, MemoryBlockStore};
-    use lazy_static::lazy_static;
+    use crate::{utils, MemoryBlockStore};
+    use helper::*;
     use test_log::test;
 
-    fn digest(bytes: &[u8]) -> HashOutput {
-        let mut nibbles = [0u8; 32];
-        nibbles[..bytes.len()].copy_from_slice(bytes);
-        nibbles
-    }
+    mod helper {
+        use crate::{utils, HashOutput, Hasher};
+        use lazy_static::lazy_static;
 
-    lazy_static! {
-        static ref HASH_KV_PAIRS: Vec<(HashOutput, &'static str)> = vec![
-            (digest(&[0xE0]), "first"),
-            (digest(&[0xE1]), "second"),
-            (digest(&[0xE2]), "third"),
-            (digest(&[0xE3]), "fourth"),
-        ];
-    }
+        lazy_static! {
+            pub(super) static ref HASH_KV_PAIRS: Vec<(HashOutput, &'static str)> = vec![
+                (utils::make_digest(&[0xE0]), "first"),
+                (utils::make_digest(&[0xE1]), "second"),
+                (utils::make_digest(&[0xE2]), "third"),
+                (utils::make_digest(&[0xE3]), "fourth"),
+            ];
+        }
 
-    #[derive(Debug, Clone)]
-    struct MockHasher;
-    impl Hasher for MockHasher {
-        fn hash<K: AsRef<[u8]>>(key: &K) -> HashOutput {
-            let s = std::str::from_utf8(key.as_ref()).unwrap();
-            HASH_KV_PAIRS.iter().find(|(_, v)| s == *v).unwrap().0
+        #[derive(Debug, Clone)]
+        pub(super) struct MockHasher;
+        impl Hasher for MockHasher {
+            fn hash<K: AsRef<[u8]>>(key: &K) -> HashOutput {
+                HASH_KV_PAIRS
+                    .iter()
+                    .find(|(_, v)| key.as_ref() == <dyn AsRef<[u8]>>::as_ref(v))
+                    .unwrap()
+                    .0
+            }
         }
     }
 
@@ -800,7 +825,7 @@ mod tests {
 
         let mut working_node = Rc::new(Node::<String, String>::default());
         for (hash, expected_idx) in hash_expected_idx_samples.into_iter() {
-            let bytes = digest(&hash[..]);
+            let bytes = utils::make_digest(&hash[..]);
             let hashnibbles = &mut HashNibbles::new(&bytes);
 
             working_node = working_node
