@@ -1,6 +1,6 @@
 //! Block store traits.
 
-use std::{borrow::Cow, io::Cursor};
+use std::{borrow::Cow, cell::Cell, io::Cursor};
 
 use anyhow::Result;
 use async_trait::async_trait;
@@ -92,9 +92,10 @@ pub trait BlockStore {
 pub struct MemoryBlockStore(HashMap<String, Vec<u8>>);
 
 /// A MergeStore combines two block stores into one.
-pub struct MergeStore<'m, 'o, M: BlockStore, O: BlockStore> {
-    main: &'m mut M,
-    other: &'o O,
+pub struct MergeStore<'b, B: BlockStore> {
+    main: &'b mut B,
+    other: &'b B,
+    order: Cell<bool>,
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -131,25 +132,46 @@ impl BlockStore for MemoryBlockStore {
     }
 }
 
-impl<'m, 'o, M: BlockStore, O: BlockStore> MergeStore<'m, 'o, M, O> {
+impl<'b, B: BlockStore> MergeStore<'b, B> {
     /// Creates a new MergeStore from one main mutable store and one other immutable store.
-    pub fn new(main: &'m mut M, other: &'o O) -> Self {
-        Self { main, other }
+    pub fn new(main: &'b mut B, other: &'b B) -> Self {
+        Self {
+            main,
+            other,
+            order: Default::default(),
+        }
+    }
+
+    async fn get_block_from_stores<'a>(
+        &self,
+        a: &'a B,
+        b: &'a B,
+        cid: &Cid,
+    ) -> Result<Cow<'a, Vec<u8>>> {
+        let result = match a.get_block(cid).await {
+            Ok(bytes) => Ok(bytes),
+            _ => b.get_block(cid).await,
+        };
+
+        self.order.set(!self.order.get());
+
+        result
     }
 }
 
 #[async_trait(?Send)]
-impl<'m, 'o, M: BlockStore, O: BlockStore> BlockStore for MergeStore<'m, 'o, M, O> {
+impl<'b, B: BlockStore> BlockStore for MergeStore<'b, B> {
     /// Stores an array of bytes in the main block store.
     async fn put_block(&mut self, bytes: Vec<u8>, codec: IpldCodec) -> Result<Cid> {
         self.main.put_block(bytes, codec).await
     }
 
     /// Retrieves an array of bytes from either block store with given CID.
-    async fn get_block<'b>(&'b self, cid: &Cid) -> Result<Cow<'b, Vec<u8>>> {
-        match self.main.get_block(cid).await {
-            Ok(bytes) => Ok(bytes),
-            Err(_) => self.other.get_block(cid).await,
+    async fn get_block<'a>(&'a self, cid: &Cid) -> Result<Cow<'a, Vec<u8>>> {
+        if self.order.get() {
+            self.get_block_from_stores(self.main, self.other, cid).await
+        } else {
+            self.get_block_from_stores(self.other, self.main, cid).await
         }
     }
 }
