@@ -124,6 +124,11 @@ pub(crate) mod test_setup {
                 proptest::test_runner::RngAlgorithm::ChaCha
             )
         };
+        [ runner ] => {
+            proptest::test_runner::TestRunner::new(
+                proptest::test_runner::Config::default()
+            )
+        };
         [ store ] => {
             $crate::MemoryBlockStore::new()
         };

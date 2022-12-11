@@ -1,8 +1,13 @@
-use crate::{private::hamt::node::*, BlockStore};
+use crate::{private::hamt::node::*, utils::Sampleable, BlockStore};
 use anyhow::Result;
-use proptest::{collection::*, prelude::*, strategy::Shuffleable};
+use hashbrown::HashMap;
+use proptest::{collection::*, prelude::*, strategy::Shuffleable, test_runner::TestRunner};
 use serde::{de::DeserializeOwned, Serialize};
-use std::{collections::HashMap, fmt::Debug, hash::Hash, rc::Rc};
+use std::{fmt::Debug, hash::Hash, rc::Rc};
+
+//--------------------------------------------------------------------------------------------------
+// Types
+//--------------------------------------------------------------------------------------------------
 
 /// Represents an operation that can be performed on a map-like data structure.
 ///
@@ -22,6 +27,67 @@ use std::{collections::HashMap, fmt::Debug, hash::Hash, rc::Rc};
 pub enum Operation<K, V> {
     Insert(K, V),
     Remove(K),
+}
+
+/// A list of operations that can be applied to a map-like data structure.
+///
+/// # Examples
+///
+/// ```
+/// use wnfs::private::hamt::strategies::{self, Operation, Operations};
+/// use wnfs::utils::Sampleable;
+/// use proptest::{arbitrary::any, test_runner::TestRunner};
+///
+/// let mut runner = &mut TestRunner::deterministic();
+/// let ops = strategies::operations(any::<[u8; 32]>(), any::<String>(), 2).sample(runner);
+///
+/// assert_eq!(ops.0.len(), 2);
+/// ```
+#[derive(Debug, Clone)]
+pub struct Operations<K, V>(pub Vec<Operation<K, V>>);
+
+//--------------------------------------------------------------------------------------------------
+// Implementations
+//--------------------------------------------------------------------------------------------------
+
+impl<K, V> Operations<K, V>
+where
+    K: Clone,
+    V: Clone,
+{
+    #[allow(dead_code)]
+    pub(crate) fn prepare_remove(
+        &mut self,
+        insert_value: impl Strategy<Value = (K, V)>,
+        runner: &mut TestRunner,
+    ) -> (K, V) {
+        let (k, v) = insert_value.sample(runner);
+        self.0.push(Operation::Insert(k.clone(), v.clone()));
+        (k, v)
+    }
+
+    #[allow(dead_code)]
+    pub(crate) fn prepare_insert(
+        &mut self,
+        insert_value: impl Strategy<Value = (K, V)>,
+        runner: &mut TestRunner,
+    ) -> (K, V) {
+        let (k, v) = insert_value.sample(runner);
+        self.0.push(Operation::Remove(k.clone()));
+        (k, v)
+    }
+
+    #[allow(dead_code)]
+    pub(crate) fn prepare_modify(
+        &mut self,
+        insert_value: impl Strategy<Value = (K, V, V)>,
+        runner: &mut TestRunner,
+    ) -> (K, V, V) {
+        let (k, old_v, new_v) = insert_value.sample(runner);
+        let insert_op = Operation::Insert(k.clone(), old_v.clone());
+        self.0.push(insert_op);
+        (k, old_v, new_v)
+    }
 }
 
 impl<K, V> Operation<K, V> {
@@ -56,23 +122,6 @@ impl<K, V> Operation<K, V> {
         }
     }
 }
-
-/// A list of operations that can be applied to a map-like data structure.
-///
-/// # Examples
-///
-/// ```
-/// use wnfs::private::hamt::strategies::{self, Operation, Operations};
-/// use wnfs::utils::Sampleable;
-/// use proptest::{arbitrary::any, test_runner::TestRunner};
-///
-/// let mut runner = &mut TestRunner::deterministic();
-/// let ops = strategies::operations(any::<[u8; 32]>(), any::<String>(), 2).sample(runner);
-///
-/// assert_eq!(ops.0.len(), 2);
-/// ```
-#[derive(Debug, Clone)]
-pub struct Operations<K, V>(pub Vec<Operation<K, V>>);
 
 impl<K: PartialEq, V: PartialEq> Shuffleable for Operations<K, V> {
     fn shuffle_len(&self) -> usize {
@@ -122,6 +171,31 @@ impl<K: PartialEq, V: PartialEq> Shuffleable for Operations<K, V> {
     }
 }
 
+impl<K, V> From<&Operations<K, V>> for HashMap<K, V>
+where
+    K: Hash + Eq + Clone,
+    V: Clone,
+{
+    fn from(ops: &Operations<K, V>) -> Self {
+        let mut map = HashMap::default();
+        for op in &ops.0 {
+            match op {
+                Operation::Insert(key, value) => {
+                    map.insert(key.clone(), value.clone());
+                }
+                Operation::Remove(key) => {
+                    map.remove(key);
+                }
+            }
+        }
+        map
+    }
+}
+
+//--------------------------------------------------------------------------------------------------
+// Functions
+//--------------------------------------------------------------------------------------------------
+
 /// This creates a node from a list of operations.
 ///
 /// # Examples
@@ -138,13 +212,13 @@ impl<K: PartialEq, V: PartialEq> Shuffleable for Operations<K, V> {
 ///     let ops = strategies::operations(any::<[u8; 32]>(), any::<String>(), 10).sample(runner);
 ///
 ///     let store = &mut MemoryBlockStore::new();
-///     let node = strategies::node_from_operations(ops, store).await.unwrap();
+///     let node = strategies::node_from_operations(&ops, store).await.unwrap();
 ///
 ///     println!("{:?}", node);
 /// }
 /// ```
 pub async fn node_from_operations<K, V, B: BlockStore>(
-    operations: Operations<K, V>,
+    operations: &Operations<K, V>,
     store: &mut B,
 ) -> Result<Rc<Node<K, V>>>
 where
@@ -152,50 +226,18 @@ where
     V: DeserializeOwned + Serialize + Clone + Debug,
 {
     let mut node: Rc<Node<K, V>> = Rc::new(Node::default());
-    for op in operations.0 {
+    for op in &operations.0 {
         match op {
             Operation::Insert(key, value) => {
-                node = node.set(key.clone(), value, store).await?;
+                node = node.set(key.clone(), value.clone(), store).await?;
             }
             Operation::Remove(key) => {
-                (node, _) = node.remove(&key, store).await?;
+                (node, _) = node.remove(key, store).await?;
             }
         };
     }
 
     Ok(node)
-}
-
-/// Create a hashmap based on provided operations.
-///
-/// # Examples
-///
-/// ```
-/// use wnfs::private::hamt::strategies::{self, Operation, Operations};
-/// use wnfs::utils::Sampleable;
-/// use proptest::{arbitrary::any, test_runner::TestRunner};
-///
-/// let mut runner = &mut TestRunner::deterministic();
-/// let ops = strategies::operations(any::<[u8; 32]>(), any::<String>(), 10).sample(runner);
-/// let hash_map = strategies::hash_map_from_operations(ops);
-///
-/// println!("{:?}", hash_map);
-/// ```
-pub fn hash_map_from_operations<K: Debug + Clone + Hash + Eq, V: Debug + Clone + Eq>(
-    operations: Operations<K, V>,
-) -> HashMap<K, V> {
-    let mut map = HashMap::default();
-    for op in operations.0 {
-        match op {
-            Operation::Insert(key, value) => {
-                map.insert(key, value);
-            }
-            Operation::Remove(key) => {
-                map.remove(&key);
-            }
-        }
-    }
-    map
 }
 
 /// Creates an insert or remove operation strategy based on the key and value provided.

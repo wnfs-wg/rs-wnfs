@@ -1,0 +1,7 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 72dc4e2a4374846a71044bee2d230bfa131730e3520e72ef85d379b8478f40be # shrinks to input = _RemoveHashmapCorrespondenceArgs { ops: Operations([Insert("c1s1", 2861968474096821110), Insert("1", 7543637671228506879), Insert("96", 2252768383817693563), Remove("4b7fw77"), Insert("g", 11439732489252793716), Remove("ww53m"), Remove("6v4xcoa6")]) }

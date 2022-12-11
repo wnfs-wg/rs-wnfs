@@ -1,5 +1,5 @@
 use super::{diff, KeyValueChange, Node, NodeChange, HAMT_VERSION};
-use crate::{AsyncSerialize, BlockStore, Hasher, Link};
+use crate::{error, AsyncSerialize, BlockStore, FsError, Hasher, Link};
 use anyhow::Result;
 use async_trait::async_trait;
 use libipld::{serde as ipld_serde, Ipld};
@@ -69,6 +69,7 @@ impl<K, V, H: Hasher> Hamt<K, V, H> {
     /// use wnfs::private::{Hamt, Node};
     ///
     /// let hamt = Hamt::<String, usize>::with_root(Rc::new(Node::default()));
+    ///
     /// println!("HAMT: {:?}", hamt);
     /// ```
     pub fn with_root(root: Rc<Node<K, V, H>>) -> Self {
@@ -78,7 +79,40 @@ impl<K, V, H: Hasher> Hamt<K, V, H> {
         }
     }
 
-    /// TODO(appcypher): Add docs.
+    /// Gets the difference between two HAMTs at the node level.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use std::rc::Rc;
+    /// use wnfs::{
+    ///     private::{Hamt, Node},
+    ///     MemoryBlockStore
+    /// };
+    ///
+    /// #[async_std::main]
+    /// async fn main() {
+    ///     let store = &mut MemoryBlockStore::default();
+    ///
+    ///     let main_hamt = Hamt::<String, usize>::with_root({
+    ///         let node = Rc::new(Node::default());
+    ///         let node = node.set("foo".into(), 400, store).await.unwrap();
+    ///         let node = node.set("bar".into(), 500, store).await.unwrap();
+    ///         node
+    ///     });
+    ///
+    ///     let other_hamt = Hamt::<String, usize>::with_root({
+    ///         let node = Rc::new(Node::default());
+    ///         let node = node.set("foo".into(), 200, store).await.unwrap();
+    ///         let node = node.set("qux".into(), 600, store).await.unwrap();
+    ///         node
+    ///     });
+    ///
+    ///     let node_diff = main_hamt.node_diff(&other_hamt, None, store).await.unwrap();
+    ///
+    ///     println!("node_diff: {:#?}", node_diff);
+    /// }
+    /// ```
     pub async fn node_diff<B: BlockStore>(
         &self,
         other: &Self,
@@ -100,10 +134,42 @@ impl<K, V, H: Hasher> Hamt<K, V, H> {
             .await;
         }
 
-        Ok(vec![])
+        error(FsError::HamtVersionMismatch)
     }
 
-    /// TODO(appcypher): Add docs.
+    /// Gets the difference between two HAMTs at the key-value level.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use std::rc::Rc;
+    /// use wnfs::{
+    ///     private::{Hamt, Node},
+    ///     MemoryBlockStore
+    /// };
+    ///
+    /// #[async_std::main]
+    /// async fn main() {
+    ///     let store = &mut MemoryBlockStore::default();
+    ///
+    ///     let main_hamt = Hamt::<String, usize>::with_root({
+    ///         let node = Rc::new(Node::default());
+    ///         let node = node.set("foo".into(), 400, store).await.unwrap();
+    ///         let node = node.set("bar".into(), 500, store).await.unwrap();
+    ///         node
+    ///     });
+    ///
+    ///     let other_hamt = Hamt::<String, usize>::with_root({
+    ///         let node = Rc::new(Node::default());
+    ///         let node = node.set("foo".into(), 200, store).await.unwrap();
+    ///         let node = node.set("qux".into(), 600, store).await.unwrap();
+    ///         node
+    ///     });
+    ///
+    ///     let kv_diff = main_hamt.kv_diff(&other_hamt, None, store).await.unwrap();
+    ///
+    ///     println!("kv_diff: {:#?}", kv_diff);
+    /// }
     pub async fn kv_diff<B: BlockStore>(
         &self,
         other: &Self,
@@ -125,7 +191,7 @@ impl<K, V, H: Hasher> Hamt<K, V, H> {
             .await;
         }
 
-        Ok(vec![])
+        error(FsError::HamtVersionMismatch)
     }
 
     async fn to_ipld<B: BlockStore + ?Sized>(&self, store: &mut B) -> Result<Ipld>

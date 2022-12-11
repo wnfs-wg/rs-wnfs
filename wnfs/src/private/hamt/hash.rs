@@ -113,7 +113,7 @@ impl Debug for HashNibbles<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut nibbles_str = String::new();
         for nibble in HashNibbles::with_cursor(self.digest, 0) {
-            nibbles_str.push_str(&format!("{:1X}", nibble));
+            nibbles_str.push_str(&format!("{nibble:1X}"));
         }
 
         f.debug_struct("HashNibbles")
@@ -193,7 +193,7 @@ impl Debug for HashKey {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "0x")?;
         for nibble in self.iter() {
-            write!(f, "{:1X}", nibble)?;
+            write!(f, "{nibble:1X}")?;
         }
 
         Ok(())

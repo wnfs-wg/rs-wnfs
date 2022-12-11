@@ -12,6 +12,7 @@ use async_trait::async_trait;
 use bitvec::array::BitArray;
 use either::{Either, Either::*};
 use futures::future::LocalBoxFuture;
+use hashbrown::HashMap;
 use libipld::{serde as ipld_serde, Ipld};
 use log::debug;
 use serde::{
@@ -22,6 +23,7 @@ use serde::{
 use sha3::Sha3_256;
 use std::{
     fmt::{self, Debug, Formatter},
+    hash::Hash,
     marker::PhantomData,
     rc::Rc,
 };
@@ -460,12 +462,12 @@ where
     // TODO(appcypher): Add docs.
     // TODO(appcypher): Add tests.
     #[async_recursion(?Send)]
-    pub async fn flat_map<F, T, B>(self: &Rc<Self>, f: &F, store: &B) -> Result<Vec<T>>
+    pub async fn flat_map<F, T, B>(&self, f: &F, store: &B) -> Result<Vec<T>>
     where
         B: BlockStore,
         F: Fn(&Pair<K, V>) -> Result<T>,
-        K: DeserializeOwned + Clone,
-        V: DeserializeOwned + Clone,
+        K: DeserializeOwned,
+        V: DeserializeOwned,
     {
         let mut items = <Vec<T>>::new();
         for p in self.pointers.iter() {
@@ -524,6 +526,28 @@ where
                 child.get_node_at(hashkey, index + 1, store).await
             }
         }
+    }
+
+    // TODO(appcypher): Add docs.
+    // TODO(appcypher): Add tests.
+    pub async fn to_hashmap<B: BlockStore>(&self, store: &B) -> Result<HashMap<K, V>>
+    where
+        K: DeserializeOwned + Clone + Eq + Hash,
+        V: DeserializeOwned + Clone,
+    {
+        let mut map = HashMap::new();
+        let key_values = self
+            .flat_map(
+                &|Pair { key, value }| Ok((key.clone(), value.clone())),
+                store,
+            )
+            .await?;
+
+        for (key, value) in key_values {
+            map.insert(key, value);
+        }
+
+        Ok(map)
     }
 }
 
@@ -646,7 +670,7 @@ where
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         let mut bitmask_str = String::new();
         for i in self.bitmask.as_raw_slice().iter().rev() {
-            bitmask_str.push_str(&format!("{:08b}", i));
+            bitmask_str.push_str(&format!("{i:08b}"));
         }
 
         f.debug_struct("Node")
@@ -905,14 +929,10 @@ mod tests {
 
 #[cfg(test)]
 mod proptests {
-
-    use crate::private::hamt::strategies::*;
+    use super::*;
+    use crate::{dagcbor, private::hamt::strategies::*, MemoryBlockStore};
     use proptest::prelude::*;
     use test_strategy::proptest;
-
-    use crate::{dagcbor, MemoryBlockStore};
-
-    use super::*;
 
     fn small_key() -> impl Strategy<Value = String> {
         (0..1000).prop_map(|i| format!("key {i}"))
@@ -929,7 +949,7 @@ mod proptests {
     ) {
         async_std::task::block_on(async move {
             let store = &mut MemoryBlockStore::default();
-            let node = node_from_operations(operations, store).await.unwrap();
+            let node = node_from_operations(&operations, store).await.unwrap();
 
             let node = node.set(key.clone(), value, store).await.unwrap();
             let cid1 = store.put_async_serializable(&node).await.unwrap();
@@ -951,7 +971,7 @@ mod proptests {
     ) {
         async_std::task::block_on(async move {
             let store = &mut MemoryBlockStore::default();
-            let node = node_from_operations(operations, store).await.unwrap();
+            let node = node_from_operations(&operations, store).await.unwrap();
 
             let (node, _) = node.remove(&key, store).await.unwrap();
             let cid1 = store.put_async_serializable(&node).await.unwrap();
@@ -972,7 +992,7 @@ mod proptests {
     ) {
         async_std::task::block_on(async move {
             let store = &mut MemoryBlockStore::default();
-            let node = node_from_operations(operations, store).await.unwrap();
+            let node = node_from_operations(&operations, store).await.unwrap();
 
             let encoded_node = dagcbor::async_encode(&node, store).await.unwrap();
             let decoded_node = dagcbor::decode::<Node<String, u64>>(encoded_node.as_ref()).unwrap();
@@ -993,8 +1013,8 @@ mod proptests {
 
             let store = &mut MemoryBlockStore::default();
 
-            let node1 = node_from_operations(original, store).await.unwrap();
-            let node2 = node_from_operations(shuffled, store).await.unwrap();
+            let node1 = node_from_operations(&original, store).await.unwrap();
+            let node2 = node_from_operations(&shuffled, store).await.unwrap();
 
             let cid1 = store.put_async_serializable(&node1).await.unwrap();
             let cid2 = store.put_async_serializable(&node2).await.unwrap();
@@ -1013,9 +1033,9 @@ mod proptests {
     ) {
         let (original, shuffled) = pair;
 
-        let map1 = hash_map_from_operations(original);
-        let map2 = hash_map_from_operations(shuffled);
+        let map1 = HashMap::from(&original);
+        let map2 = HashMap::from(&shuffled);
 
-        assert_eq!(map1, map2);
+        prop_assert_eq!(map1, map2);
     }
 }

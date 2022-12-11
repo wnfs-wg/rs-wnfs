@@ -71,6 +71,9 @@ pub enum FsError {
 
     #[error("The hashkey index is out of bounds")]
     InvalidHashKeyIndex,
+
+    #[error("HAMT versions don't match")]
+    HamtVersionMismatch,
 }
 
 pub fn error<T>(err: impl std::error::Error + Send + Sync + 'static) -> Result<T> {

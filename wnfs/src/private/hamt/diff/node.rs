@@ -24,8 +24,9 @@ pub struct NodeChange {
 // Functions
 //--------------------------------------------------------------------------------------------------
 
+/// Compares two HAMT nodes and returns the changes between them.
+///
 /// TODO(appcypher): Add docs.
-/// TODO(appcypher): Maybe add a different entry point to this so we don't have to pass the hashkey.
 #[async_recursion(?Send)]
 pub async fn node_diff<K, V, H, B>(
     main_link: Link<Rc<Node<K, V, H>>>,
@@ -483,4 +484,123 @@ mod tests {
 }
 
 #[cfg(test)]
-mod prop_tests {}
+mod proptests {
+    use super::*;
+
+    use crate::{
+        private::strategies::{self, operations, Operations},
+        utils::test_setup,
+        Link,
+    };
+    use async_std::task;
+    use sha3::Sha3_256;
+    use test_strategy::proptest;
+
+    #[proptest(cases = 100)]
+    fn add_hashmap_correspondence(
+        #[strategy(operations("[a-z0-9]{1,8}", 0..u64::MAX, 1..100))] mut ops: Operations<
+            String,
+            u64,
+        >,
+    ) {
+        task::block_on(async {
+            let (store, runner) = test_setup::init!(mut store, mut runner);
+
+            // Other node.
+            let (k, v) = ops.prepare_insert(("[a-z0-9]{1,8}", 0..u64::MAX), runner);
+            let other_node = strategies::node_from_operations(&ops, store).await.unwrap();
+            let other_map = other_node.to_hashmap(store).await.unwrap();
+
+            // Main node with an added kv pair.
+            let main_node = Rc::clone(&other_node).set(k, v, store).await.unwrap();
+            let main_map = main_node.to_hashmap(store).await.unwrap();
+
+            let changes = node_diff(Link::from(main_node), Link::from(other_node), None, store)
+                .await
+                .unwrap();
+
+            assert_eq!(changes.len(), 1);
+            assert_eq!(changes[0].r#type, ChangeType::Add);
+
+            for k in main_map.keys() {
+                if other_map.get(k).is_none() {
+                    assert_eq!(changes[0].hashkey.digest, Sha3_256::hash(k));
+                }
+            }
+        });
+    }
+
+    #[proptest(cases = 100)]
+    fn remove_hashmap_correspondence(
+        #[strategy(operations("[a-z0-9]{1,8}", 0..u64::MAX, 1..100))] mut ops: Operations<
+            String,
+            u64,
+        >,
+    ) {
+        task::block_on(async {
+            let (store, runner) = test_setup::init!(mut store, mut runner);
+
+            // Other node.
+            let (ref k, _) = ops.prepare_remove(("[a-z0-9]{1,8}", 0..u64::MAX), runner);
+            let other_node = strategies::node_from_operations(&ops, store).await.unwrap();
+            let other_map = other_node.to_hashmap(store).await.unwrap();
+
+            // Main node with a removed kv pair.
+            let (main_node, _) = Rc::clone(&other_node).remove(k, store).await.unwrap();
+            let main_map = main_node.to_hashmap(store).await.unwrap();
+
+            let changes = node_diff(Link::from(main_node), Link::from(other_node), None, store)
+                .await
+                .unwrap();
+
+            assert_eq!(changes.len(), 1);
+            assert_eq!(changes[0].r#type, ChangeType::Remove);
+
+            for k in other_map.keys() {
+                if main_map.get(k).is_none() {
+                    assert_eq!(changes[0].hashkey.digest, Sha3_256::hash(k));
+                }
+            }
+        });
+    }
+
+    #[proptest(cases = 100)]
+    fn modify_hashmap_correspondence(
+        #[strategy(operations("[a-z0-9]{1,8}", 0..u64::MAX, 1..100))] mut ops: Operations<
+            String,
+            u64,
+        >,
+    ) {
+        task::block_on(async {
+            let (store, runner) = test_setup::init!(mut store, mut runner);
+
+            // Other node.
+            let (k, _, v) = ops.prepare_modify(("[a-z0-9]{1,8}", 0..u64::MAX, 0..u64::MAX), runner);
+            let other_node = strategies::node_from_operations(&ops, store).await.unwrap();
+            let other_map = other_node.to_hashmap(store).await.unwrap();
+
+            // Main node with a modified kv pair.
+            let main_node = Rc::clone(&other_node).set(k, v, store).await.unwrap();
+            let main_map = main_node.to_hashmap(store).await.unwrap();
+
+            let changes = node_diff(Link::from(main_node), Link::from(other_node), None, store)
+                .await
+                .unwrap();
+
+            assert_eq!(changes.len(), 1);
+            assert_eq!(changes[0].r#type, ChangeType::Modify);
+
+            for k in other_map.keys() {
+                if main_map.get(k).is_none() {
+                    assert_eq!(changes[0].hashkey.digest, Sha3_256::hash(k));
+                }
+            }
+        });
+    }
+
+    #[proptest]
+    fn no_diff() {}
+
+    #[proptest]
+    fn add_remove_flip() {}
+}

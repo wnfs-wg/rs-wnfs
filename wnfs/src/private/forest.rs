@@ -27,7 +27,6 @@ use std::{collections::BTreeSet, fmt, rc::Rc};
 ///
 /// println!("{:?}", forest);
 /// ```
-// TODO(appcypher): Change Cid to PrivateLink<PrivateNode>.
 pub type PrivateForest = Hamt<Namefilter, BTreeSet<Cid>>;
 
 //--------------------------------------------------------------------------------------------------
@@ -46,10 +45,8 @@ impl PrivateForest {
     ///
     /// ```
     /// use std::rc::Rc;
-    ///
     /// use chrono::Utc;
     /// use rand::thread_rng;
-    ///
     /// use wnfs::{
     ///     private::{PrivateForest, PrivateRef}, PrivateNode,
     ///     BlockStore, MemoryBlockStore, Namefilter, PrivateDirectory, PrivateOpResult,
@@ -114,10 +111,8 @@ impl PrivateForest {
     ///
     /// ```
     /// use std::rc::Rc;
-    ///
     /// use chrono::Utc;
     /// use rand::thread_rng;
-    ///
     /// use wnfs::{
     ///     private::{PrivateForest, PrivateRef}, PrivateNode,
     ///     BlockStore, MemoryBlockStore, Namefilter, PrivateDirectory, PrivateOpResult,
@@ -183,11 +178,9 @@ impl PrivateForest {
     ///
     /// ```
     /// use std::rc::Rc;
-    ///
     /// use chrono::Utc;
     /// use rand::thread_rng;
     /// use sha3::Sha3_256;
-    ///
     /// use wnfs::{
     ///     private::{PrivateForest, PrivateRef}, PrivateNode,
     ///     BlockStore, MemoryBlockStore, Namefilter, PrivateDirectory, PrivateOpResult, Hasher
@@ -299,7 +292,77 @@ impl<H> Hamt<Namefilter, BTreeSet<Cid>, H>
 where
     H: Hasher + fmt::Debug + Clone + 'static,
 {
-    /// TODO(appcypher): Add docs.
+    /// Merges a private forest with another. If there is a conflict with values, it combines the two values in the final merge node
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use std::rc::Rc;
+    /// use chrono::{Utc, Days};
+    /// use rand::{thread_rng, Rng};
+    /// use wnfs::{
+    ///     private::{PrivateForest, PrivateRef}, PrivateNode,
+    ///     BlockStore, MemoryBlockStore, Namefilter, PrivateDirectory, PrivateOpResult,
+    /// };
+    ///
+    /// #[async_std::main]
+    /// async fn main() {
+    ///     let store = &mut MemoryBlockStore::default();
+    ///     let rng = &mut thread_rng();
+    ///
+    ///     let ratchet_seed = rng.gen::<[u8; 32]>();
+    ///     let inumber = rng.gen::<[u8; 32]>();
+    ///
+    ///     let main_forest = Rc::new(PrivateForest::new());
+    ///     let root_dir = Rc::new(PrivateDirectory::with_seed(
+    ///         Namefilter::default(),
+    ///         Utc::now(),
+    ///         ratchet_seed,
+    ///         inumber
+    ///     ));
+    ///     let main_forest = main_forest
+    ///         .put(
+    ///             root_dir.header.get_saturated_name(),
+    ///             &root_dir.header.get_private_ref(),
+    ///             &PrivateNode::Dir(Rc::clone(&root_dir)),
+    ///             store,
+    ///             rng
+    ///         )
+    ///         .await
+    ///         .unwrap();
+    ///
+    ///     let other_forest = Rc::new(PrivateForest::new());
+    ///     let root_dir = Rc::new(PrivateDirectory::with_seed(
+    ///         Namefilter::default(),
+    ///         Utc::now().checked_add_days(Days::new(1)).unwrap(),
+    ///         ratchet_seed,
+    ///         inumber
+    ///     ));
+    ///     let other_forest = other_forest
+    ///         .put(
+    ///             root_dir.header.get_saturated_name(),
+    ///             &root_dir.header.get_private_ref(),
+    ///             &PrivateNode::Dir(Rc::clone(&root_dir)),
+    ///             store,
+    ///             rng
+    ///         )
+    ///         .await
+    ///         .unwrap();
+    ///
+    ///     let merge_forest = main_forest.merge(&other_forest, store).await.unwrap();
+    ///
+    ///     assert_eq!(
+    ///         2,
+    ///         merge_forest
+    ///             .root
+    ///             .get(&root_dir.header.get_saturated_name(), store)
+    ///             .await
+    ///             .unwrap()
+    ///             .unwrap()
+    ///             .len()
+    ///     );
+    /// }
+    /// ```
     pub async fn merge<B: BlockStore>(&self, other: &Self, store: &mut B) -> Result<Self> {
         let kv_changes = self.kv_diff(other, None, store).await?;
 
@@ -593,4 +656,18 @@ mod tests {
             }
         }
     }
+}
+
+#[cfg(test)]
+mod proptests {
+    use test_strategy::proptest;
+
+    #[proptest]
+    fn merge_associativity() {}
+
+    #[proptest]
+    fn merge_commutativity() {}
+
+    #[proptest]
+    fn merge_idempotency() {}
 }

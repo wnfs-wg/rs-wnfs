@@ -395,3 +395,20 @@ mod tests {
         );
     }
 }
+
+#[cfg(test)]
+mod proptests {
+    use test_strategy::proptest;
+
+    #[proptest]
+    fn add_remove_hashmap_correspondence() {}
+
+    #[proptest]
+    fn modify_hashmap_correspondence() {}
+
+    #[proptest]
+    fn no_diff() {}
+
+    #[proptest]
+    fn add_remove_flip() {}
+}
