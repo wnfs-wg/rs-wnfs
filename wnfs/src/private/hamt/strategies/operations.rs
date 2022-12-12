@@ -1,7 +1,7 @@
-use crate::{private::hamt::node::*, utils::Sampleable, BlockStore};
+use crate::{private::hamt::node::*, BlockStore};
 use anyhow::Result;
 use hashbrown::HashMap;
-use proptest::{collection::*, prelude::*, strategy::Shuffleable, test_runner::TestRunner};
+use proptest::{collection::*, prelude::*, strategy::Shuffleable};
 use serde::{de::DeserializeOwned, Serialize};
 use std::{fmt::Debug, hash::Hash, rc::Rc};
 
@@ -49,46 +49,6 @@ pub struct Operations<K, V>(pub Vec<Operation<K, V>>);
 //--------------------------------------------------------------------------------------------------
 // Implementations
 //--------------------------------------------------------------------------------------------------
-
-impl<K, V> Operations<K, V>
-where
-    K: Clone,
-    V: Clone,
-{
-    #[allow(dead_code)]
-    pub(crate) fn prepare_remove(
-        &mut self,
-        insert_value: impl Strategy<Value = (K, V)>,
-        runner: &mut TestRunner,
-    ) -> (K, V) {
-        let (k, v) = insert_value.sample(runner);
-        self.0.push(Operation::Insert(k.clone(), v.clone()));
-        (k, v)
-    }
-
-    #[allow(dead_code)]
-    pub(crate) fn prepare_insert(
-        &mut self,
-        insert_value: impl Strategy<Value = (K, V)>,
-        runner: &mut TestRunner,
-    ) -> (K, V) {
-        let (k, v) = insert_value.sample(runner);
-        self.0.push(Operation::Remove(k.clone()));
-        (k, v)
-    }
-
-    #[allow(dead_code)]
-    pub(crate) fn prepare_modify(
-        &mut self,
-        insert_value: impl Strategy<Value = (K, V, V)>,
-        runner: &mut TestRunner,
-    ) -> (K, V, V) {
-        let (k, old_v, new_v) = insert_value.sample(runner);
-        let insert_op = Operation::Insert(k.clone(), old_v.clone());
-        self.0.push(insert_op);
-        (k, old_v, new_v)
-    }
-}
 
 impl<K, V> Operation<K, V> {
     fn can_be_swapped_with(&self, other: &Operation<K, V>) -> bool

@@ -9,7 +9,7 @@ use std::{fmt, hash::Hash, rc::Rc};
 // Type Definitions
 //--------------------------------------------------------------------------------------------------
 
-/// The change between two nodes at a given key.
+/// Represents a change to some key-value pair of a HAMT node.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct KeyValueChange<K, V> {
     pub r#type: ChangeType,
@@ -24,8 +24,49 @@ type EitherPairOrNode<'a, K, V, H> = Option<Either<&'a Pair<K, V>, &'a Rc<Node<K
 // Functions
 //--------------------------------------------------------------------------------------------------
 
-/// TODO(appcypher): Add docs.
-/// TODO(appcypher): Add tests.
+/// Compare two nodes and get the key-value changes made to the main node.
+///
+/// This implementation gets all the changes to main node at the leaf node level.
+///
+/// This is a more expensive operation because it gathers the key value pairs under a node has
+/// been added or removed even though we can simply return a reference to the node itself.
+///
+/// # Examples
+///
+/// ```
+/// use std::rc::Rc;
+/// use wnfs::{private::{Node, diff}, Link, Pair, MemoryBlockStore};
+///
+/// #[async_std::main]
+/// async fn main() {
+///     let store = &mut MemoryBlockStore::new();
+///     let mut main_node = Rc::new(Node::<[u8; 4], String>::default());
+///     for i in 0u32..3 {
+///         main_node = main_node
+///             .set(i.to_le_bytes(), i.to_string(), store)
+///             .await
+///             .unwrap();
+///     }
+///
+///     let mut other_node = Rc::new(Node::<[u8; 4], String>::default());
+///     other_node = other_node
+///         .set(0_u32.to_le_bytes(), 0_u32.to_string(), store)
+///         .await
+///         .unwrap();
+///
+///     let changes = diff::kv_diff(
+///         Link::from(Rc::clone(&main_node)),
+///         Link::from(Rc::clone(&other_node)),
+///         None,
+///         store,
+///     )
+///     .await
+///     .unwrap();
+///
+///
+///    println!("Changes {:#?}", changes);
+/// }
+/// ```
 pub async fn kv_diff<K, V, H, B>(
     main_link: Link<Rc<Node<K, V, H>>>,
     other_link: Link<Rc<Node<K, V, H>>>,
@@ -171,7 +212,6 @@ mod tests {
         }
     }
 
-    /// TODO(appcypher): ASCII drawings.
     #[async_std::test]
     async fn can_diff_main_node_with_added_removed_pairs() {
         let store = test_setup::init!(mut store);
@@ -240,7 +280,6 @@ mod tests {
         );
     }
 
-    /// TODO(appcypher): ASCII drawings.
     #[async_std::test]
     async fn can_diff_main_node_with_no_changes() {
         let store = test_setup::init!(mut store);
@@ -268,7 +307,6 @@ mod tests {
         assert!(changes.is_empty());
     }
 
-    /// TODO(appcypher): ASCII drawings.
     #[async_std::test]
     async fn can_diff_nodes_with_different_structure_and_modified_changes() {
         let store = test_setup::init!(mut store);
@@ -398,17 +436,113 @@ mod tests {
 
 #[cfg(test)]
 mod proptests {
+    use crate::{
+        private::{
+            strategies::{self, operations, Change, Operations},
+            ChangeType,
+        },
+        utils::{test_setup, Sampleable},
+        Link,
+    };
+    use async_std::task;
+    use hashbrown::HashMap;
+    use std::rc::Rc;
     use test_strategy::proptest;
 
-    #[proptest]
-    fn add_remove_hashmap_correspondence() {}
+    #[proptest(cases = 100)]
+    fn diff_correspondence(
+        #[strategy(operations("[a-z0-9]{1,8}", 0..u64::MAX, 1..100))] ops: Operations<String, u64>,
+    ) {
+        task::block_on(async {
+            let (store, runner) = test_setup::init!(mut store, mut runner);
+
+            let map = HashMap::from(&ops);
+            let pairs = strategies::pairs(&map);
+            let strategy_changes = strategies::changes(&pairs).sample(runner);
+
+            let other_node = strategies::prepare_node(
+                strategies::node_from_operations(&ops, store).await.unwrap(),
+                &strategy_changes,
+                store,
+            )
+            .await
+            .unwrap();
+
+            let main_node =
+                strategies::apply_changes(Rc::clone(&other_node), &strategy_changes, store)
+                    .await
+                    .unwrap();
+
+            let changes = super::kv_diff(
+                Link::from(Rc::clone(&main_node)),
+                Link::from(Rc::clone(&other_node)),
+                None,
+                store,
+            )
+            .await
+            .unwrap();
+
+            assert_eq!(strategy_changes.len(), changes.len());
+            for strategy_change in strategy_changes {
+                assert!(changes.iter().any(|c| match &strategy_change {
+                    Change::Add(_k, _) => c.r#type == ChangeType::Add,
+                    Change::Modify(_k, _) => {
+                        c.r#type == ChangeType::Modify
+                    }
+                    Change::Remove(_k) => {
+                        c.r#type == ChangeType::Remove
+                    }
+                }));
+            }
+        });
+    }
 
     #[proptest]
-    fn modify_hashmap_correspondence() {}
+    fn add_remove_flip(
+        #[strategy(operations("[a-z0-9]{1,8}", 0..u64::MAX, 1..100))] ops: Operations<String, u64>,
+    ) {
+        task::block_on(async {
+            let (store, runner) = test_setup::init!(mut store, mut runner);
 
-    #[proptest]
-    fn no_diff() {}
+            let map = HashMap::from(&ops);
+            let pairs = strategies::pairs(&map);
+            let strategy_changes = strategies::changes(&pairs).sample(runner);
 
-    #[proptest]
-    fn add_remove_flip() {}
+            let other_node = strategies::prepare_node(
+                strategies::node_from_operations(&ops, store).await.unwrap(),
+                &strategy_changes,
+                store,
+            )
+            .await
+            .unwrap();
+
+            let main_node =
+                strategies::apply_changes(Rc::clone(&other_node), &strategy_changes, store)
+                    .await
+                    .unwrap();
+
+            let changes = super::kv_diff(
+                Link::from(Rc::clone(&main_node)),
+                Link::from(Rc::clone(&other_node)),
+                None,
+                store,
+            )
+            .await
+            .unwrap();
+
+            let flipped_changes =
+                super::kv_diff(Link::from(other_node), Link::from(main_node), None, store)
+                    .await
+                    .unwrap();
+
+            assert_eq!(changes.len(), flipped_changes.len());
+            for change in changes {
+                assert!(flipped_changes.iter().any(|c| match change.r#type {
+                    ChangeType::Add => c.r#type == ChangeType::Remove && c.key == change.key,
+                    ChangeType::Remove => c.r#type == ChangeType::Add && c.key == change.key,
+                    ChangeType::Modify => c.r#type == ChangeType::Modify && c.key == change.key,
+                }));
+            }
+        });
+    }
 }

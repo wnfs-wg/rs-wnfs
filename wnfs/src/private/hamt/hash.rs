@@ -45,7 +45,10 @@ pub(crate) struct HashNibbles<'a> {
     cursor: usize,
 }
 
-/// TODO(appcypher): Add docs.
+/// This represents the location of a intermediate or leaf node in the HAMT.
+///
+/// It is based on the hash of the key with a length info for knowing how deep
+/// to traverse the tree to find the intermediate or leaf node.
 #[derive(Clone, Default)]
 pub struct HashKey {
     pub digest: HashOutput,
