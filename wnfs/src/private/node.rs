@@ -674,13 +674,12 @@ mod tests {
         .await
         .unwrap();
 
-        let original_file = PrivateNode::File(Rc::new(file));
+        let file = PrivateNode::File(Rc::new(file));
+        let private_ref = file.get_header().get_private_ref();
+        let cid = file.store(store, rng).await.unwrap();
 
-        let private_ref = original_file.get_header().get_private_ref();
-
-        let cid = original_file.store(store, rng).await.unwrap();
         let deserialized_node = PrivateNode::load(cid, &private_ref, store).await.unwrap();
 
-        assert_eq!(original_file, deserialized_node);
+        assert_eq!(file, deserialized_node);
     }
 }

@@ -223,9 +223,6 @@ impl PrivateForest {
             .cloned()
             .unwrap_or_default();
 
-        if !values.is_empty() {
-            println!("Duplicate put");
-        }
         values.insert(value);
 
         let mut forest = Rc::try_unwrap(self).unwrap_or_else(|rc| (*rc).clone());

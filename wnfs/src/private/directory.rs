@@ -52,6 +52,7 @@ pub struct PrivateDirectory {
     pub metadata: Metadata,
     pub entries: BTreeMap<String, PrivateRef>,
 }
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct PrivateDirectorySerializable {
     pub r#type: NodeType,
@@ -1250,10 +1251,10 @@ impl PrivateDirectory {
         let mut entries = BTreeMap::new();
 
         for (name, private_ref) in self.entries.iter() {
-            let private_ref_serde = private_ref
+            let private_ref_serializable = private_ref
                 .to_serializable(&key, rng)
                 .map_err(SerError::custom)?;
-            entries.insert(name.clone(), private_ref_serde);
+            entries.insert(name.clone(), private_ref_serializable);
         }
 
         let header = {
