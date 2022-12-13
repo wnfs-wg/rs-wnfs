@@ -415,6 +415,7 @@ impl PrivateFile {
         let mut label = bare_name.clone();
         label.add(&key_bytes);
         label.add(&key_hash);
+        label.saturate();
 
         label
     }
