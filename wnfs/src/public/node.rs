@@ -55,14 +55,13 @@ impl PublicNode {
     /// let time = Utc::now();
     /// let node = node.upsert_mtime(time);
     ///
-    /// let imprecise_time = Utc.timestamp(time.timestamp(), 0);
+    /// let imprecise_time = Utc.timestamp_opt(time.timestamp(), 0).single();
     /// assert_eq!(
     ///     imprecise_time,
     ///     node.as_dir()
     ///         .unwrap()
     ///         .get_metadata()
     ///         .get_modified()
-    ///         .unwrap()
     /// );
     /// ```
     pub fn upsert_mtime(&self, time: DateTime<Utc>) -> Self {
@@ -323,7 +322,7 @@ impl AsyncSerialize for PublicNode {
 //--------------------------------------------------------------------------------------------------
 
 #[cfg(test)]
-mod public_node_tests {
+mod tests {
     use std::rc::Rc;
 
     use chrono::Utc;

@@ -926,7 +926,7 @@ impl<'de> Deserialize<'de> for PublicDirectory {
 //--------------------------------------------------------------------------------------------------
 
 #[cfg(test)]
-mod public_directory_tests {
+mod tests {
     use super::*;
     use crate::{dagcbor, public::PublicFile, MemoryBlockStore};
     use chrono::Utc;

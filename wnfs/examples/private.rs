@@ -1,4 +1,4 @@
-//! This example shows how to add a directory to a private forest (also HAMT) which encrypts it.
+//! This example shows how to add a directory to a private forest (a HAMT) where encrypted ciphertexts are stored.
 //! It also shows how to retrieve encrypted nodes from the forest using `PrivateRef`s.
 
 use chrono::Utc;
@@ -46,7 +46,7 @@ where
     B: BlockStore,
     R: RngCore,
 {
-    // Create the private forest (also HAMT), a map-like structure where files and directories are stored.
+    // Create the private forest (a HAMT), a map-like structure where file and directory ciphertexts are stored.
     let forest = Rc::new(PrivateForest::new());
 
     // Create a new directory.
@@ -58,9 +58,7 @@ where
 
     // Add a /pictures/cats subdirectory.
     let PrivateOpResult {
-        hamt: forest,
-        root_dir,
-        ..
+        forest, root_dir, ..
     } = dir
         .mkdir(
             &["pictures".into(), "cats".into()],
@@ -80,7 +78,7 @@ where
     let forest_cid = store.put_serializable(&cbor_bytes).await.unwrap();
 
     // Private ref contains data and keys for fetching and decrypting the directory node in the private forest.
-    let private_ref = root_dir.header.get_private_ref().unwrap();
+    let private_ref = root_dir.header.get_private_ref();
 
     (forest_cid, private_ref)
 }

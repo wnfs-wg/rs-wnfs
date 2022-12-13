@@ -1,20 +1,17 @@
-use std::{cmp::Ordering, collections::BTreeSet, fmt::Debug, io::Cursor, rc::Rc};
-
+use super::{
+    encrypted::Encrypted, hamt::Hasher, namefilter::Namefilter, Key, PrivateDirectory, PrivateFile,
+    PrivateForest, PrivateRef,
+};
+use crate::{utils, BlockStore, FsError, HashOutput, Id, NodeType, HASH_BYTE_SIZE};
 use anyhow::{bail, Result};
 use async_recursion::async_recursion;
 use chrono::{DateTime, Utc};
 use libipld::{cbor::DagCborCodec, prelude::Decode, Cid, Ipld};
 use rand_core::RngCore;
-use serde::{de::Error as DeError, ser::Error as SerError, Deserialize, Serialize};
+use serde::{Deserialize, Serialize};
 use sha3::Sha3_256;
 use skip_ratchet::{seek::JumpSize, Ratchet, RatchetSeeker};
-
-use crate::{utils, BlockStore, FsError, HashOutput, Id, NodeType, HASH_BYTE_SIZE};
-
-use super::{
-    encrypted::Encrypted, hamt::Hasher, namefilter::Namefilter, Key, PrivateDirectory, PrivateFile,
-    PrivateForest,
-};
+use std::{cmp::Ordering, collections::BTreeSet, fmt::Debug, io::Cursor, rc::Rc};
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
@@ -71,7 +68,6 @@ pub struct RevisionKey(pub Key);
 /// let file = PrivateFile::new(
 ///     Namefilter::default(),
 ///     Utc::now(),
-///     b"hello world".to_vec(),
 ///     rng,
 /// );
 ///
@@ -83,29 +79,8 @@ pub struct PrivateNodeHeader {
     pub(crate) inumber: INumber,
     /// Used both for versioning and deriving keys for that enforces privacy.
     pub(crate) ratchet: Ratchet,
-    /// Used for ancestry checks and as a key fot the HAMT.
+    /// Used for ancestry checks and as a key for the private forest.
     pub(crate) bare_name: Namefilter,
-}
-
-/// PrivateRef holds the information to fetch associated node from a HAMT and decrypt it if it is present.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PrivateRef {
-    /// Sha3-256 hash of saturated namefilter.
-    pub(crate) saturated_name_hash: HashOutput,
-    /// Sha3-256 hash of the ratchet key.
-    pub(crate) content_key: ContentKey,
-    /// Skip-ratchet-derived key.
-    pub(crate) revision_key: RevisionKey,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub(crate) struct PrivateRefSerializable {
-    #[serde(rename = "name")]
-    pub(crate) saturated_name_hash: HashOutput,
-    #[serde(rename = "contentKey")]
-    pub(crate) content_key: ContentKey,
-    #[serde(rename = "revisionKey")]
-    pub(crate) revision_key: Vec<u8>,
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -134,14 +109,13 @@ impl PrivateNode {
     /// let time = Utc::now() + Duration::days(1);
     /// let node = node.upsert_mtime(time);
     ///
-    /// let imprecise_time = Utc.timestamp(time.timestamp(), 0);
+    /// let imprecise_time = Utc.timestamp_opt(time.timestamp(), 0).single();
     /// assert_eq!(
     ///     imprecise_time,
     ///     node.as_dir()
     ///         .unwrap()
     ///         .get_metadata()
     ///         .get_modified()
-    ///         .unwrap()
     /// );
     /// ```
     pub fn upsert_mtime(&self, time: DateTime<Utc>) -> Self {
@@ -175,56 +149,54 @@ impl PrivateNode {
     pub(crate) async fn update_ancestry<B: BlockStore, R: RngCore>(
         &mut self,
         parent_bare_name: Namefilter,
-        hamt: Rc<PrivateForest>,
+        mut forest: Rc<PrivateForest>,
         store: &mut B,
         rng: &mut R,
     ) -> Result<Rc<PrivateForest>> {
-        let hamt = match self {
+        match self {
             Self::File(file) => {
                 let mut file = (**file).clone();
 
-                file.prepare_key_rotation(parent_bare_name, rng);
+                forest = file
+                    .prepare_key_rotation(parent_bare_name, forest, store, rng)
+                    .await?;
 
                 *self = Self::File(Rc::new(file));
-
-                hamt
             }
             Self::Dir(old_dir) => {
                 let mut dir = (**old_dir).clone();
 
-                let mut working_hamt = Rc::clone(&hamt);
                 for (name, private_ref) in &old_dir.entries {
-                    let mut node = hamt
+                    let mut node = forest
                         .get(private_ref, PrivateForest::resolve_lowest, store)
                         .await?
                         .ok_or(FsError::NotFound)?;
 
-                    working_hamt = node
-                        .update_ancestry(dir.header.bare_name.clone(), working_hamt, store, rng)
+                    forest = node
+                        .update_ancestry(dir.header.bare_name.clone(), forest, store, rng)
                         .await?;
 
                     dir.entries
-                        .insert(name.clone(), node.get_header().get_private_ref()?);
+                        .insert(name.clone(), node.get_header().get_private_ref());
                 }
 
                 dir.prepare_key_rotation(parent_bare_name, rng);
 
                 *self = Self::Dir(Rc::new(dir));
-
-                working_hamt
             }
         };
 
         let header = self.get_header();
 
-        hamt.put(
-            header.get_saturated_name(),
-            &header.get_private_ref()?,
-            self,
-            store,
-            rng,
-        )
-        .await
+        forest
+            .put(
+                header.get_saturated_name(),
+                &header.get_private_ref(),
+                self,
+                store,
+                rng,
+            )
+            .await
     }
 
     /// Gets the header of the node.
@@ -319,7 +291,6 @@ impl PrivateNode {
     /// let file = Rc::new(PrivateFile::new(
     ///     Namefilter::default(),
     ///     Utc::now(),
-    ///     b"hello world".to_vec(),
     ///     rng,
     /// ));
     /// let node = PrivateNode::File(Rc::clone(&file));
@@ -371,7 +342,6 @@ impl PrivateNode {
     /// let file = Rc::new(PrivateFile::new(
     ///     Namefilter::default(),
     ///     Utc::now(),
-    ///     b"hello world".to_vec(),
     ///     rng,
     /// ));
     /// let node = PrivateNode::File(file);
@@ -390,7 +360,7 @@ impl PrivateNode {
     ) -> Result<PrivateNode> {
         let header = self.get_header();
 
-        let private_ref = &header.get_private_ref()?;
+        let private_ref = &header.get_private_ref();
         if !forest.has(&private_ref.saturated_name_hash, store).await? {
             return Ok(self.clone());
         }
@@ -407,10 +377,7 @@ impl PrivateNode {
             current_header.ratchet = current.clone();
 
             let has_curr = forest
-                .has(
-                    &current_header.get_private_ref()?.saturated_name_hash,
-                    store,
-                )
+                .has(&current_header.get_private_ref().saturated_name_hash, store)
                 .await?;
 
             let ord = if has_curr {
@@ -426,7 +393,7 @@ impl PrivateNode {
 
         current_header.ratchet = search.current().clone();
 
-        let latest_private_ref = current_header.get_private_ref()?;
+        let latest_private_ref = current_header.get_private_ref();
 
         match forest
             .get(&latest_private_ref, PrivateForest::resolve_lowest, store)
@@ -538,6 +505,23 @@ impl PrivateNodeHeader {
         }
     }
 
+    /// Creates a new PrivateNodeHeader with provided seed.
+    pub(crate) fn with_seed(
+        parent_bare_name: Namefilter,
+        ratchet_seed: HashOutput,
+        inumber: HashOutput,
+    ) -> Self {
+        Self {
+            bare_name: {
+                let mut namefilter = parent_bare_name;
+                namefilter.add(&inumber);
+                namefilter
+            },
+            ratchet: Ratchet::zero(ratchet_seed),
+            inumber,
+        }
+    }
+
     /// Advances the ratchet.
     pub(crate) fn advance_ratchet(&mut self) {
         self.ratchet.inc();
@@ -562,32 +546,30 @@ impl PrivateNodeHeader {
     /// # Examples
     ///
     /// ```
+    /// use std::rc::Rc;
     /// use wnfs::{PrivateFile, Namefilter, Id};
     /// use chrono::Utc;
     /// use rand::thread_rng;
     ///
     /// let rng = &mut thread_rng();
-    /// let file = PrivateFile::new(
+    /// let file = Rc::new(PrivateFile::new(
     ///     Namefilter::default(),
     ///     Utc::now(),
-    ///     b"hello world".to_vec(),
     ///     rng,
-    /// );
-    ///
-    /// let private_ref = file.header.get_private_ref().unwrap();
+    /// ));
+    /// let private_ref = file.header.get_private_ref();
     ///
     /// println!("Private ref: {:?}", private_ref);
     /// ```
-    pub fn get_private_ref(&self) -> Result<PrivateRef> {
-        let revision_key = RevisionKey::from(&self.ratchet);
-        let saturated_name_hash =
-            Sha3_256::hash(&self.get_saturated_name_with_key(&revision_key.0));
+    pub fn get_private_ref(&self) -> PrivateRef {
+        let revision_key = Key::new(self.ratchet.derive_key());
+        let saturated_name_hash = Sha3_256::hash(&self.get_saturated_name_with_key(&revision_key));
 
-        Ok(PrivateRef {
+        PrivateRef {
             saturated_name_hash,
-            content_key: Key::new(Sha3_256::hash(&revision_key.0.as_bytes())).into(),
-            revision_key,
-        })
+            content_key: Key::new(Sha3_256::hash(&revision_key.as_bytes())).into(),
+            revision_key: revision_key.into(),
+        }
     }
 
     /// Gets the saturated namefilter for this node using the provided ratchet key.
@@ -603,18 +585,17 @@ impl PrivateNodeHeader {
     /// # Examples
     ///
     /// ```
+    /// use std::rc::Rc;
     /// use wnfs::{PrivateFile, Namefilter, private::Key};
     /// use chrono::Utc;
     /// use rand::thread_rng;
     ///
     /// let rng = &mut thread_rng();
-    /// let file = PrivateFile::new(
+    /// let file = Rc::new(PrivateFile::new(
     ///     Namefilter::default(),
     ///     Utc::now(),
-    ///     b"hello world".to_vec(),
     ///     rng,
-    /// );
-    ///
+    /// ));
     /// let saturated_name = file.header.get_saturated_name();
     ///
     /// println!("Saturated name: {:?}", saturated_name);
@@ -656,80 +637,6 @@ impl From<ContentKey> for Key {
     }
 }
 
-impl PrivateRef {
-    pub fn from_revision_key(saturated_name_hash: HashOutput, revision_key: RevisionKey) -> Self {
-        Self {
-            saturated_name_hash,
-            content_key: revision_key.derive_content_key(),
-            revision_key,
-        }
-    }
-
-    pub(crate) fn to_serializable(
-        &self,
-        revision_key: &RevisionKey,
-        rng: &mut impl RngCore,
-    ) -> Result<PrivateRefSerializable> {
-        // encrypt ratchet key
-        let revision_key = revision_key
-            .0
-            .encrypt(&Key::generate_nonce(rng), self.revision_key.0.as_bytes())?;
-        Ok(PrivateRefSerializable {
-            saturated_name_hash: self.saturated_name_hash,
-            content_key: self.content_key.clone(),
-            revision_key,
-        })
-    }
-
-    pub(crate) fn from_serializable(
-        private_ref: PrivateRefSerializable,
-        revision_key: &RevisionKey,
-    ) -> Result<Self> {
-        let revision_key = RevisionKey(Key::new(
-            revision_key
-                .0
-                .decrypt(&private_ref.revision_key)?
-                .try_into()
-                .map_err(|e: Vec<u8>| {
-                    FsError::InvalidDeserialization(format!(
-                        "Expected 32 bytes for ratchet key, but got {}",
-                        e.len()
-                    ))
-                })?,
-        ));
-        Ok(Self {
-            saturated_name_hash: private_ref.saturated_name_hash,
-            content_key: private_ref.content_key,
-            revision_key,
-        })
-    }
-
-    pub fn serialize<S>(
-        &self,
-        serializer: S,
-        revision_key: &RevisionKey,
-        rng: &mut impl RngCore,
-    ) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        self.to_serializable(revision_key, rng)
-            .map_err(SerError::custom)?
-            .serialize(serializer)
-    }
-
-    pub fn deserialize<'de, D>(
-        deserializer: D,
-        revision_key: &RevisionKey,
-    ) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        let private_ref = PrivateRefSerializable::deserialize(deserializer)?;
-        PrivateRef::from_serializable(private_ref, revision_key).map_err(DeError::custom)
-    }
-}
-
 impl RevisionKey {
     pub fn derive_content_key(&self) -> ContentKey {
         let RevisionKey(key) = self;
@@ -742,25 +649,34 @@ impl RevisionKey {
 //--------------------------------------------------------------------------------------------------
 
 #[cfg(test)]
-mod private_node_tests {
+mod tests {
     use proptest::test_runner::{RngAlgorithm, TestRng};
 
-    use crate::{MemoryBlockStore, PrivateOpResult};
+    use crate::MemoryBlockStore;
 
     use super::*;
 
     #[async_std::test]
     async fn serialized_private_node_can_be_deserialized() {
-        let store = &mut MemoryBlockStore::new();
         let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
-        let original_file = PrivateNode::File(Rc::new(PrivateFile::new(
+        let content = b"Lorem ipsum dolor sit amet";
+        let forest = Rc::new(PrivateForest::new());
+        let store = &mut MemoryBlockStore::new();
+
+        let (file, _) = PrivateFile::with_content(
             Namefilter::default(),
             Utc::now(),
-            b"Lorem ipsum dolor sit amet".to_vec(),
+            content.to_vec(),
+            forest,
+            store,
             rng,
-        )));
+        )
+        .await
+        .unwrap();
 
-        let private_ref = original_file.get_header().get_private_ref().unwrap();
+        let original_file = PrivateNode::File(Rc::new(file));
+
+        let private_ref = original_file.get_header().get_private_ref();
 
         let cid = original_file.store(store, rng).await.unwrap();
         let deserialized_node = PrivateNode::load(cid, &private_ref, store).await.unwrap();

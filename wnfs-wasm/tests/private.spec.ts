@@ -16,22 +16,22 @@ test.describe("PrivateDirectory", () => {
         mock: { MemoryBlockStore, Rng },
       } = await window.setup();
 
-      const initialHamt = new PrivateForest();
+      const initialForest = new PrivateForest();
       const rng = new Rng();
       const store = new MemoryBlockStore();
       const root = new PrivateDirectory(new Namefilter(), new Date(), rng);
 
-      var { rootDir, hamt } = await root.write(
+      var { rootDir, forest } = await root.write(
         ["text.txt"],
         true,
         new Uint8Array([1, 2, 3, 4, 5]),
         new Date(),
-        initialHamt,
+        initialForest,
         store,
         rng
       );
 
-      return await rootDir.lookupNode("text.txt", true, hamt, store);
+      return await rootDir.lookupNode("text.txt", true, forest, store);
     });
 
     expect(result).toBeDefined();
@@ -46,12 +46,12 @@ test.describe("PrivateDirectory", () => {
         mock: { MemoryBlockStore, Rng },
       } = await window.setup();
 
-      const initialHamt = new PrivateForest();
+      const initialForest = new PrivateForest();
       const rng = new Rng();
       const store = new MemoryBlockStore();
       const root = new PrivateDirectory(new Namefilter(), new Date(), rng);
 
-      return await root.lookupNode("Unknown", true, initialHamt, store);
+      return await root.lookupNode("Unknown", true, initialForest, store);
     });
 
     expect(result).toBe(undefined);
@@ -64,26 +64,26 @@ test.describe("PrivateDirectory", () => {
         mock: { MemoryBlockStore, Rng },
       } = await window.setup();
 
-      const initialHamt = new PrivateForest();
+      const initialForest = new PrivateForest();
       const rng = new Rng();
       const store = new MemoryBlockStore();
       const root = new PrivateDirectory(new Namefilter(), new Date(), rng);
 
-      var { rootDir, hamt } = await root.mkdir(
+      var { rootDir, forest } = await root.mkdir(
         ["pictures", "cats"],
         true,
         new Date(),
-        initialHamt,
+        initialForest,
         store,
         rng
       );
 
-      var { rootDir, hamt } = await rootDir.write(
+      var { rootDir, forest } = await rootDir.write(
         ["pictures", "cats", "tabby.png"],
         true,
         new Uint8Array([1, 2, 3, 4, 5]),
         new Date(),
-        hamt,
+        forest,
         store,
         rng
       );
@@ -91,7 +91,7 @@ test.describe("PrivateDirectory", () => {
       var { rootDir } = await rootDir.getNode(
         ["pictures", "cats", "tabby.png"],
         true,
-        hamt,
+        forest,
         store
       );
 
@@ -108,31 +108,31 @@ test.describe("PrivateDirectory", () => {
         mock: { MemoryBlockStore, Rng },
       } = await window.setup();
 
-      const initialHamt = new PrivateForest();
+      const initialForest = new PrivateForest();
       const rng = new Rng();
       const store = new MemoryBlockStore();
       const root = new PrivateDirectory(new Namefilter(), new Date(), rng);
 
-      var { rootDir, hamt } = await root.mkdir(
+      var { rootDir, forest } = await root.mkdir(
         ["pictures", "dogs"],
         true,
         new Date(),
-        initialHamt,
+        initialForest,
         store,
         rng
       );
 
-      var { rootDir, hamt } = await rootDir.write(
+      var { rootDir, forest } = await rootDir.write(
         ["pictures", "cats", "tabby.png"],
         true,
         new Uint8Array([1, 2, 3, 4, 5]),
         new Date(),
-        hamt,
+        forest,
         store,
         rng
       );
 
-      var { result } = await rootDir.ls(["pictures"], true, hamt, store);
+      var { result } = await rootDir.ls(["pictures"], true, forest, store);
 
       return result;
     });
@@ -149,40 +149,40 @@ test.describe("PrivateDirectory", () => {
         mock: { MemoryBlockStore, Rng },
       } = await window.setup();
 
-      const initialHamt = new PrivateForest();
+      const initialForest = new PrivateForest();
       const rng = new Rng();
       const store = new MemoryBlockStore();
       const root = new PrivateDirectory(new Namefilter(), new Date(), rng);
 
-      var { rootDir, hamt } = await root.write(
+      var { rootDir, forest } = await root.write(
         ["pictures", "dogs", "billie.jpeg"],
         true,
         new Uint8Array([1, 2, 3, 4, 5]),
         new Date(),
-        initialHamt,
+        initialForest,
         store,
         rng
       );
 
-      var { rootDir, hamt } = await rootDir.write(
+      var { rootDir, forest } = await rootDir.write(
         ["pictures", "cats", "tabby.png"],
         true,
         new Uint8Array([1, 2, 3, 4, 5]),
         new Date(),
-        hamt,
+        forest,
         store,
         rng
       );
 
-      var { rootDir, hamt } = await rootDir.rm(
+      var { rootDir, forest } = await rootDir.rm(
         ["pictures", "cats"],
         true,
-        hamt,
+        forest,
         store,
         rng
       );
 
-      var { result } = await rootDir.ls(["pictures"], true, hamt, store);
+      var { result } = await rootDir.ls(["pictures"], true, forest, store);
 
       return result;
     });
@@ -198,61 +198,61 @@ test.describe("PrivateDirectory", () => {
         mock: { MemoryBlockStore, Rng },
       } = await window.setup();
 
-      const initialHamt = new PrivateForest();
+      const initialForest = new PrivateForest();
       const rng = new Rng();
       const store = new MemoryBlockStore();
       const root = new PrivateDirectory(new Namefilter(), new Date(), rng);
 
-      var { rootDir, hamt } = await root.write(
+      var { rootDir, forest } = await root.write(
         ["pictures", "cats", "luna.jpeg"],
         true,
         new Uint8Array([1, 2, 3, 4, 5]),
         new Date(),
-        initialHamt,
+        initialForest,
         store,
         rng
       );
 
-      var { rootDir, hamt } = await rootDir.write(
+      var { rootDir, forest } = await rootDir.write(
         ["pictures", "cats", "tabby.png"],
         true,
         new Uint8Array([1, 2, 3, 4, 5]),
         new Date(),
-        hamt,
+        forest,
         store,
         rng
       );
 
-      var { rootDir, hamt } = await rootDir.mkdir(
+      var { rootDir, forest } = await rootDir.mkdir(
         ["images"],
         true,
         new Date(),
-        hamt,
+        forest,
         store,
         rng
       );
 
-      var { rootDir, hamt } = await rootDir.basicMv(
+      var { rootDir, forest } = await rootDir.basicMv(
         ["pictures", "cats"],
         ["images", "cats"],
         true,
         new Date(),
-        hamt,
+        forest,
         store,
         rng
       );
 
-      var { result: imagesContent, hamt } = await rootDir.ls(
+      var { result: imagesContent, forest } = await rootDir.ls(
         ["images"],
         true,
-        hamt,
+        forest,
         store
       );
 
-      var { result: picturesContent, hamt } = await rootDir.ls(
+      var { result: picturesContent, forest } = await rootDir.ls(
         ["pictures"],
         true,
-        hamt,
+        forest,
         store
       );
 
@@ -271,61 +271,61 @@ test.describe("PrivateDirectory", () => {
         mock: { MemoryBlockStore, Rng },
       } = await window.setup();
 
-      const initialHamt = new PrivateForest();
+      const initialForest = new PrivateForest();
       const rng = new Rng();
       const store = new MemoryBlockStore();
       const root = new PrivateDirectory(new Namefilter(), new Date(), rng);
 
-      var { rootDir, hamt } = await root.write(
+      var { rootDir, forest } = await root.write(
         ["pictures", "cats", "luna.jpeg"],
         true,
         new Uint8Array([1, 2, 3, 4, 5]),
         new Date(),
-        initialHamt,
+        initialForest,
         store,
         rng
       );
 
-      var { rootDir, hamt } = await rootDir.write(
+      var { rootDir, forest } = await rootDir.write(
         ["pictures", "cats", "tabby.png"],
         true,
         new Uint8Array([1, 2, 3, 4, 5]),
         new Date(),
-        hamt,
+        forest,
         store,
         rng
       );
 
-      var { rootDir, hamt } = await rootDir.mkdir(
+      var { rootDir, forest } = await rootDir.mkdir(
         ["images"],
         true,
         new Date(),
-        hamt,
+        forest,
         store,
         rng
       );
 
-      var { rootDir, hamt } = await rootDir.cp(
+      var { rootDir, forest } = await rootDir.cp(
         ["pictures", "cats"],
         ["images", "cats"],
         true,
         new Date(),
-        hamt,
+        forest,
         store,
         rng
       );
 
-      var { result: imagesContent, hamt } = await rootDir.ls(
+      var { result: imagesContent, forest } = await rootDir.ls(
         ["images"],
         true,
-        hamt,
+        forest,
         store
       );
 
-      var { result: picturesContent, hamt } = await rootDir.ls(
+      var { result: picturesContent, forest } = await rootDir.ls(
         ["pictures"],
         true,
-        hamt,
+        forest,
         store
       );
 
@@ -337,5 +337,76 @@ test.describe("PrivateDirectory", () => {
 
     expect(imagesContent[0].name).toEqual("cats");
     expect(picturesContent[0].name).toEqual("cats");
+  });
+});
+
+test.describe("PrivateFile", () => {
+  test("empty can create empty file", async ({ page }) => {
+    const result = await page.evaluate(async () => {
+      const {
+        wnfs: { PrivateFile, Namefilter },
+        mock: { Rng },
+      } = await window.setup();
+
+      const rng = new Rng();
+      const file = new PrivateFile(new Namefilter(), new Date(), rng);
+
+      return file.getId();
+    });
+
+    expect(result).toBeDefined();
+  });
+
+  test("withContent can create file with content", async ({ page }) => {
+    const result = await page.evaluate(async () => {
+      const {
+        wnfs: { PrivateFile, PrivateForest, Namefilter },
+        mock: { MemoryBlockStore, Rng },
+      } = await window.setup();
+
+      const forest = new PrivateForest();
+      const rng = new Rng();
+      const store = new MemoryBlockStore();
+      const [file] = await PrivateFile.withContent(
+        new Namefilter(),
+        new Date(),
+        new Uint8Array([1, 2, 3, 4, 5]),
+        forest,
+        store,
+        rng
+      );
+
+      return file.getId();
+    });
+
+    expect(result).toBeDefined();
+  });
+
+  test("getContent can fetch file's entire content", async ({ page }) => {
+    const [length, type] = await page.evaluate(async () => {
+      const {
+        wnfs: { PrivateFile, PrivateForest, Namefilter },
+        mock: { MemoryBlockStore, Rng },
+      } = await window.setup();
+
+      const initialForest = new PrivateForest();
+      const rng = new Rng();
+      const store = new MemoryBlockStore();
+      var [file, forest] = await PrivateFile.withContent(
+        new Namefilter(),
+        new Date(),
+        new Uint8Array([1, 2, 3, 4, 5]),
+        initialForest,
+        store,
+        rng
+      );
+
+      let content = await file.getContent(forest, store);
+
+      return [content.length, content.constructor.name, content];
+    });
+
+    expect(length).toEqual(5);
+    expect(type).toEqual("Uint8Array");
   });
 });

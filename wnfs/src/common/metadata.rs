@@ -73,8 +73,8 @@ impl Metadata {
     ///
     /// metadata.upsert_mtime(time);
     ///
-    /// let imprecise_time = Utc.timestamp(time.timestamp(), 0);
-    /// assert_eq!(metadata.get_modified(), Some(imprecise_time));
+    /// let imprecise_time = Utc.timestamp_opt(time.timestamp(), 0).single();
+    /// assert_eq!(metadata.get_modified(), imprecise_time);
     /// ```
     pub fn upsert_mtime(&mut self, time: DateTime<Utc>) {
         self.0.insert("modified".into(), time.timestamp().into());
@@ -91,12 +91,15 @@ impl Metadata {
     /// let time = Utc::now();
     /// let metadata = Metadata::new(time);
     ///
-    /// let imprecise_time = Utc.timestamp(time.timestamp(), 0);
-    /// assert_eq!(metadata.get_created(), Some(imprecise_time));
+    /// let imprecise_time = Utc.timestamp_opt(time.timestamp(), 0).single();
+    /// assert_eq!(metadata.get_created(), imprecise_time);
     /// ```
+    ///
+    /// Will return `None` if there's no created metadata on the
+    /// node or if it's not a second-based POSIX timestamp integer.
     pub fn get_created(&self) -> Option<DateTime<Utc>> {
         self.0.get("created").and_then(|ipld| match ipld {
-            Ipld::Integer(i) => Some(Utc.timestamp(i64::try_from(*i).ok()?, 0)),
+            Ipld::Integer(i) => Utc.timestamp_opt(i64::try_from(*i).ok()?, 0).single(),
             _ => None,
         })
     }
@@ -112,12 +115,15 @@ impl Metadata {
     /// let time = Utc::now();
     /// let metadata = Metadata::new(time);
     ///
-    /// let imprecise_time = Utc.timestamp(time.timestamp(), 0);
-    /// assert_eq!(metadata.get_modified(), Some(imprecise_time));
+    /// let imprecise_time = Utc.timestamp_opt(time.timestamp(), 0).single();
+    /// assert_eq!(metadata.get_modified(), imprecise_time);
     /// ```
+    ///
+    /// Will return `None` if there's no created metadata on the
+    /// node or if it's not a second-based POSIX timestamp integer.
     pub fn get_modified(&self) -> Option<DateTime<Utc>> {
         self.0.get("modified").and_then(|ipld| match ipld {
-            Ipld::Integer(i) => Some(Utc.timestamp(i64::try_from(*i).ok()?, 0)),
+            Ipld::Integer(i) => Utc.timestamp_opt(i64::try_from(*i).ok()?, 0).single(),
             _ => None,
         })
     }
@@ -182,7 +188,7 @@ impl<'de> Deserialize<'de> for NodeType {
 //--------------------------------------------------------------------------------------------------
 
 #[cfg(test)]
-mod metadata_tests {
+mod tests {
     use chrono::Utc;
 
     use crate::{dagcbor, Metadata};

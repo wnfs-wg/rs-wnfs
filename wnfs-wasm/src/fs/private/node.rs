@@ -8,7 +8,7 @@ use crate::fs::{JsResult, PrivateDirectory};
 // Type Definitions
 //--------------------------------------------------------------------------------------------------
 
-/// Wraps a wnfs PublicNode.
+/// Wraps `wnfs::PrivateNode`.
 #[wasm_bindgen]
 pub struct PrivateNode(pub(crate) WnfsPrivateNode);
 

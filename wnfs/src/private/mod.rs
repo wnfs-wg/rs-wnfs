@@ -7,6 +7,7 @@ mod key;
 pub mod namefilter;
 pub mod node;
 mod previous;
+mod privateref;
 
 pub use directory::*;
 pub use file::*;
@@ -16,3 +17,4 @@ pub use key::*;
 pub use namefilter::*;
 pub use node::*;
 pub use previous::*;
+pub use privateref::*;

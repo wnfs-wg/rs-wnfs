@@ -1,28 +1,15 @@
 [package]
 name = "wnfs-bench"
-version = "0.1.9"
+version = "0.1.10"
 description = "WNFS Benchmarks"
-keywords = ["wnfs", "webnative", "ipfs", "decentralisation", "benchmarks"]
-categories = ["filesystem", "cryptography", "web-programming", "wasm"]
+publish = false
 edition = "2021"
-repository = "https://github.com/wnfs-wg/rs-wnfs/tree/main/bench"
-homepage = "https://fission.codes"
-authors = ["The Fission Authors"]
-
-[dependencies]
-async-std = { version = "1.11", features = ["attributes"] }
-proptest = "1.0"
-wnfs = { path = "../wnfs", optional = true }
 
 [dev-dependencies]
+async-std = { version = "1.11", features = ["attributes"] }
 criterion = { version = "0.4", features = ["async_std"] }
-
-[lib]
-path = "lib.rs"
-bench = false
-
-[features]
-default = ["wnfs/test_strategies"]
+proptest = "1.0"
+wnfs = { path = "../wnfs", features = ["test_strategies"] }
 
 [[bench]]
 name = "hamt"

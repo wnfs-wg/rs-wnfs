@@ -111,12 +111,12 @@ build_fs() {
 }
 
 build_wasm() {
-    display_header "💿 | BUILDING WASM-WNFS PROJECT | 💿"
+    display_header "💿 | BUILDING WNFS-WASM PROJECT | 💿"
     cd $script_dir/../wnfs-wasm
     WASM_BINDGEN_WEAKREF=1 wasm-pack build --target web
 	sed -i.bak \
-        -e 's/"name": "wasm-wnfs"/"name": "wnfs",\n  "type": "module"/g' \
-        -e 's/"module": "wasm_wnfs\.js"/"module": "wasm_wnfs\.js",\n  "main": "wasm_wnfs\.js"/g' \
+        -e 's/"name": "wnfs-wasm"/"name": "wnfs",\n  "type": "module"/g' \
+        -e 's/"module": "wnfs_wasm\.js"/"module": "wnfs_wasm\.js",\n  "main": "wasm_wnfs\.js"/g' \
         pkg/package.json
 	rm pkg/package.json.bak
 }
@@ -144,7 +144,7 @@ test_fs() {
 }
 
 test_wasm() {
-    display_header "🧪 | RUNNING WASM-WNFS TESTS | 🧪"
+    display_header "🧪 | RUNNING WNFS-WASM TESTS | 🧪"
     cd $script_dir/../wnfs-wasm
     yarn playwright test
 }

@@ -1,0 +1,51 @@
+# To get started with Dependabot version updates, you'll need to specify which
+# package ecosystems to update and where the package manifests are located.
+# Please see the documentation for all configuration options:
+# https://help.github.com/github/administering-a-repository/configuration-options-for-dependency-updates
+
+version: 2
+
+updates:
+  - package-ecosystem: "cargo"
+    directory: "/wnfs"
+    commit-message:
+      prefix: "chore(rust)"
+      include: "scope"
+    target-branch: "main"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "chore"
+
+  - package-ecosystem: "cargo"
+    directory: "/wnfs-wasm"
+    commit-message:
+      prefix: "chore(rust)"
+      include: "scope"
+    target-branch: "main"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "chore"
+
+  - package-ecosystem: "npm"
+    directory: "/wnfs-wasm"
+    commit-message:
+      prefix: "chore(npm)"
+      include: "scope"
+    target-branch: "main"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "chore"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    commit-message:
+      prefix: "chore(ci)"
+      include: "scope"
+    target-branch: "main"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "chore"

@@ -80,7 +80,6 @@ jobs:
       - name: Run Tests
         run: cargo test --all-features
 
-
   wasm-js-tests:
     strategy:
       fail-fast: false
@@ -88,7 +87,8 @@ jobs:
         rust-toolchain:
           - stable
           - nightly
-    runs-on: ubuntu-latest
+
+    runs-on: macos-latest
 
     defaults:
       run:

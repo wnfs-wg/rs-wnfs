@@ -179,8 +179,7 @@ where
             }
             Ipld::Link(cid) => Ok(Self::Link(Link::from_cid(cid))),
             other => Err(format!(
-                "Expected `Ipld::List` or `Ipld::Link`, got {:#?}",
-                other
+                "Expected `Ipld::List` or `Ipld::Link`, got {other:?}",
             )),
         }
     }
@@ -238,7 +237,7 @@ where
 //--------------------------------------------------------------------------------------------------
 
 #[cfg(test)]
-mod pointer_tests {
+mod tests {
     use sha3::Sha3_256;
 
     use super::*;

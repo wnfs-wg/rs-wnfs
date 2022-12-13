@@ -159,7 +159,7 @@ impl<K, V> Default for Hamt<K, V> {
 //--------------------------------------------------------------------------------------------------
 
 #[cfg(test)]
-mod hamt_tests {
+mod tests {
     use super::*;
     use crate::{dagcbor, MemoryBlockStore};
 

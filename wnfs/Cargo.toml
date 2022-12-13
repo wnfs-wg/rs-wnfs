@@ -1,6 +1,6 @@
 [package]
 name = "wnfs"
-version = "0.1.9"
+version = "0.1.10"
 description = "WebNative filesystem core implementation"
 keywords = ["wnfs", "webnative", "ipfs", "decentralisation"]
 categories = [
@@ -17,7 +17,7 @@ homepage = "https://fission.codes"
 authors = ["The Fission Authors"]
 
 [dependencies]
-aes-gcm = "0.9"
+aes-gcm = "0.10"
 anyhow = "1.0"
 async-once-cell = "0.4"
 async-recursion = "1.0"
@@ -28,9 +28,9 @@ bitvec = { version = "1.0", features = ["serde"] }
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
 futures = "0.3"
 futures-util = "0.3"
-hashbrown = "0.12"
+hashbrown = "0.13"
 lazy_static = "1.4"
-libipld = { version = "0.14", features = ["dag-cbor", "derive", "serde-codec"] }
+libipld = { version = "0.15", features = ["dag-cbor", "derive", "serde-codec"] }
 log = "0.4"
 multihash = "0.16"
 once_cell = "1.15.0"
@@ -44,7 +44,7 @@ thiserror = "1.0"
 xxhash-rust = { version = "0.8", features = ["xxh3"] }
 
 [dev-dependencies]
-env_logger = "0.9"
+env_logger = "0.10"
 proptest = "1.0"
 rand = "0.8"
 test-log = "0.2"

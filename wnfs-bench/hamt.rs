@@ -2,7 +2,7 @@ use criterion::{
     async_executor::AsyncStdExecutor, black_box, criterion_group, criterion_main, BatchSize,
     Criterion, Throughput,
 };
-use proptest::{arbitrary::any, test_runner::TestRunner};
+use proptest::{arbitrary::any, collection::vec, test_runner::TestRunner};
 use std::{rc::Rc, sync::Arc};
 use wnfs::{
     dagcbor,
@@ -19,7 +19,7 @@ fn node_set(c: &mut Criterion) {
     let mut store = MemoryBlockStore::default();
     let operations = operations(any::<[u8; 32]>(), any::<u64>(), 1_000_000).sample(&mut runner);
     let node =
-        &*async_std::task::block_on(async { node_from_operations(operations, &mut store).await })
+        &async_std::task::block_on(async { node_from_operations(operations, &mut store).await })
             .expect("Couldn't setup HAMT node from operations");
 
     let store = Arc::new(store);
@@ -32,7 +32,39 @@ fn node_set(c: &mut Criterion) {
                 (store, kv)
             },
             |(store, (key, value))| async move {
-                black_box(node.set(key, value, store.as_ref()).await.unwrap());
+                black_box(
+                    Rc::clone(node)
+                        .set(key, value, store.as_ref())
+                        .await
+                        .unwrap(),
+                );
+            },
+            BatchSize::SmallInput,
+        );
+    });
+}
+
+fn node_set_consecutive(c: &mut Criterion) {
+    let mut runner = TestRunner::deterministic();
+
+    c.bench_function("node set 1000 consecutive", |b| {
+        b.to_async(AsyncStdExecutor).iter_batched(
+            || {
+                let mut store = MemoryBlockStore::default();
+                let operations =
+                    operations(any::<[u8; 32]>(), any::<u64>(), 1000).sample(&mut runner);
+                let node = async_std::task::block_on(async {
+                    node_from_operations(operations, &mut store).await
+                })
+                .expect("Couldn't setup HAMT node from operations");
+
+                let kvs = vec((any::<[u8; 32]>(), any::<u64>()), 1000).sample(&mut runner);
+                (node, store, kvs)
+            },
+            |(mut node, store, kvs)| async move {
+                for (key, value) in kvs {
+                    node = black_box(node.set(key, value, &store).await.unwrap());
+                }
             },
             BatchSize::SmallInput,
         );
@@ -159,6 +191,7 @@ fn hamt_set_encode(c: &mut Criterion) {
 criterion_group!(
     benches,
     node_set,
+    node_set_consecutive,
     node_load_get,
     node_load_remove,
     hamt_load_decode,
