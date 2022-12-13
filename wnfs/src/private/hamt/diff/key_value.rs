@@ -3,7 +3,7 @@ use crate::{private::Node, BlockStore, Hasher, Link, Pair};
 use anyhow::{Ok, Result};
 use either::Either::{self, *};
 use serde::de::DeserializeOwned;
-use std::{fmt, hash::Hash, rc::Rc};
+use std::{hash::Hash, rc::Rc};
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
@@ -74,9 +74,9 @@ pub async fn kv_diff<K, V, H, B>(
     store: &mut B,
 ) -> Result<Vec<KeyValueChange<K, V>>>
 where
-    K: DeserializeOwned + Clone + fmt::Debug + Eq + Hash + AsRef<[u8]>,
-    V: DeserializeOwned + Clone + fmt::Debug + Eq,
-    H: Hasher + Clone + fmt::Debug + 'static,
+    K: DeserializeOwned + Clone + Eq + Hash + AsRef<[u8]>,
+    V: DeserializeOwned + Clone + Eq,
+    H: Hasher + Clone + 'static,
     B: BlockStore,
 {
     let node_changes =
@@ -89,19 +89,19 @@ where
     for change in node_changes {
         match change.r#type {
             ChangeType::Add => {
-                let result = main_node.get_node_at(&change.hashkey, 0, store).await?;
+                let result = main_node.get_node_at(&change.hashkey, store).await?;
                 kv_changes
                     .extend(generate_add_or_remove_changes(result, ChangeType::Add, store).await?);
             }
             ChangeType::Remove => {
-                let result = other_node.get_node_at(&change.hashkey, 0, store).await?;
+                let result = other_node.get_node_at(&change.hashkey, store).await?;
                 kv_changes.extend(
                     generate_add_or_remove_changes(result, ChangeType::Remove, store).await?,
                 );
             }
             ChangeType::Modify => match (
-                main_node.get_node_at(&change.hashkey, 0, store).await?,
-                other_node.get_node_at(&change.hashkey, 0, store).await?,
+                main_node.get_node_at(&change.hashkey, store).await?,
+                other_node.get_node_at(&change.hashkey, store).await?,
             ) {
                 (Some(Left(main_pair)), Some(Left(other_pair))) => {
                     kv_changes.push(KeyValueChange {
@@ -457,8 +457,8 @@ mod proptests {
             let (store, runner) = test_setup::init!(mut store, mut runner);
 
             let map = HashMap::from(&ops);
-            let pairs = strategies::pairs(&map);
-            let strategy_changes = strategies::changes(&pairs).sample(runner);
+            let pairs = strategies::collect_map_pairs(&map);
+            let strategy_changes = strategies::get_changes(&pairs).sample(runner);
 
             let other_node = strategies::prepare_node(
                 strategies::node_from_operations(&ops, store).await.unwrap(),
@@ -497,7 +497,7 @@ mod proptests {
         });
     }
 
-    #[proptest]
+    #[proptest(cases = 100)]
     fn add_remove_flip(
         #[strategy(operations("[a-z0-9]{1,8}", 0..u64::MAX, 1..100))] ops: Operations<String, u64>,
     ) {
@@ -505,8 +505,8 @@ mod proptests {
             let (store, runner) = test_setup::init!(mut store, mut runner);
 
             let map = HashMap::from(&ops);
-            let pairs = strategies::pairs(&map);
-            let strategy_changes = strategies::changes(&pairs).sample(runner);
+            let pairs = strategies::collect_map_pairs(&map);
+            let strategy_changes = strategies::get_changes(&pairs).sample(runner);
 
             let other_node = strategies::prepare_node(
                 strategies::node_from_operations(&ops, store).await.unwrap(),

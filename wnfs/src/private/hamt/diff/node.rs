@@ -7,7 +7,7 @@ use anyhow::Result;
 use async_recursion::async_recursion;
 use hashbrown::HashMap;
 use serde::de::DeserializeOwned;
-use std::{fmt, hash::Hash, mem, rc::Rc};
+use std::{hash::Hash, mem, rc::Rc};
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
@@ -76,9 +76,9 @@ pub async fn node_diff<K, V, H, B>(
     store: &mut B,
 ) -> Result<Vec<NodeChange>>
 where
-    K: DeserializeOwned + Clone + fmt::Debug + Eq + Hash + AsRef<[u8]>,
-    V: DeserializeOwned + Clone + fmt::Debug + Eq,
-    H: Hasher + Clone + fmt::Debug + 'static,
+    K: DeserializeOwned + Clone + Eq + Hash + AsRef<[u8]>,
+    V: DeserializeOwned + Clone + Eq,
+    H: Hasher + Clone + 'static,
     B: BlockStore,
 {
     node_diff_helper(main_link, other_link, depth, HashKey::default(), store).await
@@ -93,9 +93,9 @@ pub async fn node_diff_helper<K, V, H, B>(
     store: &mut B,
 ) -> Result<Vec<NodeChange>>
 where
-    K: DeserializeOwned + Clone + fmt::Debug + Eq + Hash + AsRef<[u8]>,
-    V: DeserializeOwned + Clone + fmt::Debug + Eq,
-    H: Hasher + Clone + fmt::Debug + 'static,
+    K: DeserializeOwned + Clone + Eq + Hash + AsRef<[u8]>,
+    V: DeserializeOwned + Clone + Eq,
+    H: Hasher + Clone + 'static,
     B: BlockStore,
 {
     // Return if depth is 0.
@@ -197,9 +197,9 @@ async fn generate_modified_changes<K, V, H, B>(
     store: &mut B,
 ) -> Result<Vec<NodeChange>>
 where
-    K: DeserializeOwned + Clone + fmt::Debug + Eq + Hash + AsRef<[u8]>,
-    V: DeserializeOwned + Clone + fmt::Debug + Eq,
-    H: Hasher + Clone + fmt::Debug + 'static,
+    K: DeserializeOwned + Clone + Eq + Hash + AsRef<[u8]>,
+    V: DeserializeOwned + Clone + Eq,
+    H: Hasher + Clone + 'static,
     B: BlockStore,
 {
     match (main_pointer, other_pointer) {
@@ -269,8 +269,8 @@ async fn create_node_from_pairs<K, V, H, B: BlockStore>(
     store: &B,
 ) -> Result<Rc<Node<K, V, H>>>
 where
-    K: DeserializeOwned + Clone + AsRef<[u8]> + fmt::Debug,
-    V: DeserializeOwned + Clone + fmt::Debug,
+    K: DeserializeOwned + Clone + AsRef<[u8]>,
+    V: DeserializeOwned + Clone,
     H: Hasher + Clone + 'static,
 {
     let mut node = Rc::new(Node::<_, _, H>::default());
@@ -539,8 +539,8 @@ mod proptests {
             let (store, runner) = test_setup::init!(mut store, mut runner);
 
             let map = HashMap::from(&ops);
-            let pairs = strategies::pairs(&map);
-            let strategy_changes = strategies::changes(&pairs).sample(runner);
+            let pairs = strategies::collect_map_pairs(&map);
+            let strategy_changes = strategies::get_changes(&pairs).sample(runner);
 
             let other_node = strategies::prepare_node(
                 strategies::node_from_operations(&ops, store).await.unwrap(),

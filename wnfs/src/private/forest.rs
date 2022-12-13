@@ -1,5 +1,9 @@
-use super::{hamt::Hamt, namefilter::Namefilter, ChangeType, Key, PrivateNode, PrivateRef};
-use crate::{BlockStore, HashOutput, Hasher};
+use super::{
+    hamt::{self, Hamt},
+    namefilter::Namefilter,
+    Key, PrivateNode, PrivateRef,
+};
+use crate::{error, BlockStore, FsError, HashOutput, Hasher, Link};
 use anyhow::Result;
 use libipld::Cid;
 use log::debug;
@@ -16,7 +20,7 @@ use std::{collections::BTreeSet, fmt, rc::Rc};
 /// an accompanying block store. And on lookup, the nodes are decrypted and deserialized with the same private
 /// refs.
 ///
-/// It is called a forest because it is a collection of file trees.
+/// It is called a forest because it can store a collection of file trees.
 ///
 /// # Examples
 ///
@@ -292,7 +296,8 @@ impl<H> Hamt<Namefilter, BTreeSet<Cid>, H>
 where
     H: Hasher + fmt::Debug + Clone + 'static,
 {
-    /// Merges a private forest with another. If there is a conflict with values, it combines the two values in the final merge node
+    /// Merges a private forest with another. If there is a conflict with the values,they are union
+    /// combined into a single value in the final merge node
     ///
     /// # Examples
     ///
@@ -364,46 +369,28 @@ where
     /// }
     /// ```
     pub async fn merge<B: BlockStore>(&self, other: &Self, store: &mut B) -> Result<Self> {
-        let kv_changes = self.kv_diff(other, None, store).await?;
+        if self.version == other.version {
+            let merge_node = hamt::merge(
+                Link::from(Rc::clone(&self.root)),
+                Link::from(Rc::clone(&other.root)),
+                |a, b| Ok(a.union(b).cloned().collect()),
+                store,
+            )
+            .await?;
 
-        let mut merge_node = Rc::clone(&self.root);
-        for change in kv_changes {
-            match change.r#type {
-                ChangeType::Remove => {
-                    merge_node = merge_node
-                        .set(change.key, change.other_value.unwrap(), store)
-                        .await?;
-                }
-                ChangeType::Modify => {
-                    let mut merge_values = self
-                        .root
-                        .get(&change.key, store)
-                        .await?
-                        .cloned()
-                        .unwrap_or_default();
-
-                    merge_values.extend(
-                        other
-                            .root
-                            .get(&change.key, store)
-                            .await?
-                            .cloned()
-                            .unwrap_or_default(),
-                    );
-
-                    merge_node = merge_node.set(change.key, merge_values, store).await?;
-                }
-                _ => (),
-            }
+            return Ok(Self {
+                version: self.version.clone(),
+                root: merge_node,
+            });
         }
 
-        Ok(Self::with_root(merge_node))
+        error(FsError::HamtVersionMismatch)
     }
 }
 
-// //--------------------------------------------------------------------------------------------------
-// // Tests
-// //--------------------------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------
+// Tests
+//--------------------------------------------------------------------------------------------------
 
 #[cfg(test)]
 mod tests {
@@ -656,18 +643,4 @@ mod tests {
             }
         }
     }
-}
-
-#[cfg(test)]
-mod proptests {
-    use test_strategy::proptest;
-
-    #[proptest]
-    fn merge_associativity() {}
-
-    #[proptest]
-    fn merge_commutativity() {}
-
-    #[proptest]
-    fn merge_idempotency() {}
 }

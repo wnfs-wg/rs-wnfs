@@ -459,8 +459,35 @@ where
         })
     }
 
-    // TODO(appcypher): Add docs.
-    // TODO(appcypher): Add tests.
+    /// When presented a hashkey representing the path to node in the HAMT. This function will
+    /// return the key-value pair or the intermediate node that the hashkey points to.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use std::rc::Rc;
+    /// use sha3::Sha3_256;
+    /// use wnfs::{private::{Node, Pair}, utils, Hasher, MemoryBlockStore};
+    ///
+    /// #[async_std::main]
+    /// async fn main() {
+    ///     let store = &mut MemoryBlockStore::new();
+    ///     let mut node = Rc::new(Node::<[u8; 4], String>::default());
+    ///     for i in 0..99_u32 {
+    ///         node = node
+    ///             .set(i.to_le_bytes(), i.to_string(), store)
+    ///             .await
+    ///             .unwrap();
+    ///     }
+    ///
+    ///     let keys = node
+    ///         .flat_map(&|Pair { key, .. }| Ok(*key), store)
+    ///         .await
+    ///         .unwrap();
+    ///
+    ///     assert_eq!(keys.len(), 99);
+    /// }
+    /// ```
     #[async_recursion(?Send)]
     pub async fn flat_map<F, T, B>(&self, f: &F, store: &B) -> Result<Vec<T>>
     where
@@ -487,10 +514,53 @@ where
         Ok(items)
     }
 
-    // TODO(appcypher): Add docs.
-    // TODO(appcypher): Add tests.
+    /// When presented a hashkey representing the path to node in the HAMT. This function will
+    /// return the key-value pair or the intermediate node that the hashkey points to.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use std::rc::Rc;
+    /// use sha3::Sha3_256;
+    /// use wnfs::{
+    ///     private::{Node, HashKey},
+    ///     utils, Hasher, MemoryBlockStore
+    /// };
+    ///
+    /// #[async_std::main]
+    /// async fn main() {
+    ///     let store = &mut MemoryBlockStore::new();
+    ///
+    ///     let mut node = Rc::new(Node::<[u8; 4], String>::default());
+    ///     for i in 0..100_u32 {
+    ///         node = node
+    ///             .set(i.to_le_bytes(), i.to_string(), store)
+    ///             .await
+    ///             .unwrap();
+    ///     }
+    ///
+    ///     let hashkey = HashKey::with_length(utils::make_digest(&[0x8C]), 2);
+    ///     let result = node.get_node_at(&hashkey, store).await.unwrap();
+    ///
+    ///     println!("Result: {:#?}", result);
+    /// }
+    /// ```
     #[async_recursion(?Send)]
     pub async fn get_node_at<'a, B>(
+        &'a self,
+        hashkey: &HashKey,
+        store: &B,
+    ) -> Result<Option<Either<&'a Pair<K, V>, &'a Rc<Self>>>>
+    where
+        K: DeserializeOwned + AsRef<[u8]>,
+        V: DeserializeOwned,
+        B: BlockStore,
+    {
+        self.get_node_at_helper(hashkey, 0, store).await
+    }
+
+    #[async_recursion(?Send)]
+    async fn get_node_at_helper<'a, B>(
         &'a self,
         hashkey: &HashKey,
         index: u8,
@@ -502,6 +572,7 @@ where
         B: BlockStore,
     {
         let bit_index = hashkey.get(index).ok_or(FsError::InvalidHashKeyIndex)? as usize;
+
         if !self.bitmask[bit_index] {
             return Ok(None);
         }
@@ -511,10 +582,7 @@ where
             Pointer::Values(values) => Ok({
                 values
                     .iter()
-                    .find(|p| {
-                        let hashkey_len = hashkey.len();
-                        H::hash(&p.key)[..hashkey_len] == hashkey.digest[..hashkey_len]
-                    })
+                    .find(|p| hashkey.is_prefix_of(&H::hash(&p.key)))
                     .map(Left)
             }),
             Pointer::Link(link) => {
@@ -523,13 +591,37 @@ where
                     return Ok(Some(Right(child)));
                 }
 
-                child.get_node_at(hashkey, index + 1, store).await
+                child.get_node_at_helper(hashkey, index + 1, store).await
             }
         }
     }
 
-    // TODO(appcypher): Add docs.
-    // TODO(appcypher): Add tests.
+    /// Generates a hashmap from the node.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use std::rc::Rc;
+    /// use sha3::Sha3_256;
+    /// use wnfs::{private::Node, Hasher, MemoryBlockStore};
+    ///
+    /// #[async_std::main]
+    /// async fn main() {
+    ///     let store = &mut MemoryBlockStore::new();
+    ///
+    ///     let mut node = Rc::new(Node::<[u8; 4], String>::default());
+    ///     for i in 0..100_u32 {
+    ///         node = node
+    ///             .set(i.to_le_bytes(), i.to_string(), store)
+    ///             .await
+    ///             .unwrap();
+    ///     }
+    ///
+    ///     let map = node.to_hashmap(store).await.unwrap();
+    ///
+    ///     assert_eq!(map.len(), 100);
+    /// }
+    /// ```
     pub async fn to_hashmap<B: BlockStore>(&self, store: &B) -> Result<HashMap<K, V>>
     where
         K: DeserializeOwned + Clone + Eq + Hash,
@@ -687,9 +779,11 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{utils, MemoryBlockStore};
+    use crate::{
+        utils::{self, test_setup},
+        MemoryBlockStore,
+    };
     use helper::*;
-    use test_log::test;
 
     mod helper {
         use crate::{utils, HashOutput, Hasher};
@@ -717,13 +811,13 @@ mod tests {
         }
     }
 
-    #[test(async_std::test)]
+    #[async_std::test]
     async fn get_value_fetches_deeply_linked_value() {
         let store = &mut MemoryBlockStore::default();
 
         // Insert 4 values to trigger the creation of a linked node.
         let mut working_node = Rc::new(Node::<String, String, MockHasher>::default());
-        for (digest, kv) in HASH_KV_PAIRS.iter() {
+        for (digest, kv) in HASH_KV_PAIRS.iter().take(4) {
             let hashnibbles = &mut HashNibbles::new(digest);
             working_node = working_node
                 .set_value(hashnibbles, kv.to_string(), kv.to_string(), store)
@@ -732,7 +826,7 @@ mod tests {
         }
 
         // Get the values.
-        for (digest, kv) in HASH_KV_PAIRS.iter() {
+        for (digest, kv) in HASH_KV_PAIRS.iter().take(4) {
             let hashnibbles = &mut HashNibbles::new(digest);
             let value = working_node.get_value(hashnibbles, store).await.unwrap();
 
@@ -740,13 +834,13 @@ mod tests {
         }
     }
 
-    #[test(async_std::test)]
+    #[async_std::test]
     async fn remove_value_canonicalizes_linked_node() {
         let store = &mut MemoryBlockStore::default();
 
         // Insert 4 values to trigger the creation of a linked node.
         let mut working_node = Rc::new(Node::<String, String, MockHasher>::default());
-        for (digest, kv) in HASH_KV_PAIRS.iter() {
+        for (digest, kv) in HASH_KV_PAIRS.iter().take(4) {
             let hashnibbles = &mut HashNibbles::new(digest);
             working_node = working_node
                 .set_value(hashnibbles, kv.to_string(), kv.to_string(), store)
@@ -780,7 +874,7 @@ mod tests {
         assert!(value.is_none());
     }
 
-    #[test(async_std::test)]
+    #[async_std::test]
     async fn set_value_splits_when_bucket_threshold_reached() {
         let store = &mut MemoryBlockStore::default();
 
@@ -825,7 +919,7 @@ mod tests {
         }
     }
 
-    #[test(async_std::test)]
+    #[async_std::test]
     async fn get_value_index_gets_correct_index() {
         let store = &mut MemoryBlockStore::default();
         let hash_expected_idx_samples = [
@@ -872,7 +966,7 @@ mod tests {
         }
     }
 
-    #[test(async_std::test)]
+    #[async_std::test]
     async fn node_can_insert_pair_and_retrieve() {
         let store = MemoryBlockStore::default();
         let node = Rc::new(Node::<String, (i32, f64)>::default());
@@ -884,7 +978,7 @@ mod tests {
         assert_eq!(value, &(10, 0.315));
     }
 
-    #[test(async_std::test)]
+    #[async_std::test]
     async fn node_is_same_with_irrelevant_remove() {
         // These two keys' hashes have the same first nibble (7)
         let insert_key: String = "GL59 Tg4phDb  bv".into();
@@ -899,7 +993,7 @@ mod tests {
         assert_eq!(node0.count_values().unwrap(), 1);
     }
 
-    #[test(async_std::test)]
+    #[async_std::test]
     async fn node_history_independence_regression() {
         let store = &mut MemoryBlockStore::default();
 
@@ -924,6 +1018,72 @@ mod tests {
         let cid2 = store.put_async_serializable(&node2).await.unwrap();
 
         assert_eq!(cid1, cid2);
+    }
+
+    #[async_std::test]
+    async fn can_map_over_leaf_nodes() {
+        let store = test_setup::init!(mut store);
+
+        let mut node = Rc::new(Node::<[u8; 4], String>::default());
+        for i in 0..99_u32 {
+            node = node
+                .set(i.to_le_bytes(), i.to_string(), store)
+                .await
+                .unwrap();
+        }
+
+        let keys = node
+            .flat_map(&|Pair { key, .. }| Ok(*key), store)
+            .await
+            .unwrap();
+
+        assert_eq!(keys.len(), 99);
+    }
+
+    #[async_std::test]
+    async fn can_fetch_node_at_hashkey() {
+        let store = test_setup::init!(mut store);
+
+        let mut node = Rc::new(Node::<String, String, MockHasher>::default());
+        for (digest, kv) in HASH_KV_PAIRS.iter() {
+            let hashnibbles = &mut HashNibbles::new(digest);
+            node = node
+                .set_value(hashnibbles, kv.to_string(), kv.to_string(), store)
+                .await
+                .unwrap();
+        }
+
+        for (digest, kv) in HASH_KV_PAIRS.iter().take(4) {
+            let hashkey = HashKey::with_length(*digest, 2);
+            let result = node.get_node_at(&hashkey, store).await.unwrap();
+            let (key, value) = (kv.to_string(), kv.to_string());
+            assert_eq!(result, Some(Either::Left(&Pair { key, value })));
+        }
+
+        let hashkey = HashKey::with_length(utils::make_digest(&[0xE0]), 1);
+        let result = node.get_node_at(&hashkey, store).await.unwrap();
+
+        assert!(matches!(result, Some(Either::Right(_))));
+    }
+
+    #[async_std::test]
+    async fn can_generate_hashmap_from_node() {
+        let store = test_setup::init!(mut store);
+
+        let mut node = Rc::new(Node::<[u8; 4], String>::default());
+        const NUM_VALUES: u32 = 1000;
+        for i in (u32::MAX - NUM_VALUES..u32::MAX).rev() {
+            node = node
+                .set(i.to_le_bytes(), i.to_string(), store)
+                .await
+                .unwrap();
+        }
+
+        let map = node.to_hashmap(store).await.unwrap();
+        assert_eq!(map.len(), NUM_VALUES as usize);
+        for i in (u32::MAX - NUM_VALUES..u32::MAX).rev() {
+            assert_eq!(map.get(&i.to_le_bytes()).unwrap(), &i.to_string());
+        }
     }
 }
 

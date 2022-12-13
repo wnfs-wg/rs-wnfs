@@ -74,6 +74,9 @@ pub enum FsError {
 
     #[error("HAMT versions don't match")]
     HamtVersionMismatch,
+
+    #[error("Key does not exist in HAMT")]
+    KeyNotFoundInHamt,
 }
 
 pub fn error<T>(err: impl std::error::Error + Send + Sync + 'static) -> Result<T> {

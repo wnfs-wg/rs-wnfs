@@ -1,9 +1,8 @@
-use std::fmt::Debug;
-
 use super::error::HamtError;
-use crate::{HashOutput, HASH_BYTE_SIZE};
+use crate::{utils, HashOutput, HASH_BYTE_SIZE};
 use anyhow::{bail, Result};
 use sha3::{Digest, Sha3_256};
+use std::fmt::Debug;
 
 //--------------------------------------------------------------------------------------------------
 // Constants
@@ -49,13 +48,34 @@ pub(crate) struct HashNibbles<'a> {
 ///
 /// It is based on the hash of the key with a length info for knowing how deep
 /// to traverse the tree to find the intermediate or leaf node.
+///
+/// # Examples
+///
+/// ```
+/// use wnfs::{private::HashKey, utils};
+///
+/// let hashkey = HashKey::with_length(utils::make_digest(&[0xff, 0x22]), 4);
+///
+/// println!("{:?}", hashkey);
+/// ```
 #[derive(Clone, Default)]
 pub struct HashKey {
     pub digest: HashOutput,
     length: u8,
 }
 
-/// TODO(appcypher): Add docs.
+/// An iterator over the nibbles of a HashKey.
+///
+/// # Examples
+///
+/// ```
+/// use wnfs::{private::HashKey, utils};
+///
+/// let hashkey = HashKey::with_length(utils::make_digest(&[0xff, 0x22]), 4);
+/// for i in hashkey.iter() {
+///    println!("{}", i);
+/// }
+/// ```
 #[derive(Clone)]
 pub struct HashKeyIterator<'a> {
     pub hash_key: &'a HashKey,
@@ -136,11 +156,34 @@ impl Hasher for Sha3_256 {
 
 impl HashKey {
     /// Creates a new `HashKey` instance from a `[u8; 32]` hash.
-    pub(crate) fn with_length(digest: HashOutput, length: u8) -> HashKey {
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use wnfs::{private::HashKey, utils};
+    ///
+    /// let hashkey = HashKey::with_length(utils::make_digest(&[0xff, 0x22]), 4);
+    ///
+    /// println!("{:?}", hashkey);
+    /// ```
+    pub fn with_length(digest: HashOutput, length: u8) -> HashKey {
         Self { digest, length }
     }
 
     /// Pushes a nibble to the end of the hash.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use wnfs::{private::HashKey, utils};
+    ///
+    /// let mut hashkey = HashKey::default();
+    /// for i in 0..16_u8 {
+    ///     hashkey.push(i);
+    /// }
+    ///
+    /// assert_eq!(hashkey.len(), 16);
+    /// ```
     pub fn push(&mut self, nibble: u8) {
         let offset = self.length as usize / 2;
         let byte = self.digest[offset];
@@ -154,21 +197,53 @@ impl HashKey {
         self.length += 1;
     }
 
-    #[inline(always)]
     /// Gets the length of the hash.
-    /// TODO(appcypher): Add examples.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use wnfs::{private::HashKey, utils};
+    ///
+    /// let mut hashkey = HashKey::default();
+    /// for i in 0..16_u8 {
+    ///     hashkey.push(i);
+    /// }
+    ///
+    /// assert_eq!(hashkey.len(), 16);
+    /// ```
+    #[inline(always)]
     pub fn len(&self) -> usize {
         self.length as usize
     }
 
     /// Checks if the hash is empty.
-    /// TODO(appcypher): Add examples.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use wnfs::{private::HashKey, utils};
+    ///
+    /// let hashkey = HashKey::default();
+    /// assert!(hashkey.is_empty());
+    /// ```
     pub fn is_empty(&self) -> bool {
         self.length == 0
     }
 
     /// Get the nibble at specified offset.
-    /// TODO(appcypher): Add examples.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use wnfs::{private::HashKey, utils};
+    ///
+    /// let mut hashkey = HashKey::default();
+    /// for i in 0..16_u8 {
+    ///     hashkey.push(i);
+    /// }
+    ///
+    /// assert_eq!(hashkey.get(15), Some(0x0f));
+    /// ```
     pub fn get(&self, index: u8) -> Option<u8> {
         if index >= self.length {
             return None;
@@ -183,12 +258,37 @@ impl HashKey {
     }
 
     /// Creates an iterator over the nibbles of the hash.
-    /// TODO(appcypher): Add examples.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use wnfs::{private::HashKey, utils};
+    ///
+    /// let hashkey = HashKey::with_length(utils::make_digest(&[0xff, 0x22]), 4);
+    /// for i in hashkey.iter() {
+    ///    println!("{}", i);
+    /// }
+    /// ```
     pub fn iter(&self) -> HashKeyIterator {
         HashKeyIterator {
             hash_key: self,
             cursor: 0,
         }
+    }
+
+    /// Checks if the HashKey is a prefix of some arbitrary byte slice.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use wnfs::{private::HashKey, utils};
+    ///
+    /// let hashkey = HashKey::with_length(utils::make_digest(&[0xff, 0x22]), 4);
+    ///
+    /// assert!(hashkey.is_prefix_of(&[0xff, 0x22, 0x33]));
+    /// ```
+    pub fn is_prefix_of(&self, bytes: &[u8]) -> bool {
+        self == &HashKey::with_length(utils::make_digest(bytes), self.length)
     }
 }
 
@@ -266,6 +366,8 @@ mod tests {
             hashkey.push((i % 16) as u8);
             hashkey.push((15 - i % 16) as u8);
         }
+
+        assert!(!hashkey.is_empty());
 
         for i in 0..HASH_BYTE_SIZE {
             assert_eq!(hashkey.get(i as u8 * 2).unwrap(), (i % 16) as u8);

@@ -88,11 +88,11 @@ where
 // Functions
 //--------------------------------------------------------------------------------------------------
 
-pub(crate) fn changes<'a, K, V>(pairs: &'a Vec<(&'a K, &'a V)>) -> ChangeStrategy<'a, K, V> {
+pub(crate) fn get_changes<'a, K, V>(pairs: &'a Vec<(&'a K, &'a V)>) -> ChangeStrategy<'a, K, V> {
     ChangeStrategy { pairs }
 }
 
-pub(crate) fn pairs<K, V>(map: &HashMap<K, V>) -> Vec<(&K, &V)> {
+pub(crate) fn collect_map_pairs<K, V>(map: &HashMap<K, V>) -> Vec<(&K, &V)> {
     map.iter().map(|(k, v)| (k, v)).collect::<Vec<_>>()
 }
 
