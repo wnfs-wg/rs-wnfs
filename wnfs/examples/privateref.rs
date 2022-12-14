@@ -81,7 +81,7 @@ async fn main() -> anyhow::Result<()> {
 
     println!("{:#?}", fetched_node);
 
-    // The private_ref might point to old revision of the root_dir.
+    // The private_ref might point to some old revision of the root_dir.
     // We can do the following to get the latest revision.
     let fetched_dir = {
         let tmp = fetched_node.unwrap().as_dir()?;
