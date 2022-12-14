@@ -1,6 +1,7 @@
 use chrono::Utc;
 use libipld::{serde::Serializer, Ipld};
 use rand::thread_rng;
+use rand_core::RngCore;
 use sha3::Sha3_256;
 use skip_ratchet::Ratchet;
 use std::{io::Cursor, rc::Rc};
@@ -58,14 +59,10 @@ async fn main() -> anyhow::Result<()> {
     let revision_key = RevisionKey::from(Key::new(ratchet.derive_key()));
 
     // Now let's serialize the root_dir's private_ref.
-    let cbor = encode_ipld(root_dir.header.get_private_ref().serialize(
-        Serializer,
-        &revision_key,
-        rng,
-    )?)?;
+    let cbor = encode(&root_dir.header.get_private_ref(), &revision_key, rng)?;
 
     // We can deserialize the private_ref using the revision_key at hand.
-    let private_ref = decode_ipld(cbor, &revision_key)?;
+    let private_ref = decode(cbor, &revision_key)?;
 
     // Now we can fetch the directory from the forest.
     let fetched_node = forest
@@ -100,13 +97,18 @@ async fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
-fn encode_ipld(ipld: Ipld) -> anyhow::Result<Vec<u8>> {
+fn encode(
+    private_ref: &PrivateRef,
+    revision_key: &RevisionKey,
+    rng: &mut impl RngCore,
+) -> anyhow::Result<Vec<u8>> {
     let mut bytes = Vec::new();
+    let ipld = private_ref.serialize(Serializer, revision_key, rng)?;
     ipld.encode(DagCborCodec, &mut bytes)?;
     Ok(bytes)
 }
 
-fn decode_ipld(bytes: Vec<u8>, revision_key: &RevisionKey) -> anyhow::Result<PrivateRef> {
+fn decode(bytes: Vec<u8>, revision_key: &RevisionKey) -> anyhow::Result<PrivateRef> {
     let ipld = Ipld::decode(DagCborCodec, &mut Cursor::new(bytes))?;
     PrivateRef::deserialize(ipld, revision_key).map_err(Into::into)
 }
