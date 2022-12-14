@@ -6,8 +6,8 @@ use skip_ratchet::Ratchet;
 use std::{io::Cursor, rc::Rc};
 use wnfs::{
     ipld::{DagCborCodec, Decode, Encode},
-    private::{self, Key, PrivateForest, PrivateRef, RevisionKey},
-    utils, Hasher, MemoryBlockStore, Namefilter, PrivateDirectory, PrivateNode, PrivateOpResult,
+    private::{Key, PrivateForest, PrivateRef, RevisionKey},
+    utils, Hasher, MemoryBlockStore, Namefilter, PrivateDirectory, PrivateOpResult,
 };
 
 #[async_std::main]
@@ -24,28 +24,20 @@ async fn main() -> anyhow::Result<()> {
     let ratchet_seed = Sha3_256::hash(&some_key.as_bytes());
     let inumber = utils::get_random_bytes::<32>(rng); // Needs to be random
 
-    // Create the directory from the ratchet_seed, inumber and namefilter.
-    let root_dir = Rc::new(PrivateDirectory::with_seed(
+    // Create the directory from the ratchet_seed, inumber and namefilter. And save in forest.
+    let PrivateOpResult {
+        forest, root_dir, ..
+    } = PrivateDirectory::with_seed_and_store(
         Namefilter::default(),
         Utc::now(),
         ratchet_seed,
         inumber,
-    ));
-
-    // Get the privateref from the root_dir.
-    let private_ref = root_dir.header.get_private_ref();
-    let name = root_dir.header.get_saturated_name();
-
-    // Store the directory in the forest.
-    let forest = forest
-        .put(
-            name,
-            &private_ref,
-            &PrivateNode::Dir(Rc::clone(&root_dir)),
-            store,
-            rng,
-        )
-        .await?;
+        forest,
+        store,
+        rng,
+    )
+    .await
+    .unwrap();
 
     // Add a /movies/anime to the directory.
     let PrivateOpResult {
@@ -76,27 +68,33 @@ async fn main() -> anyhow::Result<()> {
     let private_ref = decode_ipld(cbor, &revision_key)?;
 
     // Now we can fetch the directory from the forest.
-    let fetched_dir = forest
+    let fetched_node = forest
         .get(&private_ref, PrivateForest::resolve_lowest, store)
         .await?;
 
-    println!("{:#?}", fetched_dir);
+    println!("{:#?}", fetched_node);
 
     // We can also create one from scratch.
     let private_ref = PrivateRef::with_seed(Namefilter::default(), ratchet_seed, inumber);
-    println!("Private ref: {:?}", private_ref);
 
     // Again we can fetch the directory from the forest.
-    let fetched_dir = forest
+    let fetched_node = forest
         .get(&private_ref, PrivateForest::resolve_lowest, store)
         .await?;
 
-    println!("{:#?}", fetched_dir);
+    println!("{:#?}", fetched_node);
 
-    if let PrivateNode::Dir(fetched_dir) = fetched_dir.unwrap() {
-        let PrivateOpResult { result, .. } = fetched_dir.get_node(&[], true, forest, store).await?;
-        println!("{:#?}", result);
-    }
+    // To get the latest revision of the directory itself.
+    let fetched_dir = {
+        let tmp = fetched_node.unwrap().as_dir()?;
+        tmp.get_node(&[], true, forest, store)
+            .await?
+            .result
+            .unwrap()
+            .as_dir()?
+    };
+
+    println!("{:#?}", fetched_dir);
 
     Ok(())
 }
