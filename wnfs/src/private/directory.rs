@@ -15,6 +15,7 @@ use semver::Version;
 use serde::{de::Error as DeError, ser::Error as SerError, Deserialize, Deserializer, Serialize};
 use std::{
     collections::{BTreeMap, BTreeSet},
+    fmt::Debug,
     rc::Rc,
 };
 

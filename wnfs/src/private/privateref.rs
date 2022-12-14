@@ -1,3 +1,5 @@
+use std::fmt::Debug;
+
 use super::{ContentKey, Key, PrivateNodeHeader, RevisionKey};
 use crate::{FsError, HashOutput, Namefilter};
 use anyhow::Result;
@@ -9,7 +11,7 @@ use serde::{de::Error as DeError, ser::Error as SerError, Deserialize, Serialize
 //--------------------------------------------------------------------------------------------------
 
 /// PrivateRef holds the information to fetch associated node from a private forest and decrypt it if it is present.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct PrivateRef {
     /// Sha3-256 hash of saturated namefilter.
     pub(crate) saturated_name_hash: HashOutput,
@@ -142,6 +144,21 @@ impl PrivateRef {
     {
         let private_ref = PrivateRefSerializable::deserialize(deserializer)?;
         PrivateRef::from_serializable(private_ref, revision_key).map_err(DeError::custom)
+    }
+}
+
+impl Debug for PrivateRef {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut sat_name_hash_str = String::from("0x");
+        for byte in self.saturated_name_hash {
+            sat_name_hash_str.push_str(&format!("{byte:02X}"));
+        }
+
+        f.debug_struct("PrivateRef")
+            .field("saturated_name_hash", &sat_name_hash_str)
+            .field("content_key", &self.content_key.0)
+            .field("revision_key", &self.revision_key.0)
+            .finish()
     }
 }
 

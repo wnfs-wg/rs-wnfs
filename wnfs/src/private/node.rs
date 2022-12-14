@@ -73,7 +73,7 @@ pub struct RevisionKey(pub Key);
 ///
 /// println!("Header: {:?}", file.header);
 /// ```
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PrivateNodeHeader {
     /// A unique identifier of the node.
     pub(crate) inumber: INumber,
@@ -604,6 +604,21 @@ impl PrivateNodeHeader {
     pub fn get_saturated_name(&self) -> Namefilter {
         let revision_key = RevisionKey::from(&self.ratchet);
         self.get_saturated_name_with_key(&revision_key.0)
+    }
+}
+
+impl Debug for PrivateNodeHeader {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut inumber_str = String::from("0x");
+        for byte in self.inumber {
+            inumber_str.push_str(&format!("{byte:02X}"));
+        }
+
+        f.debug_struct("PrivateRef")
+            .field("inumber", &inumber_str)
+            .field("ratchet", &self.ratchet)
+            .field("bare_name", &self.bare_name)
+            .finish()
     }
 }
 
