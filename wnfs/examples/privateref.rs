@@ -20,11 +20,11 @@ async fn main() -> anyhow::Result<()> {
     // Some existing user key.
     let some_key = Key::new(utils::get_random_bytes::<32>(rng));
 
-    // Creating ratchet_seed from our key. And intializing the inumber and namefilter.
+    // Creating ratchet_seed from our user key. And intializing the inumber and namefilter.
     let ratchet_seed = Sha3_256::hash(&some_key.as_bytes());
     let inumber = utils::get_random_bytes::<32>(rng); // Needs to be random
 
-    // Create the directory from the ratchet_seed, inumber and namefilter. And save in forest.
+    // Create a root directory from the ratchet_seed, inumber and namefilter. Directory gets saved in forest.
     let PrivateOpResult {
         forest, root_dir, ..
     } = PrivateDirectory::with_seed_and_store(
@@ -53,7 +53,7 @@ async fn main() -> anyhow::Result<()> {
         )
         .await?;
 
-    // We can create a revision_key from the ratchet_seed.
+    // We can create a revision_key from our ratchet_seed.
     let ratchet = Ratchet::zero(ratchet_seed);
     let revision_key = RevisionKey::from(Key::new(ratchet.derive_key()));
 
@@ -64,7 +64,7 @@ async fn main() -> anyhow::Result<()> {
         rng,
     )?)?;
 
-    // We can deserialize the private_ref using the information we have.
+    // We can deserialize the private_ref using the revision_key at hand.
     let private_ref = decode_ipld(cbor, &revision_key)?;
 
     // Now we can fetch the directory from the forest.
@@ -74,17 +74,18 @@ async fn main() -> anyhow::Result<()> {
 
     println!("{:#?}", fetched_node);
 
-    // We can also create one from scratch.
+    // We can also create a private_ref from scratch.
     let private_ref = PrivateRef::with_seed(Namefilter::default(), ratchet_seed, inumber);
 
-    // Again we can fetch the directory from the forest.
+    // And we can fetch the directory again using the new private_ref.
     let fetched_node = forest
         .get(&private_ref, PrivateForest::resolve_lowest, store)
         .await?;
 
     println!("{:#?}", fetched_node);
 
-    // To get the latest revision of the directory itself.
+    // The private_ref might point to old revision of the root_dir.
+    // We can do the following to get the latest revision.
     let fetched_dir = {
         let tmp = fetched_node.unwrap().as_dir()?;
         tmp.get_node(&[], true, forest, store)
