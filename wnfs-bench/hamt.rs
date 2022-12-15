@@ -19,7 +19,7 @@ fn node_set(c: &mut Criterion) {
     let mut store = MemoryBlockStore::default();
     let operations = operations(any::<[u8; 32]>(), any::<u64>(), 1_000_000).sample(&mut runner);
     let node =
-        &async_std::task::block_on(async { node_from_operations(operations, &mut store).await })
+        &async_std::task::block_on(async { node_from_operations(&operations, &mut store).await })
             .expect("Couldn't setup HAMT node from operations");
 
     let store = Arc::new(store);
@@ -54,7 +54,7 @@ fn node_set_consecutive(c: &mut Criterion) {
                 let operations =
                     operations(any::<[u8; 32]>(), any::<u64>(), 1000).sample(&mut runner);
                 let node = async_std::task::block_on(async {
-                    node_from_operations(operations, &mut store).await
+                    node_from_operations(&operations, &mut store).await
                 })
                 .expect("Couldn't setup HAMT node from operations");
 
@@ -76,16 +76,14 @@ fn node_load_get(c: &mut Criterion) {
     let cid = async_std::task::block_on(async {
         let mut node = Rc::new(<Node<_, _>>::default());
         for i in 0..50 {
-            node = node.set(i.to_string(), i, &mut store).await.unwrap();
+            node = node.set(i.to_string(), i, &store).await.unwrap();
         }
 
         let encoded_hamt = dagcbor::async_encode(&Hamt::with_root(node), &mut store)
             .await
             .unwrap();
 
-        let cid = store.put_serializable(&encoded_hamt).await.unwrap();
-
-        cid
+        store.put_serializable(&encoded_hamt).await.unwrap()
     });
 
     c.bench_function("node load and get", |b| {
@@ -110,16 +108,14 @@ fn node_load_remove(c: &mut Criterion) {
     let cid = async_std::task::block_on(async {
         let mut node = Rc::new(<Node<_, _>>::default());
         for i in 0..50 {
-            node = node.set(i.to_string(), i, &mut store).await.unwrap();
+            node = node.set(i.to_string(), i, &store).await.unwrap();
         }
 
         let encoded_hamt = dagcbor::async_encode(&Hamt::with_root(node), &mut store)
             .await
             .unwrap();
 
-        let cid = store.put_serializable(&encoded_hamt).await.unwrap();
-
-        cid
+        store.put_serializable(&encoded_hamt).await.unwrap()
     });
 
     c.bench_function("node load and remove", |b| {
@@ -142,7 +138,7 @@ fn hamt_load_decode(c: &mut Criterion) {
     let (cid, bytes) = async_std::task::block_on(async {
         let mut node = Rc::new(<Node<_, _>>::default());
         for i in 0..50 {
-            node = node.set(i.to_string(), i, &mut store).await.unwrap();
+            node = node.set(i.to_string(), i, &store).await.unwrap();
         }
 
         let encoded_hamt = dagcbor::async_encode(&Hamt::with_root(node), &mut store)
@@ -176,7 +172,7 @@ fn hamt_set_encode(c: &mut Criterion) {
             },
             |(mut store, mut node)| async move {
                 for i in 0..50 {
-                    node = node.set(i.to_string(), i, &mut store).await.unwrap();
+                    node = node.set(i.to_string(), i, &store).await.unwrap();
                 }
 
                 let hamt = Hamt::with_root(node);

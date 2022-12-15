@@ -16,8 +16,9 @@ fn add(c: &mut Criterion) {
             },
             |(mut namefilter, elements)| {
                 for element in elements {
-                    black_box(namefilter.add(&element));
+                    namefilter.add(&element);
                 }
+                black_box(&namefilter);
             },
             BatchSize::SmallInput,
         )
@@ -54,7 +55,8 @@ fn saturate(c: &mut Criterion) {
                 namefilter
             },
             |mut namefilter| {
-                black_box(namefilter.saturate());
+                namefilter.saturate();
+                black_box(&namefilter);
             },
             BatchSize::SmallInput,
         )
