@@ -29,7 +29,6 @@ chrono = { version = "0.4", default-features = false, features = ["clock", "std"
 either = "1.8"
 futures = "0.3"
 futures-util = "0.3"
-hashbrown = "0.13"
 lazy_static = "1.4"
 libipld = { version = "0.15", features = ["dag-cbor", "derive", "serde-codec"] }
 log = "0.4"

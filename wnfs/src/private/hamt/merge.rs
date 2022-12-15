@@ -62,56 +62,41 @@ where
 
 #[cfg(test)]
 mod proptests {
-    use std::rc::Rc;
-
     use crate::{
         private::strategies::{self, operations, Operations},
-        utils::{test_setup, Sampleable},
+        utils::test_setup,
         Link,
     };
     use async_std::task;
-    use hashbrown::HashMap;
+    use std::{cmp, rc::Rc};
     use test_strategy::proptest;
 
     #[proptest(cases = 100)]
     fn merge_associativity(
-        #[strategy(operations("[a-z0-9]{1,8}", 0..u64::MAX, 1..100))] ops: Operations<String, u64>,
+        #[strategy(operations("[a-z0-9]{1,4}", 0u64..1000, 0..100))] ops1: Operations<String, u64>,
+        #[strategy(operations("[a-z0-9]{1,4}", 0u64..1000, 0..100))] ops2: Operations<String, u64>,
+        #[strategy(operations("[a-z0-9]{1,4}", 0u64..1000, 0..100))] ops3: Operations<String, u64>,
     ) {
         task::block_on(async {
-            let (store, runner) = test_setup::init!(mut store, mut runner);
+            let store = test_setup::init!(mut store);
 
-            let map = HashMap::from(&ops);
-            let pairs = strategies::collect_map_pairs(&map);
-            let strategy_changes_1 = strategies::get_changes(&pairs).sample(runner);
-            let strategy_changes_2 = strategies::get_changes(&pairs).sample(runner);
-
-            let node1 = {
-                let tmp = strategies::prepare_node(
-                    strategies::node_from_operations(&ops, store).await.unwrap(),
-                    &strategy_changes_1,
-                    store,
-                )
+            let node1 = strategies::node_from_operations(&ops1, store)
                 .await
                 .unwrap();
 
-                strategies::prepare_node(tmp, &strategy_changes_2, store)
-                    .await
-                    .unwrap()
-            };
-
-            let node2 = strategies::apply_changes(Rc::clone(&node1), &strategy_changes_1, store)
+            let node2 = strategies::node_from_operations(&ops2, store)
                 .await
                 .unwrap();
 
-            let node3 = strategies::apply_changes(Rc::clone(&node1), &strategy_changes_2, store)
+            let node3 = strategies::node_from_operations(&ops3, store)
                 .await
                 .unwrap();
 
-            let merge_node_1 = {
+            let merge_node_left_assoc = {
                 let tmp = super::merge(
                     Link::from(Rc::clone(&node1)),
                     Link::from(Rc::clone(&node2)),
-                    |a, b| Ok(a.wrapping_add(*b)),
+                    |a, b| Ok(cmp::min(*a, *b)),
                     store,
                 )
                 .await
@@ -120,64 +105,57 @@ mod proptests {
                 super::merge(
                     Link::from(tmp),
                     Link::from(Rc::clone(&node3)),
-                    |a, b| Ok(a.wrapping_add(*b)),
+                    |a, b| Ok(cmp::min(*a, *b)),
                     store,
                 )
                 .await
                 .unwrap()
             };
 
-            let merge_node_2 = {
+            let merge_node_right_assoc = {
                 let tmp = super::merge(
                     Link::from(node2),
                     Link::from(node3),
-                    |a, b| Ok(a.wrapping_add(*b)),
+                    |a, b| Ok(cmp::min(*a, *b)),
                     store,
                 )
                 .await
                 .unwrap();
 
                 super::merge(
-                    Link::from(tmp),
                     Link::from(node1),
-                    |a, b| Ok(a.wrapping_add(*b)),
+                    Link::from(tmp),
+                    |a, b| Ok(cmp::min(*a, *b)),
                     store,
                 )
                 .await
                 .unwrap()
             };
 
-            assert_eq!(merge_node_1, merge_node_2);
+            assert_eq!(merge_node_left_assoc, merge_node_right_assoc);
         });
     }
 
     #[proptest(cases = 100)]
     fn merge_commutativity(
-        #[strategy(operations("[a-z0-9]{1,8}", 0..u64::MAX, 1..100))] ops: Operations<String, u64>,
+        #[strategy(operations("[a-z0-9]{1,4}", 0u64..1000, 0..100))] ops1: Operations<String, u64>,
+        #[strategy(operations("[a-z0-9]{1,4}", 0u64..1000, 0..100))] ops2: Operations<String, u64>,
     ) {
-        task::block_on(async move {
-            let (store, runner) = test_setup::init!(mut store, mut runner);
+        task::block_on(async {
+            let store = test_setup::init!(mut store);
 
-            let map = HashMap::from(&ops);
-            let pairs = strategies::collect_map_pairs(&map);
-            let strategy_changes = strategies::get_changes(&pairs).sample(runner);
+            let node1 = strategies::node_from_operations(&ops1, store)
+                .await
+                .unwrap();
 
-            let node1 = strategies::prepare_node(
-                strategies::node_from_operations(&ops, store).await.unwrap(),
-                &strategy_changes,
-                store,
-            )
-            .await
-            .unwrap();
-
-            let node2 = strategies::apply_changes(Rc::clone(&node1), &strategy_changes, store)
+            let node2 = strategies::node_from_operations(&ops2, store)
                 .await
                 .unwrap();
 
             let merge_node_1 = super::merge(
                 Link::from(Rc::clone(&node1)),
                 Link::from(Rc::clone(&node2)),
-                |a, b| Ok(a.wrapping_add(*b)),
+                |a, b| Ok(cmp::min(*a, *b)),
                 store,
             )
             .await
@@ -186,7 +164,7 @@ mod proptests {
             let merge_node_2 = super::merge(
                 Link::from(node2),
                 Link::from(node1),
-                |a, b| Ok(a.wrapping_add(*b)),
+                |a, b| Ok(cmp::min(*a, *b)),
                 store,
             )
             .await
@@ -198,31 +176,24 @@ mod proptests {
 
     #[proptest(cases = 100)]
     fn merge_idempotency(
-        #[strategy(operations("[a-z0-9]{1,8}", 0..u64::MAX, 1..100))] ops: Operations<String, u64>,
+        #[strategy(operations("[a-z0-9]{1,4}", 0u64..1000, 0..100))] ops1: Operations<String, u64>,
+        #[strategy(operations("[a-z0-9]{1,4}", 0u64..1000, 0..100))] ops2: Operations<String, u64>,
     ) {
-        task::block_on(async move {
-            let (store, runner) = test_setup::init!(mut store, mut runner);
+        task::block_on(async {
+            let store = test_setup::init!(mut store);
 
-            let map = HashMap::from(&ops);
-            let pairs = strategies::collect_map_pairs(&map);
-            let strategy_changes = strategies::get_changes(&pairs).sample(runner);
+            let node1 = strategies::node_from_operations(&ops1, store)
+                .await
+                .unwrap();
 
-            let node1 = strategies::prepare_node(
-                strategies::node_from_operations(&ops, store).await.unwrap(),
-                &strategy_changes,
-                store,
-            )
-            .await
-            .unwrap();
-
-            let node2 = strategies::apply_changes(Rc::clone(&node1), &strategy_changes, store)
+            let node2 = strategies::node_from_operations(&ops2, store)
                 .await
                 .unwrap();
 
             let merge_node_1 = super::merge(
                 Link::from(Rc::clone(&node1)),
                 Link::from(Rc::clone(&node2)),
-                |a, b| Ok(a.wrapping_add(*b)),
+                |a, b| Ok(cmp::min(*a, *b)),
                 store,
             )
             .await
@@ -231,7 +202,7 @@ mod proptests {
             let merge_node_2 = super::merge(
                 Link::from(Rc::clone(&merge_node_1)),
                 Link::from(node2),
-                |a, b| Ok(a.wrapping_add(*b)),
+                |a, b| Ok(cmp::min(*a, *b)),
                 store,
             )
             .await

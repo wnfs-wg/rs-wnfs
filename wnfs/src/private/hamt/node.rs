@@ -12,7 +12,6 @@ use async_trait::async_trait;
 use bitvec::array::BitArray;
 use either::{Either, Either::*};
 use futures::future::LocalBoxFuture;
-use hashbrown::HashMap;
 use libipld::{serde as ipld_serde, Ipld};
 use log::debug;
 use serde::{
@@ -22,6 +21,7 @@ use serde::{
 };
 use sha3::Sha3_256;
 use std::{
+    collections::HashMap,
     fmt::{self, Debug, Formatter},
     hash::Hash,
     marker::PhantomData,
@@ -459,14 +459,12 @@ where
         })
     }
 
-    /// When presented a hashkey representing the path to node in the HAMT. This function will
-    /// return the key-value pair or the intermediate node that the hashkey points to.
+    /// Visits all the leaf nodes in the trie and calls the given function on each of them.
     ///
     /// # Examples
     ///
     /// ```
     /// use std::rc::Rc;
-    /// use sha3::Sha3_256;
     /// use wnfs::{private::{Node, Pair}, utils, Hasher, MemoryBlockStore};
     ///
     /// #[async_std::main]
@@ -514,7 +512,7 @@ where
         Ok(items)
     }
 
-    /// When presented a hashkey representing the path to node in the HAMT. This function will
+    /// Given a hashkey representing the path to a node in the trie. This function will
     /// return the key-value pair or the intermediate node that the hashkey points to.
     ///
     /// # Examples

@@ -5,9 +5,8 @@ use crate::{
 };
 use anyhow::Result;
 use async_recursion::async_recursion;
-use hashbrown::HashMap;
 use serde::de::DeserializeOwned;
-use std::{hash::Hash, mem, rc::Rc};
+use std::{collections::HashMap, hash::Hash, mem, rc::Rc};
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
@@ -178,9 +177,10 @@ where
     match node_pointer {
         Pointer::Values(values) => values
             .iter()
-            .map(|Pair { key, .. }| NodeChange {
-                r#type,
-                hashkey: HashKey::with_length(H::hash(&key), hashkey.len() as u8 + 1),
+            .map(|Pair { key, .. }| {
+                let digest = H::hash(&key);
+                let hashkey = HashKey::with_length(digest, digest.len() as u8 * 2);
+                NodeChange { r#type, hashkey }
             })
             .collect(),
         Pointer::Link(_) => {
@@ -217,19 +217,22 @@ where
                 match other_map.get(&key) {
                     Some(v) => {
                         if *v != value {
+                            let digest = H::hash(&key);
+                            let hashkey = HashKey::with_length(digest, digest.len() as u8 * 2);
                             changes.push(NodeChange {
                                 r#type: ChangeType::Modify,
-                                hashkey: HashKey::with_length(
-                                    H::hash(&key),
-                                    hashkey.len() as u8 + 1,
-                                ),
+                                hashkey,
                             });
                         }
                     }
-                    None => changes.push(NodeChange {
-                        r#type: ChangeType::Add,
-                        hashkey: HashKey::with_length(H::hash(&key), hashkey.len() as u8 + 1),
-                    }),
+                    None => {
+                        let digest = H::hash(&key);
+                        let hashkey = HashKey::with_length(digest, digest.len() as u8 * 2);
+                        changes.push(NodeChange {
+                            r#type: ChangeType::Add,
+                            hashkey,
+                        })
+                    }
                 }
 
                 main_map.insert(key, value);
@@ -237,9 +240,11 @@ where
 
             for Pair { key, .. } in &other_values {
                 if matches!(main_map.get(key), None) {
+                    let digest = H::hash(&key);
+                    let hashkey = HashKey::with_length(digest, digest.len() as u8 * 2);
                     changes.push(NodeChange {
                         r#type: ChangeType::Remove,
-                        hashkey: HashKey::with_length(H::hash(&key), hashkey.len() as u8 + 1),
+                        hashkey,
                     })
                 }
             }
@@ -290,10 +295,11 @@ where
 mod tests {
     use super::{ChangeType::*, *};
     use crate::{
-        private::Node,
+        private::{Node, MAX_HASH_NIBBLE_LENGTH},
         utils::{self, test_setup},
     };
     use helper::*;
+    use sha3::Sha3_256;
     use std::rc::Rc;
 
     mod helper {
@@ -350,16 +356,26 @@ mod tests {
         .await
         .unwrap();
 
+        let hashkey_of_1 = HashKey::with_length(
+            Sha3_256::hash(&1_u32.to_le_bytes()),
+            MAX_HASH_NIBBLE_LENGTH as u8,
+        );
+
+        let hashkey_of_2 = HashKey::with_length(
+            Sha3_256::hash(&2_u32.to_le_bytes()),
+            MAX_HASH_NIBBLE_LENGTH as u8,
+        );
+
         assert_eq!(
             changes,
             vec![
                 NodeChange {
                     r#type: Add,
-                    hashkey: HashKey::with_length(utils::make_digest(&[0x1F]), 2)
+                    hashkey: hashkey_of_2.clone()
                 },
                 NodeChange {
                     r#type: Add,
-                    hashkey: HashKey::with_length(utils::make_digest(&[0x29]), 2),
+                    hashkey: hashkey_of_1.clone(),
                 },
             ]
         );
@@ -373,11 +389,11 @@ mod tests {
             vec![
                 NodeChange {
                     r#type: Remove,
-                    hashkey: HashKey::with_length(utils::make_digest(&[0x1F]), 2)
+                    hashkey: hashkey_of_2
                 },
                 NodeChange {
                     r#type: Remove,
-                    hashkey: HashKey::with_length(utils::make_digest(&[0x29]), 2),
+                    hashkey: hashkey_of_1,
                 },
             ]
         );
@@ -476,19 +492,31 @@ mod tests {
             vec![
                 NodeChange {
                     r#type: Modify,
-                    hashkey: HashKey::with_length(utils::make_digest(&[0xA3, 0x00]), 3),
+                    hashkey: HashKey::with_length(
+                        utils::make_digest(&[0xA3, 0x00]),
+                        MAX_HASH_NIBBLE_LENGTH as u8
+                    ),
                 },
                 NodeChange {
                     r#type: Remove,
-                    hashkey: HashKey::with_length(utils::make_digest(&[0xA7, 0x00]), 3),
+                    hashkey: HashKey::with_length(
+                        utils::make_digest(&[0xA7, 0x00]),
+                        MAX_HASH_NIBBLE_LENGTH as u8
+                    ),
                 },
                 NodeChange {
                     r#type: Add,
-                    hashkey: HashKey::with_length(utils::make_digest(&[0xAC, 0x00]), 3),
+                    hashkey: HashKey::with_length(
+                        utils::make_digest(&[0xAC, 0x00]),
+                        MAX_HASH_NIBBLE_LENGTH as u8
+                    ),
                 },
                 NodeChange {
                     r#type: Add,
-                    hashkey: HashKey::with_length(utils::make_digest(&[0xAE, 0x00]), 3),
+                    hashkey: HashKey::with_length(
+                        utils::make_digest(&[0xAE, 0x00]),
+                        MAX_HASH_NIBBLE_LENGTH as u8
+                    ),
                 },
             ]
         );
@@ -502,19 +530,31 @@ mod tests {
             vec![
                 NodeChange {
                     r#type: Modify,
-                    hashkey: HashKey::with_length(utils::make_digest(&[0xA3, 0x00]), 3),
+                    hashkey: HashKey::with_length(
+                        utils::make_digest(&[0xA3, 0x00]),
+                        MAX_HASH_NIBBLE_LENGTH as u8
+                    ),
                 },
                 NodeChange {
                     r#type: Add,
-                    hashkey: HashKey::with_length(utils::make_digest(&[0xA7, 0x00]), 3),
+                    hashkey: HashKey::with_length(
+                        utils::make_digest(&[0xA7, 0x00]),
+                        MAX_HASH_NIBBLE_LENGTH as u8
+                    ),
                 },
                 NodeChange {
                     r#type: Remove,
-                    hashkey: HashKey::with_length(utils::make_digest(&[0xAC, 0x00]), 3),
+                    hashkey: HashKey::with_length(
+                        utils::make_digest(&[0xAC, 0x00]),
+                        MAX_HASH_NIBBLE_LENGTH as u8
+                    ),
                 },
                 NodeChange {
                     r#type: Remove,
-                    hashkey: HashKey::with_length(utils::make_digest(&[0xAE, 0x00]), 3),
+                    hashkey: HashKey::with_length(
+                        utils::make_digest(&[0xAE, 0x00]),
+                        MAX_HASH_NIBBLE_LENGTH as u8
+                    ),
                 },
             ]
         );
@@ -525,22 +565,22 @@ mod tests {
 mod proptests {
     use super::*;
     use crate::{
-        private::strategies::{self, operations, Operations},
-        utils::{test_setup, Sampleable},
+        private::strategies::{self, generate_ops_and_changes, Change, Operations},
+        utils::test_setup,
     };
     use async_std::task;
     use test_strategy::proptest;
 
     #[proptest]
     fn add_remove_flip(
-        #[strategy(operations("[a-z0-9]{1,8}", 0..u64::MAX, 1..100))] ops: Operations<String, u64>,
+        #[strategy(generate_ops_and_changes())] ops_changes: (
+            Operations<String, u64>,
+            Vec<Change<String, u64>>,
+        ),
     ) {
         task::block_on(async {
-            let (store, runner) = test_setup::init!(mut store, mut runner);
-
-            let map = HashMap::from(&ops);
-            let pairs = strategies::collect_map_pairs(&map);
-            let strategy_changes = strategies::get_changes(&pairs).sample(runner);
+            let store = test_setup::init!(mut store);
+            let (ops, strategy_changes) = ops_changes;
 
             let other_node = strategies::prepare_node(
                 strategies::node_from_operations(&ops, store).await.unwrap(),

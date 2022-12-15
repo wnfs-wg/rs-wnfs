@@ -438,27 +438,26 @@ mod tests {
 mod proptests {
     use crate::{
         private::{
-            strategies::{self, operations, Change, Operations},
+            strategies::{self, generate_ops_and_changes, Change, Operations},
             ChangeType,
         },
-        utils::{test_setup, Sampleable},
+        utils::test_setup,
         Link,
     };
     use async_std::task;
-    use hashbrown::HashMap;
-    use std::rc::Rc;
+    use std::{collections::HashSet, rc::Rc};
     use test_strategy::proptest;
 
-    #[proptest(cases = 100)]
+    #[proptest(cases = 100, max_shrink_iters = 4000)]
     fn diff_correspondence(
-        #[strategy(operations("[a-z0-9]{1,8}", 0..u64::MAX, 1..100))] ops: Operations<String, u64>,
+        #[strategy(generate_ops_and_changes())] ops_changes: (
+            Operations<String, u64>,
+            Vec<Change<String, u64>>,
+        ),
     ) {
         task::block_on(async {
-            let (store, runner) = test_setup::init!(mut store, mut runner);
-
-            let map = HashMap::from(&ops);
-            let pairs = strategies::collect_map_pairs(&map);
-            let strategy_changes = strategies::get_changes(&pairs).sample(runner);
+            let store = test_setup::init!(mut store);
+            let (ops, strategy_changes) = ops_changes;
 
             let other_node = strategies::prepare_node(
                 strategies::node_from_operations(&ops, store).await.unwrap(),
@@ -485,28 +484,70 @@ mod proptests {
             assert_eq!(strategy_changes.len(), changes.len());
             for strategy_change in strategy_changes {
                 assert!(changes.iter().any(|c| match &strategy_change {
-                    Change::Add(_k, _) => c.r#type == ChangeType::Add,
-                    Change::Modify(_k, _) => {
-                        c.r#type == ChangeType::Modify
+                    Change::Add(k, _) => c.r#type == ChangeType::Add && &c.key == k,
+                    Change::Modify(k, _) => {
+                        c.r#type == ChangeType::Modify && &c.key == k
                     }
-                    Change::Remove(_k) => {
-                        c.r#type == ChangeType::Remove
+                    Change::Remove(k) => {
+                        c.r#type == ChangeType::Remove && &c.key == k
                     }
                 }));
             }
         });
     }
 
-    #[proptest(cases = 100)]
-    fn add_remove_flip(
-        #[strategy(operations("[a-z0-9]{1,8}", 0..u64::MAX, 1..100))] ops: Operations<String, u64>,
+    #[proptest(cases = 1000, max_shrink_iters = 40000)]
+    fn diff_unique(
+        #[strategy(generate_ops_and_changes())] ops_changes: (
+            Operations<String, u64>,
+            Vec<Change<String, u64>>,
+        ),
     ) {
         task::block_on(async {
-            let (store, runner) = test_setup::init!(mut store, mut runner);
+            let store = test_setup::init!(mut store);
+            let (ops, strategy_changes) = ops_changes;
 
-            let map = HashMap::from(&ops);
-            let pairs = strategies::collect_map_pairs(&map);
-            let strategy_changes = strategies::get_changes(&pairs).sample(runner);
+            let other_node = strategies::prepare_node(
+                strategies::node_from_operations(&ops, store).await.unwrap(),
+                &strategy_changes,
+                store,
+            )
+            .await
+            .unwrap();
+
+            let main_node =
+                strategies::apply_changes(Rc::clone(&other_node), &strategy_changes, store)
+                    .await
+                    .unwrap();
+
+            let changes = super::kv_diff(
+                Link::from(Rc::clone(&main_node)),
+                Link::from(Rc::clone(&other_node)),
+                None,
+                store,
+            )
+            .await
+            .unwrap();
+
+            let change_set = changes
+                .iter()
+                .map(|c| c.key.clone())
+                .collect::<HashSet<_>>();
+
+            assert_eq!(change_set.len(), changes.len());
+        });
+    }
+
+    #[proptest(cases = 100)]
+    fn add_remove_flip(
+        #[strategy(generate_ops_and_changes())] ops_changes: (
+            Operations<String, u64>,
+            Vec<Change<String, u64>>,
+        ),
+    ) {
+        task::block_on(async {
+            let store = test_setup::init!(mut store);
+            let (ops, strategy_changes) = ops_changes;
 
             let other_node = strategies::prepare_node(
                 strategies::node_from_operations(&ops, store).await.unwrap(),

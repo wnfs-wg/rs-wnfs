@@ -1,9 +1,8 @@
 use crate::{private::hamt::node::*, BlockStore};
 use anyhow::Result;
-use hashbrown::HashMap;
 use proptest::{collection::*, prelude::*, strategy::Shuffleable};
 use serde::{de::DeserializeOwned, Serialize};
-use std::{fmt::Debug, hash::Hash, rc::Rc};
+use std::{collections::HashMap, fmt::Debug, hash::Hash, rc::Rc};
 
 //--------------------------------------------------------------------------------------------------
 // Types

@@ -8,7 +8,10 @@ use std::fmt::Debug;
 // Constants
 //--------------------------------------------------------------------------------------------------
 
-const MAX_CURSOR_DEPTH: usize = HASH_BYTE_SIZE * 2;
+/// The number of nibbles in a [`HashOutput`][HashOutput].
+///
+/// [HashOutput]: crate::HashOutput
+pub const MAX_HASH_NIBBLE_LENGTH: usize = HASH_BYTE_SIZE * 2;
 
 //--------------------------------------------------------------------------------------------------
 // Type Definition
@@ -116,7 +119,7 @@ impl Iterator for HashNibbles<'_> {
     type Item = u8;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.cursor >= MAX_CURSOR_DEPTH {
+        if self.cursor >= MAX_HASH_NIBBLE_LENGTH {
             return None;
         }
 
@@ -185,6 +188,10 @@ impl HashKey {
     /// assert_eq!(hashkey.len(), 16);
     /// ```
     pub fn push(&mut self, nibble: u8) {
+        if self.length >= MAX_HASH_NIBBLE_LENGTH as u8 {
+            panic!("HashKey is full");
+        }
+
         let offset = self.length as usize / 2;
         let byte = self.digest[offset];
         let byte = if self.length as usize % 2 == 0 {
@@ -353,7 +360,7 @@ mod tests {
 
         // Exhaust the iterator.
         let _ = hashnibbles
-            .take(MAX_CURSOR_DEPTH - expected_nibbles.len())
+            .take(MAX_HASH_NIBBLE_LENGTH - expected_nibbles.len())
             .collect::<Vec<_>>();
 
         assert_eq!(hashnibbles.next(), None);
