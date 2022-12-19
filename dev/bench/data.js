@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1671439940040,
+  "lastUpdate": 1671440008325,
   "repoUrl": "https://github.com/wnfs-wg/rs-wnfs",
   "entries": {
     "Rust Benchmark": [
@@ -3085,6 +3085,96 @@ window.BENCHMARK_DATA = {
             "name": "namefilter encode",
             "value": 174,
             "range": "± 8",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter decode/0",
+            "value": 1,
+            "range": "± 0",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "49699333+dependabot[bot]@users.noreply.github.com",
+            "name": "dependabot[bot]",
+            "username": "dependabot[bot]"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "b258a6bf53d02a10363e9edd2ebda918a99426c3",
+          "message": "chore(npm)(deps-dev): bump multiformats in /wnfs-wasm (#125)\n\nBumps [multiformats](https://github.com/multiformats/js-multiformats) from 10.0.2 to 10.0.3.\r\n- [Release notes](https://github.com/multiformats/js-multiformats/releases)\r\n- [Changelog](https://github.com/multiformats/js-multiformats/blob/master/CHANGELOG.md)\r\n- [Commits](https://github.com/multiformats/js-multiformats/compare/v10.0.2...v10.0.3)\r\n\r\n---\r\nupdated-dependencies:\r\n- dependency-name: multiformats\r\n  dependency-type: direct:development\r\n  update-type: version-update:semver-patch\r\n...\r\n\r\nSigned-off-by: dependabot[bot] <support@github.com>\r\n\r\nSigned-off-by: dependabot[bot] <support@github.com>\r\nCo-authored-by: dependabot[bot] <49699333+dependabot[bot]@users.noreply.github.com>",
+          "timestamp": "2022-12-19T09:47:12+01:00",
+          "tree_id": "c461bdc20c5087d5430572ec9d83c6e57e5a620e",
+          "url": "https://github.com/wnfs-wg/rs-wnfs/commit/b258a6bf53d02a10363e9edd2ebda918a99426c3"
+        },
+        "date": 1671440007266,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "node set",
+            "value": 6405,
+            "range": "± 89",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node set 1000 consecutive",
+            "value": 3753227,
+            "range": "± 16174",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and get",
+            "value": 133580,
+            "range": "± 317",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and remove",
+            "value": 147995,
+            "range": "± 721",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt load and decode/0",
+            "value": 30057,
+            "range": "± 90",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt set and encode",
+            "value": 149838,
+            "range": "± 756",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter add",
+            "value": 7495,
+            "range": "± 52",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter contains",
+            "value": 11203,
+            "range": "± 68",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter saturate",
+            "value": 36714,
+            "range": "± 69",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter encode",
+            "value": 152,
+            "range": "± 5",
             "unit": "ns/iter"
           },
           {
