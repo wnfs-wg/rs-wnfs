@@ -2,7 +2,7 @@
   "devDependencies": {
     "@playwright/test": "^1.29.0",
     "@wasm-tool/wasm-pack-plugin": "^1.6.0",
-    "css-loader": "^6.7.2",
+    "css-loader": "^6.7.3",
     "file-loader": "^6.2.0",
     "html-webpack-plugin": "^5.5.0",
     "multiformats": "^10.0.3",
