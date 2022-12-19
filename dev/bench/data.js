@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1671440008325,
+  "lastUpdate": 1671441276297,
   "repoUrl": "https://github.com/wnfs-wg/rs-wnfs",
   "entries": {
     "Rust Benchmark": [
@@ -3175,6 +3175,96 @@ window.BENCHMARK_DATA = {
             "name": "namefilter encode",
             "value": 152,
             "range": "± 5",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter decode/0",
+            "value": 1,
+            "range": "± 0",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "49699333+dependabot[bot]@users.noreply.github.com",
+            "name": "dependabot[bot]",
+            "username": "dependabot[bot]"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "5d1f76f3d7ab9e602ff6e411b3733a92ef763e24",
+          "message": "chore(npm)(deps-dev): bump css-loader from 6.7.2 to 6.7.3 in /wnfs-wasm (#124)\n\nBumps [css-loader](https://github.com/webpack-contrib/css-loader) from 6.7.2 to 6.7.3.\r\n- [Release notes](https://github.com/webpack-contrib/css-loader/releases)\r\n- [Changelog](https://github.com/webpack-contrib/css-loader/blob/master/CHANGELOG.md)\r\n- [Commits](https://github.com/webpack-contrib/css-loader/compare/v6.7.2...v6.7.3)\r\n\r\n---\r\nupdated-dependencies:\r\n- dependency-name: css-loader\r\n  dependency-type: direct:development\r\n  update-type: version-update:semver-patch\r\n...\r\n\r\nSigned-off-by: dependabot[bot] <support@github.com>\r\n\r\nSigned-off-by: dependabot[bot] <support@github.com>\r\nCo-authored-by: dependabot[bot] <49699333+dependabot[bot]@users.noreply.github.com>",
+          "timestamp": "2022-12-19T10:11:38+01:00",
+          "tree_id": "02de4970ba167afc4d61fd129fb81ee0f7c36252",
+          "url": "https://github.com/wnfs-wg/rs-wnfs/commit/5d1f76f3d7ab9e602ff6e411b3733a92ef763e24"
+        },
+        "date": 1671441275751,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "node set",
+            "value": 6566,
+            "range": "± 85",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node set 1000 consecutive",
+            "value": 4429954,
+            "range": "± 16574",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and get",
+            "value": 152206,
+            "range": "± 193",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and remove",
+            "value": 169671,
+            "range": "± 131",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt load and decode/0",
+            "value": 35086,
+            "range": "± 35",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt set and encode",
+            "value": 169396,
+            "range": "± 285",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter add",
+            "value": 7677,
+            "range": "± 58",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter contains",
+            "value": 9595,
+            "range": "± 92",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter saturate",
+            "value": 41335,
+            "range": "± 115",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter encode",
+            "value": 161,
+            "range": "± 10",
             "unit": "ns/iter"
           },
           {
