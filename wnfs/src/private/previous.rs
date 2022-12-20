@@ -104,9 +104,9 @@ impl PrivateNodeHistory {
     /// previous point in history.
     ///
     /// Returns `None` if there is no such node in the `PrivateForest` at that point in time.
-    pub async fn get_previous_node<B: BlockStore>(
+    pub async fn get_previous_node(
         &mut self,
-        store: &B,
+        store: &impl BlockStore,
     ) -> Result<Option<PrivateNode>> {
         let Some(previous_ratchet) = self.ratchets.next()
         else {
@@ -149,9 +149,9 @@ impl PrivateNodeHistory {
     /// Returns `None` if there is no previous node with that revision in the `PrivateForest`,
     /// throws `FsError::NotADirectory` if the previous node happens to not be a directory.
     /// That should only happen for all nodes or for none.
-    pub async fn get_previous_dir<B: BlockStore>(
+    pub async fn get_previous_dir(
         &mut self,
-        store: &B,
+        store: &impl BlockStore,
     ) -> Result<Option<Rc<PrivateDirectory>>> {
         match self.get_previous_node(store).await? {
             Some(PrivateNode::Dir(dir)) => Ok(Some(dir)),
@@ -165,9 +165,9 @@ impl PrivateNodeHistory {
     /// Returns `None` if there is no previous node with that revision in the `PrivateForest`,
     /// throws `FsError::NotAFile` if the previous node happens to not be a file.
     /// That should only happen for all nodes or for none.
-    pub async fn get_previous_file<B: BlockStore>(
+    pub async fn get_previous_file(
         &mut self,
-        store: &B,
+        store: &impl BlockStore,
     ) -> Result<Option<Rc<PrivateFile>>> {
         match self.get_previous_node(store).await? {
             Some(PrivateNode::File(file)) => Ok(Some(file)),
@@ -188,14 +188,14 @@ impl PrivateNodeOnPathHistory {
     /// When `search_latest` is true, it follow the path in the current revision
     /// down to the child, and then look for the latest revision of the target node,
     /// including all in-between versions in the history.
-    pub async fn of<B: BlockStore>(
+    pub async fn of(
         directory: Rc<PrivateDirectory>,
         past_ratchet: &Ratchet,
         discrepancy_budget: usize,
         path_segments: &[String],
         search_latest: bool,
         forest: Rc<PrivateForest>,
-        store: &B,
+        store: &impl BlockStore,
     ) -> Result<PrivateNodeOnPathHistory> {
         // To get the history on a node on a path from a given directory that we
         // know its newest and oldest ratchet of, we need to generate
@@ -261,14 +261,14 @@ impl PrivateNodeOnPathHistory {
     /// until the current revision.
     ///
     /// If `search_latest` is false, the target history is empty.
-    async fn path_nodes_and_target_history<B: BlockStore>(
+    async fn path_nodes_and_target_history(
         dir: Rc<PrivateDirectory>,
         discrepancy_budget: usize,
         path_segments: &[String],
         target_path_segment: &String,
         search_latest: bool,
         forest: Rc<PrivateForest>,
-        store: &B,
+        store: &impl BlockStore,
     ) -> Result<(Vec<(Rc<PrivateDirectory>, String)>, PrivateNodeHistory)> {
         // We only search for the latest revision in the private node.
         // It may have been deleted in future versions of its ancestor directories.
@@ -332,7 +332,7 @@ impl PrivateNodeOnPathHistory {
     /// Step the history one revision back and retrieve the node at the configured path.
     ///
     /// Returns `None` if there is no more previous revisions.
-    pub async fn get_previous<B: BlockStore>(&mut self, store: &B) -> Result<Option<PrivateNode>> {
+    pub async fn get_previous(&mut self, store: &impl BlockStore) -> Result<Option<PrivateNode>> {
         // Finding the previous revision of a node works by trying to get
         // the previous revision of the path elements starting on the deepest
         // path node working upwards, in case the history of lower nodes
@@ -399,9 +399,9 @@ impl PrivateNodeOnPathHistory {
     ///
     /// Returns None if the no path segment history in the stack has any
     /// more history entries.
-    async fn find_and_step_segment_history<B: BlockStore>(
+    async fn find_and_step_segment_history(
         &mut self,
-        store: &B,
+        store: &impl BlockStore,
     ) -> Result<Option<Vec<(Rc<PrivateDirectory>, String)>>> {
         let mut working_stack = Vec::with_capacity(self.path.len());
 
@@ -435,10 +435,10 @@ impl PrivateNodeOnPathHistory {
     /// a steppable history entry on top.
     ///
     /// Returns false if there's no corresponding path in the previous revision.
-    async fn repopulate_segment_histories<B: BlockStore>(
+    async fn repopulate_segment_histories(
         &mut self,
         working_stack: Vec<(Rc<PrivateDirectory>, String)>,
-        store: &B,
+        store: &impl BlockStore,
     ) -> Result<bool> {
         // Work downwards from the previous history entry of a path segment we found
         for (directory, path_segment) in working_stack {

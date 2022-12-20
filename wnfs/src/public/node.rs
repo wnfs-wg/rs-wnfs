@@ -187,7 +187,7 @@ impl PublicNode {
     }
 
     /// Serializes a node to the block store.
-    pub async fn store<B: BlockStore>(&self, store: &mut B) -> Result<Cid> {
+    pub async fn store(&self, store: &mut impl BlockStore) -> Result<Cid> {
         Ok(match self {
             Self::File(file) => file.store(store).await?,
             Self::Dir(dir) => dir.store(store).await?,

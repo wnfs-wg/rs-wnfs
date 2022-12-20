@@ -125,7 +125,7 @@ impl PrivateFile {
     ///
     /// println!("file = {:?}", file);
     /// ```
-    pub fn new<R: RngCore>(parent_bare_name: Namefilter, time: DateTime<Utc>, rng: &mut R) -> Self {
+    pub fn new(parent_bare_name: Namefilter, time: DateTime<Utc>, rng: &mut impl RngCore) -> Self {
         Self {
             persisted_as: OnceCell::new(),
             version: Version::new(0, 2, 0),
@@ -170,13 +170,13 @@ impl PrivateFile {
     ///     println!("file = {:?}", file);
     /// }
     /// ```
-    pub async fn with_content<B: BlockStore, R: RngCore>(
+    pub async fn with_content(
         parent_bare_name: Namefilter,
         time: DateTime<Utc>,
         content: Vec<u8>,
         forest: Rc<PrivateForest>,
-        store: &mut B,
-        rng: &mut R,
+        store: &mut impl BlockStore,
+        rng: &mut impl RngCore,
     ) -> Result<(Self, Rc<PrivateForest>)> {
         let header = PrivateNodeHeader::new(parent_bare_name, rng);
         let (content, forest) =
@@ -237,11 +237,11 @@ impl PrivateFile {
     ///     assert_eq!(content, stream_content);
     /// }
     /// ```
-    pub fn stream_content<'a, B: BlockStore>(
+    pub fn stream_content<'a>(
         &'a self,
         index: usize,
         forest: &'a PrivateForest,
-        store: &'a B,
+        store: &'a impl BlockStore,
     ) -> impl Stream<Item = Result<Vec<u8>>> + 'a {
         Box::pin(try_stream! {
             match &self.content {
@@ -304,10 +304,10 @@ impl PrivateFile {
     ///     assert_eq!(content, all_content);
     /// }
     /// ```
-    pub async fn get_content<B: BlockStore>(
+    pub async fn get_content(
         &self,
         forest: &PrivateForest,
-        store: &B,
+        store: &impl BlockStore,
     ) -> Result<Vec<u8>> {
         let mut content = Vec::with_capacity(self.get_content_size_upper_bound());
         let mut stream = self.stream_content(0, forest, store);
@@ -318,12 +318,12 @@ impl PrivateFile {
     }
 
     /// Determines where to put the content of a file. This can either be inline or stored up in chunks in a private forest.
-    pub(super) async fn prepare_content<B: BlockStore, R: RngCore>(
+    pub(super) async fn prepare_content(
         bare_name: &Namefilter,
         content: Vec<u8>,
         mut forest: Rc<PrivateForest>,
-        store: &mut B,
-        rng: &mut R,
+        store: &mut impl BlockStore,
+        rng: &mut impl RngCore,
     ) -> Result<(FileContent, Rc<PrivateForest>)> {
         // TODO(appcypher): Use a better heuristic to determine when to use external storage.
         let key = Key(get_random_bytes(rng));
@@ -365,11 +365,11 @@ impl PrivateFile {
     }
 
     /// Decrypts a block of a file's content.
-    async fn decrypt_block<B: BlockStore>(
+    async fn decrypt_block(
         key: &Key,
         label: &Namefilter,
         forest: &PrivateForest,
-        store: &B,
+        store: &impl BlockStore,
     ) -> Result<Vec<u8>> {
         let label_hash = &Sha3_256::hash(&label.as_bytes());
 
@@ -426,9 +426,9 @@ impl PrivateFile {
     /// It will store the current revision in the given `BlockStore` to
     /// retrieve its CID and put that into the `previous` links,
     /// as well as advancing the ratchet and resetting the `persisted_as` pointer.
-    pub(crate) async fn prepare_next_revision<B: BlockStore>(
+    pub(crate) async fn prepare_next_revision(
         self: Rc<Self>,
-        store: &mut B,
+        store: &mut impl BlockStore,
         rng: &mut impl RngCore,
     ) -> Result<Self> {
         let cid = self.store(store, rng).await?;
@@ -453,11 +453,11 @@ impl PrivateFile {
     /// so it inherits the write access rules from the new parent and
     /// resets the `persisted_as` pointer.
     /// Will copy and re-encrypt all external content.
-    pub(crate) async fn prepare_key_rotation<B: BlockStore>(
+    pub(crate) async fn prepare_key_rotation(
         &mut self,
         parent_bare_name: Namefilter,
         forest: Rc<PrivateForest>,
-        store: &mut B,
+        store: &mut impl BlockStore,
         rng: &mut impl RngCore,
     ) -> Result<Rc<PrivateForest>> {
         let content = self.get_content(&forest, store).await?;
@@ -475,10 +475,10 @@ impl PrivateFile {
     }
 
     /// Serializes the file with provided Serde serialilzer.
-    pub(crate) fn serialize<S, R: RngCore>(
+    pub(crate) fn serialize<S>(
         &self,
         serializer: S,
-        rng: &mut R,
+        rng: &mut impl RngCore,
     ) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
@@ -532,9 +532,9 @@ impl PrivateFile {
         })
     }
 
-    pub(crate) async fn store<B: BlockStore>(
+    pub(crate) async fn store(
         &self,
-        store: &mut B,
+        store: &mut impl BlockStore,
         rng: &mut impl RngCore,
     ) -> Result<Cid> {
         let cid = self

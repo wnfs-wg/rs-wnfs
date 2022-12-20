@@ -97,7 +97,7 @@ impl PrivateDirectory {
     ///
     /// println!("dir = {:?}", dir);
     /// ```
-    pub fn new<R: RngCore>(parent_bare_name: Namefilter, time: DateTime<Utc>, rng: &mut R) -> Self {
+    pub fn new(parent_bare_name: Namefilter, time: DateTime<Utc>, rng: &mut impl RngCore) -> Self {
         Self {
             persisted_as: OnceCell::new(),
             version: Version::new(0, 2, 0),
@@ -169,11 +169,11 @@ impl PrivateDirectory {
     }
 
     /// Creates a new `PathNodes` that is not based on an existing file tree.
-    pub(crate) fn create_path_nodes<R: RngCore>(
+    pub(crate) fn create_path_nodes(
         path_segments: &[String],
         time: DateTime<Utc>,
         parent_bare_name: Namefilter,
-        rng: &mut R,
+        rng: &mut impl RngCore,
     ) -> PrivatePathNodes {
         let mut working_parent_bare_name = parent_bare_name;
         let path: Vec<(Rc<PrivateDirectory>, String)> = path_segments
@@ -205,12 +205,12 @@ impl PrivateDirectory {
     /// Uses specified path segments and their existence in the file tree to generate `PathNodes`.
     ///
     /// Supports cases where the entire path does not exist.
-    pub(crate) async fn get_path_nodes<B: BlockStore>(
+    pub(crate) async fn get_path_nodes(
         self: Rc<Self>,
         path_segments: &[String],
         search_latest: bool,
         forest: &PrivateForest,
-        store: &B,
+        store: &impl BlockStore,
     ) -> Result<PrivatePathNodesResult> {
         use PathNodesResult::*;
         let mut working_node = self;
@@ -251,14 +251,14 @@ impl PrivateDirectory {
     }
 
     /// Uses specified path segments to generate `PathNodes`. Creates missing directories as needed.
-    pub(crate) async fn get_or_create_path_nodes<B: BlockStore, R: RngCore>(
+    pub(crate) async fn get_or_create_path_nodes(
         self: Rc<Self>,
         path_segments: &[String],
         search_latest: bool,
         time: DateTime<Utc>,
         forest: &PrivateForest,
-        store: &mut B,
-        rng: &mut R,
+        store: &mut impl BlockStore,
+        rng: &mut impl RngCore,
     ) -> Result<PrivatePathNodes> {
         use PathNodesResult::*;
         match self
@@ -297,9 +297,9 @@ impl PrivateDirectory {
     /// It will store the current revision in the given `BlockStore` to
     /// retrieve its CID and put that into the `previous` links,
     /// as well as advancing the ratchet and resetting the `persisted_as` pointer.
-    pub(crate) async fn prepare_next_revision<B: BlockStore>(
+    pub(crate) async fn prepare_next_revision(
         self: Rc<Self>,
-        store: &mut B,
+        store: &mut impl BlockStore,
         rng: &mut impl RngCore,
     ) -> Result<Self> {
         let cid = self.store(store, rng).await?;
@@ -335,11 +335,11 @@ impl PrivateDirectory {
     }
 
     /// Fix up `PathNodes` so that parents refer to the newly updated children.
-    async fn fix_up_path_nodes<B: BlockStore, R: RngCore>(
+    async fn fix_up_path_nodes(
         path_nodes: PrivatePathNodes,
         mut forest: Rc<PrivateForest>,
-        store: &mut B,
-        rng: &mut R,
+        store: &mut impl BlockStore,
+        rng: &mut impl RngCore,
     ) -> Result<(Rc<Self>, Rc<PrivateForest>)> {
         let mut working_child_dir =
             Rc::new(path_nodes.tail.prepare_next_revision(store, rng).await?);
@@ -423,12 +423,12 @@ impl PrivateDirectory {
     ///     assert!(result.is_some());
     /// }
     /// ```
-    pub async fn get_node<B: BlockStore>(
+    pub async fn get_node(
         self: Rc<Self>,
         path_segments: &[String],
         search_latest: bool,
         forest: Rc<PrivateForest>,
-        store: &B,
+        store: &impl BlockStore,
     ) -> Result<PrivateOpResult<Option<PrivateNode>>> {
         use PathNodesResult::*;
         let root_dir = Rc::clone(&self);
@@ -513,12 +513,12 @@ impl PrivateDirectory {
     ///     assert_eq!(&result, content);
     /// }
     /// ```
-    pub async fn read<B: BlockStore>(
+    pub async fn read(
         self: Rc<Self>,
         path_segments: &[String],
         search_latest: bool,
         forest: Rc<PrivateForest>,
-        store: &B,
+        store: &impl BlockStore,
     ) -> Result<PrivateOpResult<Vec<u8>>> {
         let root_dir = Rc::clone(&self);
         let (path, filename) = utils::split_last(path_segments)?;
@@ -600,15 +600,15 @@ impl PrivateDirectory {
     /// }
     /// ```
     #[allow(clippy::too_many_arguments)]
-    pub async fn write<B: BlockStore, R: RngCore>(
+    pub async fn write(
         self: Rc<Self>,
         path_segments: &[String],
         search_latest: bool,
         time: DateTime<Utc>,
         content: Vec<u8>,
         forest: Rc<PrivateForest>,
-        store: &mut B,
-        rng: &mut R,
+        store: &mut impl BlockStore,
+        rng: &mut impl RngCore,
     ) -> Result<PrivateOpResult<()>> {
         let (directory_path, filename) = utils::split_last(path_segments)?;
 
@@ -721,12 +721,12 @@ impl PrivateDirectory {
     ///     assert!(node.is_some());
     /// }
     /// ```
-    pub async fn lookup_node<'a, B: BlockStore>(
+    pub async fn lookup_node(
         &self,
         path_segment: &str,
         search_latest: bool,
         forest: &PrivateForest,
-        store: &B,
+        store: &impl BlockStore,
     ) -> Result<Option<PrivateNode>> {
         Ok(match self.entries.get(path_segment) {
             Some(private_ref) => {
@@ -781,14 +781,14 @@ impl PrivateDirectory {
     ///     assert!(node.is_some());
     /// }
     /// ```
-    pub async fn mkdir<B: BlockStore, R: RngCore>(
+    pub async fn mkdir(
         self: Rc<Self>,
         path_segments: &[String],
         search_latest: bool,
         time: DateTime<Utc>,
         forest: Rc<PrivateForest>,
-        store: &mut B,
-        rng: &mut R,
+        store: &mut impl BlockStore,
+        rng: &mut impl RngCore,
     ) -> Result<PrivateOpResult<()>> {
         let path_nodes = self
             .get_or_create_path_nodes(path_segments, search_latest, time, &forest, store, rng)
@@ -860,12 +860,12 @@ impl PrivateDirectory {
     ///     );
     /// }
     /// ```
-    pub async fn ls<B: BlockStore>(
+    pub async fn ls(
         self: Rc<Self>,
         path_segments: &[String],
         search_latest: bool,
         forest: Rc<PrivateForest>,
-        store: &B,
+        store: &impl BlockStore,
     ) -> Result<PrivateOpResult<Vec<(String, Metadata)>>> {
         let root_dir = Rc::clone(&self);
         match self
@@ -958,13 +958,13 @@ impl PrivateDirectory {
     ///     assert_eq!(result.len(), 0);
     /// }
     /// ```
-    pub async fn rm<B: BlockStore, R: RngCore>(
+    pub async fn rm(
         self: Rc<Self>,
         path_segments: &[String],
         search_latest: bool,
         forest: Rc<PrivateForest>,
-        store: &mut B,
-        rng: &mut R,
+        store: &mut impl BlockStore,
+        rng: &mut impl RngCore,
     ) -> Result<PrivateOpResult<PrivateNode>> {
         let (directory_path, node_name) = utils::split_last(path_segments)?;
 
@@ -1003,15 +1003,15 @@ impl PrivateDirectory {
     ///
     /// Fixes up the subtree bare names to refer to the new parent.
     #[allow(clippy::too_many_arguments)]
-    async fn attach<B: BlockStore, R: RngCore>(
+    async fn attach(
         self: Rc<Self>,
         node: PrivateNode,
         path_segments: &[String],
         search_latest: bool,
         time: DateTime<Utc>,
         forest: Rc<PrivateForest>,
-        store: &mut B,
-        rng: &mut R,
+        store: &mut impl BlockStore,
+        rng: &mut impl RngCore,
     ) -> Result<PrivateOpResult<()>> {
         let (directory_path, filename) = utils::split_last(path_segments)?;
 
@@ -1113,15 +1113,15 @@ impl PrivateDirectory {
     /// }
     /// ```
     #[allow(clippy::too_many_arguments)]
-    pub async fn basic_mv<B: BlockStore, R: RngCore>(
+    pub async fn basic_mv(
         self: Rc<Self>,
         path_segments_from: &[String],
         path_segments_to: &[String],
         search_latest: bool,
         time: DateTime<Utc>,
         forest: Rc<PrivateForest>,
-        store: &mut B,
-        rng: &mut R,
+        store: &mut impl BlockStore,
+        rng: &mut impl RngCore,
     ) -> Result<PrivateOpResult<()>> {
         let PrivateOpResult {
             root_dir,
@@ -1206,15 +1206,15 @@ impl PrivateDirectory {
     /// }
     /// ```
     #[allow(clippy::too_many_arguments)]
-    pub async fn cp<B: BlockStore, R: RngCore>(
+    pub async fn cp(
         self: Rc<Self>,
         path_segments_from: &[String],
         path_segments_to: &[String],
         search_latest: bool,
         time: DateTime<Utc>,
         forest: Rc<PrivateForest>,
-        store: &mut B,
-        rng: &mut R,
+        store: &mut impl BlockStore,
+        rng: &mut impl RngCore,
     ) -> Result<PrivateOpResult<()>> {
         let PrivateOpResult {
             root_dir,
@@ -1238,10 +1238,10 @@ impl PrivateDirectory {
     }
 
     /// Serializes the directory with provided Serde serialilzer.
-    pub(crate) fn serialize<S, R: RngCore>(
+    pub(crate) fn serialize<S>(
         &self,
         serializer: S,
-        rng: &mut R,
+        rng: &mut impl RngCore,
     ) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
@@ -1314,7 +1314,7 @@ impl PrivateDirectory {
         })
     }
 
-    pub async fn store<B: BlockStore>(&self, store: &mut B, rng: &mut impl RngCore) -> Result<Cid> {
+    pub async fn store(&self, store: &mut impl BlockStore, rng: &mut impl RngCore) -> Result<Cid> {
         let cid = self
             .persisted_as
             .get_or_try_init::<anyhow::Error>(async {

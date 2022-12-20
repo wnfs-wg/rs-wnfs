@@ -56,7 +56,7 @@ impl<T> Link<T> {
     }
 
     /// Gets the value stored in link. It attempts to get it from the store if it is not present in link.
-    pub async fn resolve_value<B: BlockStore>(&self, store: &B) -> Result<&T>
+    pub async fn resolve_value<B: BlockStore + ?Sized>(&self, store: &B) -> Result<&T>
     where
         T: DeserializeOwned,
     {
@@ -91,7 +91,7 @@ impl<T> Link<T> {
     }
 
     /// Gets an owned value from type. It attempts to it get from the store if it is not present in type.
-    pub async fn get_owned_value<B: BlockStore>(self, store: &B) -> Result<T>
+    pub async fn get_owned_value<B: BlockStore + ?Sized>(self, store: &B) -> Result<T>
     where
         T: DeserializeOwned,
     {
@@ -124,7 +124,7 @@ impl<T> Link<T> {
     }
 
     /// Compares two links for equality. Attempts to get them from store if they are not already cached.
-    pub async fn deep_eq<B: BlockStore>(&self, other: &Link<T>, store: &mut B) -> Result<bool>
+    pub async fn deep_eq(&self, other: &Link<T>, store: &mut impl BlockStore) -> Result<bool>
     where
         T: PartialEq + AsyncSerialize,
     {
@@ -138,7 +138,7 @@ impl<T> Link<T> {
 
 #[async_trait(?Send)]
 impl<T: PartialEq + AsyncSerialize> IpldEq for Link<T> {
-    async fn eq<B: BlockStore>(&self, other: &Link<T>, store: &mut B) -> Result<bool> {
+    async fn eq<B: BlockStore + ?Sized>(&self, other: &Link<T>, store: &mut B) -> Result<bool> {
         if self == other {
             return Ok(true);
         }

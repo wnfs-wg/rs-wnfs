@@ -134,7 +134,7 @@ impl PrivateNode {
     }
 
     /// Generates two random set of bytes.
-    pub(crate) fn generate_double_random<R: RngCore>(rng: &mut R) -> (HashOutput, HashOutput) {
+    pub(crate) fn generate_double_random(rng: &mut impl RngCore) -> (HashOutput, HashOutput) {
         const _DOUBLE_SIZE: usize = HASH_BYTE_SIZE * 2;
         let [first, second] = unsafe {
             std::mem::transmute::<[u8; _DOUBLE_SIZE], [[u8; HASH_BYTE_SIZE]; 2]>(
@@ -146,12 +146,12 @@ impl PrivateNode {
 
     /// Updates bare name ancestry of private sub tree.
     #[async_recursion(?Send)]
-    pub(crate) async fn update_ancestry<B: BlockStore, R: RngCore>(
+    pub(crate) async fn update_ancestry(
         &mut self,
         parent_bare_name: Namefilter,
         mut forest: Rc<PrivateForest>,
-        store: &mut B,
-        rng: &mut R,
+        store: &mut impl BlockStore,
+        rng: &mut impl RngCore,
     ) -> Result<Rc<PrivateForest>> {
         match self {
             Self::File(file) => {
@@ -353,10 +353,10 @@ impl PrivateNode {
     }
 
     /// Gets the latest version of the node using exponential search.
-    pub(crate) async fn search_latest<B: BlockStore>(
+    pub(crate) async fn search_latest(
         &self,
         forest: &PrivateForest,
-        store: &B,
+        store: &impl BlockStore,
     ) -> Result<PrivateNode> {
         let header = self.get_header();
 
@@ -404,10 +404,10 @@ impl PrivateNode {
         }
     }
 
-    pub(crate) async fn load<B: BlockStore>(
+    pub(crate) async fn load(
         cid: Cid,
         private_ref: &PrivateRef,
-        store: &B,
+        store: &impl BlockStore,
     ) -> Result<PrivateNode> {
         // Fetch encrypted bytes from blockstore.
         let enc_bytes = store.get_block(&cid).await?;
@@ -419,9 +419,9 @@ impl PrivateNode {
         PrivateNode::deserialize_from_cbor(&cbor_bytes, &private_ref.revision_key, cid)
     }
 
-    pub(crate) async fn store<B: BlockStore>(
+    pub(crate) async fn store(
         &self,
-        store: &mut B,
+        store: &mut impl BlockStore,
         rng: &mut impl RngCore,
     ) -> Result<Cid> {
         match self {
@@ -492,7 +492,7 @@ impl From<PrivateDirectory> for PrivateNode {
 
 impl PrivateNodeHeader {
     /// Creates a new PrivateNodeHeader.
-    pub(crate) fn new<R: RngCore>(parent_bare_name: Namefilter, rng: &mut R) -> Self {
+    pub(crate) fn new(parent_bare_name: Namefilter, rng: &mut impl RngCore) -> Self {
         let (inumber, ratchet_seed) = PrivateNode::generate_double_random(rng);
         Self {
             bare_name: {
@@ -537,7 +537,7 @@ impl PrivateNodeHeader {
     }
 
     /// Resets the ratchet.
-    pub(crate) fn reset_ratchet<R: RngCore>(&mut self, rng: &mut R) {
+    pub(crate) fn reset_ratchet(&mut self, rng: &mut impl RngCore) {
         self.ratchet = Ratchet::zero(utils::get_random_bytes(rng))
     }
 

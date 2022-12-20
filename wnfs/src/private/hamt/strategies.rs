@@ -143,9 +143,9 @@ impl<K: PartialEq, V: PartialEq> Shuffleable for Operations<K, V> {
 ///     println!("{:?}", node);
 /// }
 /// ```
-pub async fn node_from_operations<K, V, B: BlockStore>(
+pub async fn node_from_operations<K, V>(
     operations: Operations<K, V>,
-    store: &mut B,
+    store: &mut impl BlockStore,
 ) -> Result<Rc<Node<K, V>>>
 where
     K: DeserializeOwned + Serialize + Clone + Debug + AsRef<[u8]>,

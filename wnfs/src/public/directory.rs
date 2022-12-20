@@ -146,10 +146,10 @@ impl PublicDirectory {
     /// Uses specified path segments and their existence in the file tree to generate `PathNodes`.
     ///
     /// Supports cases where the entire path does not exist.
-    pub(crate) async fn get_path_nodes<B: BlockStore>(
+    pub(crate) async fn get_path_nodes(
         self: Rc<Self>,
         path_segments: &[String],
-        store: &B,
+        store: &impl BlockStore,
     ) -> Result<PublicPathNodesResult> {
         use PathNodesResult::*;
         let mut working_node = self;
@@ -187,11 +187,11 @@ impl PublicDirectory {
     }
 
     /// Uses specified path segments to generate `PathNodes`. Creates missing directories as needed.
-    pub(crate) async fn get_or_create_path_nodes<B: BlockStore>(
+    pub(crate) async fn get_or_create_path_nodes(
         self: Rc<Self>,
         path_segments: &[String],
         time: DateTime<Utc>,
-        store: &B,
+        store: &impl BlockStore,
     ) -> Result<PublicPathNodes> {
         use PathNodesResult::*;
         match self.get_path_nodes(path_segments, store).await? {
@@ -258,10 +258,10 @@ impl PublicDirectory {
     ///     assert!(result.is_some());
     /// }
     /// ```
-    pub async fn get_node<B: BlockStore>(
+    pub async fn get_node(
         self: Rc<Self>,
         path_segments: &[String],
-        store: &B,
+        store: &impl BlockStore,
     ) -> Result<PublicOpResult<Option<PublicNode>>> {
         use PathNodesResult::*;
         let root_dir = Rc::clone(&self);
@@ -311,10 +311,10 @@ impl PublicDirectory {
     ///     assert!(node.is_some());
     /// }
     /// ```
-    pub async fn lookup_node<B: BlockStore>(
+    pub async fn lookup_node(
         &self,
         path_segment: &str,
-        store: &B,
+        store: &impl BlockStore,
     ) -> Result<Option<PublicNode>> {
         Ok(match self.userland.get(path_segment) {
             Some(link) => Some(link.resolve_value(store).await?.clone()),
@@ -347,7 +347,7 @@ impl PublicDirectory {
     /// }
     /// ```
     #[inline(always)]
-    pub async fn store<B: BlockStore>(&self, store: &mut B) -> Result<Cid> {
+    pub async fn store(&self, store: &mut impl BlockStore) -> Result<Cid> {
         store.put_async_serializable(self).await
     }
 
@@ -385,10 +385,10 @@ impl PublicDirectory {
     ///     assert_eq!(result, cid);
     /// }
     /// ```
-    pub async fn read<B: BlockStore>(
+    pub async fn read(
         self: Rc<Self>,
         path_segments: &[String],
-        store: &mut B,
+        store: &mut impl BlockStore,
     ) -> Result<PublicOpResult<Cid>> {
         let root_dir = Rc::clone(&self);
         let (path, filename) = utils::split_last(path_segments)?;
@@ -434,12 +434,12 @@ impl PublicDirectory {
     ///         .unwrap();
     /// }
     /// ```
-    pub async fn write<B: BlockStore>(
+    pub async fn write(
         self: Rc<Self>,
         path_segments: &[String],
         content_cid: Cid,
         time: DateTime<Utc>,
-        store: &B,
+        store: &impl BlockStore,
     ) -> Result<PublicOpResult<()>> {
         let (directory_path, filename) = utils::split_last(path_segments)?;
 
@@ -505,11 +505,11 @@ impl PublicDirectory {
     /// ```
     ///
     /// This method acts like `mkdir -p` in Unix because it creates intermediate directories if they do not exist.
-    pub async fn mkdir<B: BlockStore>(
+    pub async fn mkdir(
         self: Rc<Self>,
         path_segments: &[String],
         time: DateTime<Utc>,
-        store: &B,
+        store: &impl BlockStore,
     ) -> Result<PublicOpResult<()>> {
         let path_nodes = self
             .get_or_create_path_nodes(path_segments, time, store)
@@ -555,10 +555,10 @@ impl PublicDirectory {
     ///     assert_eq!(result[0].0, "tabby.png");
     /// }
     /// ```
-    pub async fn ls<B: BlockStore>(
+    pub async fn ls(
         self: Rc<Self>,
         path_segments: &[String],
-        store: &B,
+        store: &impl BlockStore,
     ) -> Result<PublicOpResult<Vec<(String, Metadata)>>> {
         let root_dir = Rc::clone(&self);
         match self.get_path_nodes(path_segments, store).await? {
@@ -625,10 +625,10 @@ impl PublicDirectory {
     ///     assert_eq!(result.len(), 0);
     /// }
     /// ```
-    pub async fn rm<B: BlockStore>(
+    pub async fn rm(
         self: Rc<Self>,
         path_segments: &[String],
-        store: &B,
+        store: &impl BlockStore,
     ) -> Result<PublicOpResult<PublicNode>> {
         let (directory_path, node_name) = utils::split_last(path_segments)?;
 
@@ -698,12 +698,12 @@ impl PublicDirectory {
     ///     assert_eq!(result.len(), 2);
     /// }
     /// ```
-    pub async fn basic_mv<B: BlockStore>(
+    pub async fn basic_mv(
         self: Rc<Self>,
         path_segments_from: &[String],
         path_segments_to: &[String],
         time: DateTime<Utc>,
-        store: &B,
+        store: &impl BlockStore,
     ) -> Result<PublicOpResult<()>> {
         let root_dir = Rc::clone(&self);
         let (directory_path, filename) = utils::split_last(path_segments_to)?;
@@ -781,10 +781,10 @@ impl PublicDirectory {
     ///         .unwrap();
     /// }
     /// ```
-    pub async fn base_history_on<B: BlockStore>(
+    pub async fn base_history_on(
         self: Rc<Self>,
         base: Rc<Self>,
-        store: &mut B,
+        store: &mut impl BlockStore,
     ) -> Result<PublicOpResult<()>> {
         if Rc::ptr_eq(&self, &base) {
             return Ok(PublicOpResult {
@@ -814,10 +814,10 @@ impl PublicDirectory {
 
     /// Constructs a tree from directory with `base` as the historical ancestor.
     #[async_recursion(?Send)]
-    pub(crate) async fn base_history_on_helper<B: BlockStore>(
+    pub(crate) async fn base_history_on_helper(
         link: &PublicLink,
         base_link: &PublicLink,
-        store: &mut B,
+        store: &mut impl BlockStore,
     ) -> Result<Option<PublicLink>> {
         if link.deep_eq(base_link, store).await? {
             return Ok(None);
