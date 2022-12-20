@@ -10,6 +10,14 @@ use crate::FsError;
 
 use super::Key;
 
+/// A wrapper for encrypted data.
+///
+/// When serialized or deserialized this will only
+/// ever emit or consume ciphertexts.
+///
+/// It can be resolved to the plaintext value `T`, when
+/// you call `resolve_value`. Any subsequent calls to
+/// `resolve_value` will re-use a cached, decrypted value.
 #[derive(Debug, Clone, Eq)]
 pub struct Encrypted<T> {
     ciphertext: Vec<u8>,
@@ -17,6 +25,13 @@ pub struct Encrypted<T> {
 }
 
 impl<T> Encrypted<T> {
+    /// Constructs an `Encrypted` wrapper from a given plaintext value.
+    ///
+    /// This will compute a ciphertext by serializing the value and encrypting the
+    /// serialized value given the key and randomness.
+    ///
+    /// To ensure confidentiality, the randomness should be cryptographically secure
+    /// randomness.
     pub fn from_value(value: T, key: &Key, rng: &mut impl RngCore) -> Result<Self>
     where
         T: Serialize,
@@ -32,6 +47,10 @@ impl<T> Encrypted<T> {
         })
     }
 
+    /// Constructs an `Encrypted` wrapper from some serialized ciphertext.
+    ///
+    /// This won't compute the decrypted value inside. That has to be lazily
+    /// computed via `resolve_value`.
     pub fn from_ciphertext(ciphertext: Vec<u8>) -> Self {
         Self {
             ciphertext,
@@ -39,6 +58,11 @@ impl<T> Encrypted<T> {
         }
     }
 
+    /// Decrypts and deserializes the value inside the `Encrypted` wrapper using
+    /// given key.
+    ///
+    /// This operation may fail if given key doesn't decrypt the ciphertext or
+    /// deserializing the value from the encrypted plaintext doesn't work.
     pub fn resolve_value(&self, key: &Key) -> Result<&T>
     where
         T: DeserializeOwned,
@@ -51,14 +75,19 @@ impl<T> Encrypted<T> {
         })
     }
 
+    /// Gets the ciphertext
     pub fn get_ciphertext(&self) -> &Vec<u8> {
         &self.ciphertext
     }
 
+    /// Consumes the ciphertext
     pub fn take_ciphertext(self) -> Vec<u8> {
         self.ciphertext
     }
 
+    /// Looks up the cached value. If `resolve_value` has never
+    /// been called, then the cache will be unpopulated and this will
+    /// return `None`.
     pub fn get_value(&self) -> Option<&T> {
         self.value_cache.get()
     }
