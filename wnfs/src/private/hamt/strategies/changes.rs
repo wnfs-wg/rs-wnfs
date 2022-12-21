@@ -1,4 +1,4 @@
-#![allow(dead_code)]
+#![cfg(test)]
 
 use super::{operations, Operations};
 use crate::{private::Node, BlockStore};

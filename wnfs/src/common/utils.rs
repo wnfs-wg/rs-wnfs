@@ -7,7 +7,7 @@ use proptest::{
 };
 use rand_core::RngCore;
 use serde::de::Visitor;
-use std::fmt;
+use std::{fmt, rc::Rc};
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
@@ -19,6 +19,11 @@ pub(crate) struct ByteArrayVisitor<const N: usize>;
 pub trait Sampleable {
     type Value;
     fn sample(&self, runner: &mut TestRunner) -> Self::Value;
+}
+
+pub(crate) trait UnwrapOrClone {
+    type Output;
+    fn unwrap_or_clone(self) -> Self::Output;
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -52,6 +57,20 @@ where
         self.new_tree(runner)
             .expect("Couldn't generate test value")
             .current()
+    }
+}
+
+impl<T> UnwrapOrClone for Rc<T>
+where
+    T: Clone,
+{
+    type Output = Result<T>;
+
+    fn unwrap_or_clone(self) -> Self::Output {
+        match Rc::try_unwrap(self) {
+            Ok(value) => Ok(value),
+            Err(rc) => Ok(rc.as_ref().clone()),
+        }
     }
 }
 

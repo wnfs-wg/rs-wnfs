@@ -4,7 +4,8 @@ use super::{
     HashKey, Pair, Pointer, HAMT_BITMASK_BIT_SIZE, HAMT_BITMASK_BYTE_SIZE,
 };
 use crate::{
-    private::HAMT_VALUES_BUCKET_SIZE, AsyncSerialize, BlockStore, FsError, HashOutput, Link,
+    private::HAMT_VALUES_BUCKET_SIZE, utils::UnwrapOrClone, AsyncSerialize, BlockStore, FsError,
+    HashOutput, Link,
 };
 use anyhow::{bail, Result};
 use async_recursion::async_recursion;
@@ -289,7 +290,7 @@ where
                 bit_index, value_index
             );
 
-            let mut node = Rc::try_unwrap(self).unwrap_or_else(|rc| (*rc).clone());
+            let mut node = self.unwrap_or_clone()?;
 
             // If the bit is not set yet, insert a new pointer.
             if !node.bitmask[bit_index] {
@@ -402,7 +403,7 @@ where
 
             let value_index = self.get_value_index(bit_index);
 
-            let mut node = Rc::try_unwrap(self).unwrap_or_else(|rc| (*rc).clone());
+            let mut node = self.unwrap_or_clone()?;
 
             let removed = match &mut node.pointers[value_index] {
                 // If there is only one value, we can remove the entire pointer.
@@ -785,16 +786,16 @@ mod tests {
 
     mod helper {
         use crate::{utils, HashOutput, Hasher};
-        use lazy_static::lazy_static;
+        use once_cell::sync::Lazy;
 
-        lazy_static! {
-            pub(super) static ref HASH_KV_PAIRS: Vec<(HashOutput, &'static str)> = vec![
+        pub(super) static HASH_KV_PAIRS: Lazy<Vec<(HashOutput, &'static str)>> = Lazy::new(|| {
+            vec![
                 (utils::make_digest(&[0xE0]), "first"),
                 (utils::make_digest(&[0xE1]), "second"),
                 (utils::make_digest(&[0xE2]), "third"),
                 (utils::make_digest(&[0xE3]), "fourth"),
-            ];
-        }
+            ]
+        });
 
         #[derive(Debug, Clone)]
         pub(super) struct MockHasher;

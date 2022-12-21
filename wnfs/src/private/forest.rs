@@ -3,7 +3,7 @@ use super::{
     namefilter::Namefilter,
     Key, PrivateNode, PrivateRef,
 };
-use crate::{error, BlockStore, FsError, HashOutput, Hasher, Link};
+use crate::{error, utils::UnwrapOrClone, BlockStore, FsError, HashOutput, Hasher, Link};
 use anyhow::Result;
 use libipld::Cid;
 use log::debug;
@@ -240,7 +240,7 @@ impl PrivateForest {
             .unwrap_or_default();
         values.insert(value);
 
-        let mut forest = Rc::try_unwrap(self).unwrap_or_else(|rc| (*rc).clone());
+        let mut forest = self.unwrap_or_clone()?;
         forest.root = forest.root.set(name, values, store).await?;
         Ok(Rc::new(forest))
     }
@@ -407,39 +407,40 @@ mod tests {
 
     mod helper {
         use crate::{utils, HashOutput, Hasher, Namefilter};
-        use lazy_static::lazy_static;
         use libipld::{Cid, Multihash};
+        use once_cell::sync::Lazy;
         use rand::{thread_rng, RngCore};
 
-        lazy_static! {
-            pub(super) static ref HASH_KV_PAIRS: Vec<(HashOutput, Namefilter, Cid)> = vec![
-                (
-                    utils::make_digest(&[0xA0]),
-                    generate_saturated_name_hash(&mut thread_rng()),
-                    generate_cid(&mut thread_rng())
-                ),
-                (
-                    utils::make_digest(&[0xA3]),
-                    generate_saturated_name_hash(&mut thread_rng()),
-                    generate_cid(&mut thread_rng())
-                ),
-                (
-                    utils::make_digest(&[0xA7]),
-                    generate_saturated_name_hash(&mut thread_rng()),
-                    generate_cid(&mut thread_rng())
-                ),
-                (
-                    utils::make_digest(&[0xAC]),
-                    generate_saturated_name_hash(&mut thread_rng()),
-                    generate_cid(&mut thread_rng())
-                ),
-                (
-                    utils::make_digest(&[0xAE]),
-                    generate_saturated_name_hash(&mut thread_rng()),
-                    generate_cid(&mut thread_rng())
-                ),
-            ];
-        }
+        pub(super) static HASH_KV_PAIRS: Lazy<Vec<(HashOutput, Namefilter, Cid)>> =
+            Lazy::new(|| {
+                vec![
+                    (
+                        utils::make_digest(&[0xA0]),
+                        generate_saturated_name_hash(&mut thread_rng()),
+                        generate_cid(&mut thread_rng()),
+                    ),
+                    (
+                        utils::make_digest(&[0xA3]),
+                        generate_saturated_name_hash(&mut thread_rng()),
+                        generate_cid(&mut thread_rng()),
+                    ),
+                    (
+                        utils::make_digest(&[0xA7]),
+                        generate_saturated_name_hash(&mut thread_rng()),
+                        generate_cid(&mut thread_rng()),
+                    ),
+                    (
+                        utils::make_digest(&[0xAC]),
+                        generate_saturated_name_hash(&mut thread_rng()),
+                        generate_cid(&mut thread_rng()),
+                    ),
+                    (
+                        utils::make_digest(&[0xAE]),
+                        generate_saturated_name_hash(&mut thread_rng()),
+                        generate_cid(&mut thread_rng()),
+                    ),
+                ]
+            });
 
         #[derive(Debug, Clone)]
         pub(super) struct MockHasher;

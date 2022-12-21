@@ -108,7 +108,7 @@ impl<K, V, H: Hasher> Hamt<K, V, H> {
     ///         node
     ///     });
     ///
-    ///     let node_diff = main_hamt.node_diff(&other_hamt, None, store).await.unwrap();
+    ///     let node_diff = main_hamt.node_diff(&other_hamt, store).await.unwrap();
     ///
     ///     println!("node_diff: {:#?}", node_diff);
     /// }
@@ -116,7 +116,6 @@ impl<K, V, H: Hasher> Hamt<K, V, H> {
     pub async fn node_diff<B: BlockStore>(
         &self,
         other: &Self,
-        depth: Option<u8>,
         store: &mut B,
     ) -> Result<Vec<NodeChange>>
     where
@@ -128,7 +127,6 @@ impl<K, V, H: Hasher> Hamt<K, V, H> {
             return diff::node_diff(
                 Link::from(Rc::clone(&self.root)),
                 Link::from(Rc::clone(&other.root)),
-                depth,
                 store,
             )
             .await;
@@ -166,14 +164,13 @@ impl<K, V, H: Hasher> Hamt<K, V, H> {
     ///         node
     ///     });
     ///
-    ///     let kv_diff = main_hamt.kv_diff(&other_hamt, None, store).await.unwrap();
+    ///     let kv_diff = main_hamt.kv_diff(&other_hamt, store).await.unwrap();
     ///
     ///     println!("kv_diff: {:#?}", kv_diff);
     /// }
     pub async fn kv_diff<B: BlockStore>(
         &self,
         other: &Self,
-        depth: Option<u8>,
         store: &mut B,
     ) -> Result<Vec<KeyValueChange<K, V>>>
     where
@@ -185,7 +182,6 @@ impl<K, V, H: Hasher> Hamt<K, V, H> {
             return diff::kv_diff(
                 Link::from(Rc::clone(&self.root)),
                 Link::from(Rc::clone(&other.root)),
-                depth,
                 store,
             )
             .await;

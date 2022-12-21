@@ -26,5 +26,5 @@ pub const MAX_BLOCK_SIZE: usize = usize::pow(2, 18);
 // Type Definitions
 //--------------------------------------------------------------------------------------------------
 
-// The general size of digests in WNFS.
+/// The general size of digests in WNFS.
 pub type HashOutput = [u8; HASH_BYTE_SIZE];

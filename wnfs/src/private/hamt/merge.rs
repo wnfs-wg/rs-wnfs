@@ -21,7 +21,7 @@ where
     V: DeserializeOwned + Eq + Clone,
     H: Hasher + Clone + 'static,
 {
-    let kv_changes = diff::kv_diff(main_link.clone(), other_link.clone(), None, store).await?;
+    let kv_changes = diff::kv_diff(main_link.clone(), other_link.clone(), store).await?;
 
     let main_node = main_link.resolve_owned_value(store).await?;
     let other_node = other_link.resolve_owned_value(store).await?;
@@ -63,7 +63,7 @@ where
 #[cfg(test)]
 mod proptests {
     use crate::{
-        private::strategies::{self, operations, Operations},
+        private::strategies::{self, generate_kvs},
         utils::test_setup,
         Link,
     };
@@ -73,24 +73,16 @@ mod proptests {
 
     #[proptest(cases = 100)]
     fn merge_associativity(
-        #[strategy(operations("[a-z0-9]{1,4}", 0u64..1000, 0..100))] ops1: Operations<String, u64>,
-        #[strategy(operations("[a-z0-9]{1,4}", 0u64..1000, 0..100))] ops2: Operations<String, u64>,
-        #[strategy(operations("[a-z0-9]{1,4}", 0u64..1000, 0..100))] ops3: Operations<String, u64>,
+        #[strategy(generate_kvs("[a-z0-9]{1,3}", 0u64..1000, 0..100))] kvs1: Vec<(String, u64)>,
+        #[strategy(generate_kvs("[a-z0-9]{1,3}", 0u64..1000, 0..100))] kvs2: Vec<(String, u64)>,
+        #[strategy(generate_kvs("[a-z0-9]{1,3}", 0u64..1000, 0..100))] kvs3: Vec<(String, u64)>,
     ) {
         task::block_on(async {
             let store = test_setup::init!(mut store);
 
-            let node1 = strategies::node_from_operations(&ops1, store)
-                .await
-                .unwrap();
-
-            let node2 = strategies::node_from_operations(&ops2, store)
-                .await
-                .unwrap();
-
-            let node3 = strategies::node_from_operations(&ops3, store)
-                .await
-                .unwrap();
+            let node1 = strategies::node_from_kvs(kvs1, store).await.unwrap();
+            let node2 = strategies::node_from_kvs(kvs2, store).await.unwrap();
+            let node3 = strategies::node_from_kvs(kvs3, store).await.unwrap();
 
             let merge_node_left_assoc = {
                 let tmp = super::merge(
@@ -138,19 +130,14 @@ mod proptests {
 
     #[proptest(cases = 100)]
     fn merge_commutativity(
-        #[strategy(operations("[a-z0-9]{1,4}", 0u64..1000, 0..100))] ops1: Operations<String, u64>,
-        #[strategy(operations("[a-z0-9]{1,4}", 0u64..1000, 0..100))] ops2: Operations<String, u64>,
+        #[strategy(generate_kvs("[a-z0-9]{1,3}", 0u64..1000, 0..100))] kvs1: Vec<(String, u64)>,
+        #[strategy(generate_kvs("[a-z0-9]{1,3}", 0u64..1000, 0..100))] kvs2: Vec<(String, u64)>,
     ) {
         task::block_on(async {
             let store = test_setup::init!(mut store);
 
-            let node1 = strategies::node_from_operations(&ops1, store)
-                .await
-                .unwrap();
-
-            let node2 = strategies::node_from_operations(&ops2, store)
-                .await
-                .unwrap();
+            let node1 = strategies::node_from_kvs(kvs1, store).await.unwrap();
+            let node2 = strategies::node_from_kvs(kvs2, store).await.unwrap();
 
             let merge_node_1 = super::merge(
                 Link::from(Rc::clone(&node1)),
@@ -176,19 +163,14 @@ mod proptests {
 
     #[proptest(cases = 100)]
     fn merge_idempotency(
-        #[strategy(operations("[a-z0-9]{1,4}", 0u64..1000, 0..100))] ops1: Operations<String, u64>,
-        #[strategy(operations("[a-z0-9]{1,4}", 0u64..1000, 0..100))] ops2: Operations<String, u64>,
+        #[strategy(generate_kvs("[a-z0-9]{1,3}", 0u64..1000, 0..100))] kvs1: Vec<(String, u64)>,
+        #[strategy(generate_kvs("[a-z0-9]{1,3}", 0u64..1000, 0..100))] kvs2: Vec<(String, u64)>,
     ) {
         task::block_on(async {
             let store = test_setup::init!(mut store);
 
-            let node1 = strategies::node_from_operations(&ops1, store)
-                .await
-                .unwrap();
-
-            let node2 = strategies::node_from_operations(&ops2, store)
-                .await
-                .unwrap();
+            let node1 = strategies::node_from_kvs(kvs1, store).await.unwrap();
+            let node2 = strategies::node_from_kvs(kvs2, store).await.unwrap();
 
             let merge_node_1 = super::merge(
                 Link::from(Rc::clone(&node1)),

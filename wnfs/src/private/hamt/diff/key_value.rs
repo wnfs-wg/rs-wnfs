@@ -57,7 +57,6 @@ type EitherPairOrNode<'a, K, V, H> = Option<Either<&'a Pair<K, V>, &'a Rc<Node<K
 ///     let changes = diff::kv_diff(
 ///         Link::from(Rc::clone(&main_node)),
 ///         Link::from(Rc::clone(&other_node)),
-///         None,
 ///         store,
 ///     )
 ///     .await
@@ -70,7 +69,6 @@ type EitherPairOrNode<'a, K, V, H> = Option<Either<&'a Pair<K, V>, &'a Rc<Node<K
 pub async fn kv_diff<K, V, H, B>(
     main_link: Link<Rc<Node<K, V, H>>>,
     other_link: Link<Rc<Node<K, V, H>>>,
-    depth: Option<u8>,
     store: &mut B,
 ) -> Result<Vec<KeyValueChange<K, V>>>
 where
@@ -79,8 +77,7 @@ where
     H: Hasher + Clone + 'static,
     B: BlockStore,
 {
-    let node_changes =
-        super::node_diff(main_link.clone(), other_link.clone(), depth, store).await?;
+    let node_changes = super::node_diff(main_link.clone(), other_link.clone(), store).await?;
 
     let main_node = main_link.resolve_value(store).await?;
     let other_node = other_link.resolve_value(store).await?;
@@ -186,18 +183,19 @@ mod tests {
     use std::rc::Rc;
 
     mod helper {
-        use crate::{utils, HashOutput, Hasher};
-        use lazy_static::lazy_static;
+        use once_cell::sync::Lazy;
 
-        lazy_static! {
-            pub(crate) static ref HASH_KV_PAIRS: Vec<(HashOutput, &'static str)> = vec![
+        use crate::{utils, HashOutput, Hasher};
+
+        pub(super) static HASH_KV_PAIRS: Lazy<Vec<(HashOutput, &'static str)>> = Lazy::new(|| {
+            vec![
                 (utils::make_digest(&[0xA0]), "first"),
                 (utils::make_digest(&[0xA3]), "second"),
                 (utils::make_digest(&[0xA7]), "third"),
                 (utils::make_digest(&[0xAC]), "fourth"),
                 (utils::make_digest(&[0xAE]), "fifth"),
-            ];
-        }
+            ]
+        });
 
         #[derive(Debug, Clone)]
         pub(crate) struct MockHasher;
@@ -233,7 +231,6 @@ mod tests {
         let changes = kv_diff(
             Link::from(Rc::clone(&main_node)),
             Link::from(Rc::clone(&other_node)),
-            None,
             store,
         )
         .await
@@ -257,7 +254,7 @@ mod tests {
             ]
         );
 
-        let changes = kv_diff(Link::from(other_node), Link::from(main_node), None, store)
+        let changes = kv_diff(Link::from(other_node), Link::from(main_node), store)
             .await
             .unwrap();
 
@@ -300,7 +297,7 @@ mod tests {
                 .unwrap();
         }
 
-        let changes = kv_diff(Link::from(main_node), Link::from(other_node), None, store)
+        let changes = kv_diff(Link::from(main_node), Link::from(other_node), store)
             .await
             .unwrap();
 
@@ -362,7 +359,6 @@ mod tests {
         let changes = kv_diff(
             Link::from(Rc::clone(&main_node)),
             Link::from(Rc::clone(&other_node)),
-            None,
             store,
         )
         .await
@@ -398,7 +394,7 @@ mod tests {
             ]
         );
 
-        let changes = kv_diff(Link::from(other_node), Link::from(main_node), None, store)
+        let changes = kv_diff(Link::from(other_node), Link::from(main_node), store)
             .await
             .unwrap();
 
@@ -438,7 +434,7 @@ mod tests {
 mod proptests {
     use crate::{
         private::{
-            strategies::{self, generate_ops_and_changes, Change, Operations},
+            strategies::{self, generate_kvs, generate_ops_and_changes, Change, Operations},
             ChangeType,
         },
         utils::test_setup,
@@ -475,7 +471,6 @@ mod proptests {
             let changes = super::kv_diff(
                 Link::from(Rc::clone(&main_node)),
                 Link::from(Rc::clone(&other_node)),
-                None,
                 store,
             )
             .await
@@ -497,37 +492,19 @@ mod proptests {
     }
 
     #[proptest(cases = 1000, max_shrink_iters = 40000)]
-    fn diff_unique(
-        #[strategy(generate_ops_and_changes())] ops_changes: (
-            Operations<String, u64>,
-            Vec<Change<String, u64>>,
-        ),
+    fn diff_unique_keys(
+        #[strategy(generate_kvs("[a-z0-9]{1,3}", 0u64..1000, 0..100))] kvs1: Vec<(String, u64)>,
+        #[strategy(generate_kvs("[a-z0-9]{1,3}", 0u64..1000, 0..100))] kvs2: Vec<(String, u64)>,
     ) {
         task::block_on(async {
             let store = test_setup::init!(mut store);
-            let (ops, strategy_changes) = ops_changes;
 
-            let other_node = strategies::prepare_node(
-                strategies::node_from_operations(&ops, store).await.unwrap(),
-                &strategy_changes,
-                store,
-            )
-            .await
-            .unwrap();
+            let node1 = strategies::node_from_kvs(kvs1, store).await.unwrap();
+            let node2 = strategies::node_from_kvs(kvs2, store).await.unwrap();
 
-            let main_node =
-                strategies::apply_changes(Rc::clone(&other_node), &strategy_changes, store)
-                    .await
-                    .unwrap();
-
-            let changes = super::kv_diff(
-                Link::from(Rc::clone(&main_node)),
-                Link::from(Rc::clone(&other_node)),
-                None,
-                store,
-            )
-            .await
-            .unwrap();
+            let changes = super::kv_diff(Link::from(node1), Link::from(node2), store)
+                .await
+                .unwrap();
 
             let change_set = changes
                 .iter()
@@ -540,41 +517,26 @@ mod proptests {
 
     #[proptest(cases = 100)]
     fn add_remove_flip(
-        #[strategy(generate_ops_and_changes())] ops_changes: (
-            Operations<String, u64>,
-            Vec<Change<String, u64>>,
-        ),
+        #[strategy(generate_kvs("[a-z0-9]{1,3}", 0u64..1000, 0..100))] kvs1: Vec<(String, u64)>,
+        #[strategy(generate_kvs("[a-z0-9]{1,3}", 0u64..1000, 0..100))] kvs2: Vec<(String, u64)>,
     ) {
         task::block_on(async {
             let store = test_setup::init!(mut store);
-            let (ops, strategy_changes) = ops_changes;
 
-            let other_node = strategies::prepare_node(
-                strategies::node_from_operations(&ops, store).await.unwrap(),
-                &strategy_changes,
-                store,
-            )
-            .await
-            .unwrap();
-
-            let main_node =
-                strategies::apply_changes(Rc::clone(&other_node), &strategy_changes, store)
-                    .await
-                    .unwrap();
+            let node1 = strategies::node_from_kvs(kvs1, store).await.unwrap();
+            let node2 = strategies::node_from_kvs(kvs2, store).await.unwrap();
 
             let changes = super::kv_diff(
-                Link::from(Rc::clone(&main_node)),
-                Link::from(Rc::clone(&other_node)),
-                None,
+                Link::from(Rc::clone(&node1)),
+                Link::from(Rc::clone(&node2)),
                 store,
             )
             .await
             .unwrap();
 
-            let flipped_changes =
-                super::kv_diff(Link::from(other_node), Link::from(main_node), None, store)
-                    .await
-                    .unwrap();
+            let flipped_changes = super::kv_diff(Link::from(node2), Link::from(node1), store)
+                .await
+                .unwrap();
 
             assert_eq!(changes.len(), flipped_changes.len());
             for change in changes {
