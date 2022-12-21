@@ -1,6 +1,6 @@
 use super::ChangeType;
 use crate::{
-    private::{HashKey, HashNibbles, Node, Pointer, HAMT_BITMASK_BIT_SIZE},
+    private::{HashNibbles, HashPrefix, Node, Pointer, HAMT_BITMASK_BIT_SIZE},
     utils::UnwrapOrClone,
     BlockStore, Hasher, Link, Pair,
 };
@@ -17,7 +17,7 @@ use std::{collections::HashMap, hash::Hash, mem, rc::Rc};
 #[derive(Debug, Clone, PartialEq)]
 pub struct NodeChange {
     pub r#type: ChangeType,
-    pub hashkey: HashKey,
+    pub hashprefix: HashPrefix,
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -31,7 +31,7 @@ pub struct NodeChange {
 /// or modified.
 ///
 /// When a node has been added or removed, this implementation does not visit the children, instead
-/// it returns the hashkey representing the node. This leads a more efficient implementation that does
+/// it returns the hashprefix representing the node. This leads a more efficient implementation that does
 /// not contain keys and values and stops at node level if the node itself has been added or removed.
 ///
 /// # Examples
@@ -81,14 +81,14 @@ where
     H: Hasher + Clone + 'static,
     B: BlockStore,
 {
-    node_diff_helper(main_link, other_link, HashKey::default(), store).await
+    node_diff_helper(main_link, other_link, HashPrefix::default(), store).await
 }
 
 #[async_recursion(?Send)]
 pub async fn node_diff_helper<K, V, H, B>(
     main_link: Link<Rc<Node<K, V, H>>>,
     other_link: Link<Rc<Node<K, V, H>>>,
-    hashkey: HashKey,
+    hashprefix: HashPrefix,
     store: &mut B,
 ) -> Result<Vec<NodeChange>>
 where
@@ -117,9 +117,9 @@ where
 
     let mut changes = vec![];
     for index in 0..HAMT_BITMASK_BIT_SIZE {
-        // Create hashkey for child.
-        let mut hashkey = hashkey.clone();
-        hashkey.push(index as u8);
+        // Create hashprefix for child.
+        let mut hashprefix = hashprefix.clone();
+        hashprefix.push(index as u8);
 
         match (main_node.bitmask[index], other_node.bitmask[index]) {
             (true, false) => {
@@ -127,7 +127,7 @@ where
                 changes.extend(generate_add_or_remove_changes(
                     &main_node.pointers[main_node.get_value_index(index)],
                     ChangeType::Add,
-                    hashkey,
+                    hashprefix,
                 ));
             }
             (false, true) => {
@@ -135,7 +135,7 @@ where
                 changes.extend(generate_add_or_remove_changes(
                     &other_node.pointers[other_node.get_value_index(index)],
                     ChangeType::Remove,
-                    hashkey,
+                    hashprefix,
                 ));
             }
             (true, true) => {
@@ -147,7 +147,7 @@ where
                 let other_pointer = mem::take(other_node.pointers.get_mut(other_index).unwrap());
 
                 changes.extend(
-                    generate_modify_changes(main_pointer, other_pointer, hashkey, store).await?,
+                    generate_modify_changes(main_pointer, other_pointer, hashprefix, store).await?,
                 );
             }
             (false, false) => { /*No change */ }
@@ -160,7 +160,7 @@ where
 fn generate_add_or_remove_changes<K, V, H>(
     node_pointer: &Pointer<K, V, H>,
     r#type: ChangeType,
-    hashkey: HashKey,
+    hashprefix: HashPrefix,
 ) -> Vec<NodeChange>
 where
     K: AsRef<[u8]>,
@@ -171,12 +171,12 @@ where
             .iter()
             .map(|Pair { key, .. }| {
                 let digest = H::hash(&key);
-                let hashkey = HashKey::with_length(digest, digest.len() as u8 * 2);
-                NodeChange { r#type, hashkey }
+                let hashprefix = HashPrefix::with_length(digest, digest.len() as u8 * 2);
+                NodeChange { r#type, hashprefix }
             })
             .collect(),
         Pointer::Link(_) => {
-            vec![NodeChange { r#type, hashkey }]
+            vec![NodeChange { r#type, hashprefix }]
         }
     }
 }
@@ -184,7 +184,7 @@ where
 async fn generate_modify_changes<K, V, H, B>(
     main_pointer: Pointer<K, V, H>,
     other_pointer: Pointer<K, V, H>,
-    hashkey: HashKey,
+    hashprefix: HashPrefix,
     store: &mut B,
 ) -> Result<Vec<NodeChange>>
 where
@@ -195,7 +195,7 @@ where
 {
     match (main_pointer, other_pointer) {
         (Pointer::Link(main_link), Pointer::Link(other_link)) => {
-            node_diff_helper(main_link, other_link, hashkey, store).await
+            node_diff_helper(main_link, other_link, hashprefix, store).await
         }
         (Pointer::Values(main_values), Pointer::Values(other_values)) => {
             let mut changes = vec![];
@@ -209,19 +209,20 @@ where
                     Some(v) => {
                         if *v != value {
                             let digest = H::hash(&key);
-                            let hashkey = HashKey::with_length(digest, digest.len() as u8 * 2);
+                            let hashprefix =
+                                HashPrefix::with_length(digest, digest.len() as u8 * 2);
                             changes.push(NodeChange {
                                 r#type: ChangeType::Modify,
-                                hashkey,
+                                hashprefix,
                             });
                         }
                     }
                     None => {
                         let digest = H::hash(&key);
-                        let hashkey = HashKey::with_length(digest, digest.len() as u8 * 2);
+                        let hashprefix = HashPrefix::with_length(digest, digest.len() as u8 * 2);
                         changes.push(NodeChange {
                             r#type: ChangeType::Add,
-                            hashkey,
+                            hashprefix,
                         })
                     }
                 }
@@ -232,10 +233,10 @@ where
             for Pair { key, .. } in &other_values {
                 if matches!(main_map.get(key), None) {
                     let digest = H::hash(&key);
-                    let hashkey = HashKey::with_length(digest, digest.len() as u8 * 2);
+                    let hashprefix = HashPrefix::with_length(digest, digest.len() as u8 * 2);
                     changes.push(NodeChange {
                         r#type: ChangeType::Remove,
-                        hashkey,
+                        hashprefix,
                     })
                 }
             }
@@ -244,24 +245,24 @@ where
         }
         (Pointer::Values(main_values), Pointer::Link(other_link)) => {
             let main_link = Link::from(
-                create_node_from_pairs::<_, _, H, _>(main_values, hashkey.len(), store).await?,
+                create_node_from_pairs::<_, _, H, _>(main_values, hashprefix.len(), store).await?,
             );
 
-            node_diff_helper(main_link, other_link, hashkey, store).await
+            node_diff_helper(main_link, other_link, hashprefix, store).await
         }
         (Pointer::Link(main_link), Pointer::Values(other_values)) => {
             let other_link = Link::from(
-                create_node_from_pairs::<_, _, H, _>(other_values, hashkey.len(), store).await?,
+                create_node_from_pairs::<_, _, H, _>(other_values, hashprefix.len(), store).await?,
             );
 
-            node_diff_helper(main_link, other_link, hashkey, store).await
+            node_diff_helper(main_link, other_link, hashprefix, store).await
         }
     }
 }
 
 async fn create_node_from_pairs<K, V, H, B: BlockStore>(
     values: Vec<Pair<K, V>>,
-    hashkey_length: usize,
+    hashprefix_length: usize,
     store: &B,
 ) -> Result<Rc<Node<K, V, H>>>
 where
@@ -272,7 +273,7 @@ where
     let mut node = Rc::new(Node::<_, _, H>::default());
     for Pair { key, value } in values {
         let digest = &H::hash(&key);
-        let hashnibbles = &mut HashNibbles::with_cursor(digest, hashkey_length);
+        let hashnibbles = &mut HashNibbles::with_cursor(digest, hashprefix_length);
         node = node.set_value(hashnibbles, key, value, store).await?;
     }
     Ok(node)
@@ -346,12 +347,12 @@ mod tests {
         .await
         .unwrap();
 
-        let hashkey_of_1 = HashKey::with_length(
+        let hashprefix_of_1 = HashPrefix::with_length(
             Sha3_256::hash(&1_u32.to_le_bytes()),
             MAX_HASH_NIBBLE_LENGTH as u8,
         );
 
-        let hashkey_of_2 = HashKey::with_length(
+        let hashprefix_of_2 = HashPrefix::with_length(
             Sha3_256::hash(&2_u32.to_le_bytes()),
             MAX_HASH_NIBBLE_LENGTH as u8,
         );
@@ -361,11 +362,11 @@ mod tests {
             vec![
                 NodeChange {
                     r#type: Add,
-                    hashkey: hashkey_of_2.clone()
+                    hashprefix: hashprefix_of_2.clone()
                 },
                 NodeChange {
                     r#type: Add,
-                    hashkey: hashkey_of_1.clone(),
+                    hashprefix: hashprefix_of_1.clone(),
                 },
             ]
         );
@@ -379,11 +380,11 @@ mod tests {
             vec![
                 NodeChange {
                     r#type: Remove,
-                    hashkey: hashkey_of_2
+                    hashprefix: hashprefix_of_2
                 },
                 NodeChange {
                     r#type: Remove,
-                    hashkey: hashkey_of_1,
+                    hashprefix: hashprefix_of_1,
                 },
             ]
         );
@@ -481,28 +482,28 @@ mod tests {
             vec![
                 NodeChange {
                     r#type: Modify,
-                    hashkey: HashKey::with_length(
+                    hashprefix: HashPrefix::with_length(
                         utils::make_digest(&[0xA3, 0x00]),
                         MAX_HASH_NIBBLE_LENGTH as u8
                     ),
                 },
                 NodeChange {
                     r#type: Remove,
-                    hashkey: HashKey::with_length(
+                    hashprefix: HashPrefix::with_length(
                         utils::make_digest(&[0xA7, 0x00]),
                         MAX_HASH_NIBBLE_LENGTH as u8
                     ),
                 },
                 NodeChange {
                     r#type: Add,
-                    hashkey: HashKey::with_length(
+                    hashprefix: HashPrefix::with_length(
                         utils::make_digest(&[0xAC, 0x00]),
                         MAX_HASH_NIBBLE_LENGTH as u8
                     ),
                 },
                 NodeChange {
                     r#type: Add,
-                    hashkey: HashKey::with_length(
+                    hashprefix: HashPrefix::with_length(
                         utils::make_digest(&[0xAE, 0x00]),
                         MAX_HASH_NIBBLE_LENGTH as u8
                     ),
@@ -519,28 +520,28 @@ mod tests {
             vec![
                 NodeChange {
                     r#type: Modify,
-                    hashkey: HashKey::with_length(
+                    hashprefix: HashPrefix::with_length(
                         utils::make_digest(&[0xA3, 0x00]),
                         MAX_HASH_NIBBLE_LENGTH as u8
                     ),
                 },
                 NodeChange {
                     r#type: Add,
-                    hashkey: HashKey::with_length(
+                    hashprefix: HashPrefix::with_length(
                         utils::make_digest(&[0xA7, 0x00]),
                         MAX_HASH_NIBBLE_LENGTH as u8
                     ),
                 },
                 NodeChange {
                     r#type: Remove,
-                    hashkey: HashKey::with_length(
+                    hashprefix: HashPrefix::with_length(
                         utils::make_digest(&[0xAC, 0x00]),
                         MAX_HASH_NIBBLE_LENGTH as u8
                     ),
                 },
                 NodeChange {
                     r#type: Remove,
-                    hashkey: HashKey::with_length(
+                    hashprefix: HashPrefix::with_length(
                         utils::make_digest(&[0xAE, 0x00]),
                         MAX_HASH_NIBBLE_LENGTH as u8
                     ),
@@ -587,11 +588,11 @@ mod proptests {
             for change in changes {
                 assert!(flipped_changes.iter().any(|c| match change.r#type {
                     ChangeType::Add =>
-                        c.r#type == ChangeType::Remove && c.hashkey == change.hashkey,
+                        c.r#type == ChangeType::Remove && c.hashprefix == change.hashprefix,
                     ChangeType::Remove =>
-                        c.r#type == ChangeType::Add && c.hashkey == change.hashkey,
+                        c.r#type == ChangeType::Add && c.hashprefix == change.hashprefix,
                     ChangeType::Modify =>
-                        c.r#type == ChangeType::Modify && c.hashkey == change.hashkey,
+                        c.r#type == ChangeType::Modify && c.hashprefix == change.hashprefix,
                 }));
             }
         });

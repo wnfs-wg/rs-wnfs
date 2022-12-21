@@ -55,33 +55,33 @@ pub(crate) struct HashNibbles<'a> {
 /// # Examples
 ///
 /// ```
-/// use wnfs::{private::HashKey, utils};
+/// use wnfs::{private::HashPrefix, utils};
 ///
-/// let hashkey = HashKey::with_length(utils::make_digest(&[0xff, 0x22]), 4);
+/// let hashprefix = HashPrefix::with_length(utils::make_digest(&[0xff, 0x22]), 4);
 ///
-/// println!("{:?}", hashkey);
+/// println!("{:?}", hashprefix);
 /// ```
 #[derive(Clone, Default)]
-pub struct HashKey {
+pub struct HashPrefix {
     pub digest: HashOutput,
     length: u8,
 }
 
-/// An iterator over the nibbles of a HashKey.
+/// An iterator over the nibbles of a HashPrefix.
 ///
 /// # Examples
 ///
 /// ```
-/// use wnfs::{private::HashKey, utils};
+/// use wnfs::{private::HashPrefix, utils};
 ///
-/// let hashkey = HashKey::with_length(utils::make_digest(&[0xff, 0x22]), 4);
-/// for i in hashkey.iter() {
+/// let hashprefix = HashPrefix::with_length(utils::make_digest(&[0xff, 0x22]), 4);
+/// for i in hashprefix.iter() {
 ///    println!("{}", i);
 /// }
 /// ```
 #[derive(Clone)]
-pub struct HashKeyIterator<'a> {
-    pub hash_key: &'a HashKey,
+pub struct HashPrefixIterator<'a> {
+    pub hashprefix: &'a HashPrefix,
     cursor: u8,
 }
 
@@ -157,19 +157,19 @@ impl Hasher for Sha3_256 {
     }
 }
 
-impl HashKey {
-    /// Creates a new `HashKey` instance from a `[u8; 32]` hash.
+impl HashPrefix {
+    /// Creates a new `HashPrefix` instance from a `[u8; 32]` hash.
     ///
     /// # Examples
     ///
     /// ```
-    /// use wnfs::{private::HashKey, utils};
+    /// use wnfs::{private::HashPrefix, utils};
     ///
-    /// let hashkey = HashKey::with_length(utils::make_digest(&[0xff, 0x22]), 4);
+    /// let hashprefix = HashPrefix::with_length(utils::make_digest(&[0xff, 0x22]), 4);
     ///
-    /// println!("{:?}", hashkey);
+    /// println!("{:?}", hashprefix);
     /// ```
-    pub fn with_length(digest: HashOutput, length: u8) -> HashKey {
+    pub fn with_length(digest: HashOutput, length: u8) -> HashPrefix {
         Self { digest, length }
     }
 
@@ -178,18 +178,18 @@ impl HashKey {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::{private::HashKey, utils};
+    /// use wnfs::{private::HashPrefix, utils};
     ///
-    /// let mut hashkey = HashKey::default();
+    /// let mut hashprefix = HashPrefix::default();
     /// for i in 0..16_u8 {
-    ///     hashkey.push(i);
+    ///     hashprefix.push(i);
     /// }
     ///
-    /// assert_eq!(hashkey.len(), 16);
+    /// assert_eq!(hashprefix.len(), 16);
     /// ```
     pub fn push(&mut self, nibble: u8) {
         if self.length >= MAX_HASH_NIBBLE_LENGTH as u8 {
-            panic!("HashKey is full");
+            panic!("HashPrefix is full");
         }
 
         let offset = self.length as usize / 2;
@@ -209,14 +209,14 @@ impl HashKey {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::{private::HashKey, utils};
+    /// use wnfs::{private::HashPrefix, utils};
     ///
-    /// let mut hashkey = HashKey::default();
+    /// let mut hashprefix = HashPrefix::default();
     /// for i in 0..16_u8 {
-    ///     hashkey.push(i);
+    ///     hashprefix.push(i);
     /// }
     ///
-    /// assert_eq!(hashkey.len(), 16);
+    /// assert_eq!(hashprefix.len(), 16);
     /// ```
     #[inline(always)]
     pub fn len(&self) -> usize {
@@ -228,10 +228,10 @@ impl HashKey {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::{private::HashKey, utils};
+    /// use wnfs::{private::HashPrefix, utils};
     ///
-    /// let hashkey = HashKey::default();
-    /// assert!(hashkey.is_empty());
+    /// let hashprefix = HashPrefix::default();
+    /// assert!(hashprefix.is_empty());
     /// ```
     pub fn is_empty(&self) -> bool {
         self.length == 0
@@ -242,14 +242,14 @@ impl HashKey {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::{private::HashKey, utils};
+    /// use wnfs::{private::HashPrefix, utils};
     ///
-    /// let mut hashkey = HashKey::default();
+    /// let mut hashprefix = HashPrefix::default();
     /// for i in 0..16_u8 {
-    ///     hashkey.push(i);
+    ///     hashprefix.push(i);
     /// }
     ///
-    /// assert_eq!(hashkey.get(15), Some(0x0f));
+    /// assert_eq!(hashprefix.get(15), Some(0x0f));
     /// ```
     pub fn get(&self, index: u8) -> Option<u8> {
         if index >= self.length {
@@ -269,37 +269,37 @@ impl HashKey {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::{private::HashKey, utils};
+    /// use wnfs::{private::HashPrefix, utils};
     ///
-    /// let hashkey = HashKey::with_length(utils::make_digest(&[0xff, 0x22]), 4);
-    /// for i in hashkey.iter() {
+    /// let hashprefix = HashPrefix::with_length(utils::make_digest(&[0xff, 0x22]), 4);
+    /// for i in hashprefix.iter() {
     ///    println!("{}", i);
     /// }
     /// ```
-    pub fn iter(&self) -> HashKeyIterator {
-        HashKeyIterator {
-            hash_key: self,
+    pub fn iter(&self) -> HashPrefixIterator {
+        HashPrefixIterator {
+            hashprefix: self,
             cursor: 0,
         }
     }
 
-    /// Checks if the HashKey is a prefix of some arbitrary byte slice.
+    /// Checks if the HashPrefix is a prefix of some arbitrary byte slice.
     ///
     /// # Examples
     ///
     /// ```
-    /// use wnfs::{private::HashKey, utils};
+    /// use wnfs::{private::HashPrefix, utils};
     ///
-    /// let hashkey = HashKey::with_length(utils::make_digest(&[0xff, 0x22]), 4);
+    /// let hashprefix = HashPrefix::with_length(utils::make_digest(&[0xff, 0x22]), 4);
     ///
-    /// assert!(hashkey.is_prefix_of(&[0xff, 0x22, 0x33]));
+    /// assert!(hashprefix.is_prefix_of(&[0xff, 0x22, 0x33]));
     /// ```
     pub fn is_prefix_of(&self, bytes: &[u8]) -> bool {
-        self == &HashKey::with_length(utils::make_digest(bytes), self.length)
+        self == &HashPrefix::with_length(utils::make_digest(bytes), self.length)
     }
 }
 
-impl Debug for HashKey {
+impl Debug for HashPrefix {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "0x")?;
         for nibble in self.iter() {
@@ -310,21 +310,21 @@ impl Debug for HashKey {
     }
 }
 
-impl PartialEq for HashKey {
+impl PartialEq for HashPrefix {
     fn eq(&self, other: &Self) -> bool {
         self.iter().eq(other.iter())
     }
 }
 
-impl Iterator for HashKeyIterator<'_> {
+impl Iterator for HashPrefixIterator<'_> {
     type Item = u8;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.cursor >= self.hash_key.length {
+        if self.cursor >= self.hashprefix.length {
             return None;
         }
 
-        let byte = self.hash_key.get(self.cursor)?;
+        let byte = self.hashprefix.get(self.cursor)?;
         self.cursor += 1;
         Some(byte)
     }
@@ -367,18 +367,21 @@ mod tests {
     }
 
     #[test]
-    fn can_push_and_get_nibbles_from_hashkey() {
-        let mut hashkey = HashKey::default();
+    fn can_push_and_get_nibbles_from_hashprefix() {
+        let mut hashprefix = HashPrefix::default();
         for i in 0..HASH_BYTE_SIZE {
-            hashkey.push((i % 16) as u8);
-            hashkey.push((15 - i % 16) as u8);
+            hashprefix.push((i % 16) as u8);
+            hashprefix.push((15 - i % 16) as u8);
         }
 
-        assert!(!hashkey.is_empty());
+        assert!(!hashprefix.is_empty());
 
         for i in 0..HASH_BYTE_SIZE {
-            assert_eq!(hashkey.get(i as u8 * 2).unwrap(), (i % 16) as u8);
-            assert_eq!(hashkey.get(i as u8 * 2 + 1).unwrap(), (15 - i % 16) as u8);
+            assert_eq!(hashprefix.get(i as u8 * 2).unwrap(), (i % 16) as u8);
+            assert_eq!(
+                hashprefix.get(i as u8 * 2 + 1).unwrap(),
+                (15 - i % 16) as u8
+            );
         }
     }
 }

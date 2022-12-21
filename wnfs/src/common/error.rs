@@ -69,11 +69,8 @@ pub enum FsError {
     #[error("Cannot find shard for file content")]
     FileShardNotFound,
 
-    #[error("The hashkey index is out of bounds")]
-    InvalidHashKeyIndex,
-
-    #[error("HAMT versions don't match")]
-    HamtVersionMismatch,
+    #[error("The hashprefix index is out of bounds")]
+    InvalidHashPrefixIndex,
 
     #[error("Key does not exist in HAMT")]
     KeyNotFoundInHamt,

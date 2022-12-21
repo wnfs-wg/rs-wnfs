@@ -3,7 +3,7 @@ use super::{
     namefilter::Namefilter,
     Key, PrivateNode, PrivateRef,
 };
-use crate::{error, utils::UnwrapOrClone, BlockStore, FsError, HashOutput, Hasher, Link};
+use crate::{utils::UnwrapOrClone, BlockStore, HashOutput, Hasher, Link};
 use anyhow::Result;
 use libipld::Cid;
 use log::debug;
@@ -369,22 +369,18 @@ where
     /// }
     /// ```
     pub async fn merge<B: BlockStore>(&self, other: &Self, store: &mut B) -> Result<Self> {
-        if self.version == other.version {
-            let merge_node = hamt::merge(
-                Link::from(Rc::clone(&self.root)),
-                Link::from(Rc::clone(&other.root)),
-                |a, b| Ok(a.union(b).cloned().collect()),
-                store,
-            )
-            .await?;
+        let merge_node = hamt::merge(
+            Link::from(Rc::clone(&self.root)),
+            Link::from(Rc::clone(&other.root)),
+            |a, b| Ok(a.union(b).cloned().collect()),
+            store,
+        )
+        .await?;
 
-            return Ok(Self {
-                version: self.version.clone(),
-                root: merge_node,
-            });
-        }
-
-        error(FsError::HamtVersionMismatch)
+        Ok(Self {
+            version: self.version.clone(),
+            root: merge_node,
+        })
     }
 }
 

@@ -1,5 +1,5 @@
 use super::{diff, KeyValueChange, Node, NodeChange, HAMT_VERSION};
-use crate::{error, AsyncSerialize, BlockStore, FsError, Hasher, Link};
+use crate::{AsyncSerialize, BlockStore, Hasher, Link};
 use anyhow::Result;
 use async_trait::async_trait;
 use libipld::{serde as ipld_serde, Ipld};
@@ -123,16 +123,12 @@ impl<K, V, H: Hasher> Hamt<K, V, H> {
         V: DeserializeOwned + Clone + fmt::Debug + Eq,
         H: Clone + fmt::Debug + 'static,
     {
-        if self.version == other.version {
-            return diff::node_diff(
-                Link::from(Rc::clone(&self.root)),
-                Link::from(Rc::clone(&other.root)),
-                store,
-            )
-            .await;
-        }
-
-        error(FsError::HamtVersionMismatch)
+        diff::node_diff(
+            Link::from(Rc::clone(&self.root)),
+            Link::from(Rc::clone(&other.root)),
+            store,
+        )
+        .await
     }
 
     /// Gets the difference between two HAMTs at the key-value level.
@@ -178,16 +174,12 @@ impl<K, V, H: Hasher> Hamt<K, V, H> {
         V: DeserializeOwned + Clone + fmt::Debug + Eq,
         H: Clone + fmt::Debug + 'static,
     {
-        if self.version == other.version {
-            return diff::kv_diff(
-                Link::from(Rc::clone(&self.root)),
-                Link::from(Rc::clone(&other.root)),
-                store,
-            )
-            .await;
-        }
-
-        error(FsError::HamtVersionMismatch)
+        diff::kv_diff(
+            Link::from(Rc::clone(&self.root)),
+            Link::from(Rc::clone(&other.root)),
+            store,
+        )
+        .await
     }
 
     async fn to_ipld<B: BlockStore + ?Sized>(&self, store: &mut B) -> Result<Ipld>

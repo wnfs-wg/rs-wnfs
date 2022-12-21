@@ -86,19 +86,19 @@ where
     for change in node_changes {
         match change.r#type {
             ChangeType::Add => {
-                let result = main_node.get_node_at(&change.hashkey, store).await?;
+                let result = main_node.get_node_at(&change.hashprefix, store).await?;
                 kv_changes
                     .extend(generate_add_or_remove_changes(result, ChangeType::Add, store).await?);
             }
             ChangeType::Remove => {
-                let result = other_node.get_node_at(&change.hashkey, store).await?;
+                let result = other_node.get_node_at(&change.hashprefix, store).await?;
                 kv_changes.extend(
                     generate_add_or_remove_changes(result, ChangeType::Remove, store).await?,
                 );
             }
             ChangeType::Modify => match (
-                main_node.get_node_at(&change.hashkey, store).await?,
-                other_node.get_node_at(&change.hashkey, store).await?,
+                main_node.get_node_at(&change.hashprefix, store).await?,
+                other_node.get_node_at(&change.hashprefix, store).await?,
             ) {
                 (Some(Left(main_pair)), Some(Left(other_pair))) => {
                     kv_changes.push(KeyValueChange {

@@ -1,7 +1,7 @@
 use super::{
     error::HamtError,
     hash::{HashNibbles, Hasher},
-    HashKey, Pair, Pointer, HAMT_BITMASK_BIT_SIZE, HAMT_BITMASK_BYTE_SIZE,
+    HashPrefix, Pair, Pointer, HAMT_BITMASK_BIT_SIZE, HAMT_BITMASK_BYTE_SIZE,
 };
 use crate::{
     private::HAMT_VALUES_BUCKET_SIZE, utils::UnwrapOrClone, AsyncSerialize, BlockStore, FsError,
@@ -513,8 +513,8 @@ where
         Ok(items)
     }
 
-    /// Given a hashkey representing the path to a node in the trie. This function will
-    /// return the key-value pair or the intermediate node that the hashkey points to.
+    /// Given a hashprefix representing the path to a node in the trie. This function will
+    /// return the key-value pair or the intermediate node that the hashprefix points to.
     ///
     /// # Examples
     ///
@@ -522,7 +522,7 @@ where
     /// use std::rc::Rc;
     /// use sha3::Sha3_256;
     /// use wnfs::{
-    ///     private::{Node, HashKey},
+    ///     private::{Node, HashPrefix},
     ///     utils, Hasher, MemoryBlockStore
     /// };
     ///
@@ -538,8 +538,8 @@ where
     ///             .unwrap();
     ///     }
     ///
-    ///     let hashkey = HashKey::with_length(utils::make_digest(&[0x8C]), 2);
-    ///     let result = node.get_node_at(&hashkey, store).await.unwrap();
+    ///     let hashprefix = HashPrefix::with_length(utils::make_digest(&[0x8C]), 2);
+    ///     let result = node.get_node_at(&hashprefix, store).await.unwrap();
     ///
     ///     println!("Result: {:#?}", result);
     /// }
@@ -547,7 +547,7 @@ where
     #[async_recursion(?Send)]
     pub async fn get_node_at<'a, B>(
         &'a self,
-        hashkey: &HashKey,
+        hashprefix: &HashPrefix,
         store: &B,
     ) -> Result<Option<Either<&'a Pair<K, V>, &'a Rc<Self>>>>
     where
@@ -555,13 +555,13 @@ where
         V: DeserializeOwned,
         B: BlockStore,
     {
-        self.get_node_at_helper(hashkey, 0, store).await
+        self.get_node_at_helper(hashprefix, 0, store).await
     }
 
     #[async_recursion(?Send)]
     async fn get_node_at_helper<'a, B>(
         &'a self,
-        hashkey: &HashKey,
+        hashprefix: &HashPrefix,
         index: u8,
         store: &B,
     ) -> Result<Option<Either<&'a Pair<K, V>, &'a Rc<Self>>>>
@@ -570,7 +570,9 @@ where
         V: DeserializeOwned,
         B: BlockStore,
     {
-        let bit_index = hashkey.get(index).ok_or(FsError::InvalidHashKeyIndex)? as usize;
+        let bit_index = hashprefix
+            .get(index)
+            .ok_or(FsError::InvalidHashPrefixIndex)? as usize;
 
         if !self.bitmask[bit_index] {
             return Ok(None);
@@ -581,16 +583,16 @@ where
             Pointer::Values(values) => Ok({
                 values
                     .iter()
-                    .find(|p| hashkey.is_prefix_of(&H::hash(&p.key)))
+                    .find(|p| hashprefix.is_prefix_of(&H::hash(&p.key)))
                     .map(Left)
             }),
             Pointer::Link(link) => {
                 let child = link.resolve_value(store).await?;
-                if index == hashkey.len() as u8 - 1 {
+                if index == hashprefix.len() as u8 - 1 {
                     return Ok(Some(Right(child)));
                 }
 
-                child.get_node_at_helper(hashkey, index + 1, store).await
+                child.get_node_at_helper(hashprefix, index + 1, store).await
             }
         }
     }
@@ -1040,7 +1042,7 @@ mod tests {
     }
 
     #[async_std::test]
-    async fn can_fetch_node_at_hashkey() {
+    async fn can_fetch_node_at_hashprefix() {
         let store = test_setup::init!(mut store);
 
         let mut node = Rc::new(Node::<String, String, MockHasher>::default());
@@ -1053,14 +1055,14 @@ mod tests {
         }
 
         for (digest, kv) in HASH_KV_PAIRS.iter().take(4) {
-            let hashkey = HashKey::with_length(*digest, 2);
-            let result = node.get_node_at(&hashkey, store).await.unwrap();
+            let hashprefix = HashPrefix::with_length(*digest, 2);
+            let result = node.get_node_at(&hashprefix, store).await.unwrap();
             let (key, value) = (kv.to_string(), kv.to_string());
             assert_eq!(result, Some(Either::Left(&Pair { key, value })));
         }
 
-        let hashkey = HashKey::with_length(utils::make_digest(&[0xE0]), 1);
-        let result = node.get_node_at(&hashkey, store).await.unwrap();
+        let hashprefix = HashPrefix::with_length(utils::make_digest(&[0xE0]), 1);
+        let result = node.get_node_at(&hashprefix, store).await.unwrap();
 
         assert!(matches!(result, Some(Either::Right(_))));
     }
