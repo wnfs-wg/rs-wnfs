@@ -35,18 +35,14 @@ pub struct PrivateDirectory(pub(crate) Rc<WnfsPrivateDirectory>);
 impl PrivateDirectory {
     /// Creates a new private directory.
     #[wasm_bindgen(constructor)]
-    pub fn new(
-        parent_bare_name: Namefilter,
-        time: &Date,
-        mut rng: Rng,
-    ) -> JsResult<PrivateDirectory> {
+    pub fn new(parent_bare_name: Namefilter, time: &Date, mut rng: Rng) -> PrivateDirectory {
         let time = DateTime::<Utc>::from(time);
 
-        Ok(Self(Rc::new(WnfsPrivateDirectory::new(
+        Self(Rc::new(WnfsPrivateDirectory::new(
             parent_bare_name.0,
             time,
             &mut rng,
-        ))))
+        )))
     }
 
     /// Creates a new directory with the ratchet seed and inumber provided.

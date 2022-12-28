@@ -30,14 +30,14 @@ pub struct PrivateFile(Rc<WnfsPrivateFile>);
 impl PrivateFile {
     /// Creates an empty private file.
     #[wasm_bindgen(constructor)]
-    pub fn new(parent_bare_name: Namefilter, time: &Date, mut rng: Rng) -> JsResult<PrivateFile> {
+    pub fn new(parent_bare_name: Namefilter, time: &Date, mut rng: Rng) -> PrivateFile {
         let time = DateTime::<Utc>::from(time);
 
-        Ok(Self(Rc::new(WnfsPrivateFile::new(
+        Self(Rc::new(WnfsPrivateFile::new(
             parent_bare_name.0,
             time,
             &mut rng,
-        ))))
+        )))
     }
 
     /// Creates a file with provided content.
