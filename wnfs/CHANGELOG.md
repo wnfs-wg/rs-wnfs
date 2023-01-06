@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.11](https://github.com/wnfs-wg/rs-wnfs/compare/wnfs-v0.1.10...wnfs-v0.1.11) (2023-01-06)
+
+
+### Features
+
+* **hamt:** diff and merge implementation ([#94](https://github.com/wnfs-wg/rs-wnfs/issues/94)) ([883b3ab](https://github.com/wnfs-wg/rs-wnfs/commit/883b3ab7f9c0ec4c086e83afe7f0510c448f6bbb))
+
 ## [0.1.10](https://github.com/wnfs-wg/rs-wnfs/compare/wnfs-v0.1.9...wnfs-v0.1.10) (2022-12-06)
 
 
