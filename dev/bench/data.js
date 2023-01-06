@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1672742965493,
+  "lastUpdate": 1673028498940,
   "repoUrl": "https://github.com/wnfs-wg/rs-wnfs",
   "entries": {
     "Rust Benchmark": [
@@ -3445,6 +3445,96 @@ window.BENCHMARK_DATA = {
             "name": "namefilter encode",
             "value": 175,
             "range": "± 5",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter decode/0",
+            "value": 1,
+            "range": "± 0",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "appcypher@outlook.com",
+            "name": "Stephen Akinyemi",
+            "username": "appcypher"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "883b3ab7f9c0ec4c086e83afe7f0510c448f6bbb",
+          "message": "feat(hamt): diff and merge implementation (#94)\n\n* Implement node diff and merge\r\n\r\n- lean diff method that focuses on the tree\r\n- exhaustive diff that holds a copy of changed key value pairs\r\n\r\n* Remove unnecessary spacing\r\n\r\n* Add unittests and merge impl\r\n\r\n* Fix HAMT PartialEq issue\r\n\r\n* Basic proptests\r\n\r\n- Add some docs\r\n- Not satisfied with the proptests yet\r\n\r\n* Add more proptests\r\n\r\n* Fix `get_node_at`, ...\r\n\r\n- Implement merge for `Node<k, V, H>`\r\n- Add more proptests, unittests and docs\r\n\r\n* Fix proptests\r\n\r\n- Remove hashbrown crate\r\nCo-authored-by: Philipp Krüger <philipp.krueger1@gmail.com>\r\n\r\n* Fix benches\r\n\r\n* Fix tests and so on\r\n\r\n- Simplify tests\r\n- UnwrapOrClone trait\r\n- Prefer once_cell\r\n- Remove depth param from diff\r\n\r\n* Remove version checks and so on\r\n\r\n- Remove version checks in hamt\r\n- CHange HashKey to HashPrefix",
+          "timestamp": "2023-01-06T19:03:13+01:00",
+          "tree_id": "03f73e560d03af04974417681b13a9284fb45b81",
+          "url": "https://github.com/wnfs-wg/rs-wnfs/commit/883b3ab7f9c0ec4c086e83afe7f0510c448f6bbb"
+        },
+        "date": 1673028497590,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "node set",
+            "value": 8776,
+            "range": "± 99",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node set 1000 consecutive",
+            "value": 5046544,
+            "range": "± 49754",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and get",
+            "value": 176622,
+            "range": "± 3306",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and remove",
+            "value": 197837,
+            "range": "± 2804",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt load and decode/0",
+            "value": 40398,
+            "range": "± 636",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt set and encode",
+            "value": 199202,
+            "range": "± 3115",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter add",
+            "value": 9732,
+            "range": "± 138",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter contains",
+            "value": 14113,
+            "range": "± 193",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter saturate",
+            "value": 48478,
+            "range": "± 358",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter encode",
+            "value": 333,
+            "range": "± 11",
             "unit": "ns/iter"
           },
           {
