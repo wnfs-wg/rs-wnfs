@@ -475,7 +475,6 @@ mod tests {
     use super::*;
     use crate::utils::test_setup;
     use rand::Rng;
-    use test_strategy::proptest;
 
     #[async_std::test]
     async fn can_create_empty_file() {
@@ -510,6 +509,14 @@ mod tests {
             content[2 * MAX_BLOCK_CONTENT_SIZE..4 * MAX_BLOCK_CONTENT_SIZE]
         );
     }
+}
+
+#[cfg(test)]
+mod proptests {
+    use super::MAX_BLOCK_CONTENT_SIZE;
+    use crate::utils::test_setup;
+    use futures::StreamExt;
+    use test_strategy::proptest;
 
     #[proptest(cases = 100)]
     fn can_include_and_get_content_from_file(

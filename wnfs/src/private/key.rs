@@ -167,6 +167,7 @@ mod proptests {
     use super::*;
     use proptest::{
         prelude::any,
+        prop_assert_eq,
         test_runner::{RngAlgorithm, TestRng},
     };
     use test_strategy::proptest;
@@ -183,6 +184,6 @@ mod proptests {
         let encrypted = key.encrypt(&Key::generate_nonce(rng), &data).unwrap();
         let decrypted = key.decrypt(&encrypted).unwrap();
 
-        assert_eq!(decrypted, data);
+        prop_assert_eq!(decrypted, data);
     }
 }

@@ -1,5 +1,5 @@
-use std::{collections::BTreeMap, rc::Rc, str::FromStr};
-
+use super::{diff, KeyValueChange, Node, NodeChange, HAMT_VERSION};
+use crate::{AsyncSerialize, BlockStore, Hasher, Link};
 use anyhow::Result;
 use async_trait::async_trait;
 use libipld::{serde as ipld_serde, Ipld};
@@ -9,10 +9,8 @@ use serde::{
     ser::Error as SerError,
     Deserialize, Deserializer, Serialize, Serializer,
 };
-
-use crate::{AsyncSerialize, BlockStore};
-
-use super::{Node, HAMT_VERSION};
+use sha3::Sha3_256;
+use std::{collections::BTreeMap, fmt, hash::Hash, rc::Rc, str::FromStr};
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
@@ -31,9 +29,12 @@ use super::{Node, HAMT_VERSION};
 /// let hamt = Hamt::<String, usize>::new();
 /// println!("HAMT: {:?}", hamt);
 /// ```
-#[derive(Debug, Clone, PartialEq)]
-pub struct Hamt<K, V> {
-    pub root: Rc<Node<K, V>>,
+#[derive(Debug, Clone)]
+pub struct Hamt<K, V, H = Sha3_256>
+where
+    H: Hasher,
+{
+    pub root: Rc<Node<K, V, H>>,
     pub version: Version,
 }
 
@@ -41,7 +42,7 @@ pub struct Hamt<K, V> {
 // Implementations
 //--------------------------------------------------------------------------------------------------
 
-impl<K, V> Hamt<K, V> {
+impl<K, V, H: Hasher> Hamt<K, V, H> {
     /// Creates a new empty HAMT.
     ///
     /// # Examples
@@ -68,13 +69,117 @@ impl<K, V> Hamt<K, V> {
     /// use wnfs::private::{Hamt, Node};
     ///
     /// let hamt = Hamt::<String, usize>::with_root(Rc::new(Node::default()));
+    ///
     /// println!("HAMT: {:?}", hamt);
     /// ```
-    pub fn with_root(root: Rc<Node<K, V>>) -> Self {
+    pub fn with_root(root: Rc<Node<K, V, H>>) -> Self {
         Self {
             root,
             version: HAMT_VERSION,
         }
+    }
+
+    /// Gets the difference between two HAMTs at the node level.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use std::rc::Rc;
+    /// use wnfs::{
+    ///     private::{Hamt, Node},
+    ///     MemoryBlockStore
+    /// };
+    ///
+    /// #[async_std::main]
+    /// async fn main() {
+    ///     let store = &mut MemoryBlockStore::default();
+    ///
+    ///     let main_hamt = Hamt::<String, usize>::with_root({
+    ///         let node = Rc::new(Node::default());
+    ///         let node = node.set("foo".into(), 400, store).await.unwrap();
+    ///         let node = node.set("bar".into(), 500, store).await.unwrap();
+    ///         node
+    ///     });
+    ///
+    ///     let other_hamt = Hamt::<String, usize>::with_root({
+    ///         let node = Rc::new(Node::default());
+    ///         let node = node.set("foo".into(), 200, store).await.unwrap();
+    ///         let node = node.set("qux".into(), 600, store).await.unwrap();
+    ///         node
+    ///     });
+    ///
+    ///     let node_diff = main_hamt.node_diff(&other_hamt, store).await.unwrap();
+    ///
+    ///     println!("node_diff: {:#?}", node_diff);
+    /// }
+    /// ```
+    pub async fn node_diff<B: BlockStore>(
+        &self,
+        other: &Self,
+        store: &mut B,
+    ) -> Result<Vec<NodeChange>>
+    where
+        K: DeserializeOwned + Clone + fmt::Debug + Eq + Hash + AsRef<[u8]>,
+        V: DeserializeOwned + Clone + fmt::Debug + Eq,
+        H: Clone + fmt::Debug + 'static,
+    {
+        diff::node_diff(
+            Link::from(Rc::clone(&self.root)),
+            Link::from(Rc::clone(&other.root)),
+            store,
+        )
+        .await
+    }
+
+    /// Gets the difference between two HAMTs at the key-value level.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use std::rc::Rc;
+    /// use wnfs::{
+    ///     private::{Hamt, Node},
+    ///     MemoryBlockStore
+    /// };
+    ///
+    /// #[async_std::main]
+    /// async fn main() {
+    ///     let store = &mut MemoryBlockStore::default();
+    ///
+    ///     let main_hamt = Hamt::<String, usize>::with_root({
+    ///         let node = Rc::new(Node::default());
+    ///         let node = node.set("foo".into(), 400, store).await.unwrap();
+    ///         let node = node.set("bar".into(), 500, store).await.unwrap();
+    ///         node
+    ///     });
+    ///
+    ///     let other_hamt = Hamt::<String, usize>::with_root({
+    ///         let node = Rc::new(Node::default());
+    ///         let node = node.set("foo".into(), 200, store).await.unwrap();
+    ///         let node = node.set("qux".into(), 600, store).await.unwrap();
+    ///         node
+    ///     });
+    ///
+    ///     let kv_diff = main_hamt.kv_diff(&other_hamt, store).await.unwrap();
+    ///
+    ///     println!("kv_diff: {:#?}", kv_diff);
+    /// }
+    pub async fn kv_diff<B: BlockStore>(
+        &self,
+        other: &Self,
+        store: &mut B,
+    ) -> Result<Vec<KeyValueChange<K, V>>>
+    where
+        K: DeserializeOwned + Clone + fmt::Debug + Eq + Hash + AsRef<[u8]>,
+        V: DeserializeOwned + Clone + fmt::Debug + Eq,
+        H: Clone + fmt::Debug + 'static,
+    {
+        diff::kv_diff(
+            Link::from(Rc::clone(&self.root)),
+            Link::from(Rc::clone(&other.root)),
+            store,
+        )
+        .await
     }
 
     async fn to_ipld<B: BlockStore + ?Sized>(&self, store: &mut B) -> Result<Ipld>
@@ -91,7 +196,7 @@ impl<K, V> Hamt<K, V> {
 }
 
 #[async_trait(?Send)]
-impl<K, V> AsyncSerialize for Hamt<K, V>
+impl<K, V, H: Hasher> AsyncSerialize for Hamt<K, V, H>
 where
     K: Serialize,
     V: Serialize,
@@ -148,9 +253,20 @@ where
     }
 }
 
-impl<K, V> Default for Hamt<K, V> {
+impl<K, V, H: Hasher> Default for Hamt<K, V, H> {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl<K, V, H> PartialEq for Hamt<K, V, H>
+where
+    K: PartialEq,
+    V: PartialEq,
+    H: Hasher,
+{
+    fn eq(&self, other: &Self) -> bool {
+        self.root == other.root && self.version == other.version
     }
 }
 

@@ -27,7 +27,7 @@ use crate::utils::ByteArrayVisitor;
 ///
 /// assert!(filter.contains(&[0xF5u8; 32]));
 /// ```
-#[derive(Clone, PartialEq, Eq, PartialOrd)]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Hash)]
 pub struct BloomFilter<const N: usize, const K: usize> {
     pub(super) bits: BitArray<[u8; N]>,
 }
@@ -314,6 +314,7 @@ mod tests {
 
 #[cfg(test)]
 mod proptests {
+    use proptest::prop_assert_eq;
     use test_strategy::proptest;
 
     use super::HashIndexIterator;
@@ -327,7 +328,7 @@ mod proptests {
             .collect::<Vec<_>>();
 
         for (indices, count) in indices {
-            assert_eq!(indices.len(), count);
+            prop_assert_eq!(indices.len(), count);
         }
     }
 }

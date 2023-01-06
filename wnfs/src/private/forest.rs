@@ -1,13 +1,14 @@
-use std::{collections::BTreeSet, rc::Rc};
-
+use super::{
+    hamt::{self, Hamt},
+    namefilter::Namefilter,
+    Key, PrivateNode, PrivateRef,
+};
+use crate::{utils::UnwrapOrClone, BlockStore, HashOutput, Hasher, Link};
 use anyhow::Result;
 use libipld::Cid;
 use log::debug;
 use rand_core::RngCore;
-
-use crate::{BlockStore, HashOutput};
-
-use super::{hamt::Hamt, namefilter::Namefilter, Key, PrivateNode, PrivateRef};
+use std::{collections::BTreeSet, fmt, rc::Rc};
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
@@ -19,7 +20,7 @@ use super::{hamt::Hamt, namefilter::Namefilter, Key, PrivateNode, PrivateRef};
 /// an accompanying block store. And on lookup, the nodes are decrypted and deserialized with the same private
 /// refs.
 ///
-/// It is called a forest because it is a collection of file trees.
+/// It is called a forest because it can store a collection of file trees.
 ///
 /// # Examples
 ///
@@ -30,7 +31,6 @@ use super::{hamt::Hamt, namefilter::Namefilter, Key, PrivateNode, PrivateRef};
 ///
 /// println!("{:?}", forest);
 /// ```
-// TODO(appcypher): Change Cid to PrivateLink<PrivateNode>.
 pub type PrivateForest = Hamt<Namefilter, BTreeSet<Cid>>;
 
 //--------------------------------------------------------------------------------------------------
@@ -49,10 +49,8 @@ impl PrivateForest {
     ///
     /// ```
     /// use std::rc::Rc;
-    ///
     /// use chrono::Utc;
     /// use rand::thread_rng;
-    ///
     /// use wnfs::{
     ///     private::{PrivateForest, PrivateRef}, PrivateNode,
     ///     BlockStore, MemoryBlockStore, Namefilter, PrivateDirectory, PrivateOpResult,
@@ -117,10 +115,8 @@ impl PrivateForest {
     ///
     /// ```
     /// use std::rc::Rc;
-    ///
     /// use chrono::Utc;
     /// use rand::thread_rng;
-    ///
     /// use wnfs::{
     ///     private::{PrivateForest, PrivateRef}, PrivateNode,
     ///     BlockStore, MemoryBlockStore, Namefilter, PrivateDirectory, PrivateOpResult,
@@ -186,11 +182,9 @@ impl PrivateForest {
     ///
     /// ```
     /// use std::rc::Rc;
-    ///
     /// use chrono::Utc;
     /// use rand::thread_rng;
     /// use sha3::Sha3_256;
-    ///
     /// use wnfs::{
     ///     private::{PrivateForest, PrivateRef}, PrivateNode,
     ///     BlockStore, MemoryBlockStore, Namefilter, PrivateDirectory, PrivateOpResult, Hasher
@@ -246,7 +240,7 @@ impl PrivateForest {
             .unwrap_or_default();
         values.insert(value);
 
-        let mut forest = Rc::try_unwrap(self).unwrap_or_else(|rc| (*rc).clone());
+        let mut forest = self.unwrap_or_clone()?;
         forest.root = forest.root.set(name, values, store).await?;
         Ok(Rc::new(forest))
     }
@@ -298,22 +292,185 @@ impl PrivateForest {
     }
 }
 
-// //--------------------------------------------------------------------------------------------------
-// // Tests
-// //--------------------------------------------------------------------------------------------------
+impl<H> Hamt<Namefilter, BTreeSet<Cid>, H>
+where
+    H: Hasher + fmt::Debug + Clone + 'static,
+{
+    /// Merges a private forest with another. If there is a conflict with the values,they are union
+    /// combined into a single value in the final merge node
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use std::rc::Rc;
+    /// use chrono::{Utc, Days};
+    /// use rand::{thread_rng, Rng};
+    /// use wnfs::{
+    ///     private::{PrivateForest, PrivateRef}, PrivateNode,
+    ///     BlockStore, MemoryBlockStore, Namefilter, PrivateDirectory, PrivateOpResult,
+    /// };
+    ///
+    /// #[async_std::main]
+    /// async fn main() {
+    ///     let store = &mut MemoryBlockStore::default();
+    ///     let rng = &mut thread_rng();
+    ///
+    ///     let ratchet_seed = rng.gen::<[u8; 32]>();
+    ///     let inumber = rng.gen::<[u8; 32]>();
+    ///
+    ///     let main_forest = Rc::new(PrivateForest::new());
+    ///     let root_dir = Rc::new(PrivateDirectory::with_seed(
+    ///         Namefilter::default(),
+    ///         Utc::now(),
+    ///         ratchet_seed,
+    ///         inumber
+    ///     ));
+    ///     let main_forest = main_forest
+    ///         .put(
+    ///             root_dir.header.get_saturated_name(),
+    ///             &root_dir.header.get_private_ref(),
+    ///             &PrivateNode::Dir(Rc::clone(&root_dir)),
+    ///             store,
+    ///             rng
+    ///         )
+    ///         .await
+    ///         .unwrap();
+    ///
+    ///     let other_forest = Rc::new(PrivateForest::new());
+    ///     let root_dir = Rc::new(PrivateDirectory::with_seed(
+    ///         Namefilter::default(),
+    ///         Utc::now().checked_add_days(Days::new(1)).unwrap(),
+    ///         ratchet_seed,
+    ///         inumber
+    ///     ));
+    ///     let other_forest = other_forest
+    ///         .put(
+    ///             root_dir.header.get_saturated_name(),
+    ///             &root_dir.header.get_private_ref(),
+    ///             &PrivateNode::Dir(Rc::clone(&root_dir)),
+    ///             store,
+    ///             rng
+    ///         )
+    ///         .await
+    ///         .unwrap();
+    ///
+    ///     let merge_forest = main_forest.merge(&other_forest, store).await.unwrap();
+    ///
+    ///     assert_eq!(
+    ///         2,
+    ///         merge_forest
+    ///             .root
+    ///             .get(&root_dir.header.get_saturated_name(), store)
+    ///             .await
+    ///             .unwrap()
+    ///             .unwrap()
+    ///             .len()
+    ///     );
+    /// }
+    /// ```
+    pub async fn merge<B: BlockStore>(&self, other: &Self, store: &mut B) -> Result<Self> {
+        let merge_node = hamt::merge(
+            Link::from(Rc::clone(&self.root)),
+            Link::from(Rc::clone(&other.root)),
+            |a, b| Ok(a.union(b).cloned().collect()),
+            store,
+        )
+        .await?;
+
+        Ok(Self {
+            version: self.version.clone(),
+            root: merge_node,
+        })
+    }
+}
+
+//--------------------------------------------------------------------------------------------------
+// Tests
+//--------------------------------------------------------------------------------------------------
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+    use crate::{
+        private::{HashNibbles, Node, PrivateDirectory},
+        utils::test_setup,
+        MemoryBlockStore,
+    };
+    use chrono::Utc;
+    use helper::*;
     use proptest::test_runner::{RngAlgorithm, TestRng};
     use std::rc::Rc;
-    use test_log::test;
 
-    use chrono::Utc;
+    mod helper {
+        use crate::{utils, HashOutput, Hasher, Namefilter};
+        use libipld::{Cid, Multihash};
+        use once_cell::sync::Lazy;
+        use rand::{thread_rng, RngCore};
 
-    use super::*;
-    use crate::{private::PrivateDirectory, MemoryBlockStore};
+        pub(super) static HASH_KV_PAIRS: Lazy<Vec<(HashOutput, Namefilter, Cid)>> =
+            Lazy::new(|| {
+                vec![
+                    (
+                        utils::make_digest(&[0xA0]),
+                        generate_saturated_name_hash(&mut thread_rng()),
+                        generate_cid(&mut thread_rng()),
+                    ),
+                    (
+                        utils::make_digest(&[0xA3]),
+                        generate_saturated_name_hash(&mut thread_rng()),
+                        generate_cid(&mut thread_rng()),
+                    ),
+                    (
+                        utils::make_digest(&[0xA7]),
+                        generate_saturated_name_hash(&mut thread_rng()),
+                        generate_cid(&mut thread_rng()),
+                    ),
+                    (
+                        utils::make_digest(&[0xAC]),
+                        generate_saturated_name_hash(&mut thread_rng()),
+                        generate_cid(&mut thread_rng()),
+                    ),
+                    (
+                        utils::make_digest(&[0xAE]),
+                        generate_saturated_name_hash(&mut thread_rng()),
+                        generate_cid(&mut thread_rng()),
+                    ),
+                ]
+            });
 
-    #[test(async_std::test)]
+        #[derive(Debug, Clone)]
+        pub(super) struct MockHasher;
+        impl Hasher for MockHasher {
+            fn hash<K: AsRef<[u8]>>(key: &K) -> HashOutput {
+                HASH_KV_PAIRS
+                    .iter()
+                    .find(|(_, v, _)| key.as_ref() == v.as_ref())
+                    .unwrap()
+                    .0
+            }
+        }
+
+        pub(super) fn generate_saturated_name_hash(rng: &mut impl RngCore) -> Namefilter {
+            let mut namefilter = Namefilter::default();
+            namefilter.add(&utils::get_random_bytes::<32>(rng));
+            namefilter.saturate();
+            namefilter
+        }
+
+        pub(super) fn generate_cid(rng: &mut impl RngCore) -> Cid {
+            let bytes = {
+                let mut tmp = [0u8; 10];
+                let (a, b) = tmp.split_at_mut(2);
+                a.copy_from_slice(&[0x55, 0x08]);
+                b.copy_from_slice(&utils::get_random_bytes::<8>(rng));
+                tmp
+            };
+
+            Cid::new_v1(0x55, Multihash::from_bytes(&bytes).unwrap())
+        }
+    }
+
+    #[async_std::test]
     async fn inserted_items_can_be_fetched() {
         let store = &mut MemoryBlockStore::new();
         let forest = Rc::new(PrivateForest::new());
@@ -343,7 +500,7 @@ mod tests {
         assert_eq!(retrieved, private_node);
     }
 
-    #[test(async_std::test)]
+    #[async_std::test]
     async fn inserted_multivalue_items_can_be_fetched_with_bias() {
         let store = &mut MemoryBlockStore::new();
         let forest = Rc::new(PrivateForest::new());
@@ -412,5 +569,75 @@ mod tests {
             .unwrap();
 
         assert_eq!(retrieved, private_node_conflict);
+    }
+
+    #[async_std::test]
+    async fn can_merge_nodes_with_different_structure_and_modified_changes() {
+        let (store, rng) = test_setup::init!(mut store, mut rng);
+
+        // A node that adds the first 3 pairs of HASH_KV_PAIRS.
+        let mut other_node = Rc::new(Node::<_, _, MockHasher>::default());
+        for (digest, k, v) in HASH_KV_PAIRS.iter().take(3) {
+            other_node = other_node
+                .set_value(
+                    &mut HashNibbles::new(digest),
+                    k.clone(),
+                    BTreeSet::from([*v]),
+                    store,
+                )
+                .await
+                .unwrap();
+        }
+
+        // Another node that keeps the first pair, modify the second pair, removes the third pair, and adds the fourth and fifth pair.
+        let mut main_node = Rc::new(Node::<_, _, MockHasher>::default());
+        main_node = main_node
+            .set_value(
+                &mut HashNibbles::new(&HASH_KV_PAIRS[0].0),
+                HASH_KV_PAIRS[0].1.clone(),
+                BTreeSet::from([HASH_KV_PAIRS[0].2]),
+                store,
+            )
+            .await
+            .unwrap();
+
+        let new_cid = generate_cid(rng);
+        main_node = main_node
+            .set_value(
+                &mut HashNibbles::new(&HASH_KV_PAIRS[1].0),
+                HASH_KV_PAIRS[1].1.clone(),
+                BTreeSet::from([new_cid]),
+                store,
+            )
+            .await
+            .unwrap();
+
+        for (digest, k, v) in HASH_KV_PAIRS.iter().skip(3).take(2) {
+            main_node = main_node
+                .set_value(
+                    &mut HashNibbles::new(digest),
+                    k.clone(),
+                    BTreeSet::from([*v]),
+                    store,
+                )
+                .await
+                .unwrap();
+        }
+
+        let main_forest = Hamt::<Namefilter, BTreeSet<Cid>, _>::with_root(main_node);
+        let other_forest = Hamt::<Namefilter, BTreeSet<Cid>, _>::with_root(other_node);
+
+        let merge_forest = main_forest.merge(&other_forest, store).await.unwrap();
+
+        for (i, (digest, _, v)) in HASH_KV_PAIRS.iter().take(5).enumerate() {
+            let retrieved = merge_forest.root.get_by_hash(digest, store).await.unwrap();
+            if i != 1 {
+                assert_eq!(retrieved.unwrap(), &BTreeSet::from([*v]));
+            } else {
+                // The second pair should contain two merged Cids.
+                assert!(retrieved.unwrap().contains(&new_cid));
+                assert!(retrieved.unwrap().contains(&HASH_KV_PAIRS[1].2));
+            }
+        }
     }
 }
