@@ -79,7 +79,7 @@ impl<K, V, H: Hasher> Pointer<K, V, H> {
     {
         match self {
             Pointer::Link(link) => {
-                let node = link.get_owned_value(store).await?;
+                let node = link.resolve_owned_value(store).await?;
                 match node.pointers.len() {
                     0 => Ok(None),
                     1 if matches!(node.pointers[0], Pointer::Values(_)) => {

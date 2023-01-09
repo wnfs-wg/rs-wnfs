@@ -116,7 +116,7 @@ build_wasm() {
     WASM_BINDGEN_WEAKREF=1 wasm-pack build --target web
 	sed -i.bak \
         -e 's/"name": "wnfs-wasm"/"name": "wnfs",\n  "type": "module"/g' \
-        -e 's/"module": "wnfs_wasm\.js"/"module": "wnfs_wasm\.js",\n  "main": "wasm_wnfs\.js"/g' \
+        -e 's/"module": "wnfs_wasm\.js"/"module": "wnfs_wasm\.js",\n  "main": "wnfs_wasm\.js"/g' \
         pkg/package.json
 	rm pkg/package.json.bak
 }

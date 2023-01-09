@@ -1,10 +1,10 @@
+use crate::{AsyncSerialize, BlockStore, IpldEq};
 use anyhow::Result;
 use async_once_cell::OnceCell;
 use async_trait::async_trait;
 use libipld::Cid;
 use serde::de::DeserializeOwned;
-
-use crate::{AsyncSerialize, BlockStore, IpldEq};
+use std::fmt::{self, Debug, Formatter};
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
@@ -15,7 +15,6 @@ use crate::{AsyncSerialize, BlockStore, IpldEq};
 /// It supports representing the "link" with a Cid or the deserialized value itself.
 ///
 /// Link needs a `BlockStore` to be able to resolve Cids to corresponding values of `T` and vice versa.
-#[derive(Debug)]
 pub enum Link<T> {
     /// A variant of `Link` that started out as a `Cid`.
     /// If the decoded value is resolved using `resolve_value`, then the `value_cache` gets populated and
@@ -91,7 +90,7 @@ impl<T> Link<T> {
     }
 
     /// Gets an owned value from type. It attempts to it get from the store if it is not present in type.
-    pub async fn get_owned_value<B: BlockStore + ?Sized>(self, store: &B) -> Result<T>
+    pub async fn resolve_owned_value<B: BlockStore>(self, store: &B) -> Result<T>
     where
         T: DeserializeOwned,
     {
@@ -200,6 +199,18 @@ where
                     false
                 }
             }
+        }
+    }
+}
+
+impl<T> Debug for Link<T>
+where
+    T: Debug,
+{
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Encoded { cid, .. } => f.debug_tuple("Link::Encoded").field(cid).finish(),
+            Self::Decoded { value, .. } => f.debug_tuple("Link::Decoded").field(value).finish(),
         }
     }
 }

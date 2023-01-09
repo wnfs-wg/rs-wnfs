@@ -4,7 +4,6 @@ use std::{borrow::Cow, io::Cursor};
 
 use anyhow::Result;
 use async_trait::async_trait;
-use hashbrown::HashMap;
 use libipld::{
     cbor::DagCborCodec,
     cid::Version,
@@ -14,6 +13,7 @@ use libipld::{
 };
 use rand_core::RngCore;
 use serde::{de::DeserializeOwned, Serialize};
+use std::collections::HashMap;
 
 use crate::{
     private::{Key, NONCE_SIZE},

@@ -1,4 +1,4 @@
-use crate::{error, FsError};
+use crate::{error, FsError, HashOutput};
 use anyhow::Result;
 #[cfg(any(test, feature = "test_strategies"))]
 use proptest::{
@@ -7,7 +7,8 @@ use proptest::{
 };
 use rand_core::RngCore;
 use serde::de::Visitor;
-use std::fmt;
+use std::{fmt, rc::Rc};
+
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
 //--------------------------------------------------------------------------------------------------
@@ -18,6 +19,11 @@ pub(crate) struct ByteArrayVisitor<const N: usize>;
 pub trait Sampleable {
     type Value;
     fn sample(&self, runner: &mut TestRunner) -> Self::Value;
+}
+
+pub(crate) trait UnwrapOrClone {
+    type Output;
+    fn unwrap_or_clone(self) -> Self::Output;
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -54,6 +60,20 @@ where
     }
 }
 
+impl<T> UnwrapOrClone for Rc<T>
+where
+    T: Clone,
+{
+    type Output = Result<T>;
+
+    fn unwrap_or_clone(self) -> Self::Output {
+        match Rc::try_unwrap(self) {
+            Ok(value) => Ok(value),
+            Err(rc) => Ok(rc.as_ref().clone()),
+        }
+    }
+}
+
 //--------------------------------------------------------------------------------------------------
 // Functions
 //--------------------------------------------------------------------------------------------------
@@ -71,10 +91,10 @@ pub(crate) fn split_last(path_segments: &[String]) -> Result<(&[String], &String
 ///
 /// ```
 /// use rand::thread_rng;
-/// use wnfs::utils::get_random_bytes;
+/// use wnfs::utils;
 ///
 /// let rng = &mut thread_rng();
-/// let bytes = get_random_bytes::<32>(rng);
+/// let bytes = utils::get_random_bytes::<32>(rng);
 ///
 /// assert_eq!(bytes.len(), 32);
 /// ```
@@ -82,6 +102,27 @@ pub fn get_random_bytes<const N: usize>(rng: &mut impl RngCore) -> [u8; N] {
     let mut bytes = [0u8; N];
     rng.fill_bytes(&mut bytes);
     bytes
+}
+
+/// Creates a [`HashOutput`][HashOutput] ([u8; 32]) from a possibly incomplete slice.
+///
+/// If the slice is smaller than `HashOutput`, the remaining bytes are filled with zeros.
+///
+/// # Examples
+///
+/// ```
+/// use wnfs::utils;
+///
+/// let digest = utils::make_digest(&[0xff, 0x22]);
+///
+/// assert_eq!(digest.len(), 32);
+/// ```
+///
+/// [HashOutput]: crate::HashOutput
+pub fn make_digest(bytes: &[u8]) -> HashOutput {
+    let mut nibbles = [0u8; 32];
+    nibbles[..bytes.len()].copy_from_slice(bytes);
+    nibbles
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -112,6 +153,11 @@ pub(crate) mod test_setup {
         [ rng ] => {
             proptest::test_runner::TestRng::deterministic_rng(
                 proptest::test_runner::RngAlgorithm::ChaCha
+            )
+        };
+        [ runner ] => {
+            proptest::test_runner::TestRunner::new(
+                proptest::test_runner::Config::default()
             )
         };
         [ store ] => {

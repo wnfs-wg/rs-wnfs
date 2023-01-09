@@ -1,0 +1,8 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc a534906dfc176f8c4cd538fdf1bf0f0899462ac9444d4b966f02471f697b5fef # shrinks to input = _MergeCommutativityArgs { ops: Operations([Insert("yf0h9w", 5841962655239405927), Insert("2iu58c9", 3370888731860934047), Insert("m9j9t", 7265696903202593462), Remove("j3vs"), Remove("f4"), Insert("i5qb", 10523669173817519006), Insert("f67r9vuw", 12317150070157799956), Insert("4yibko9", 1749416059759925490), Insert("1", 11104016840992901739), Remove("k56vtf"), Insert("57ul0s", 10760630981796699974), Remove("9b2vc84"), Remove("m1e5"), Remove("d4kn"), Insert("gyl", 5768830030276443147), Insert("36", 1062845700696758957), Remove("dqz0q7nh"), Insert("h2a2r3h", 1448791360660457216), Remove("ych543"), Remove("7xk"), Insert("r", 12267725769721984134), Insert("6x", 7521533771167090565), Insert("2u5duw", 142243144271675893), Remove("k0v8ju"), Remove("51u8zwr"), Remove("gi1h2"), Remove("511i4k0"), Remove("478"), Remove("32"), Remove("3qvaw0xa"), Insert("e3", 8846047171313551908), Remove("csyme0o0")]) }
+cc 4e6b67ab3a19fc8a07dfdfc61970354373d689e8b320b619aab92cfe5506af7c # shrinks to input = _MergeAssociativityArgs { ops_changes: (Operations([Remove("6"), Remove("8r"), Insert("9ne", 896), Insert("3", 198), Insert("g", 152), Remove("u4"), Insert("l5k", 800), Remove("ux"), Insert("0cs", 395), Remove("736"), Insert("5gk", 395), Insert("1v5", 971)]), [Add("5gk", 1331), Modify("9ne", 1310), Add("3", 1907)], [Remove("l5k")]) }

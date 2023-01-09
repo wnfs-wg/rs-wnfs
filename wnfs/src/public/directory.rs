@@ -641,7 +641,7 @@ impl PublicDirectory {
 
         // Remove the entry from its parent directory
         let removed_node = match directory.userland.remove(node_name) {
-            Some(link) => link.get_owned_value(store).await?,
+            Some(link) => link.resolve_owned_value(store).await?,
             None => bail!(FsError::NotFound),
         };
 
