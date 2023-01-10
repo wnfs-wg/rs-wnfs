@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1673346500129,
+  "lastUpdate": 1673358140856,
   "repoUrl": "https://github.com/wnfs-wg/rs-wnfs",
   "entries": {
     "Rust Benchmark": [
@@ -3895,6 +3895,96 @@ window.BENCHMARK_DATA = {
             "name": "namefilter encode",
             "value": 160,
             "range": "± 8",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter decode/0",
+            "value": 1,
+            "range": "± 0",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "icid.asset@gmail.com",
+            "name": "Steven Vandevelde",
+            "username": "icidasset"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "f02658b07b84e391a0984046d4e2fc4b949056a1",
+          "message": "feat: Add as_file and is_file to PrivateNode (wasm) (#136)",
+          "timestamp": "2023-01-10T14:38:16+01:00",
+          "tree_id": "8cc2a85bef2144c2c7d7d06893a842c1be54cc54",
+          "url": "https://github.com/wnfs-wg/rs-wnfs/commit/f02658b07b84e391a0984046d4e2fc4b949056a1"
+        },
+        "date": 1673358139839,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "node set",
+            "value": 8843,
+            "range": "± 661",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node set 1000 consecutive",
+            "value": 4790262,
+            "range": "± 236591",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and get",
+            "value": 171355,
+            "range": "± 10649",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and remove",
+            "value": 193156,
+            "range": "± 7321",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt load and decode/0",
+            "value": 40312,
+            "range": "± 2801",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt set and encode",
+            "value": 192873,
+            "range": "± 12565",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter add",
+            "value": 12584,
+            "range": "± 850",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter contains",
+            "value": 12091,
+            "range": "± 644",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter saturate",
+            "value": 51667,
+            "range": "± 3820",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter encode",
+            "value": 318,
+            "range": "± 48",
             "unit": "ns/iter"
           },
           {
