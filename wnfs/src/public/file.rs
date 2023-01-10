@@ -112,7 +112,7 @@ impl PublicFile {
     /// }
     /// ```
     #[inline(always)]
-    pub async fn store<B: BlockStore>(&self, store: &mut B) -> Result<Cid> {
+    pub async fn store(&self, store: &mut impl BlockStore) -> Result<Cid> {
         store.put_serializable(self).await
     }
 }

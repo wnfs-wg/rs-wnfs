@@ -1,9 +1,13 @@
-use std::rc::Rc;
+use std::{collections::BTreeSet, rc::Rc};
 
 use anyhow::{bail, Result};
+use libipld::Cid;
 use skip_ratchet::{ratchet::PreviousIterator, Ratchet};
 
-use super::{PrivateDirectory, PrivateFile, PrivateForest, PrivateNode, PrivateNodeHeader};
+use super::{
+    encrypted::Encrypted, PrivateDirectory, PrivateFile, PrivateForest, PrivateNode,
+    PrivateNodeHeader, RevisionKey,
+};
 
 use crate::{BlockStore, FsError, PathNodes, PathNodesResult};
 
@@ -47,6 +51,8 @@ pub struct PrivateNodeHistory {
     /// This will always be the header of the *next* version after what's retrieved from
     /// the `ratchets` iterator.
     header: PrivateNodeHeader,
+    /// The private node tracks which previous revision's value it was a modification of.
+    previous: Option<Encrypted<BTreeSet<Cid>>>,
     /// The iterator for previous revision ratchets.
     ratchets: PreviousIterator,
 }
@@ -66,6 +72,7 @@ impl PrivateNodeHistory {
     ) -> Result<Self> {
         Self::from_header(
             node.get_header().clone(),
+            node.get_previous().clone(),
             past_ratchet,
             discrepancy_budget,
             forest,
@@ -77,6 +84,7 @@ impl PrivateNodeHistory {
     /// See also `PrivateNodeHistory::of`.
     pub fn from_header(
         header: PrivateNodeHeader,
+        previous: Option<Encrypted<BTreeSet<Cid>>>,
         past_ratchet: &Ratchet,
         discrepancy_budget: usize,
         forest: Rc<PrivateForest>,
@@ -87,6 +95,7 @@ impl PrivateNodeHistory {
         Ok(PrivateNodeHistory {
             forest,
             header,
+            previous,
             ratchets,
         })
     }
@@ -95,23 +104,43 @@ impl PrivateNodeHistory {
     /// previous point in history.
     ///
     /// Returns `None` if there is no such node in the `PrivateForest` at that point in time.
-    pub async fn get_previous_node<B: BlockStore>(
+    pub async fn get_previous_node(
         &mut self,
-        store: &B,
+        store: &impl BlockStore,
     ) -> Result<Option<PrivateNode>> {
-        match self.ratchets.next() {
-            None => Ok(None),
-            Some(previous_ratchet) => {
-                // TODO(matheus23) Make the `resolve_bias` be biased towards eventual `previous` backpointers.
-                self.header.ratchet = previous_ratchet;
-                self.forest
-                    .get(
-                        &self.header.get_private_ref(),
-                        PrivateForest::resolve_lowest,
-                        store,
-                    )
-                    .await
-            }
+        let Some(previous_ratchet) = self.ratchets.next()
+        else {
+            return Ok(None);
+        };
+
+        let previous_cids = self.resolve_previous_cids(&previous_ratchet)?;
+
+        self.header.ratchet = previous_ratchet;
+
+        let previous_node = self
+            .forest
+            .get(
+                &self.header.get_private_ref(),
+                PrivateForest::resolve_one_of::<fn(&BTreeSet<Cid>) -> Option<&Cid>>(&previous_cids),
+                store,
+            )
+            .await?;
+
+        if let Some(previous_node) = previous_node {
+            self.previous = previous_node.get_previous().clone();
+            Ok(Some(previous_node))
+        } else {
+            Ok(None)
+        }
+    }
+
+    fn resolve_previous_cids(&self, previous_ratchet: &Ratchet) -> Result<BTreeSet<Cid>> {
+        if let Some(encrypted) = &self.previous {
+            let revision_key = RevisionKey::from(previous_ratchet);
+            // Cloning here because otherwise lifetimes are hard
+            Ok(encrypted.resolve_value(&revision_key.0)?.clone())
+        } else {
+            Ok(BTreeSet::new())
         }
     }
 
@@ -120,9 +149,9 @@ impl PrivateNodeHistory {
     /// Returns `None` if there is no previous node with that revision in the `PrivateForest`,
     /// throws `FsError::NotADirectory` if the previous node happens to not be a directory.
     /// That should only happen for all nodes or for none.
-    pub async fn get_previous_dir<B: BlockStore>(
+    pub async fn get_previous_dir(
         &mut self,
-        store: &B,
+        store: &impl BlockStore,
     ) -> Result<Option<Rc<PrivateDirectory>>> {
         match self.get_previous_node(store).await? {
             Some(PrivateNode::Dir(dir)) => Ok(Some(dir)),
@@ -136,9 +165,9 @@ impl PrivateNodeHistory {
     /// Returns `None` if there is no previous node with that revision in the `PrivateForest`,
     /// throws `FsError::NotAFile` if the previous node happens to not be a file.
     /// That should only happen for all nodes or for none.
-    pub async fn get_previous_file<B: BlockStore>(
+    pub async fn get_previous_file(
         &mut self,
-        store: &B,
+        store: &impl BlockStore,
     ) -> Result<Option<Rc<PrivateFile>>> {
         match self.get_previous_node(store).await? {
             Some(PrivateNode::File(file)) => Ok(Some(file)),
@@ -159,14 +188,14 @@ impl PrivateNodeOnPathHistory {
     /// When `search_latest` is true, it follow the path in the current revision
     /// down to the child, and then look for the latest revision of the target node,
     /// including all in-between versions in the history.
-    pub async fn of<B: BlockStore>(
+    pub async fn of(
         directory: Rc<PrivateDirectory>,
         past_ratchet: &Ratchet,
         discrepancy_budget: usize,
         path_segments: &[String],
         search_latest: bool,
         forest: Rc<PrivateForest>,
-        store: &B,
+        store: &impl BlockStore,
     ) -> Result<PrivateNodeOnPathHistory> {
         // To get the history on a node on a path from a given directory that we
         // know its newest and oldest ratchet of, we need to generate
@@ -232,14 +261,14 @@ impl PrivateNodeOnPathHistory {
     /// until the current revision.
     ///
     /// If `search_latest` is false, the target history is empty.
-    async fn path_nodes_and_target_history<B: BlockStore>(
+    async fn path_nodes_and_target_history(
         dir: Rc<PrivateDirectory>,
         discrepancy_budget: usize,
         path_segments: &[String],
         target_path_segment: &String,
         search_latest: bool,
         forest: Rc<PrivateForest>,
-        store: &B,
+        store: &impl BlockStore,
     ) -> Result<(Vec<(Rc<PrivateDirectory>, String)>, PrivateNodeHistory)> {
         // We only search for the latest revision in the private node.
         // It may have been deleted in future versions of its ancestor directories.
@@ -252,13 +281,9 @@ impl PrivateNodeOnPathHistory {
             PathNodesResult::NotADirectory(_, _) => bail!(FsError::NotADirectory),
         };
 
-        // TODO(matheus23) refactor using let-else once rust stable 1.65 released (Nov 3rd)
-        let target = match (*path_nodes.tail)
-            .lookup_node(target_path_segment, false, &forest, store)
-            .await?
-        {
-            Some(target) => target,
-            None => bail!(FsError::NotFound),
+        let Some(target) = (*path_nodes.tail).lookup_node(target_path_segment, false, &forest, store).await?
+        else {
+            bail!(FsError::NotFound);
         };
 
         let target_latest = if search_latest {
@@ -307,7 +332,7 @@ impl PrivateNodeOnPathHistory {
     /// Step the history one revision back and retrieve the node at the configured path.
     ///
     /// Returns `None` if there is no more previous revisions.
-    pub async fn get_previous<B: BlockStore>(&mut self, store: &B) -> Result<Option<PrivateNode>> {
+    pub async fn get_previous(&mut self, store: &impl BlockStore) -> Result<Option<PrivateNode>> {
         // Finding the previous revision of a node works by trying to get
         // the previous revision of the path elements starting on the deepest
         // path node working upwards, in case the history of lower nodes
@@ -322,10 +347,9 @@ impl PrivateNodeOnPathHistory {
             return Ok(Some(node));
         }
 
-        // TODO(matheus23) refactor using let-else once rust stable 1.65 released (Nov 3rd)
-        let working_stack = match self.find_and_step_segment_history(store).await? {
-            Some(stack) => stack,
-            None => return Ok(None),
+        let Some(working_stack) = self.find_and_step_segment_history(store).await?
+        else {
+            return Ok(None);
         };
 
         if !self
@@ -339,18 +363,17 @@ impl PrivateNodeOnPathHistory {
             "Should not happen: path stack was empty after call to repopulate_segment_histories",
         );
 
-        // TODO(matheus23) refactor using let-else once rust stable 1.65 released (Nov 3rd)
-        let older_node = match ancestor
+        let Some(older_node) = ancestor
             .dir
             .lookup_node(&ancestor.path_segment, false, &self.forest, store)
             .await?
-        {
-            Some(older_node) => older_node,
-            None => return Ok(None),
+        else {
+            return Ok(None);
         };
 
         self.target = match PrivateNodeHistory::from_header(
             self.target.header.clone(),
+            self.target.previous.clone(),
             &older_node.get_header().ratchet,
             self.discrepancy_budget,
             Rc::clone(&self.forest),
@@ -376,9 +399,9 @@ impl PrivateNodeOnPathHistory {
     ///
     /// Returns None if the no path segment history in the stack has any
     /// more history entries.
-    async fn find_and_step_segment_history<B: BlockStore>(
+    async fn find_and_step_segment_history(
         &mut self,
-        store: &B,
+        store: &impl BlockStore,
     ) -> Result<Option<Vec<(Rc<PrivateDirectory>, String)>>> {
         let mut working_stack = Vec::with_capacity(self.path.len());
 
@@ -412,10 +435,10 @@ impl PrivateNodeOnPathHistory {
     /// a steppable history entry on top.
     ///
     /// Returns false if there's no corresponding path in the previous revision.
-    async fn repopulate_segment_histories<B: BlockStore>(
+    async fn repopulate_segment_histories(
         &mut self,
         working_stack: Vec<(Rc<PrivateDirectory>, String)>,
-        store: &B,
+        store: &impl BlockStore,
     ) -> Result<bool> {
         // Work downwards from the previous history entry of a path segment we found
         for (directory, path_segment) in working_stack {
@@ -425,14 +448,12 @@ impl PrivateNodeOnPathHistory {
                 .expect("Should not happen: repopulate_segment_histories called when the path stack was empty.");
 
             // Go down from the older ancestor directory parallel to the new revision's path
-            // TODO(matheus23) refactor using let-else once rust stable 1.65 released (Nov 3rd)
-            let older_directory = match ancestor
+            let Some(PrivateNode::Dir(older_directory)) = ancestor
                 .dir
                 .lookup_node(&ancestor.path_segment, false, &self.forest, store)
                 .await?
-            {
-                Some(PrivateNode::Dir(older_directory)) => older_directory,
-                _ => return Ok(false),
+            else {
+                return Ok(false);
             };
 
             let mut directory_history = match PrivateNodeHistory::of(
@@ -452,10 +473,9 @@ impl PrivateNodeOnPathHistory {
             };
 
             // We need to find the in-between history entry! See the test case `previous_with_multiple_child_changes`.
-            // TODO(matheus23) refactor using let-else once rust stable 1.65 released (Nov 3rd)
-            let directory_prev = match directory_history.get_previous_dir(store).await? {
-                Some(dir) => dir,
-                _ => return Ok(false),
+            let Some(directory_prev) = directory_history.get_previous_dir(store).await?
+            else {
+                return Ok(false);
             };
 
             self.path.push(PathSegmentHistory {
@@ -1011,11 +1031,7 @@ mod tests {
 
         let past_ratchet = root_dir.header.ratchet.clone();
 
-        let root_dir = {
-            let mut tmp = (*root_dir).clone();
-            tmp.advance_ratchet();
-            Rc::new(tmp)
-        };
+        let root_dir = Rc::new(root_dir.prepare_next_revision(store, rng).await.unwrap());
 
         let forest = forest
             .put(

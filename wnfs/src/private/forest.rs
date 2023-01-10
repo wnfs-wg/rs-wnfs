@@ -1,7 +1,7 @@
 use super::{
     hamt::{self, Hamt},
     namefilter::Namefilter,
-    Key, PrivateNode, PrivateRef,
+    PrivateNode, PrivateRef,
 };
 use crate::{utils::UnwrapOrClone, BlockStore, HashOutput, Hasher, Link};
 use anyhow::Result;
@@ -38,11 +38,6 @@ pub type PrivateForest = Hamt<Namefilter, BTreeSet<Cid>>;
 //--------------------------------------------------------------------------------------------------
 
 impl PrivateForest {
-    /// Encrypts supplied bytes with a random nonce and AES key.
-    pub(crate) fn encrypt<R: RngCore>(key: &Key, data: &[u8], rng: &mut R) -> Result<Vec<u8>> {
-        key.encrypt(&Key::generate_nonce(rng), data)
-    }
-
     /// Puts a new value at the given key.
     ///
     /// # Examples
@@ -75,24 +70,17 @@ impl PrivateForest {
     ///     assert_eq!(forest.get(private_ref, PrivateForest::resolve_lowest, store).await.unwrap(), Some(node));
     /// }
     /// ```
-    pub async fn put<B: BlockStore, R: RngCore>(
+    pub async fn put(
         self: Rc<Self>,
         saturated_name: Namefilter,
         private_ref: &PrivateRef,
         value: &PrivateNode,
-        store: &mut B,
-        rng: &mut R,
+        store: &mut impl BlockStore,
+        rng: &mut impl RngCore,
     ) -> Result<Rc<Self>> {
         debug!("Private Forest Set: PrivateRef: {:?}", private_ref);
 
-        // Serialize node to cbor.
-        let cbor_bytes = value.serialize_to_cbor(rng)?;
-
-        // Encrypt bytes with content key.
-        let enc_bytes = Self::encrypt(&private_ref.content_key.0, &cbor_bytes, rng)?;
-
-        // Store content section in blockstore and get Cid.
-        let content_cid = store.put_block(enc_bytes, libipld::IpldCodec::Raw).await?;
+        let content_cid = value.store(store, rng).await?;
 
         // Store header and Cid in root node.
         self.put_encrypted(saturated_name, content_cid, store).await
@@ -141,11 +129,11 @@ impl PrivateForest {
     ///     assert_eq!(forest.get(private_ref, PrivateForest::resolve_lowest, store).await.unwrap(), Some(node));
     /// }
     /// ```
-    pub async fn get<B: BlockStore>(
+    pub async fn get(
         &self,
         private_ref: &PrivateRef,
         resolve_bias: impl FnOnce(&BTreeSet<Cid>) -> Option<&Cid>,
-        store: &B,
+        store: &impl BlockStore,
     ) -> Result<Option<PrivateNode>> {
         debug!("Private Forest Get: PrivateRef: {:?}", private_ref);
 
@@ -163,17 +151,7 @@ impl PrivateForest {
             None => return Ok(None),
         };
 
-        // Fetch encrypted bytes from blockstore.
-        let enc_bytes = store.get_block(cid).await?;
-
-        // Decrypt bytes
-        let cbor_bytes = private_ref.content_key.0.decrypt(&enc_bytes)?;
-
-        // Deserialize bytes.
-        Ok(Some(PrivateNode::deserialize_from_cbor(
-            &cbor_bytes,
-            &private_ref.revision_key,
-        )?))
+        Ok(Some(PrivateNode::load(*cid, private_ref, store).await?))
     }
 
     /// Checks that a value with the given saturated name hash key exists.
@@ -211,10 +189,10 @@ impl PrivateForest {
     ///     assert!(forest.has(name_hash, store).await.unwrap());
     /// }
     /// ```
-    pub async fn has<B: BlockStore>(
+    pub async fn has(
         &self,
         saturated_name_hash: &HashOutput,
-        store: &B,
+        store: &impl BlockStore,
     ) -> Result<bool> {
         Ok(self
             .root
@@ -224,11 +202,11 @@ impl PrivateForest {
     }
 
     /// Sets a new encrypted value at the given key.
-    pub async fn put_encrypted<B: BlockStore>(
+    pub async fn put_encrypted(
         self: Rc<Self>,
         name: Namefilter,
         value: Cid,
-        store: &mut B,
+        store: &mut impl BlockStore,
     ) -> Result<Rc<Self>> {
         // TODO(matheus23): This iterates the path in the HAMT twice.
         // We could consider implementing something like upsert instead.
@@ -238,6 +216,7 @@ impl PrivateForest {
             .await?
             .cloned()
             .unwrap_or_default();
+
         values.insert(value);
 
         let mut forest = self.unwrap_or_clone()?;
@@ -247,19 +226,19 @@ impl PrivateForest {
 
     /// Gets the encrypted value at the given key.
     #[inline]
-    pub async fn get_encrypted<'b, B: BlockStore>(
+    pub async fn get_encrypted<'b>(
         &'b self,
         name_hash: &HashOutput,
-        store: &B,
+        store: &impl BlockStore,
     ) -> Result<Option<&'b BTreeSet<Cid>>> {
         self.root.get_by_hash(name_hash, store).await
     }
 
     /// Removes the encrypted value at the given key.
-    pub async fn remove_encrypted<B: BlockStore>(
+    pub async fn remove_encrypted(
         self: Rc<Self>,
         name_hash: &HashOutput,
-        store: &mut B,
+        store: &mut impl BlockStore,
     ) -> Result<(Rc<Self>, Option<BTreeSet<Cid>>)> {
         let mut cloned = (*self).clone();
         let (root, pair) = cloned.root.remove_by_hash(name_hash, store).await?;

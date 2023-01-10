@@ -22,9 +22,9 @@ pub mod dagcbor {
     }
 
     /// Encodes an async serializable value into DagCbor bytes.
-    pub async fn async_encode<V: AsyncSerialize, B: BlockStore>(
+    pub async fn async_encode<V: AsyncSerialize>(
         value: &V,
-        store: &mut B,
+        store: &mut impl BlockStore,
     ) -> Result<Vec<u8>> {
         let ipld = value.async_serialize_ipld(store).await?;
         let mut bytes = Vec::new();

@@ -1,19 +1,22 @@
 use super::{
-    namefilter::Namefilter, Key, PrivateForest, PrivateNodeHeader, RevisionKey, NONCE_SIZE,
+    encrypted::Encrypted, namefilter::Namefilter, Key, PrivateForest, PrivateNodeHeader,
+    RevisionKey, NONCE_SIZE,
 };
 use crate::{
-    dagcbor, utils::get_random_bytes, BlockStore, FsError, Hasher, Id, Metadata, NodeType,
+    dagcbor, utils, utils::get_random_bytes, BlockStore, FsError, Hasher, Id, Metadata, NodeType,
     MAX_BLOCK_SIZE,
 };
 use anyhow::Result;
+use async_once_cell::OnceCell;
 use async_stream::try_stream;
 use chrono::{DateTime, Utc};
 use futures::{Stream, StreamExt};
+use libipld::{cbor::DagCborCodec, prelude::Encode, Cid};
 use rand_core::RngCore;
 use semver::Version;
 use serde::{de::Error as DeError, ser::Error as SerError, Deserialize, Deserializer, Serialize};
 use sha3::Sha3_256;
-use std::{iter, rc::Rc};
+use std::{collections::BTreeSet, iter, rc::Rc};
 
 //--------------------------------------------------------------------------------------------------
 // Constants
@@ -65,10 +68,12 @@ pub const MAX_BLOCK_CONTENT_SIZE: usize = MAX_BLOCK_SIZE - NONCE_SIZE;
 ///     println!("file = {:?}", file);
 /// }
 /// ```
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug)]
 pub struct PrivateFile {
+    persisted_as: OnceCell<Cid>,
     pub version: Version,
     pub header: PrivateNodeHeader,
+    pub previous: Option<Encrypted<BTreeSet<Cid>>>,
     pub metadata: Metadata,
     pub(crate) content: FileContent,
 }
@@ -92,6 +97,7 @@ struct PrivateFileSerializable {
     pub r#type: NodeType,
     pub version: Version,
     pub header: Vec<u8>,
+    pub previous: Option<Encrypted<BTreeSet<Cid>>>,
     pub metadata: Metadata,
     pub content: FileContent,
 }
@@ -119,11 +125,13 @@ impl PrivateFile {
     ///
     /// println!("file = {:?}", file);
     /// ```
-    pub fn new<R: RngCore>(parent_bare_name: Namefilter, time: DateTime<Utc>, rng: &mut R) -> Self {
+    pub fn new(parent_bare_name: Namefilter, time: DateTime<Utc>, rng: &mut impl RngCore) -> Self {
         Self {
+            persisted_as: OnceCell::new(),
             version: Version::new(0, 2, 0),
             metadata: Metadata::new(time),
             header: PrivateNodeHeader::new(parent_bare_name, rng),
+            previous: None,
             content: FileContent::Inline { data: vec![] },
         }
     }
@@ -162,13 +170,13 @@ impl PrivateFile {
     ///     println!("file = {:?}", file);
     /// }
     /// ```
-    pub async fn with_content<B: BlockStore, R: RngCore>(
+    pub async fn with_content(
         parent_bare_name: Namefilter,
         time: DateTime<Utc>,
         content: Vec<u8>,
         forest: Rc<PrivateForest>,
-        store: &mut B,
-        rng: &mut R,
+        store: &mut impl BlockStore,
+        rng: &mut impl RngCore,
     ) -> Result<(Self, Rc<PrivateForest>)> {
         let header = PrivateNodeHeader::new(parent_bare_name, rng);
         let (content, forest) =
@@ -176,9 +184,11 @@ impl PrivateFile {
 
         Ok((
             Self {
+                persisted_as: OnceCell::new(),
                 version: Version::new(0, 2, 0),
                 metadata: Metadata::new(time),
                 header,
+                previous: None,
                 content,
             },
             forest,
@@ -227,11 +237,11 @@ impl PrivateFile {
     ///     assert_eq!(content, stream_content);
     /// }
     /// ```
-    pub fn stream_content<'a, B: BlockStore>(
+    pub fn stream_content<'a>(
         &'a self,
         index: usize,
         forest: &'a PrivateForest,
-        store: &'a B,
+        store: &'a impl BlockStore,
     ) -> impl Stream<Item = Result<Vec<u8>>> + 'a {
         Box::pin(try_stream! {
             match &self.content {
@@ -294,10 +304,10 @@ impl PrivateFile {
     ///     assert_eq!(content, all_content);
     /// }
     /// ```
-    pub async fn get_content<B: BlockStore>(
+    pub async fn get_content(
         &self,
         forest: &PrivateForest,
-        store: &B,
+        store: &impl BlockStore,
     ) -> Result<Vec<u8>> {
         let mut content = Vec::with_capacity(self.get_content_size_upper_bound());
         let mut stream = self.stream_content(0, forest, store);
@@ -308,12 +318,12 @@ impl PrivateFile {
     }
 
     /// Determines where to put the content of a file. This can either be inline or stored up in chunks in a private forest.
-    pub(super) async fn prepare_content<B: BlockStore, R: RngCore>(
+    pub(super) async fn prepare_content(
         bare_name: &Namefilter,
         content: Vec<u8>,
         mut forest: Rc<PrivateForest>,
-        store: &mut B,
-        rng: &mut R,
+        store: &mut impl BlockStore,
+        rng: &mut impl RngCore,
     ) -> Result<(FileContent, Rc<PrivateForest>)> {
         // TODO(appcypher): Use a better heuristic to determine when to use external storage.
         let key = Key(get_random_bytes(rng));
@@ -355,11 +365,11 @@ impl PrivateFile {
     }
 
     /// Decrypts a block of a file's content.
-    async fn decrypt_block<B: BlockStore>(
+    async fn decrypt_block(
         key: &Key,
         label: &Namefilter,
         forest: &PrivateForest,
-        store: &B,
+        store: &impl BlockStore,
     ) -> Result<Vec<u8>> {
         let label_hash = &Sha3_256::hash(&label.as_bytes());
 
@@ -405,15 +415,70 @@ impl PrivateFile {
         let mut label = bare_name.clone();
         label.add(&key_bytes);
         label.add(&key_hash);
+        label.saturate();
 
         label
     }
 
+    /// This should be called to prepare a node for modifications,
+    /// if it's meant to be a successor revision of the current revision.
+    ///
+    /// It will store the current revision in the given `BlockStore` to
+    /// retrieve its CID and put that into the `previous` links,
+    /// as well as advancing the ratchet and resetting the `persisted_as` pointer.
+    pub(crate) async fn prepare_next_revision(
+        self: Rc<Self>,
+        store: &mut impl BlockStore,
+        rng: &mut impl RngCore,
+    ) -> Result<Self> {
+        let cid = self.store(store, rng).await?;
+
+        let mut cloned = Rc::try_unwrap(self).unwrap_or_else(|rc| (*rc).clone());
+        cloned.persisted_as = OnceCell::new(); // Also done in `.clone()`, but need this to work in case try_unwrap optimizes.
+        let key = cloned.header.get_private_ref().revision_key.0;
+        let previous = Encrypted::from_value(BTreeSet::from([cid]), &key, rng)?;
+
+        cloned.previous = Some(previous);
+        cloned.header.advance_ratchet();
+
+        Ok(cloned)
+    }
+
+    /// This prepares this file for key rotation, usually for moving or
+    /// copying the file to some other place.
+    ///
+    /// Will reset the ratchet, so a different key is necessary for read access,
+    /// will reset the inumber to reset write access,
+    /// will update the bare namefilter to match the new parent's namefilter,
+    /// so it inherits the write access rules from the new parent and
+    /// resets the `persisted_as` pointer.
+    /// Will copy and re-encrypt all external content.
+    pub(crate) async fn prepare_key_rotation(
+        &mut self,
+        parent_bare_name: Namefilter,
+        forest: Rc<PrivateForest>,
+        store: &mut impl BlockStore,
+        rng: &mut impl RngCore,
+    ) -> Result<Rc<PrivateForest>> {
+        let content = self.get_content(&forest, store).await?;
+
+        self.header.inumber = utils::get_random_bytes(rng);
+        self.header.update_bare_name(parent_bare_name);
+        self.header.reset_ratchet(rng);
+        self.persisted_as = OnceCell::new();
+
+        let (content, forest) =
+            Self::prepare_content(&self.header.bare_name, content, forest, store, rng).await?;
+        self.content = content;
+
+        Ok(forest)
+    }
+
     /// Serializes the file with provided Serde serialilzer.
-    pub(crate) fn serialize<S, R: RngCore>(
+    pub(crate) fn serialize<S>(
         &self,
         serializer: S,
-        rng: &mut R,
+        rng: &mut impl RngCore,
     ) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
@@ -429,6 +494,7 @@ impl PrivateFile {
                     .encrypt(&Key::generate_nonce(rng), &cbor_bytes)
                     .map_err(SerError::custom)?
             },
+            previous: self.previous.clone(),
             metadata: self.metadata.clone(),
             content: self.content.clone(),
         })
@@ -436,7 +502,11 @@ impl PrivateFile {
     }
 
     /// Deserializes the file with provided Serde deserializer and key.
-    pub(crate) fn deserialize<'de, D>(deserializer: D, key: &RevisionKey) -> Result<Self, D::Error>
+    pub(crate) fn deserialize<'de, D>(
+        deserializer: D,
+        key: &RevisionKey,
+        from_cid: Cid,
+    ) -> Result<Self, D::Error>
     where
         D: Deserializer<'de>,
     {
@@ -444,12 +514,15 @@ impl PrivateFile {
             version,
             metadata,
             header,
+            previous,
             content,
             ..
         } = PrivateFileSerializable::deserialize(deserializer)?;
 
         Ok(Self {
+            persisted_as: OnceCell::new_with(Some(from_cid)),
             version,
+            previous,
             metadata,
             header: {
                 let cbor_bytes = key.0.decrypt(&header).map_err(DeError::custom)?;
@@ -457,6 +530,59 @@ impl PrivateFile {
             },
             content,
         })
+    }
+
+    pub(crate) async fn store(
+        &self,
+        store: &mut impl BlockStore,
+        rng: &mut impl RngCore,
+    ) -> Result<Cid> {
+        let cid = self
+            .persisted_as
+            .get_or_try_init::<anyhow::Error>(async {
+                // TODO(matheus23) deduplicate when reworking serialization
+                let private_ref = &self.header.get_private_ref();
+
+                // Serialize node to cbor.
+                let ipld = self.serialize(libipld::serde::Serializer, rng)?;
+                let mut bytes = Vec::new();
+                ipld.encode(DagCborCodec, &mut bytes)?;
+
+                // Encrypt bytes with content key.
+                let enc_bytes = private_ref
+                    .content_key
+                    .0
+                    .encrypt(&Key::generate_nonce(rng), &bytes)?;
+
+                // Store content section in blockstore and get Cid.
+                store.put_block(enc_bytes, libipld::IpldCodec::Raw).await
+            })
+            .await?;
+
+        Ok(*cid)
+    }
+}
+
+impl PartialEq for PrivateFile {
+    fn eq(&self, other: &Self) -> bool {
+        self.header == other.header
+            && self.version == other.version
+            && self.previous == other.previous
+            && self.metadata == other.metadata
+            && self.content == other.content
+    }
+}
+
+impl Clone for PrivateFile {
+    fn clone(&self) -> Self {
+        Self {
+            persisted_as: OnceCell::new(),
+            version: self.version.clone(),
+            header: self.header.clone(),
+            previous: self.previous.clone(),
+            metadata: self.metadata.clone(),
+            content: self.content.clone(),
+        }
     }
 }
 

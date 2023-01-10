@@ -41,11 +41,10 @@ async fn main() {
     println!("{:#?}", dir);
 }
 
-async fn get_forest_cid_and_private_ref<B, R>(store: &mut B, rng: &mut R) -> (Cid, PrivateRef)
-where
-    B: BlockStore,
-    R: RngCore,
-{
+async fn get_forest_cid_and_private_ref(
+    store: &mut impl BlockStore,
+    rng: &mut impl RngCore,
+) -> (Cid, PrivateRef) {
     // Create the private forest (a HAMT), a map-like structure where file and directory ciphertexts are stored.
     let forest = Rc::new(PrivateForest::new());
 

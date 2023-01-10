@@ -1,21 +1,17 @@
 use super::{
-    hamt::Hasher, namefilter::Namefilter, Key, PrivateDirectory, PrivateFile, PrivateForest,
-    PrivateRef,
+    encrypted::Encrypted, hamt::Hasher, namefilter::Namefilter, Key, PrivateDirectory, PrivateFile,
+    PrivateForest, PrivateRef,
 };
 use crate::{utils, BlockStore, FsError, HashOutput, Id, NodeType, HASH_BYTE_SIZE};
 use anyhow::{bail, Result};
 use async_recursion::async_recursion;
 use chrono::{DateTime, Utc};
-use libipld::{
-    cbor::DagCborCodec,
-    prelude::{Decode, Encode},
-    serde as ipld_serde, Ipld,
-};
+use libipld::{cbor::DagCborCodec, prelude::Decode, Cid, Ipld};
 use rand_core::RngCore;
 use serde::{Deserialize, Serialize};
 use sha3::Sha3_256;
 use skip_ratchet::{seek::JumpSize, Ratchet, RatchetSeeker};
-use std::{cmp::Ordering, fmt::Debug, io::Cursor, rc::Rc};
+use std::{cmp::Ordering, collections::BTreeSet, fmt::Debug, io::Cursor, rc::Rc};
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
@@ -138,7 +134,7 @@ impl PrivateNode {
     }
 
     /// Generates two random set of bytes.
-    pub(crate) fn generate_double_random<R: RngCore>(rng: &mut R) -> (HashOutput, HashOutput) {
+    pub(crate) fn generate_double_random(rng: &mut impl RngCore) -> (HashOutput, HashOutput) {
         const _DOUBLE_SIZE: usize = HASH_BYTE_SIZE * 2;
         let [first, second] = unsafe {
             std::mem::transmute::<[u8; _DOUBLE_SIZE], [[u8; HASH_BYTE_SIZE]; 2]>(
@@ -150,48 +146,43 @@ impl PrivateNode {
 
     /// Updates bare name ancestry of private sub tree.
     #[async_recursion(?Send)]
-    pub(crate) async fn update_ancestry<B: BlockStore, R: RngCore>(
+    pub(crate) async fn update_ancestry(
         &mut self,
         parent_bare_name: Namefilter,
-        forest: Rc<PrivateForest>,
-        store: &mut B,
-        rng: &mut R,
+        mut forest: Rc<PrivateForest>,
+        store: &mut impl BlockStore,
+        rng: &mut impl RngCore,
     ) -> Result<Rc<PrivateForest>> {
-        let forest = match self {
+        match self {
             Self::File(file) => {
                 let mut file = (**file).clone();
 
-                file.header.update_bare_name(parent_bare_name);
-                file.header.reset_ratchet(rng);
+                forest = file
+                    .prepare_key_rotation(parent_bare_name, forest, store, rng)
+                    .await?;
 
                 *self = Self::File(Rc::new(file));
-
-                forest
             }
             Self::Dir(old_dir) => {
                 let mut dir = (**old_dir).clone();
 
-                let mut working_forest = Rc::clone(&forest);
                 for (name, private_ref) in &old_dir.entries {
                     let mut node = forest
                         .get(private_ref, PrivateForest::resolve_lowest, store)
                         .await?
                         .ok_or(FsError::NotFound)?;
 
-                    working_forest = node
-                        .update_ancestry(dir.header.bare_name.clone(), working_forest, store, rng)
+                    forest = node
+                        .update_ancestry(dir.header.bare_name.clone(), forest, store, rng)
                         .await?;
 
                     dir.entries
                         .insert(name.clone(), node.get_header().get_private_ref());
                 }
 
-                dir.header.update_bare_name(parent_bare_name);
-                dir.header.reset_ratchet(rng);
+                dir.prepare_key_rotation(parent_bare_name, rng);
 
                 *self = Self::Dir(Rc::new(dir));
-
-                working_forest
             }
         };
 
@@ -232,6 +223,30 @@ impl PrivateNode {
         match self {
             Self::File(file) => &file.header,
             Self::Dir(dir) => &dir.header,
+        }
+    }
+
+    /// Gets the previous links of the node.
+    ///
+    /// The previous links are encrypted with the previous revision's
+    /// revision key, so you need to know an 'older' revision of the
+    /// skip ratchet to decrypt these.
+    ///
+    /// The previous links is exactly one Cid in most cases and refers
+    /// to the ciphertext Cid from the previous revision that this
+    /// node is an update of.
+    ///
+    /// If this node is a merge-node, it has two or more previous Cids.
+    /// A single previous Cid must be from the previous revision, but all
+    /// other Cids may appear in even older revisions.
+    ///
+    /// The previous links is `None`, it doesn't have previous Cids.
+    /// The node is malformed if the previous links are `Some`, but
+    /// the `BTreeSet` inside is empty.
+    pub fn get_previous(&self) -> &Option<Encrypted<BTreeSet<Cid>>> {
+        match self {
+            Self::File(file) => &file.previous,
+            Self::Dir(dir) => &dir.previous,
         }
     }
 
@@ -338,10 +353,10 @@ impl PrivateNode {
     }
 
     /// Gets the latest version of the node using exponential search.
-    pub(crate) async fn search_latest<B: BlockStore>(
+    pub(crate) async fn search_latest(
         &self,
         forest: &PrivateForest,
-        store: &B,
+        store: &impl BlockStore,
     ) -> Result<PrivateNode> {
         let header = self.get_header();
 
@@ -389,42 +404,49 @@ impl PrivateNode {
         }
     }
 
-    /// Serializes the node with provided Serde serializer.
-    pub(crate) fn serialize<S, R: RngCore>(
+    pub(crate) async fn load(
+        cid: Cid,
+        private_ref: &PrivateRef,
+        store: &impl BlockStore,
+    ) -> Result<PrivateNode> {
+        // Fetch encrypted bytes from blockstore.
+        let enc_bytes = store.get_block(&cid).await?;
+
+        // Decrypt bytes
+        let cbor_bytes = private_ref.content_key.0.decrypt(&enc_bytes)?;
+
+        // Deserialize
+        PrivateNode::deserialize_from_cbor(&cbor_bytes, &private_ref.revision_key, cid)
+    }
+
+    pub(crate) async fn store(
         &self,
-        serializer: S,
-        rng: &mut R,
-    ) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
+        store: &mut impl BlockStore,
+        rng: &mut impl RngCore,
+    ) -> Result<Cid> {
         match self {
-            PrivateNode::File(file) => file.serialize(serializer, rng),
-            PrivateNode::Dir(dir) => dir.serialize(serializer, rng),
+            PrivateNode::File(file) => file.store(store, rng).await,
+            PrivateNode::Dir(dir) => dir.store(store, rng).await,
         }
     }
 
-    /// Serializes the node to dag-cbor bytes.
-    pub(crate) fn serialize_to_cbor<R: RngCore>(&self, rng: &mut R) -> Result<Vec<u8>> {
-        let ipld = self.serialize(ipld_serde::Serializer, rng)?;
-        let mut bytes = Vec::new();
-        ipld.encode(DagCborCodec, &mut bytes)?;
-        Ok(bytes)
-    }
-
     /// Deserializes the node from dag-cbor bytes.
-    pub(crate) fn deserialize_from_cbor(bytes: &[u8], key: &RevisionKey) -> Result<Self> {
+    pub(crate) fn deserialize_from_cbor(
+        bytes: &[u8],
+        key: &RevisionKey,
+        from_cid: Cid,
+    ) -> Result<Self> {
         let ipld = Ipld::decode(DagCborCodec, &mut Cursor::new(bytes))?;
-        (ipld, key).try_into()
+        (ipld, key, from_cid).try_into()
     }
 }
 
-impl TryFrom<(Ipld, &RevisionKey)> for PrivateNode {
+impl TryFrom<(Ipld, &RevisionKey, Cid)> for PrivateNode {
     type Error = anyhow::Error;
 
-    fn try_from(pair: (Ipld, &RevisionKey)) -> Result<Self> {
-        match pair {
-            (Ipld::Map(map), key) => {
+    fn try_from(triple: (Ipld, &RevisionKey, Cid)) -> Result<Self> {
+        match triple {
+            (Ipld::Map(map), key, from_cid) => {
                 let r#type: NodeType = map
                     .get("type")
                     .ok_or(FsError::MissingNodeType)?
@@ -432,11 +454,13 @@ impl TryFrom<(Ipld, &RevisionKey)> for PrivateNode {
 
                 Ok(match r#type {
                     NodeType::PrivateFile => {
-                        PrivateNode::from(PrivateFile::deserialize(Ipld::Map(map), key)?)
+                        PrivateNode::from(PrivateFile::deserialize(Ipld::Map(map), key, from_cid)?)
                     }
-                    NodeType::PrivateDirectory => {
-                        PrivateNode::from(PrivateDirectory::deserialize(Ipld::Map(map), key)?)
-                    }
+                    NodeType::PrivateDirectory => PrivateNode::from(PrivateDirectory::deserialize(
+                        Ipld::Map(map),
+                        key,
+                        from_cid,
+                    )?),
                     other => bail!(FsError::UnexpectedNodeType(other)),
                 })
             }
@@ -468,7 +492,7 @@ impl From<PrivateDirectory> for PrivateNode {
 
 impl PrivateNodeHeader {
     /// Creates a new PrivateNodeHeader.
-    pub(crate) fn new<R: RngCore>(parent_bare_name: Namefilter, rng: &mut R) -> Self {
+    pub(crate) fn new(parent_bare_name: Namefilter, rng: &mut impl RngCore) -> Self {
         let (inumber, ratchet_seed) = PrivateNode::generate_double_random(rng);
         Self {
             bare_name: {
@@ -513,7 +537,7 @@ impl PrivateNodeHeader {
     }
 
     /// Resets the ratchet.
-    pub(crate) fn reset_ratchet<R: RngCore>(&mut self, rng: &mut R) {
+    pub(crate) fn reset_ratchet(&mut self, rng: &mut impl RngCore) {
         self.ratchet = Ratchet::zero(utils::get_random_bytes(rng))
     }
 
@@ -578,14 +602,20 @@ impl PrivateNodeHeader {
     /// ```
     #[inline]
     pub fn get_saturated_name(&self) -> Namefilter {
-        let revision_key = Key::new(self.ratchet.derive_key());
-        self.get_saturated_name_with_key(&revision_key)
+        let revision_key = RevisionKey::from(&self.ratchet);
+        self.get_saturated_name_with_key(&revision_key.0)
     }
 }
 
 impl From<Key> for RevisionKey {
     fn from(key: Key) -> Self {
         Self(key)
+    }
+}
+
+impl From<&Ratchet> for RevisionKey {
+    fn from(ratchet: &Ratchet) -> Self {
+        Self::from(Key::new(ratchet.derive_key()))
     }
 }
 
@@ -646,10 +676,9 @@ mod tests {
 
         let file = PrivateNode::File(Rc::new(file));
         let private_ref = file.get_header().get_private_ref();
-        let bytes = file.serialize_to_cbor(rng).unwrap();
+        let cid = file.store(store, rng).await.unwrap();
 
-        let deserialized_node =
-            PrivateNode::deserialize_from_cbor(&bytes, &private_ref.revision_key).unwrap();
+        let deserialized_node = PrivateNode::load(cid, &private_ref, store).await.unwrap();
 
         assert_eq!(file, deserialized_node);
     }

@@ -1,4 +1,5 @@
 mod directory;
+mod encrypted;
 mod file;
 mod forest;
 pub mod hamt;

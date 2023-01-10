@@ -124,10 +124,7 @@ impl Key {
     /// println!("Nonce: {:?}", nonce);
     /// ```
     #[inline]
-    pub fn generate_nonce<R>(rng: &mut R) -> [u8; NONCE_SIZE]
-    where
-        R: RngCore,
-    {
+    pub fn generate_nonce(rng: &mut impl RngCore) -> [u8; NONCE_SIZE] {
         utils::get_random_bytes::<NONCE_SIZE>(rng)
     }
 

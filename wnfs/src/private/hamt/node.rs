@@ -84,7 +84,7 @@ where
     ///     assert_eq!(node.get(&String::from("key"), store).await.unwrap(), Some(&42));
     /// }
     /// ```
-    pub async fn set<B: BlockStore>(self: Rc<Self>, key: K, value: V, store: &B) -> Result<Rc<Self>>
+    pub async fn set(self: Rc<Self>, key: K, value: V, store: &impl BlockStore) -> Result<Rc<Self>>
     where
         K: DeserializeOwned + Clone + AsRef<[u8]>,
         V: DeserializeOwned + Clone,
@@ -112,7 +112,7 @@ where
     ///     assert_eq!(node.get(&String::from("key"), store).await.unwrap(), Some(&42));
     /// }
     /// ```
-    pub async fn get<'a, B: BlockStore>(&'a self, key: &K, store: &B) -> Result<Option<&'a V>>
+    pub async fn get<'a>(&'a self, key: &K, store: &impl BlockStore) -> Result<Option<&'a V>>
     where
         K: DeserializeOwned + AsRef<[u8]>,
         V: DeserializeOwned,
@@ -146,10 +146,10 @@ where
     ///     assert_eq!(node.get(&String::from("key"), store).await.unwrap(), None);
     /// }
     /// ```
-    pub async fn remove<B: BlockStore>(
+    pub async fn remove(
         self: Rc<Self>,
         key: &K,
-        store: &B,
+        store: &impl BlockStore,
     ) -> Result<(Rc<Self>, Option<Pair<K, V>>)>
     where
         K: DeserializeOwned + Clone + AsRef<[u8]>,
@@ -180,10 +180,10 @@ where
     ///     assert_eq!(node.get_by_hash(key_hash, store).await.unwrap(), Some(&42));
     /// }
     /// ```
-    pub async fn get_by_hash<'a, B: BlockStore>(
+    pub async fn get_by_hash<'a>(
         &'a self,
         hash: &HashOutput,
-        store: &B,
+        store: &impl BlockStore,
     ) -> Result<Option<&'a V>>
     where
         K: DeserializeOwned + AsRef<[u8]>,
@@ -220,10 +220,10 @@ where
     ///     assert_eq!(node.get(&String::from("key"), store).await.unwrap(), None);
     /// }
     /// ```
-    pub async fn remove_by_hash<B: BlockStore>(
+    pub async fn remove_by_hash(
         self: Rc<Self>,
         hash: &HashOutput,
-        store: &B,
+        store: &impl BlockStore,
     ) -> Result<(Rc<Self>, Option<Pair<K, V>>)>
     where
         K: DeserializeOwned + Clone + AsRef<[u8]>,
@@ -269,12 +269,12 @@ where
         (mask & self.bitmask).count_ones()
     }
 
-    pub(crate) fn set_value<'a, B: BlockStore>(
+    pub(crate) fn set_value<'a>(
         self: Rc<Self>,
         hashnibbles: &'a mut HashNibbles,
         key: K,
         value: V,
-        store: &'a B,
+        store: &'a impl BlockStore,
     ) -> LocalBoxFuture<'a, Result<Rc<Self>>>
     where
         K: DeserializeOwned + Clone + AsRef<[u8]> + 'a,
@@ -350,10 +350,10 @@ where
     }
 
     #[async_recursion(?Send)]
-    pub(crate) async fn get_value<'a, B: BlockStore>(
+    pub(crate) async fn get_value<'a>(
         &'a self,
         hashnibbles: &mut HashNibbles,
-        store: &B,
+        store: &impl BlockStore,
     ) -> Result<Option<&'a Pair<K, V>>>
     where
         K: DeserializeOwned + AsRef<[u8]>,
@@ -382,10 +382,10 @@ where
 
     // It's internal and is only more complex because async_recursion doesn't work here
     #[allow(clippy::type_complexity)]
-    pub(crate) fn remove_value<'k, 'v, 'a, B: BlockStore>(
+    pub(crate) fn remove_value<'k, 'v, 'a>(
         self: Rc<Self>,
         hashnibbles: &'a mut HashNibbles,
-        store: &'a B,
+        store: &'a impl BlockStore,
     ) -> LocalBoxFuture<'a, Result<(Rc<Node<K, V, H>>, Option<Pair<K, V>>)>>
     where
         K: DeserializeOwned + Clone + AsRef<[u8]> + 'k,
