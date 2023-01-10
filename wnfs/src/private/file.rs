@@ -1,6 +1,6 @@
 use super::{
     encrypted::Encrypted, namefilter::Namefilter, Key, PrivateForest, PrivateNodeHeader,
-    RevisionKey, NONCE_SIZE,
+    RevisionKey, AUTHENTICATION_TAG_SIZE, NONCE_SIZE,
 };
 use crate::{
     dagcbor, utils, utils::get_random_bytes, BlockStore, FsError, Hasher, Id, Metadata, NodeType,
@@ -23,12 +23,13 @@ use std::{collections::BTreeSet, iter, rc::Rc};
 //--------------------------------------------------------------------------------------------------
 
 /// The maximum block size is 2 ^ 18 but the first 12 bytes are reserved for the cipher text's initialization vector.
-/// This leaves a maximum of (2 ^ 18) - 12 = 262,132 bytes for the actual data.
+/// The ciphertext then also contains a 16 byte authentication tag.
+/// This leaves a maximum of (2 ^ 18) - 12 - 16 = 262,116 bytes for the actual data.
 ///
 /// More on that [here][priv-file].
 ///
 /// [priv-file]: https://github.com/wnfs-wg/spec/blob/matheus23/file-sharding/spec/private-wnfs.md#314-private-file
-pub const MAX_BLOCK_CONTENT_SIZE: usize = MAX_BLOCK_SIZE - NONCE_SIZE;
+pub const MAX_BLOCK_CONTENT_SIZE: usize = MAX_BLOCK_SIZE - NONCE_SIZE - AUTHENTICATION_TAG_SIZE;
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
