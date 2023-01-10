@@ -20,7 +20,7 @@ use wnfs::{Id, PrivateFile as WnfsPrivateFile};
 
 /// A file in a WNFS public file system.
 #[wasm_bindgen]
-pub struct PrivateFile(Rc<WnfsPrivateFile>);
+pub struct PrivateFile(pub(crate) Rc<WnfsPrivateFile>);
 
 //--------------------------------------------------------------------------------------------------
 // Implementations
