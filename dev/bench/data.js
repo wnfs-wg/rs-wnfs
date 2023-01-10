@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1673297552855,
+  "lastUpdate": 1673343357872,
   "repoUrl": "https://github.com/wnfs-wg/rs-wnfs",
   "entries": {
     "Rust Benchmark": [
@@ -3715,6 +3715,96 @@ window.BENCHMARK_DATA = {
             "name": "namefilter encode",
             "value": 182,
             "range": "± 15",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter decode/0",
+            "value": 1,
+            "range": "± 0",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "philipp.krueger1@gmail.com",
+            "name": "Philipp Krüger",
+            "username": "matheus23"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "e38d039d3886f8590e00c7f87a530ca207f8a713",
+          "message": "feat: private backpointer (#90)\n\n* Encrypt the ratchet key\r\n\r\n* Rename `RatchetKey` to `RevisionKey`\r\n\r\n* Fix wasm crate\r\n\r\n* Rename `*Serde` into `*Serializable`\r\n\r\n* Add `previous` backlinks to `PrivateDirectory` schema\r\n\r\n* Remember persisted CID in PrivateDirectory\r\n\r\nAnd store previous CID in previous links.\r\n\r\nCo-authored-by: Stephen <appcypher@users.noreply.github.com>\r\n\r\n* Fixed not resetting `persisted_as` correctly\r\n\r\nCo-authored-by: Stephen <appcypher@users.noreply.github.com>\r\n\r\n* Also implement `prepare_next_revision` for private files\r\n\r\n* Add TODOs for fixing up serialization\r\n\r\n* Make use of `let-else` :sparkles: :lipstick:\r\n\r\n* Store `previous` in `PrivateNodeHistory`.\r\n\r\n* Resolve bias in previous iterator towards `previous` nodes\r\n\r\n* Add docs & test\r\n\r\n* Also rotate the `inumber` when re-attaching trees\r\n\r\n* fix: Private shard block labels according to spec\r\n\r\nhttps://github.com/wnfs-wg/spec/blob/main/spec/private-wnfs.md#44-sharded-file-content-access\r\n\r\n* chore: Remove some logging, reduce diff\r\n\r\n* Documentation for `Encrypted`\r\n\r\n* Try to align on `impl BlockStore` and `impl RngCore`\r\n\r\n* Take a reference (fix incorrect manual merge)\r\n\r\n* Force a patch version for chrono\r\n\r\nCo-authored-by: Stephen <appcypher@users.noreply.github.com>",
+          "timestamp": "2023-01-10T10:32:45+01:00",
+          "tree_id": "4dd88aab4b49b6fd9a791d791312eaa7e9a99e8f",
+          "url": "https://github.com/wnfs-wg/rs-wnfs/commit/e38d039d3886f8590e00c7f87a530ca207f8a713"
+        },
+        "date": 1673343356943,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "node set",
+            "value": 6751,
+            "range": "± 98",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node set 1000 consecutive",
+            "value": 4448606,
+            "range": "± 17178",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and get",
+            "value": 151917,
+            "range": "± 212",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and remove",
+            "value": 170275,
+            "range": "± 144",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt load and decode/0",
+            "value": 35303,
+            "range": "± 136",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt set and encode",
+            "value": 170739,
+            "range": "± 539",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter add",
+            "value": 7801,
+            "range": "± 13",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter contains",
+            "value": 9579,
+            "range": "± 35",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter saturate",
+            "value": 44892,
+            "range": "± 242",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter encode",
+            "value": 161,
+            "range": "± 9",
             "unit": "ns/iter"
           },
           {
