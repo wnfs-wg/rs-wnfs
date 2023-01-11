@@ -4,6 +4,20 @@
   * dependencies
     * wnfs bumped from 0.1.10 to 0.1.11
 
+## [0.1.12](https://github.com/wnfs-wg/rs-wnfs/compare/wnfs-wasm-v0.1.11...wnfs-wasm-v0.1.12) (2023-01-11)
+
+
+### Features
+
+* Add as_file and is_file to PrivateNode (wasm) ([#136](https://github.com/wnfs-wg/rs-wnfs/issues/136)) ([f02658b](https://github.com/wnfs-wg/rs-wnfs/commit/f02658b07b84e391a0984046d4e2fc4b949056a1))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * wnfs bumped from 0.1.11 to 0.1.12
+
 ## [0.1.10](https://github.com/wnfs-wg/rs-wnfs/compare/wnfs-wasm-v0.1.9...wnfs-wasm-v0.1.10) (2022-12-06)
 
 

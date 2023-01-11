@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.12](https://github.com/wnfs-wg/rs-wnfs/compare/wnfs-v0.1.11...wnfs-v0.1.12) (2023-01-11)
+
+
+### Features
+
+* private backpointer ([#90](https://github.com/wnfs-wg/rs-wnfs/issues/90)) ([e38d039](https://github.com/wnfs-wg/rs-wnfs/commit/e38d039d3886f8590e00c7f87a530ca207f8a713))
+
 ## [0.1.11](https://github.com/wnfs-wg/rs-wnfs/compare/wnfs-v0.1.10...wnfs-v0.1.11) (2023-01-06)
 
 
