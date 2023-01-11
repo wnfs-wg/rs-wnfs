@@ -152,9 +152,11 @@ impl PrivateDirectory {
         rng: &mut R,
     ) -> Result<PrivateOpResult<()>> {
         let dir = Rc::new(Self {
+            persisted_as: OnceCell::new(),
             version: Version::new(0, 2, 0),
             header: PrivateNodeHeader::new(parent_bare_name, rng),
             metadata: Metadata::new(time),
+            previous: None,
             entries: BTreeMap::new(),
         });
 
@@ -185,8 +187,10 @@ impl PrivateDirectory {
         rng: &mut R,
     ) -> Result<PrivateOpResult<()>> {
         let dir = Rc::new(Self {
+            persisted_as: OnceCell::new(),
             version: Version::new(0, 2, 0),
             header: PrivateNodeHeader::with_seed(parent_bare_name, ratchet_seed, inumber),
+            previous: None,
             metadata: Metadata::new(time),
             entries: BTreeMap::new(),
         });
