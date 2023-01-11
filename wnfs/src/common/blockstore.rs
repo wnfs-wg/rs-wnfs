@@ -2,7 +2,7 @@
 
 use std::{borrow::Cow, io::Cursor};
 
-use anyhow::Result;
+use anyhow::{bail, Result};
 use async_trait::async_trait;
 use libipld::{
     cbor::DagCborCodec,
@@ -17,7 +17,7 @@ use std::collections::HashMap;
 
 use crate::{
     private::{Key, NONCE_SIZE},
-    utils, AsyncSerialize,
+    utils, AsyncSerialize, MAX_BLOCK_SIZE,
 };
 
 use super::FsError;
@@ -102,6 +102,10 @@ impl MemoryBlockStore {
 impl BlockStore for MemoryBlockStore {
     /// Stores an array of bytes in the block store.
     async fn put_block(&mut self, bytes: Vec<u8>, codec: IpldCodec) -> Result<Cid> {
+        if bytes.len() > MAX_BLOCK_SIZE {
+            bail!(FsError::MaximumBlockSizeExceeded(bytes.len()))
+        }
+
         let hash = Code::Sha2_256.digest(&bytes);
         let cid = Cid::new(Version::V1, codec.into(), hash)?;
 

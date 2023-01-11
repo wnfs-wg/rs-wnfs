@@ -74,6 +74,9 @@ pub enum FsError {
 
     #[error("Key does not exist in HAMT")]
     KeyNotFoundInHamt,
+
+    #[error("Maximum block size exceeded: Encountered block with {0} bytes")]
+    MaximumBlockSizeExceeded(usize),
 }
 
 pub fn error<T>(err: impl std::error::Error + Send + Sync + 'static) -> Result<T> {
