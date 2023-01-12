@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1673433068688,
+  "lastUpdate": 1673533650290,
   "repoUrl": "https://github.com/wnfs-wg/rs-wnfs",
   "entries": {
     "Rust Benchmark": [
@@ -4165,6 +4165,96 @@ window.BENCHMARK_DATA = {
             "name": "namefilter encode",
             "value": 214,
             "range": "± 31",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter decode/0",
+            "value": 1,
+            "range": "± 0",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "appcypher@outlook.com",
+            "name": "Stephen Akinyemi",
+            "username": "appcypher"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "228d326291926c7e4b593ef66ebb089ce220dacb",
+          "message": "feat(api): self lookup & store at construction (#138)\n\n* Add privateref serialization example\r\n\r\n* Empty path segment means self lookup\r\n\r\n* Add constructor with store\r\n\r\n* Update instructions\r\n\r\n* Minor fix\r\n\r\n* Fix typo\r\n\r\n* Add more re-exports and tidy debug output\r\n\r\n* Fix compilation errors\r\n\r\n* Expose search_latest and change constructor names\r\n\r\n* Minor rename",
+          "timestamp": "2023-01-12T15:14:26+01:00",
+          "tree_id": "0e2c6938296ccb484c39f666b4f6e47a05975dab",
+          "url": "https://github.com/wnfs-wg/rs-wnfs/commit/228d326291926c7e4b593ef66ebb089ce220dacb"
+        },
+        "date": 1673533649245,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "node set",
+            "value": 7033,
+            "range": "± 97",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node set 1000 consecutive",
+            "value": 4411001,
+            "range": "± 17402",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and get",
+            "value": 152005,
+            "range": "± 177",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and remove",
+            "value": 171760,
+            "range": "± 181",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt load and decode/0",
+            "value": 35520,
+            "range": "± 92",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt set and encode",
+            "value": 171560,
+            "range": "± 333",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter add",
+            "value": 7807,
+            "range": "± 13",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter contains",
+            "value": 9617,
+            "range": "± 17",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter saturate",
+            "value": 44679,
+            "range": "± 120",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter encode",
+            "value": 134,
+            "range": "± 21",
             "unit": "ns/iter"
           },
           {
