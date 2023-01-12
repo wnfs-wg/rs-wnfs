@@ -30,10 +30,15 @@ pub mod ipld {
         cbor::DagCborCodec,
         cid::Version,
         codec::{Codec, Decode, Encode},
-        Cid, IpldCodec,
+        serde::Serializer,
+        Cid, Ipld, IpldCodec,
     };
 }
 
 pub mod rng {
     pub use rand_core::RngCore;
+}
+
+pub mod ratchet {
+    pub use skip_ratchet::{Ratchet, RatchetSeeker};
 }

@@ -15,6 +15,7 @@ use semver::Version;
 use serde::{de::Error as DeError, ser::Error as SerError, Deserialize, Deserializer, Serialize};
 use std::{
     collections::{BTreeMap, BTreeSet},
+    fmt::Debug,
     rc::Rc,
 };
 
@@ -141,6 +142,74 @@ impl PrivateDirectory {
             previous: None,
             entries: BTreeMap::new(),
         }
+    }
+
+    pub async fn new_and_store<B: BlockStore, R: RngCore>(
+        parent_bare_name: Namefilter,
+        time: DateTime<Utc>,
+        forest: Rc<PrivateForest>,
+        store: &mut B,
+        rng: &mut R,
+    ) -> Result<PrivateOpResult<()>> {
+        let dir = Rc::new(Self {
+            persisted_as: OnceCell::new(),
+            version: Version::new(0, 2, 0),
+            header: PrivateNodeHeader::new(parent_bare_name, rng),
+            metadata: Metadata::new(time),
+            previous: None,
+            entries: BTreeMap::new(),
+        });
+
+        let forest = forest
+            .put(
+                dir.header.get_saturated_name(),
+                &dir.header.get_private_ref(),
+                &PrivateNode::Dir(Rc::clone(&dir)),
+                store,
+                rng,
+            )
+            .await?;
+
+        Ok(PrivateOpResult {
+            root_dir: dir,
+            forest,
+            result: (),
+        })
+    }
+
+    pub async fn new_with_seed_and_store<B: BlockStore, R: RngCore>(
+        parent_bare_name: Namefilter,
+        time: DateTime<Utc>,
+        ratchet_seed: HashOutput,
+        inumber: HashOutput,
+        forest: Rc<PrivateForest>,
+        store: &mut B,
+        rng: &mut R,
+    ) -> Result<PrivateOpResult<()>> {
+        let dir = Rc::new(Self {
+            persisted_as: OnceCell::new(),
+            version: Version::new(0, 2, 0),
+            header: PrivateNodeHeader::with_seed(parent_bare_name, ratchet_seed, inumber),
+            previous: None,
+            metadata: Metadata::new(time),
+            entries: BTreeMap::new(),
+        });
+
+        let forest = forest
+            .put(
+                dir.header.get_saturated_name(),
+                &dir.header.get_private_ref(),
+                &PrivateNode::Dir(Rc::clone(&dir)),
+                store,
+                rng,
+            )
+            .await?;
+
+        Ok(PrivateOpResult {
+            root_dir: dir,
+            forest,
+            result: (),
+        })
     }
 
     /// Gets the metadata of the directory
@@ -455,11 +524,14 @@ impl PrivateDirectory {
                     NotADirectory(_, _) => bail!(FsError::NotFound),
                 }
             }
-            None => PrivateOpResult {
-                root_dir,
-                forest,
-                result: Some(PrivateNode::Dir(self)),
-            },
+            None => {
+                let result = self.lookup_node("", search_latest, &forest, store).await?;
+                PrivateOpResult {
+                    root_dir,
+                    forest,
+                    result,
+                }
+            }
         })
     }
 
@@ -740,6 +812,60 @@ impl PrivateDirectory {
             }
             None => None,
         })
+    }
+
+    /// Gets the latest version of the directory using exponential search.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use std::rc::Rc;
+    /// use chrono::Utc;
+    /// use rand::thread_rng;
+    /// use wnfs::{
+    ///     private::{PrivateForest, PrivateRef, PrivateNode},
+    ///     BlockStore, MemoryBlockStore, Namefilter, PrivateDirectory, PrivateOpResult,
+    /// };
+    ///
+    /// #[async_std::main]
+    /// async fn main() {
+    ///     let store = &mut MemoryBlockStore::default();
+    ///     let rng = &mut thread_rng();
+    ///     let forest = Rc::new(PrivateForest::new());
+    ///
+    ///     let PrivateOpResult { forest, root_dir: init_dir, .. } = PrivateDirectory::new_and_store(
+    ///         Default::default(),
+    ///         Utc::now(),
+    ///         forest,
+    ///         store,
+    ///         rng
+    ///     ).await.unwrap();
+    ///
+    ///     let PrivateOpResult { forest, root_dir, .. } = Rc::clone(&init_dir)
+    ///         .mkdir(&["pictures".into(), "cats".into()], true, Utc::now(), forest, store, rng)
+    ///         .await
+    ///         .unwrap();
+    ///
+    ///     let latest_dir = init_dir.search_latest(&forest, store).await.unwrap();
+    ///
+    ///     let found_node = latest_dir
+    ///         .lookup_node("pictures", true, &forest, store)
+    ///         .await
+    ///         .unwrap();
+    ///
+    ///     assert!(found_node.is_some());
+    /// }
+    /// ```
+    #[inline]
+    pub async fn search_latest(
+        self: Rc<Self>,
+        forest: &PrivateForest,
+        store: &impl BlockStore,
+    ) -> Result<Rc<PrivateDirectory>> {
+        PrivateNode::Dir(self)
+            .search_latest(forest, store)
+            .await?
+            .as_dir()
     }
 
     /// Creates a new directory at the specified path.

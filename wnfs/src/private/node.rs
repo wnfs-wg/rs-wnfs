@@ -73,7 +73,7 @@ pub struct RevisionKey(pub Key);
 ///
 /// println!("Header: {:?}", file.header);
 /// ```
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PrivateNodeHeader {
     /// A unique identifier of the node.
     pub(crate) inumber: INumber,
@@ -353,7 +353,50 @@ impl PrivateNode {
     }
 
     /// Gets the latest version of the node using exponential search.
-    pub(crate) async fn search_latest(
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use std::rc::Rc;
+    /// use chrono::Utc;
+    /// use rand::thread_rng;
+    /// use wnfs::{
+    ///     private::{PrivateForest, PrivateRef, PrivateNode},
+    ///     BlockStore, MemoryBlockStore, Namefilter, PrivateDirectory, PrivateOpResult,
+    /// };
+    ///
+    /// #[async_std::main]
+    /// async fn main() {
+    ///     let store = &mut MemoryBlockStore::default();
+    ///     let rng = &mut thread_rng();
+    ///     let forest = Rc::new(PrivateForest::new());
+    ///
+    ///     let PrivateOpResult { forest, root_dir: init_dir, .. } = PrivateDirectory::new_and_store(
+    ///         Default::default(),
+    ///         Utc::now(),
+    ///         forest,
+    ///         store,
+    ///         rng
+    ///     ).await.unwrap();
+    ///
+    ///     let PrivateOpResult { forest, root_dir, .. } = Rc::clone(&init_dir)
+    ///         .mkdir(&["pictures".into(), "cats".into()], true, Utc::now(), forest, store, rng)
+    ///         .await
+    ///         .unwrap();
+    ///
+    ///     let latest_node = PrivateNode::Dir(init_dir).search_latest(&forest, store).await.unwrap();
+    ///
+    ///     let found_node = latest_node
+    ///         .as_dir()
+    ///         .unwrap()
+    ///         .lookup_node("pictures", true, &forest, store)
+    ///         .await
+    ///         .unwrap();
+    ///
+    ///     assert!(found_node.is_some());
+    /// }
+    /// ```
+    pub async fn search_latest(
         &self,
         forest: &PrivateForest,
         store: &impl BlockStore,
@@ -604,6 +647,21 @@ impl PrivateNodeHeader {
     pub fn get_saturated_name(&self) -> Namefilter {
         let revision_key = RevisionKey::from(&self.ratchet);
         self.get_saturated_name_with_key(&revision_key.0)
+    }
+}
+
+impl Debug for PrivateNodeHeader {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut inumber_str = String::from("0x");
+        for byte in self.inumber {
+            inumber_str.push_str(&format!("{byte:02X}"));
+        }
+
+        f.debug_struct("PrivateRef")
+            .field("inumber", &inumber_str)
+            .field("ratchet", &self.ratchet)
+            .field("bare_name", &self.bare_name)
+            .finish()
     }
 }
 

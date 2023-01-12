@@ -263,8 +263,13 @@ impl<'de, const N: usize, const K: usize> Deserialize<'de> for BloomFilter<N, K>
 impl<const N: usize, const K: usize> Debug for BloomFilter<N, K> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "0x")?;
-        for byte in self.as_bytes().iter() {
-            write!(f, "{byte:02X}")?;
+        for (i, byte) in self.as_bytes().iter().enumerate() {
+            if i > 32 {
+                write!(f, "..")?;
+                break;
+            } else {
+                write!(f, "{byte:02X}")?;
+            }
         }
 
         Ok(())

@@ -6,7 +6,6 @@ use libipld::Cid;
 use rand::{thread_rng, RngCore};
 use std::rc::Rc;
 use wnfs::{
-    dagcbor,
     private::{PrivateForest, PrivateRef},
     BlockStore, MemoryBlockStore, Namefilter, PrivateDirectory, PrivateOpResult,
 };
@@ -23,13 +22,10 @@ async fn main() {
     let (forest_cid, private_ref) = get_forest_cid_and_private_ref(store, rng).await;
 
     // Fetch CBOR bytes of private forest from the blockstore.
-    let cbor_bytes = store
-        .get_deserializable::<Vec<u8>>(&forest_cid)
+    let forest = store
+        .get_deserializable::<PrivateForest>(&forest_cid)
         .await
         .unwrap();
-
-    // Decode private forest CBOR bytes.
-    let forest = dagcbor::decode::<PrivateForest>(cbor_bytes.as_ref()).unwrap();
 
     // Fetch and decrypt a directory from the private forest using provided private ref.
     let dir = forest
@@ -70,11 +66,8 @@ async fn get_forest_cid_and_private_ref(
         .await
         .unwrap();
 
-    // Serialize the private forest to DAG CBOR.
-    let cbor_bytes = dagcbor::async_encode(&forest, store).await.unwrap();
-
     // Persist encoded private forest to the block store.
-    let forest_cid = store.put_serializable(&cbor_bytes).await.unwrap();
+    let forest_cid = store.put_async_serializable(&forest).await.unwrap();
 
     // Private ref contains data and keys for fetching and decrypting the directory node in the private forest.
     let private_ref = root_dir.header.get_private_ref();
