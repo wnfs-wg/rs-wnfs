@@ -144,7 +144,7 @@ impl PrivateDirectory {
         }
     }
 
-    pub async fn with_store<B: BlockStore, R: RngCore>(
+    pub async fn new_and_store<B: BlockStore, R: RngCore>(
         parent_bare_name: Namefilter,
         time: DateTime<Utc>,
         forest: Rc<PrivateForest>,
@@ -177,7 +177,7 @@ impl PrivateDirectory {
         })
     }
 
-    pub async fn with_seed_and_store<B: BlockStore, R: RngCore>(
+    pub async fn new_and_store_with_seed<B: BlockStore, R: RngCore>(
         parent_bare_name: Namefilter,
         time: DateTime<Utc>,
         ratchet_seed: HashOutput,
@@ -800,21 +800,6 @@ impl PrivateDirectory {
         forest: &PrivateForest,
         store: &impl BlockStore,
     ) -> Result<Option<PrivateNode>> {
-        if path_segment.is_empty() {
-            let private_node = forest
-                .get(
-                    &self.header.get_private_ref(),
-                    PrivateForest::resolve_lowest,
-                    store,
-                )
-                .await?;
-
-            return Ok(match (search_latest, private_node) {
-                (true, Some(node)) => Some(node.search_latest(forest, store).await?),
-                (_, node) => node,
-            });
-        }
-
         Ok(match self.entries.get(path_segment) {
             Some(private_ref) => {
                 let private_node = forest
@@ -827,6 +812,60 @@ impl PrivateDirectory {
             }
             None => None,
         })
+    }
+
+    /// Gets the latest version of the directory using exponential search.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use std::rc::Rc;
+    /// use chrono::Utc;
+    /// use rand::thread_rng;
+    /// use wnfs::{
+    ///     private::{PrivateForest, PrivateRef, PrivateNode},
+    ///     BlockStore, MemoryBlockStore, Namefilter, PrivateDirectory, PrivateOpResult,
+    /// };
+    ///
+    /// #[async_std::main]
+    /// async fn main() {
+    ///     let store = &mut MemoryBlockStore::default();
+    ///     let rng = &mut thread_rng();
+    ///     let forest = Rc::new(PrivateForest::new());
+    ///
+    ///     let PrivateOpResult { forest, root_dir: init_dir, .. } = PrivateDirectory::new_and_store(
+    ///         Default::default(),
+    ///         Utc::now(),
+    ///         forest,
+    ///         store,
+    ///         rng
+    ///     ).await.unwrap();
+    ///
+    ///     let PrivateOpResult { forest, root_dir, .. } = Rc::clone(&init_dir)
+    ///         .mkdir(&["pictures".into(), "cats".into()], true, Utc::now(), forest, store, rng)
+    ///         .await
+    ///         .unwrap();
+    ///
+    ///     let latest_dir = init_dir.search_latest(&forest, store).await.unwrap();
+    ///
+    ///     let found_node = latest_dir
+    ///         .lookup_node("pictures", true, &forest, store)
+    ///         .await
+    ///         .unwrap();
+    ///
+    ///     assert!(found_node.is_some());
+    /// }
+    /// ```
+    #[inline]
+    pub async fn search_latest(
+        self: Rc<Self>,
+        forest: &PrivateForest,
+        store: &impl BlockStore,
+    ) -> Result<Rc<PrivateDirectory>> {
+        PrivateNode::Dir(self)
+            .search_latest(forest, store)
+            .await?
+            .as_dir()
     }
 
     /// Creates a new directory at the specified path.

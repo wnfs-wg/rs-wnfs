@@ -353,7 +353,50 @@ impl PrivateNode {
     }
 
     /// Gets the latest version of the node using exponential search.
-    pub(crate) async fn search_latest(
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use std::rc::Rc;
+    /// use chrono::Utc;
+    /// use rand::thread_rng;
+    /// use wnfs::{
+    ///     private::{PrivateForest, PrivateRef, PrivateNode},
+    ///     BlockStore, MemoryBlockStore, Namefilter, PrivateDirectory, PrivateOpResult,
+    /// };
+    ///
+    /// #[async_std::main]
+    /// async fn main() {
+    ///     let store = &mut MemoryBlockStore::default();
+    ///     let rng = &mut thread_rng();
+    ///     let forest = Rc::new(PrivateForest::new());
+    ///
+    ///     let PrivateOpResult { forest, root_dir: init_dir, .. } = PrivateDirectory::new_and_store(
+    ///         Default::default(),
+    ///         Utc::now(),
+    ///         forest,
+    ///         store,
+    ///         rng
+    ///     ).await.unwrap();
+    ///
+    ///     let PrivateOpResult { forest, root_dir, .. } = Rc::clone(&init_dir)
+    ///         .mkdir(&["pictures".into(), "cats".into()], true, Utc::now(), forest, store, rng)
+    ///         .await
+    ///         .unwrap();
+    ///
+    ///     let latest_node = PrivateNode::Dir(init_dir).search_latest(&forest, store).await.unwrap();
+    ///
+    ///     let found_node = latest_node
+    ///         .as_dir()
+    ///         .unwrap()
+    ///         .lookup_node("pictures", true, &forest, store)
+    ///         .await
+    ///         .unwrap();
+    ///
+    ///     assert!(found_node.is_some());
+    /// }
+    /// ```
+    pub async fn search_latest(
         &self,
         forest: &PrivateForest,
         store: &impl BlockStore,
