@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.13](https://github.com/wnfs-wg/rs-wnfs/compare/wnfs-v0.1.12...wnfs-v0.1.13) (2023-01-12)
+
+
+### Features
+
+* **api:** self lookup & store at construction ([#138](https://github.com/wnfs-wg/rs-wnfs/issues/138)) ([228d326](https://github.com/wnfs-wg/rs-wnfs/commit/228d326291926c7e4b593ef66ebb089ce220dacb))
+
 ## [0.1.12](https://github.com/wnfs-wg/rs-wnfs/compare/wnfs-v0.1.11...wnfs-v0.1.12) (2023-01-11)
 
 
