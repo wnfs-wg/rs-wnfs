@@ -30,7 +30,7 @@ async fn main() -> anyhow::Result<()> {
     // Create a root directory from the ratchet_seed, inumber and namefilter. Directory gets saved in forest.
     let PrivateOpResult {
         forest, root_dir, ..
-    } = PrivateDirectory::new_and_store_with_seed(
+    } = PrivateDirectory::new_with_seed_and_store(
         Namefilter::default(),
         Utc::now(),
         ratchet_seed,

@@ -177,7 +177,7 @@ impl PrivateDirectory {
         })
     }
 
-    pub async fn new_and_store_with_seed<B: BlockStore, R: RngCore>(
+    pub async fn new_with_seed_and_store<B: BlockStore, R: RngCore>(
         parent_bare_name: Namefilter,
         time: DateTime<Utc>,
         ratchet_seed: HashOutput,
