@@ -23,7 +23,7 @@ jobs:
     if: >
       github.ref == 'refs/heads/main' &&
       github.repository_owner == 'wnfs-wg' &&
-      github.event.workflow_run.conclusion == 'success'
+      github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
 
     outputs:
       releases_created: ${{ steps.release.outputs['wnfs--release_created'] || steps.release.outputs['wnfs-wasm--release_created'] }}
