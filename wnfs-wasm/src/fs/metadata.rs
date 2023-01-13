@@ -18,7 +18,9 @@ impl TryFrom<JsMetadata<'_>> for JsValue {
             Reflect::set(
                 &metadata,
                 &value!("created"),
-                &value!(i64::try_from(*i).map_err(error("Cannot convert created value"))?),
+                &value!(i64::try_from(*i)
+                    .map_err(error("Cannot convert 'created' metadata value"))?
+                    as f64),
             )?;
         }
 
@@ -26,7 +28,9 @@ impl TryFrom<JsMetadata<'_>> for JsValue {
             Reflect::set(
                 &metadata,
                 &value!("modified"),
-                &value!(i64::try_from(*i).map_err(error("Cannot convert modified value"))?),
+                &value!(i64::try_from(*i)
+                    .map_err(error("Cannot convert 'modified' metadata value"))?
+                    as f64),
             )?;
         }
 
