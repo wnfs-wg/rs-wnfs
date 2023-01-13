@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1673546157799,
+  "lastUpdate": 1673632413695,
   "repoUrl": "https://github.com/wnfs-wg/rs-wnfs",
   "entries": {
     "Rust Benchmark": [
@@ -4440,6 +4440,96 @@ window.BENCHMARK_DATA = {
           {
             "name": "namefilter decode/0",
             "value": 1,
+            "range": "± 0",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "philipp.krueger1@gmail.com",
+            "name": "Philipp Krüger",
+            "username": "matheus23"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "fb5893abce4895003cb8b42886fcf2baa8388e35",
+          "message": "Fix metadata being passed out to JS as a float instead of a `BigInt` (#141)\n\n* test: Add metadata tests for public fs\r\n\r\n* fix: transfer i128 as f64 instead of i64 to JS\r\n\r\nCo-authored-by: Steven Vandevelde <icid.asset@gmail.com>",
+          "timestamp": "2023-01-13T18:50:16+01:00",
+          "tree_id": "48479ff94caf55000979c62a8f045de9fd14ca4b",
+          "url": "https://github.com/wnfs-wg/rs-wnfs/commit/fb5893abce4895003cb8b42886fcf2baa8388e35"
+        },
+        "date": 1673632412673,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "node set",
+            "value": 8449,
+            "range": "± 77",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node set 1000 consecutive",
+            "value": 5013211,
+            "range": "± 20721",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and get",
+            "value": 178933,
+            "range": "± 288",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and remove",
+            "value": 200446,
+            "range": "± 257",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt load and decode/0",
+            "value": 40953,
+            "range": "± 710",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt set and encode",
+            "value": 202461,
+            "range": "± 623",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter add",
+            "value": 9395,
+            "range": "± 68",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter contains",
+            "value": 11347,
+            "range": "± 33",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter saturate",
+            "value": 52910,
+            "range": "± 128",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter encode",
+            "value": 206,
+            "range": "± 10",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter decode/0",
+            "value": 2,
             "range": "± 0",
             "unit": "ns/iter"
           }
