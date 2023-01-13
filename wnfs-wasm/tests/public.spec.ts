@@ -189,4 +189,31 @@ test.describe("PublicDirectory", () => {
     expect(picturesContent.length).toEqual(0);
     expect(imagesContent[0].name).toEqual("cats");
   });
+
+  test("A PublicDirectory has the correct metadata", async ({ page }) => {
+    const result = await page.evaluate(async () => {
+      const {
+        wnfs: { PublicDirectory },
+      } = await window.setup();
+
+      const time = new Date();
+      return new PublicDirectory(time).metadata();
+    });
+
+    expect(result.created).not.toBeUndefined();
+  });
+
+  test("A PublicFile has the correct metadata", async ({ page }) => {
+    const result = await page.evaluate(async () => {
+      const {
+        wnfs: { PublicFile },
+        mock: { sampleCID }
+      } = await window.setup();
+
+      const time = new Date();
+      return new PublicFile(time, sampleCID).metadata();
+    });
+
+    expect(result.created).not.toBeUndefined();
+  });
 });
