@@ -268,6 +268,11 @@ impl PrivateFile {
         })
     }
 
+    /// Gets the metadata of the file
+    pub fn get_metadata(&self) -> &Metadata {
+        &self.metadata
+    }
+
     /// Gets the entire content of a file.
     ///
     /// # Examples

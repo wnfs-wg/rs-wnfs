@@ -2,6 +2,7 @@
 
 use crate::{
     fs::{
+        metadata::JsMetadata,
         utils::{self, error},
         BlockStore, ForeignBlockStore, JsResult, Namefilter, PrivateForest, Rng,
     },
@@ -86,6 +87,11 @@ impl PrivateFile {
 
             Ok(value!(Uint8Array::from(content.as_slice())))
         }))
+    }
+
+    /// Gets the metadata of this file.
+    pub fn metadata(&self) -> JsResult<JsValue> {
+        JsMetadata(self.0.get_metadata()).try_into()
     }
 
     /// Gets a unique id for node.

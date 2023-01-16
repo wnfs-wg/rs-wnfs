@@ -409,4 +409,32 @@ test.describe("PrivateFile", () => {
     expect(length).toEqual(5);
     expect(type).toEqual("Uint8Array");
   });
+
+  test("A PrivateDirectory has the correct metadata", async ({ page }) => {
+    const result = await page.evaluate(async () => {
+      const {
+        wnfs: { Namefilter, PrivateDirectory },
+        mock: { Rng },
+      } = await window.setup();
+
+      const time = new Date();
+      return new PrivateDirectory(new Namefilter(), time, new Rng()).metadata();
+    });
+
+    expect(result.created).not.toBeUndefined();
+  });
+
+  test("A PrivateFile has the correct metadata", async ({ page }) => {
+    const result = await page.evaluate(async () => {
+      const {
+        wnfs: { Namefilter, PrivateFile },
+        mock: { Rng }
+      } = await window.setup();
+
+      const time = new Date();
+      return new PrivateFile(new Namefilter(), time, new Rng()).metadata();
+    });
+
+    expect(result.created).not.toBeUndefined();
+  });
 });
