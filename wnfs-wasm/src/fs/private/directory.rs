@@ -7,12 +7,16 @@ use js_sys::{Array, Date, Promise, Uint8Array};
 use wasm_bindgen::{prelude::wasm_bindgen, JsValue};
 use wasm_bindgen_futures::future_to_promise;
 use wnfs::{
-    Id, PrivateDirectory as WnfsPrivateDirectory, PrivateOpResult as WnfsPrivateOpResult,
+    Id,
+    PrivateDirectory as WnfsPrivateDirectory,
+    PrivateNode as WnfsPrivateNode,
+    PrivateOpResult as WnfsPrivateOpResult,
     HASH_BYTE_SIZE,
 };
 
 use crate::{
     fs::{
+        metadata::JsMetadata,
         utils::{self, error},
         BlockStore, ForeignBlockStore, JsResult, Namefilter, PrivateForest, PrivateNode, Rng,
     },
@@ -385,6 +389,17 @@ impl PrivateDirectory {
                 JsValue::NULL,
             )?)
         }))
+    }
+
+    /// Gets the metadata of the directory
+    pub fn metadata(&self) -> JsResult<JsValue> {
+        JsMetadata(self.0.get_metadata()).try_into()
+    }
+
+    /// Converts directory to a node.
+    #[wasm_bindgen(js_name = "asNode")]
+    pub fn as_node(&self) -> PrivateNode {
+        PrivateNode(WnfsPrivateNode::Dir(Rc::clone(&self.0)))
     }
 
     /// Gets a unique id for node.
