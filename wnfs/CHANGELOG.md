@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.14](https://github.com/wnfs-wg/rs-wnfs/compare/wnfs-v0.1.13...wnfs-v0.1.14) (2023-01-16)
+
+
+### Features
+
+* **api:** adds missing metadata functions for the private side ([#144](https://github.com/wnfs-wg/rs-wnfs/issues/144)) ([7588f69](https://github.com/wnfs-wg/rs-wnfs/commit/7588f69440bfec14b8959f6aecd35eb5f848dacc))
+
 ## [0.1.13](https://github.com/wnfs-wg/rs-wnfs/compare/wnfs-v0.1.12...wnfs-v0.1.13) (2023-01-12)
 
 
