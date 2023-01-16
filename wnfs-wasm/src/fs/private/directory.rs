@@ -7,11 +7,8 @@ use js_sys::{Array, Date, Promise, Uint8Array};
 use wasm_bindgen::{prelude::wasm_bindgen, JsValue};
 use wasm_bindgen_futures::future_to_promise;
 use wnfs::{
-    Id,
-    PrivateDirectory as WnfsPrivateDirectory,
-    PrivateNode as WnfsPrivateNode,
-    PrivateOpResult as WnfsPrivateOpResult,
-    HASH_BYTE_SIZE,
+    Id, PrivateDirectory as WnfsPrivateDirectory, PrivateNode as WnfsPrivateNode,
+    PrivateOpResult as WnfsPrivateOpResult, HASH_BYTE_SIZE,
 };
 
 use crate::{
