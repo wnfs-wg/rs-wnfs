@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1673878072956,
+  "lastUpdate": 1673878086629,
   "repoUrl": "https://github.com/wnfs-wg/rs-wnfs",
   "entries": {
     "Rust Benchmark": [
@@ -4615,6 +4615,96 @@ window.BENCHMARK_DATA = {
             "name": "namefilter encode",
             "value": 130,
             "range": "± 12",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter decode/0",
+            "value": 1,
+            "range": "± 0",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "49699333+dependabot[bot]@users.noreply.github.com",
+            "name": "dependabot[bot]",
+            "username": "dependabot[bot]"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "f2fa3d9748264d68b66f90b717fccef5d137d24b",
+          "message": "chore(rust)(deps): update test-strategy requirement in /wnfs (#143)\n\nUpdates the requirements on [test-strategy](https://github.com/frozenlib/test-strategy) to permit the latest version.\r\n- [Release notes](https://github.com/frozenlib/test-strategy/releases)\r\n- [Commits](https://github.com/frozenlib/test-strategy/compare/v0.2.0...v0.3.0)\r\n\r\n---\r\nupdated-dependencies:\r\n- dependency-name: test-strategy\r\n  dependency-type: direct:production\r\n...\r\n\r\nSigned-off-by: dependabot[bot] <support@github.com>\r\n\r\nSigned-off-by: dependabot[bot] <support@github.com>\r\nCo-authored-by: dependabot[bot] <49699333+dependabot[bot]@users.noreply.github.com>",
+          "timestamp": "2023-01-16T15:04:33+01:00",
+          "tree_id": "3f5475e941cf59142e4bf48c86f6d47d8d0277f7",
+          "url": "https://github.com/wnfs-wg/rs-wnfs/commit/f2fa3d9748264d68b66f90b717fccef5d137d24b"
+        },
+        "date": 1673878086091,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "node set",
+            "value": 6884,
+            "range": "± 183",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node set 1000 consecutive",
+            "value": 4430514,
+            "range": "± 16952",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and get",
+            "value": 153141,
+            "range": "± 145",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and remove",
+            "value": 170698,
+            "range": "± 150",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt load and decode/0",
+            "value": 35402,
+            "range": "± 148",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt set and encode",
+            "value": 171326,
+            "range": "± 345",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter add",
+            "value": 7809,
+            "range": "± 21",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter contains",
+            "value": 9811,
+            "range": "± 73",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter saturate",
+            "value": 44757,
+            "range": "± 318",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter encode",
+            "value": 159,
+            "range": "± 8",
             "unit": "ns/iter"
           },
           {
