@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1673893559024,
+  "lastUpdate": 1673893912757,
   "repoUrl": "https://github.com/wnfs-wg/rs-wnfs",
   "entries": {
     "Rust Benchmark": [
@@ -4795,6 +4795,96 @@ window.BENCHMARK_DATA = {
             "name": "namefilter encode",
             "value": 130,
             "range": "± 11",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter decode/0",
+            "value": 1,
+            "range": "± 0",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "appcypher@outlook.com",
+            "name": "Stephen Akinyemi",
+            "username": "appcypher"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "a05abf0ece8d69d885aebc4894a845d12d4a0f34",
+          "message": "Change actions trigger glob pattern (#145)",
+          "timestamp": "2023-01-16T19:28:41+01:00",
+          "tree_id": "e8ef62f30c1c859704b85819bac04c0d4c61fadc",
+          "url": "https://github.com/wnfs-wg/rs-wnfs/commit/a05abf0ece8d69d885aebc4894a845d12d4a0f34"
+        },
+        "date": 1673893911797,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "node set",
+            "value": 7154,
+            "range": "± 76",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node set 1000 consecutive",
+            "value": 4433323,
+            "range": "± 17093",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and get",
+            "value": 153147,
+            "range": "± 172",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and remove",
+            "value": 171457,
+            "range": "± 8292",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt load and decode/0",
+            "value": 35728,
+            "range": "± 134",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt set and encode",
+            "value": 170628,
+            "range": "± 234",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter add",
+            "value": 7809,
+            "range": "± 14",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter contains",
+            "value": 9809,
+            "range": "± 85",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter saturate",
+            "value": 44737,
+            "range": "± 153",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter encode",
+            "value": 160,
+            "range": "± 9",
             "unit": "ns/iter"
           },
           {
