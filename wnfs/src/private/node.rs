@@ -1,6 +1,6 @@
 use super::{
-    encrypted::Encrypted, hamt::Hasher, namefilter::Namefilter, Key, PrivateDirectory, PrivateFile,
-    PrivateForest, PrivateRef,
+    encrypted::Encrypted, hamt::Hasher, namefilter::Namefilter, PrivateDirectory, PrivateFile,
+    PrivateForest, PrivateRef, SecretKey,
 };
 use crate::{utils, BlockStore, FsError, HashOutput, Id, NodeType, HASH_BYTE_SIZE};
 use anyhow::{bail, Result};
@@ -48,11 +48,11 @@ pub enum PrivateNode {
 
 /// The key used to encrypt the content of a node.
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
-pub struct ContentKey(pub Key);
+pub struct ContentKey(pub SecretKey);
 
 /// The key used to encrypt the header section of a node.
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
-pub struct RevisionKey(pub Key);
+pub struct RevisionKey(pub SecretKey);
 
 /// This is the header of a private node. It contains secret information about the node which includes
 /// the inumber, the ratchet, and the namefilter.
@@ -596,18 +596,18 @@ impl PrivateNodeHeader {
     /// println!("Private ref: {:?}", private_ref);
     /// ```
     pub fn get_private_ref(&self) -> PrivateRef {
-        let revision_key = Key::new(self.ratchet.derive_key());
+        let revision_key = SecretKey::new(self.ratchet.derive_key());
         let saturated_name_hash = Sha3_256::hash(&self.get_saturated_name_with_key(&revision_key));
 
         PrivateRef {
             saturated_name_hash,
-            content_key: Key::new(Sha3_256::hash(&revision_key.as_bytes())).into(),
+            content_key: SecretKey::new(Sha3_256::hash(&revision_key.as_bytes())).into(),
             revision_key: revision_key.into(),
         }
     }
 
     /// Gets the saturated namefilter for this node using the provided ratchet key.
-    pub(crate) fn get_saturated_name_with_key(&self, revision_key: &Key) -> Namefilter {
+    pub(crate) fn get_saturated_name_with_key(&self, revision_key: &SecretKey) -> Namefilter {
         let mut name = self.bare_name.clone();
         name.add(&revision_key.as_bytes());
         name.saturate();
@@ -620,7 +620,7 @@ impl PrivateNodeHeader {
     ///
     /// ```
     /// use std::rc::Rc;
-    /// use wnfs::{PrivateFile, Namefilter, private::Key};
+    /// use wnfs::{PrivateFile, Namefilter, private::SecretKey};
     /// use chrono::Utc;
     /// use rand::thread_rng;
     ///
@@ -656,31 +656,31 @@ impl Debug for PrivateNodeHeader {
     }
 }
 
-impl From<Key> for RevisionKey {
-    fn from(key: Key) -> Self {
+impl From<SecretKey> for RevisionKey {
+    fn from(key: SecretKey) -> Self {
         Self(key)
     }
 }
 
 impl From<&Ratchet> for RevisionKey {
     fn from(ratchet: &Ratchet) -> Self {
-        Self::from(Key::new(ratchet.derive_key()))
+        Self::from(SecretKey::new(ratchet.derive_key()))
     }
 }
 
-impl From<RevisionKey> for Key {
+impl From<RevisionKey> for SecretKey {
     fn from(key: RevisionKey) -> Self {
         key.0
     }
 }
 
-impl From<Key> for ContentKey {
-    fn from(key: Key) -> Self {
+impl From<SecretKey> for ContentKey {
+    fn from(key: SecretKey) -> Self {
         Self(key)
     }
 }
 
-impl From<ContentKey> for Key {
+impl From<ContentKey> for SecretKey {
     fn from(key: ContentKey) -> Self {
         key.0
     }
@@ -689,7 +689,7 @@ impl From<ContentKey> for Key {
 impl RevisionKey {
     pub fn derive_content_key(&self) -> ContentKey {
         let RevisionKey(key) = self;
-        ContentKey(Key::new(Sha3_256::hash(&key.as_bytes())))
+        ContentKey(SecretKey::new(Sha3_256::hash(&key.as_bytes())))
     }
 }
 

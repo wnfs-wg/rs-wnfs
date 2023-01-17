@@ -19,39 +19,40 @@ pub const KEY_BYTE_SIZE: usize = 32;
 // Type Definitions
 //--------------------------------------------------------------------------------------------------
 
-/// A key used for encryption and decryption. This is a wrapper around a 32 byte AES key.
+/// A symmetric private key used for encryption and decryption of content in the filesystem.
+/// This is a wrapper around a 32 byte AES key.
 ///
 /// # Examples
 ///
 /// ```
-/// use wnfs::{private::Key, utils};
+/// use wnfs::{private::SecretKey, utils};
 /// use rand::thread_rng;
 ///
 /// let rng = &mut thread_rng();
-/// let key = Key::new(utils::get_random_bytes(rng));
+/// let key = SecretKey::new(utils::get_random_bytes(rng));
 ///
-/// println!("Key: {:?}", key);
+/// println!("SecretKey: {:?}", key);
 /// ```
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Key(pub(super) [u8; KEY_BYTE_SIZE]);
+pub struct SecretKey(pub(super) [u8; KEY_BYTE_SIZE]);
 
 //--------------------------------------------------------------------------------------------------
 // Implementations
 //--------------------------------------------------------------------------------------------------
 
-impl Key {
+impl SecretKey {
     /// Creates a new key from [u8; KEY_SIZE].
     ///
     /// # Examples
     ///
     /// ```
-    /// use wnfs::{private::Key, utils};
+    /// use wnfs::{private::SecretKey, utils};
     /// use rand::thread_rng;
     ///
     /// let rng = &mut thread_rng();
-    /// let key = Key::new(utils::get_random_bytes(rng));
+    /// let key = SecretKey::new(utils::get_random_bytes(rng));
     ///
-    /// println!("Key: {:?}", key);
+    /// println!("SecretKey: {:?}", key);
     /// ```
     pub fn new(bytes: [u8; KEY_BYTE_SIZE]) -> Self {
         Self(bytes)
@@ -62,12 +63,12 @@ impl Key {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::{private::Key, utils};
+    /// use wnfs::{private::SecretKey, utils};
     /// use rand::thread_rng;
     ///
     /// let rng = &mut thread_rng();
-    /// let key = Key::new(utils::get_random_bytes(rng));
-    /// let nonce = Key::generate_nonce(rng);
+    /// let key = SecretKey::new(utils::get_random_bytes(rng));
+    /// let nonce = SecretKey::generate_nonce(rng);
     ///
     /// let plaintext = b"Hello World!";
     /// let ciphertext = key.encrypt(&nonce, plaintext).unwrap();
@@ -90,12 +91,12 @@ impl Key {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::{private::Key, utils};
+    /// use wnfs::{private::SecretKey, utils};
     /// use rand::thread_rng;
     ///
     /// let rng = &mut thread_rng();
-    /// let key = Key::new(utils::get_random_bytes(rng));
-    /// let nonce = Key::generate_nonce(rng);
+    /// let key = SecretKey::new(utils::get_random_bytes(rng));
+    /// let nonce = SecretKey::generate_nonce(rng);
     ///
     /// let plaintext = b"Hello World!";
     /// let ciphertext = key.encrypt(&nonce, plaintext).unwrap();
@@ -116,11 +117,11 @@ impl Key {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::{private::Key, utils};
+    /// use wnfs::{private::SecretKey, utils};
     /// use rand::thread_rng;
     ///
     /// let rng = &mut thread_rng();
-    /// let nonce = Key::generate_nonce(rng);
+    /// let nonce = SecretKey::generate_nonce(rng);
     ///
     /// println!("Nonce: {:?}", nonce);
     /// ```
@@ -140,7 +141,7 @@ impl Key {
     }
 }
 
-impl Debug for Key {
+impl Debug for SecretKey {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "0x")?;
         for (i, byte) in self.0.iter().enumerate() {
@@ -176,10 +177,10 @@ mod proptests {
         #[strategy(any::<[u8; KEY_BYTE_SIZE]>())] rng_seed: [u8; KEY_BYTE_SIZE],
         key_bytes: [u8; KEY_BYTE_SIZE],
     ) {
-        let key = Key::new(key_bytes);
+        let key = SecretKey::new(key_bytes);
         let rng = &mut TestRng::from_seed(RngAlgorithm::ChaCha, &rng_seed);
 
-        let encrypted = key.encrypt(&Key::generate_nonce(rng), &data).unwrap();
+        let encrypted = key.encrypt(&SecretKey::generate_nonce(rng), &data).unwrap();
         let decrypted = key.decrypt(&encrypted).unwrap();
 
         prop_assert_eq!(decrypted, data);

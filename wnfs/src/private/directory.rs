@@ -1,6 +1,6 @@
 use super::{
-    encrypted::Encrypted, namefilter::Namefilter, Key, PrivateFile, PrivateForest, PrivateNode,
-    PrivateNodeHeader, PrivateRef, PrivateRefSerializable, RevisionKey,
+    encrypted::Encrypted, namefilter::Namefilter, PrivateFile, PrivateForest, PrivateNode,
+    PrivateNodeHeader, PrivateRef, PrivateRefSerializable, RevisionKey, SecretKey,
 };
 use crate::{
     dagcbor, error, utils, BlockStore, FsError, HashOutput, Id, Metadata, NodeType, PathNodes,
@@ -384,8 +384,8 @@ impl PrivateDirectory {
         Ok(cloned)
     }
 
-    /// This prepares this file for key rotation, usually for moving or
-    /// copying the file to some other place.
+    /// This prepares this directory for key rotation, usually for moving or
+    /// copying the directory to some other place.
     ///
     /// Will reset the ratchet, so a different key is necessary for read access,
     /// will reset the inumber to reset write access,
@@ -1386,7 +1386,7 @@ impl PrivateDirectory {
         let header = {
             let cbor_bytes = dagcbor::encode(&self.header).map_err(SerError::custom)?;
             key.0
-                .encrypt(&Key::generate_nonce(rng), &cbor_bytes)
+                .encrypt(&SecretKey::generate_nonce(rng), &cbor_bytes)
                 .map_err(SerError::custom)?
         };
 
@@ -1456,7 +1456,7 @@ impl PrivateDirectory {
                 let enc_bytes = private_ref
                     .content_key
                     .0
-                    .encrypt(&Key::generate_nonce(rng), &bytes)?;
+                    .encrypt(&SecretKey::generate_nonce(rng), &bytes)?;
 
                 // Store content section in blockstore and get Cid.
                 store.put_block(enc_bytes, libipld::IpldCodec::Raw).await

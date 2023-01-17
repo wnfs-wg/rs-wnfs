@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 
-use super::{ContentKey, Key, PrivateNodeHeader, RevisionKey};
+use super::{ContentKey, PrivateNodeHeader, RevisionKey, SecretKey};
 use crate::{FsError, HashOutput, Namefilter};
 use anyhow::Result;
 use rand_core::RngCore;
@@ -41,13 +41,13 @@ impl PrivateRef {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::{private::{PrivateRef, RevisionKey}, private::Key};
+    /// use wnfs::{private::{PrivateRef, RevisionKey}, private::SecretKey};
     /// use rand::{thread_rng, Rng};
     ///
     /// let rng = &mut thread_rng();
     /// let private_ref = PrivateRef::with_revision_key(
     ///     rng.gen::<[u8; 32]>(),
-    ///     RevisionKey::from(Key::new(rng.gen::<[u8; 32]>())),
+    ///     RevisionKey::from(SecretKey::new(rng.gen::<[u8; 32]>())),
     /// );
     ///
     /// println!("Private ref: {:?}", private_ref);
@@ -88,9 +88,10 @@ impl PrivateRef {
         rng: &mut impl RngCore,
     ) -> Result<PrivateRefSerializable> {
         // encrypt ratchet key
-        let revision_key = revision_key
-            .0
-            .encrypt(&Key::generate_nonce(rng), self.revision_key.0.as_bytes())?;
+        let revision_key = revision_key.0.encrypt(
+            &SecretKey::generate_nonce(rng),
+            self.revision_key.0.as_bytes(),
+        )?;
         Ok(PrivateRefSerializable {
             saturated_name_hash: self.saturated_name_hash,
             content_key: self.content_key.clone(),
@@ -102,7 +103,7 @@ impl PrivateRef {
         private_ref: PrivateRefSerializable,
         revision_key: &RevisionKey,
     ) -> Result<Self> {
-        let revision_key = RevisionKey(Key::new(
+        let revision_key = RevisionKey(SecretKey::new(
             revision_key
                 .0
                 .decrypt(&private_ref.revision_key)?

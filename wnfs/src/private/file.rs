@@ -1,6 +1,6 @@
 use super::{
-    encrypted::Encrypted, namefilter::Namefilter, Key, PrivateForest, PrivateNodeHeader,
-    RevisionKey, AUTHENTICATION_TAG_SIZE, NONCE_SIZE,
+    encrypted::Encrypted, namefilter::Namefilter, PrivateForest, PrivateNodeHeader, RevisionKey,
+    SecretKey, AUTHENTICATION_TAG_SIZE, NONCE_SIZE,
 };
 use crate::{
     dagcbor, utils, utils::get_random_bytes, BlockStore, FsError, Hasher, Id, Metadata, NodeType,
@@ -46,7 +46,7 @@ pub const MAX_BLOCK_CONTENT_SIZE: usize = MAX_BLOCK_SIZE - NONCE_SIZE - AUTHENTI
 /// use wnfs::{
 ///     private::{PrivateForest, PrivateRef},
 ///     MemoryBlockStore, Namefilter, PrivateFile,
-///     utils::get_random_bytes, MAX_BLOCK_SIZE
+///     utils::get_random_bytes,
 /// };
 ///
 /// #[async_std::main]
@@ -87,7 +87,7 @@ pub(crate) enum FileContent {
         data: Vec<u8>,
     },
     External {
-        key: Key,
+        key: SecretKey,
         block_count: usize,
         block_content_size: usize,
     },
@@ -207,7 +207,7 @@ impl PrivateFile {
     /// use wnfs::{
     ///     private::{PrivateForest, PrivateRef},
     ///     MemoryBlockStore, Namefilter, PrivateFile,
-    ///     utils::get_random_bytes, MAX_BLOCK_SIZE
+    ///     utils::get_random_bytes,
     /// };
     /// use futures::{StreamExt};
     ///
@@ -284,7 +284,7 @@ impl PrivateFile {
     /// use wnfs::{
     ///     private::{PrivateForest, PrivateRef},
     ///     MemoryBlockStore, Namefilter, PrivateFile,
-    ///     utils::get_random_bytes, MAX_BLOCK_SIZE
+    ///     utils::get_random_bytes,
     /// };
     ///
     /// #[async_std::main]
@@ -332,7 +332,7 @@ impl PrivateFile {
         rng: &mut impl RngCore,
     ) -> Result<(FileContent, Rc<PrivateForest>)> {
         // TODO(appcypher): Use a better heuristic to determine when to use external storage.
-        let key = Key(get_random_bytes(rng));
+        let key = SecretKey::new(get_random_bytes(rng));
         let block_count = (content.len() as f64 / MAX_BLOCK_CONTENT_SIZE as f64).ceil() as usize;
 
         for (index, label) in
@@ -342,7 +342,7 @@ impl PrivateFile {
             let end = content.len().min((index + 1) * MAX_BLOCK_CONTENT_SIZE);
             let slice = &content[start..end];
 
-            let enc_bytes = key.encrypt(&Key::generate_nonce(rng), slice)?;
+            let enc_bytes = key.encrypt(&SecretKey::generate_nonce(rng), slice)?;
             let content_cid = store.put_block(enc_bytes, libipld::IpldCodec::Raw).await?;
 
             forest = forest.put_encrypted(label, content_cid, store).await?;
@@ -372,7 +372,7 @@ impl PrivateFile {
 
     /// Decrypts a block of a file's content.
     async fn decrypt_block(
-        key: &Key,
+        key: &SecretKey,
         label: &Namefilter,
         forest: &PrivateForest,
         store: &impl BlockStore,
@@ -397,7 +397,7 @@ impl PrivateFile {
 
     /// Generates the labels for the shards of a file.
     fn generate_shard_labels<'a>(
-        key: &'a Key,
+        key: &'a SecretKey,
         mut index: usize,
         block_count: usize,
         bare_name: &'a Namefilter,
@@ -414,7 +414,7 @@ impl PrivateFile {
     }
 
     /// Creates the label for a block of a file.
-    fn create_block_label(key: &Key, index: usize, bare_name: &Namefilter) -> Namefilter {
+    fn create_block_label(key: &SecretKey, index: usize, bare_name: &Namefilter) -> Namefilter {
         let key_bytes = key.as_bytes();
         let key_hash = Sha3_256::hash(&[key_bytes, &index.to_le_bytes()[..]].concat());
 
@@ -497,7 +497,7 @@ impl PrivateFile {
             header: {
                 let cbor_bytes = dagcbor::encode(&self.header).map_err(SerError::custom)?;
                 key.0
-                    .encrypt(&Key::generate_nonce(rng), &cbor_bytes)
+                    .encrypt(&SecretKey::generate_nonce(rng), &cbor_bytes)
                     .map_err(SerError::custom)?
             },
             previous: self.previous.clone(),
@@ -558,7 +558,7 @@ impl PrivateFile {
                 let enc_bytes = private_ref
                     .content_key
                     .0
-                    .encrypt(&Key::generate_nonce(rng), &bytes)?;
+                    .encrypt(&SecretKey::generate_nonce(rng), &bytes)?;
 
                 // Store content section in blockstore and get Cid.
                 store.put_block(enc_bytes, libipld::IpldCodec::Raw).await
