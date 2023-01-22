@@ -133,15 +133,11 @@ impl PrivateNode {
         }
     }
 
-    /// Generates two random set of bytes.
     pub(crate) fn generate_double_random(rng: &mut impl RngCore) -> (HashOutput, HashOutput) {
-        const _DOUBLE_SIZE: usize = HASH_BYTE_SIZE * 2;
-        let [first, second] = unsafe {
-            std::mem::transmute::<[u8; _DOUBLE_SIZE], [[u8; HASH_BYTE_SIZE]; 2]>(
-                utils::get_random_bytes::<_DOUBLE_SIZE>(rng),
-            )
-        };
-        (first, second)
+        (
+            crate::utils::get_random_bytes::<HASH_BYTE_SIZE>(rng),
+            crate::utils::get_random_bytes::<HASH_BYTE_SIZE>(rng),
+        )
     }
 
     /// Updates bare name ancestry of private sub tree.
@@ -713,6 +709,13 @@ mod tests {
     use crate::MemoryBlockStore;
 
     use super::*;
+
+    #[async_std::test]
+    async fn generate_double_random_is_ne() {
+        let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
+        let (first, second) = PrivateNode::generate_double_random(rng);
+        assert_ne!(first, second);
+    }
 
     #[async_std::test]
     async fn serialized_private_node_can_be_deserialized() {
