@@ -1554,10 +1554,10 @@ multicast-dns@^7.2.5:
     dns-packet "^5.2.2"
     thunky "^1.0.2"
 
-multiformats@^11.0.0:
-  version "11.0.0"
-  resolved "https://registry.yarnpkg.com/multiformats/-/multiformats-11.0.0.tgz#728dd8adfe4b169cd5b4b22d9dc1054d48bbe2d0"
-  integrity sha512-vqF8bmMtbxw9Zn3eTpk0OZQdBVmAT/+bTGwXb3C2qCNkp45aJMmkCDds3lrtObECWPf+KFjFtTOHkvCaT/c/xQ==
+multiformats@^11.0.1:
+  version "11.0.1"
+  resolved "https://registry.yarnpkg.com/multiformats/-/multiformats-11.0.1.tgz#ba58c3f69f032ab67dab4b48cc70f01ac2ca07fe"
+  integrity sha512-atWruyH34YiknSdL5yeIir00EDlJRpHzELYQxG7Iy29eCyL+VrZHpPrX5yqlik3jnuqpLpRKVZ0SGVb9UzKaSA==
 
 nanoid@^3.3.4:
   version "3.3.4"
