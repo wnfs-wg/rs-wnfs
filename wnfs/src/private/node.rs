@@ -133,13 +133,6 @@ impl PrivateNode {
         }
     }
 
-    pub(crate) fn generate_double_random(rng: &mut impl RngCore) -> (HashOutput, HashOutput) {
-        (
-            crate::utils::get_random_bytes::<HASH_BYTE_SIZE>(rng),
-            crate::utils::get_random_bytes::<HASH_BYTE_SIZE>(rng),
-        )
-    }
-
     /// Updates bare name ancestry of private sub tree.
     #[async_recursion(?Send)]
     pub(crate) async fn update_ancestry(
@@ -532,7 +525,9 @@ impl From<PrivateDirectory> for PrivateNode {
 impl PrivateNodeHeader {
     /// Creates a new PrivateNodeHeader.
     pub(crate) fn new(parent_bare_name: Namefilter, rng: &mut impl RngCore) -> Self {
-        let (inumber, ratchet_seed) = PrivateNode::generate_double_random(rng);
+        let inumber = crate::utils::get_random_bytes::<HASH_BYTE_SIZE>(rng);
+        let ratchet_seed = crate::utils::get_random_bytes::<HASH_BYTE_SIZE>(rng);
+
         Self {
             bare_name: {
                 let mut namefilter = parent_bare_name;
@@ -709,13 +704,6 @@ mod tests {
     use crate::MemoryBlockStore;
 
     use super::*;
-
-    #[async_std::test]
-    async fn generate_double_random_is_ne() {
-        let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
-        let (first, second) = PrivateNode::generate_double_random(rng);
-        assert_ne!(first, second);
-    }
 
     #[async_std::test]
     async fn serialized_private_node_can_be_deserialized() {
