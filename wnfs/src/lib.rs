@@ -6,6 +6,7 @@
 //!
 //! This implementation is based off of the [typescript implementation](https://github.com/fission-suite/webnative/tree/matheus23/wnfs2/src/fs).
 //! It exposes an immutable API, extending WNFS immutable nature to the in-memory representation of the file system.
+#![deny(unsafe_code)]
 
 mod common;
 pub mod private;

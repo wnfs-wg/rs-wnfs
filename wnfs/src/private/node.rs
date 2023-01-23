@@ -133,17 +133,6 @@ impl PrivateNode {
         }
     }
 
-    /// Generates two random set of bytes.
-    pub(crate) fn generate_double_random(rng: &mut impl RngCore) -> (HashOutput, HashOutput) {
-        const _DOUBLE_SIZE: usize = HASH_BYTE_SIZE * 2;
-        let [first, second] = unsafe {
-            std::mem::transmute::<[u8; _DOUBLE_SIZE], [[u8; HASH_BYTE_SIZE]; 2]>(
-                utils::get_random_bytes::<_DOUBLE_SIZE>(rng),
-            )
-        };
-        (first, second)
-    }
-
     /// Updates bare name ancestry of private sub tree.
     #[async_recursion(?Send)]
     pub(crate) async fn update_ancestry(
@@ -536,7 +525,9 @@ impl From<PrivateDirectory> for PrivateNode {
 impl PrivateNodeHeader {
     /// Creates a new PrivateNodeHeader.
     pub(crate) fn new(parent_bare_name: Namefilter, rng: &mut impl RngCore) -> Self {
-        let (inumber, ratchet_seed) = PrivateNode::generate_double_random(rng);
+        let inumber = crate::utils::get_random_bytes::<HASH_BYTE_SIZE>(rng);
+        let ratchet_seed = crate::utils::get_random_bytes::<HASH_BYTE_SIZE>(rng);
+
         Self {
             bare_name: {
                 let mut namefilter = parent_bare_name;
