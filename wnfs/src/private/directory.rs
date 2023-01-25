@@ -1454,7 +1454,8 @@ impl PrivateDirectory {
 
                 // Encrypt bytes with content key.
                 let enc_bytes = private_ref
-                    .content_key
+                    .revision_key
+                    .derive_content_key()
                     .0
                     .encrypt(&AesKey::generate_nonce(rng), &bytes)?;
 
@@ -1523,11 +1524,6 @@ mod tests {
         assert_eq!(
             dir1.header.derive_private_ref().revision_key,
             dir2.header.derive_private_ref().revision_key
-        );
-
-        assert_eq!(
-            dir1.header.derive_private_ref().content_key,
-            dir2.header.derive_private_ref().content_key
         );
 
         assert_eq!(

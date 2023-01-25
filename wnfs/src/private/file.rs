@@ -556,7 +556,8 @@ impl PrivateFile {
 
                 // Encrypt bytes with content key.
                 let enc_bytes = private_ref
-                    .content_key
+                    .revision_key
+                    .derive_content_key()
                     .0
                     .encrypt(&AesKey::generate_nonce(rng), &bytes)?;
 

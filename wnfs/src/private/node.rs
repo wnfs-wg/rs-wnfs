@@ -456,7 +456,11 @@ impl PrivateNode {
         let enc_bytes = store.get_block(&cid).await?;
 
         // Decrypt bytes
-        let cbor_bytes = private_ref.content_key.0.decrypt(&enc_bytes)?;
+        let cbor_bytes = private_ref
+            .revision_key
+            .derive_content_key()
+            .0
+            .decrypt(&enc_bytes)?;
 
         // Deserialize
         PrivateNode::deserialize_from_cbor(&cbor_bytes, &private_ref.revision_key, cid)
@@ -612,7 +616,6 @@ impl PrivateNodeHeader {
 
         PrivateRef {
             saturated_name_hash,
-            content_key: AesKey::new(Sha3_256::hash(&revision_key.0.as_bytes())).into(),
             revision_key,
         }
     }

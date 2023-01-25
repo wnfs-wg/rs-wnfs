@@ -11,12 +11,13 @@ use serde::{de::Error as DeError, ser::Error as SerError, Deserialize, Serialize
 //--------------------------------------------------------------------------------------------------
 
 /// PrivateRef holds the information to fetch associated node from a private forest and decrypt it if it is present.
+///
+/// It also includes required key material to decrypt/encrypt the revision it points to
+/// as well as any future revisions.
 #[derive(Clone, PartialEq, Eq)]
 pub struct PrivateRef {
     /// Sha3-256 hash of saturated namefilter.
     pub(crate) saturated_name_hash: HashOutput,
-    /// Sha3-256 hash of the ratchet key.
-    pub(crate) content_key: ContentKey,
     /// Skip-ratchet-derived key.
     pub(crate) revision_key: RevisionKey,
 }
@@ -55,7 +56,6 @@ impl PrivateRef {
     pub fn with_revision_key(saturated_name_hash: HashOutput, revision_key: RevisionKey) -> Self {
         Self {
             saturated_name_hash,
-            content_key: revision_key.derive_content_key(),
             revision_key,
         }
     }
@@ -87,13 +87,14 @@ impl PrivateRef {
         revision_key: &RevisionKey,
         rng: &mut impl RngCore,
     ) -> Result<PrivateRefSerializable> {
+        let content_key = revision_key.derive_content_key();
         // encrypt ratchet key
         let revision_key = revision_key
             .0
             .encrypt(&AesKey::generate_nonce(rng), self.revision_key.0.as_bytes())?;
         Ok(PrivateRefSerializable {
             saturated_name_hash: self.saturated_name_hash,
-            content_key: self.content_key.clone(),
+            content_key,
             revision_key,
         })
     }
@@ -116,7 +117,6 @@ impl PrivateRef {
         ));
         Ok(Self {
             saturated_name_hash: private_ref.saturated_name_hash,
-            content_key: private_ref.content_key,
             revision_key,
         })
     }
@@ -156,7 +156,6 @@ impl Debug for PrivateRef {
 
         f.debug_struct("PrivateRef")
             .field("saturated_name_hash", &sat_name_hash_str)
-            .field("content_key", &self.content_key.0)
             .field("revision_key", &self.revision_key.0)
             .finish()
     }
