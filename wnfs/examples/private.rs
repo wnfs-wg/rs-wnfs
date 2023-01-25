@@ -70,7 +70,7 @@ async fn get_forest_cid_and_private_ref(
     let forest_cid = store.put_async_serializable(&forest).await.unwrap();
 
     // Private ref contains data and keys for fetching and decrypting the directory node in the private forest.
-    let private_ref = root_dir.header.get_private_ref();
+    let private_ref = root_dir.header.derive_private_ref();
 
     (forest_cid, private_ref)
 }

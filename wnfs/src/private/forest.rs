@@ -62,7 +62,7 @@ impl PrivateForest {
     ///         rng,
     ///     ));
     ///
-    ///     let private_ref = &dir.header.get_private_ref();
+    ///     let private_ref = &dir.header.derive_private_ref();
     ///     let name = dir.header.get_saturated_name();
     ///     let node = PrivateNode::Dir(dir);
     ///
@@ -121,7 +121,7 @@ impl PrivateForest {
     ///         rng,
     ///     ));
     ///
-    ///     let private_ref = &dir.header.get_private_ref();
+    ///     let private_ref = &dir.header.derive_private_ref();
     ///     let name = dir.header.get_saturated_name();
     ///     let node = PrivateNode::Dir(dir);
     ///
@@ -179,7 +179,7 @@ impl PrivateForest {
     ///         rng,
     ///     ));
     ///
-    ///     let private_ref = &dir.header.get_private_ref();
+    ///     let private_ref = &dir.header.derive_private_ref();
     ///     let name = dir.header.get_saturated_name();
     ///     let node = PrivateNode::Dir(dir);
     ///     let forest = forest.put(name.clone(), private_ref, &node, store, rng).await.unwrap();
@@ -307,7 +307,7 @@ where
     ///     let main_forest = main_forest
     ///         .put(
     ///             root_dir.header.get_saturated_name(),
-    ///             &root_dir.header.get_private_ref(),
+    ///             &root_dir.header.derive_private_ref(),
     ///             &PrivateNode::Dir(Rc::clone(&root_dir)),
     ///             store,
     ///             rng
@@ -325,7 +325,7 @@ where
     ///     let other_forest = other_forest
     ///         .put(
     ///             root_dir.header.get_saturated_name(),
-    ///             &root_dir.header.get_private_ref(),
+    ///             &root_dir.header.derive_private_ref(),
     ///             &PrivateNode::Dir(Rc::clone(&root_dir)),
     ///             store,
     ///             rng
@@ -461,7 +461,7 @@ mod tests {
             rng,
         ));
 
-        let private_ref = dir.header.get_private_ref();
+        let private_ref = dir.header.derive_private_ref();
         let saturated_name = dir.header.get_saturated_name();
         let private_node = PrivateNode::Dir(dir.clone());
 
@@ -497,8 +497,8 @@ mod tests {
             Rc::new(dir)
         };
 
-        let private_ref = dir.header.get_private_ref();
-        let private_ref_conflict = dir_conflict.header.get_private_ref();
+        let private_ref = dir.header.derive_private_ref();
+        let private_ref_conflict = dir_conflict.header.derive_private_ref();
         let saturated_name = dir.header.get_saturated_name();
         let saturated_name_conflict = dir_conflict.header.get_saturated_name();
         let private_node = PrivateNode::Dir(dir.clone());

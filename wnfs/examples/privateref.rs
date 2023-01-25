@@ -4,7 +4,7 @@ use sha3::Sha3_256;
 use std::{io::Cursor, rc::Rc};
 use wnfs::{
     ipld::{DagCborCodec, Decode, Encode, Ipld, Serializer},
-    private::{PrivateForest, PrivateRef, RevisionKey, SecretKey},
+    private::{AesKey, PrivateForest, PrivateRef, RevisionKey},
     ratchet::Ratchet,
     rng::RngCore,
     utils, Hasher, MemoryBlockStore, Namefilter, PrivateDirectory, PrivateOpResult,
@@ -21,7 +21,7 @@ async fn main() -> anyhow::Result<()> {
     // ----------- Create a private directory -----------
 
     // Some existing user key.
-    let some_key = SecretKey::new(utils::get_random_bytes::<32>(rng));
+    let some_key = AesKey::new(utils::get_random_bytes::<32>(rng));
 
     // Creating ratchet_seed from our user key. And intializing the inumber and namefilter.
     let ratchet_seed = Sha3_256::hash(&some_key.as_bytes());
@@ -62,10 +62,10 @@ async fn main() -> anyhow::Result<()> {
 
     // We can create a revision_key from our ratchet_seed.
     let ratchet = Ratchet::zero(ratchet_seed);
-    let revision_key = RevisionKey::from(SecretKey::new(ratchet.derive_key()));
+    let revision_key = RevisionKey::from(&ratchet);
 
     // Now let's serialize the root_dir's private_ref.
-    let cbor = encode(&root_dir.header.get_private_ref(), &revision_key, rng)?;
+    let cbor = encode(&root_dir.header.derive_private_ref(), &revision_key, rng)?;
 
     // We can deserialize the private_ref using the revision_key at hand.
     let private_ref = decode(cbor, &revision_key)?;

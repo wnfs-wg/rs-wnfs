@@ -5,7 +5,7 @@ use anyhow::Result;
 use rand_core::RngCore;
 use serde::{Deserialize, Serialize};
 
-use crate::{utils, FsError};
+use crate::{utils, AesError};
 
 //--------------------------------------------------------------------------------------------------
 // Contants
@@ -25,34 +25,34 @@ pub const KEY_BYTE_SIZE: usize = 32;
 /// # Examples
 ///
 /// ```
-/// use wnfs::{private::SecretKey, utils};
+/// use wnfs::{private::AesKey, utils};
 /// use rand::thread_rng;
 ///
 /// let rng = &mut thread_rng();
-/// let key = SecretKey::new(utils::get_random_bytes(rng));
+/// let key = AesKey::new(utils::get_random_bytes(rng));
 ///
-/// println!("SecretKey: {:?}", key);
+/// println!("AesKey: {:?}", key);
 /// ```
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct SecretKey(pub(super) [u8; KEY_BYTE_SIZE]);
+pub struct AesKey(pub(super) [u8; KEY_BYTE_SIZE]);
 
 //--------------------------------------------------------------------------------------------------
 // Implementations
 //--------------------------------------------------------------------------------------------------
 
-impl SecretKey {
+impl AesKey {
     /// Creates a new key from [u8; KEY_SIZE].
     ///
     /// # Examples
     ///
     /// ```
-    /// use wnfs::{private::SecretKey, utils};
+    /// use wnfs::{private::AesKey, utils};
     /// use rand::thread_rng;
     ///
     /// let rng = &mut thread_rng();
-    /// let key = SecretKey::new(utils::get_random_bytes(rng));
+    /// let key = AesKey::new(utils::get_random_bytes(rng));
     ///
-    /// println!("SecretKey: {:?}", key);
+    /// println!("AesKey: {:?}", key);
     /// ```
     pub fn new(bytes: [u8; KEY_BYTE_SIZE]) -> Self {
         Self(bytes)
@@ -63,12 +63,12 @@ impl SecretKey {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::{private::SecretKey, utils};
+    /// use wnfs::{private::AesKey, utils};
     /// use rand::thread_rng;
     ///
     /// let rng = &mut thread_rng();
-    /// let key = SecretKey::new(utils::get_random_bytes(rng));
-    /// let nonce = SecretKey::generate_nonce(rng);
+    /// let key = AesKey::new(utils::get_random_bytes(rng));
+    /// let nonce = AesKey::generate_nonce(rng);
     ///
     /// let plaintext = b"Hello World!";
     /// let ciphertext = key.encrypt(&nonce, plaintext).unwrap();
@@ -81,7 +81,7 @@ impl SecretKey {
 
         let cipher_text = Aes256Gcm::new_from_slice(&self.0)?
             .encrypt(nonce, data)
-            .map_err(|e| FsError::UnableToEncrypt(format!("{e}")))?;
+            .map_err(|e| AesError::UnableToEncrypt(format!("{e}")))?;
 
         Ok([nonce_bytes.to_vec(), cipher_text].concat())
     }
@@ -91,12 +91,12 @@ impl SecretKey {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::{private::SecretKey, utils};
+    /// use wnfs::{private::AesKey, utils};
     /// use rand::thread_rng;
     ///
     /// let rng = &mut thread_rng();
-    /// let key = SecretKey::new(utils::get_random_bytes(rng));
-    /// let nonce = SecretKey::generate_nonce(rng);
+    /// let key = AesKey::new(utils::get_random_bytes(rng));
+    /// let nonce = AesKey::generate_nonce(rng);
     ///
     /// let plaintext = b"Hello World!";
     /// let ciphertext = key.encrypt(&nonce, plaintext).unwrap();
@@ -109,7 +109,7 @@ impl SecretKey {
 
         Ok(Aes256Gcm::new_from_slice(&self.0)?
             .decrypt(Nonce::from_slice(nonce_bytes), data)
-            .map_err(|e| FsError::UnableToDecrypt(format!("{e}")))?)
+            .map_err(|e| AesError::UnableToDecrypt(format!("{e}")))?)
     }
 
     /// Generates a nonce that can be used to encrypt data.
@@ -117,11 +117,11 @@ impl SecretKey {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::{private::SecretKey, utils};
+    /// use wnfs::{private::AesKey, utils};
     /// use rand::thread_rng;
     ///
     /// let rng = &mut thread_rng();
-    /// let nonce = SecretKey::generate_nonce(rng);
+    /// let nonce = AesKey::generate_nonce(rng);
     ///
     /// println!("Nonce: {:?}", nonce);
     /// ```
@@ -141,7 +141,7 @@ impl SecretKey {
     }
 }
 
-impl Debug for SecretKey {
+impl Debug for AesKey {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "0x")?;
         for (i, byte) in self.0.iter().enumerate() {
@@ -177,10 +177,10 @@ mod proptests {
         #[strategy(any::<[u8; KEY_BYTE_SIZE]>())] rng_seed: [u8; KEY_BYTE_SIZE],
         key_bytes: [u8; KEY_BYTE_SIZE],
     ) {
-        let key = SecretKey::new(key_bytes);
+        let key = AesKey::new(key_bytes);
         let rng = &mut TestRng::from_seed(RngAlgorithm::ChaCha, &rng_seed);
 
-        let encrypted = key.encrypt(&SecretKey::generate_nonce(rng), &data).unwrap();
+        let encrypted = key.encrypt(&AesKey::generate_nonce(rng), &data).unwrap();
         let decrypted = key.decrypt(&encrypted).unwrap();
 
         prop_assert_eq!(decrypted, data);

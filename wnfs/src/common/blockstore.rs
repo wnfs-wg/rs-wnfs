@@ -16,8 +16,8 @@ use serde::{de::DeserializeOwned, Serialize};
 use std::collections::HashMap;
 
 use crate::{
-    private::{SecretKey, NONCE_SIZE},
-    utils, AsyncSerialize, MAX_BLOCK_SIZE,
+    private::{AesKey, NONCE_SIZE},
+    utils, AsyncSerialize, BlockStoreError, MAX_BLOCK_SIZE,
 };
 
 use super::FsError;
@@ -44,7 +44,7 @@ pub trait BlockStore {
     async fn put_private_serializable<V: Serialize>(
         &mut self,
         value: &V,
-        key: &SecretKey,
+        key: &AesKey,
         rng: &mut impl RngCore,
     ) -> Result<Cid> {
         let ipld = ipld_serde::to_ipld(value)?;
@@ -72,7 +72,7 @@ pub trait BlockStore {
     async fn get_private_deserializable<'a, V: DeserializeOwned>(
         &'a self,
         cid: &Cid,
-        key: &SecretKey,
+        key: &AesKey,
     ) -> Result<V> {
         let enc_bytes = self.get_block(cid).await?;
         let bytes = key.decrypt(enc_bytes.as_ref())?;
@@ -103,7 +103,7 @@ impl BlockStore for MemoryBlockStore {
     /// Stores an array of bytes in the block store.
     async fn put_block(&mut self, bytes: Vec<u8>, codec: IpldCodec) -> Result<Cid> {
         if bytes.len() > MAX_BLOCK_SIZE {
-            bail!(FsError::MaximumBlockSizeExceeded(bytes.len()))
+            bail!(BlockStoreError::MaximumBlockSizeExceeded(bytes.len()))
         }
 
         let hash = Code::Sha2_256.digest(&bytes);

@@ -1,6 +1,6 @@
 use super::{
-    encrypted::Encrypted, namefilter::Namefilter, PrivateFile, PrivateForest, PrivateNode,
-    PrivateNodeHeader, PrivateRef, PrivateRefSerializable, RevisionKey, SecretKey,
+    encrypted::Encrypted, namefilter::Namefilter, AesKey, PrivateFile, PrivateForest, PrivateNode,
+    PrivateNodeHeader, PrivateRef, PrivateRefSerializable, RevisionKey,
 };
 use crate::{
     dagcbor, error, utils, BlockStore, FsError, HashOutput, Id, Metadata, NodeType, PathNodes,
@@ -163,7 +163,7 @@ impl PrivateDirectory {
         let forest = forest
             .put(
                 dir.header.get_saturated_name(),
-                &dir.header.get_private_ref(),
+                &dir.header.derive_private_ref(),
                 &PrivateNode::Dir(Rc::clone(&dir)),
                 store,
                 rng,
@@ -198,7 +198,7 @@ impl PrivateDirectory {
         let forest = forest
             .put(
                 dir.header.get_saturated_name(),
-                &dir.header.get_private_ref(),
+                &dir.header.derive_private_ref(),
                 &PrivateNode::Dir(Rc::clone(&dir)),
                 store,
                 rng,
@@ -375,7 +375,7 @@ impl PrivateDirectory {
 
         let mut cloned = Rc::try_unwrap(self).unwrap_or_else(|rc| (*rc).clone());
         cloned.persisted_as = OnceCell::new(); // Also done in `.clone()`, but need this to work in case try_unwrap optimizes.
-        let key = cloned.header.get_private_ref().revision_key.0;
+        let key = cloned.header.derive_private_ref().revision_key.0;
         let previous = Encrypted::from_value(BTreeSet::from([cid]), &key, rng)?;
 
         cloned.previous = Some(previous);
@@ -418,7 +418,7 @@ impl PrivateDirectory {
                 .prepare_next_revision(store, rng)
                 .await?;
 
-            let child_private_ref = working_child_dir.header.get_private_ref();
+            let child_private_ref = working_child_dir.header.derive_private_ref();
 
             parent_dir
                 .entries
@@ -442,7 +442,7 @@ impl PrivateDirectory {
         forest = forest
             .put(
                 working_child_dir.header.get_saturated_name(),
-                &working_child_dir.header.get_private_ref(),
+                &working_child_dir.header.derive_private_ref(),
                 &PrivateNode::Dir(Rc::clone(&working_child_dir)),
                 store,
                 rng,
@@ -725,7 +725,7 @@ impl PrivateDirectory {
             }
         };
 
-        let child_private_ref = file.header.get_private_ref();
+        let child_private_ref = file.header.derive_private_ref();
         let forest = forest
             .put(
                 file.header.get_saturated_name(),
@@ -1164,7 +1164,7 @@ impl PrivateDirectory {
 
         directory
             .entries
-            .insert(filename.clone(), node.get_header().get_private_ref());
+            .insert(filename.clone(), node.get_header().derive_private_ref());
 
         path_nodes.tail = Rc::new(directory);
 
@@ -1372,7 +1372,7 @@ impl PrivateDirectory {
     where
         S: serde::Serializer,
     {
-        let key = self.header.get_private_ref().revision_key;
+        let key = self.header.derive_private_ref().revision_key;
 
         let mut entries = BTreeMap::new();
 
@@ -1386,7 +1386,7 @@ impl PrivateDirectory {
         let header = {
             let cbor_bytes = dagcbor::encode(&self.header).map_err(SerError::custom)?;
             key.0
-                .encrypt(&SecretKey::generate_nonce(rng), &cbor_bytes)
+                .encrypt(&AesKey::generate_nonce(rng), &cbor_bytes)
                 .map_err(SerError::custom)?
         };
 
@@ -1445,7 +1445,7 @@ impl PrivateDirectory {
             .persisted_as
             .get_or_try_init::<anyhow::Error>(async {
                 // TODO(matheus23) deduplicate when reworking serialization
-                let private_ref = &self.header.get_private_ref();
+                let private_ref = &self.header.derive_private_ref();
 
                 // Serialize node to cbor.
                 let ipld = self.serialize(libipld::serde::Serializer, rng)?;
@@ -1456,7 +1456,7 @@ impl PrivateDirectory {
                 let enc_bytes = private_ref
                     .content_key
                     .0
-                    .encrypt(&SecretKey::generate_nonce(rng), &bytes)?;
+                    .encrypt(&AesKey::generate_nonce(rng), &bytes)?;
 
                 // Store content section in blockstore and get Cid.
                 store.put_block(enc_bytes, libipld::IpldCodec::Raw).await
@@ -1521,18 +1521,18 @@ mod tests {
             PrivateDirectory::with_seed(Namefilter::default(), Utc::now(), ratchet_seed, inumber);
 
         assert_eq!(
-            dir1.header.get_private_ref().revision_key,
-            dir2.header.get_private_ref().revision_key
+            dir1.header.derive_private_ref().revision_key,
+            dir2.header.derive_private_ref().revision_key
         );
 
         assert_eq!(
-            dir1.header.get_private_ref().content_key,
-            dir2.header.get_private_ref().content_key
+            dir1.header.derive_private_ref().content_key,
+            dir2.header.derive_private_ref().content_key
         );
 
         assert_eq!(
-            dir1.header.get_private_ref().saturated_name_hash,
-            dir2.header.get_private_ref().saturated_name_hash
+            dir1.header.derive_private_ref().saturated_name_hash,
+            dir2.header.derive_private_ref().saturated_name_hash
         );
     }
 

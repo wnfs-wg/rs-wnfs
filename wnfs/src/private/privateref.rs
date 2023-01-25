@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 
-use super::{ContentKey, PrivateNodeHeader, RevisionKey, SecretKey};
+use super::{AesKey, ContentKey, PrivateNodeHeader, RevisionKey};
 use crate::{FsError, HashOutput, Namefilter};
 use anyhow::Result;
 use rand_core::RngCore;
@@ -41,13 +41,13 @@ impl PrivateRef {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::{private::{PrivateRef, RevisionKey}, private::SecretKey};
+    /// use wnfs::{private::{PrivateRef, RevisionKey}, private::AesKey};
     /// use rand::{thread_rng, Rng};
     ///
     /// let rng = &mut thread_rng();
     /// let private_ref = PrivateRef::with_revision_key(
     ///     rng.gen::<[u8; 32]>(),
-    ///     RevisionKey::from(SecretKey::new(rng.gen::<[u8; 32]>())),
+    ///     RevisionKey::from(AesKey::new(rng.gen::<[u8; 32]>())),
     /// );
     ///
     /// println!("Private ref: {:?}", private_ref);
@@ -79,7 +79,7 @@ impl PrivateRef {
     /// ```
     pub fn with_seed(name: Namefilter, ratchet_seed: HashOutput, inumber: HashOutput) -> Self {
         let h = PrivateNodeHeader::with_seed(name, ratchet_seed, inumber);
-        h.get_private_ref()
+        h.derive_private_ref()
     }
 
     pub(crate) fn to_serializable(
@@ -88,10 +88,9 @@ impl PrivateRef {
         rng: &mut impl RngCore,
     ) -> Result<PrivateRefSerializable> {
         // encrypt ratchet key
-        let revision_key = revision_key.0.encrypt(
-            &SecretKey::generate_nonce(rng),
-            self.revision_key.0.as_bytes(),
-        )?;
+        let revision_key = revision_key
+            .0
+            .encrypt(&AesKey::generate_nonce(rng), self.revision_key.0.as_bytes())?;
         Ok(PrivateRefSerializable {
             saturated_name_hash: self.saturated_name_hash,
             content_key: self.content_key.clone(),
@@ -103,7 +102,7 @@ impl PrivateRef {
         private_ref: PrivateRefSerializable,
         revision_key: &RevisionKey,
     ) -> Result<Self> {
-        let revision_key = RevisionKey(SecretKey::new(
+        let revision_key = RevisionKey(AesKey::new(
             revision_key
                 .0
                 .decrypt(&private_ref.revision_key)?
@@ -195,7 +194,7 @@ mod tests {
         let forest = forest
             .put(
                 header.get_saturated_name(),
-                &header.get_private_ref(),
+                &header.derive_private_ref(),
                 &dir,
                 store,
                 rng,

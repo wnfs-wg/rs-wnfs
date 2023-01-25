@@ -1,5 +1,5 @@
 use super::{diff, ChangeType, Node};
-use crate::{BlockStore, FsError, Hasher, Link};
+use crate::{BlockStore, HamtError, Hasher, Link};
 use anyhow::Result;
 use serde::de::DeserializeOwned;
 use std::{hash::Hash, rc::Rc};
@@ -38,12 +38,12 @@ where
                 let main_value = main_node
                     .get(&change.key, store)
                     .await?
-                    .ok_or(FsError::KeyNotFoundInHamt)?;
+                    .ok_or(HamtError::KeyNotFound)?;
 
                 let other_value = other_node
                     .get(&change.key, store)
                     .await?
-                    .ok_or(FsError::KeyNotFoundInHamt)?;
+                    .ok_or(HamtError::KeyNotFound)?;
 
                 merge_node = merge_node
                     .set(change.key, f(main_value, other_value)?, store)

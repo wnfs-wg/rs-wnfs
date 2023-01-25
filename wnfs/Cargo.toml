@@ -25,10 +25,10 @@ async-stream = "0.3"
 async-trait = "0.1"
 bitvec = { version = "1.0", features = ["serde"] }
 chrono = { version = "0.4.23", default-features = false, features = ["clock", "std"] }
-did-key = "0.2"
 either = "1.8"
 futures = "0.3"
 futures-util = "0.3"
+hex = "0.4"
 libipld = { version = "0.15", features = ["dag-cbor", "derive", "serde-codec"] }
 log = "0.4"
 multihash = "0.18"
@@ -39,6 +39,7 @@ rand_core = "0.6"
 rsa = "0.7"
 semver = { version = "1.0", features = ["serde"] }
 serde = { version = "1.0", features = ["rc"] }
+sha2 = "0.10"
 sha3 = "0.10"
 skip_ratchet = { version = "0.1", features = ["serde"] }
 thiserror = "1.0"
