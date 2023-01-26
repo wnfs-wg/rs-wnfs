@@ -134,7 +134,7 @@ impl PrivateNode {
             }
             Self::Dir(dir) => {
                 let mut dir = (**dir).clone();
-                dir.metadata.upsert_mtime(time);
+                dir.content.metadata.upsert_mtime(time);
                 Self::Dir(Rc::new(dir))
             }
         }
@@ -162,7 +162,7 @@ impl PrivateNode {
             Self::Dir(old_dir) => {
                 let mut dir = (**old_dir).clone();
 
-                for (name, private_ref) in &old_dir.entries {
+                for (name, private_ref) in &old_dir.content.entries {
                     let mut node = forest
                         .get(private_ref, PrivateForest::resolve_lowest, store)
                         .await?
@@ -172,7 +172,8 @@ impl PrivateNode {
                         .update_ancestry(dir.header.bare_name.clone(), forest, store, rng)
                         .await?;
 
-                    dir.entries
+                    dir.content
+                        .entries
                         .insert(name.clone(), node.get_header().derive_private_ref());
                 }
 
@@ -243,7 +244,7 @@ impl PrivateNode {
     pub fn get_previous(&self) -> &Option<Encrypted<BTreeSet<Cid>>> {
         match self {
             Self::File(file) => &file.previous,
-            Self::Dir(dir) => &dir.previous,
+            Self::Dir(dir) => &dir.content.previous,
         }
     }
 

@@ -493,7 +493,7 @@ mod tests {
 
         let dir_conflict = {
             let mut dir = (*dir).clone();
-            dir.metadata.upsert_mtime(Utc::now());
+            dir.content.metadata.upsert_mtime(Utc::now());
             Rc::new(dir)
         };
 

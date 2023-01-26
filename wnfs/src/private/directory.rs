@@ -47,8 +47,13 @@ pub type PrivatePathNodesResult = PathNodesResult<PrivateDirectory>;
 #[derive(Debug)]
 pub struct PrivateDirectory {
     persisted_as: OnceCell<Cid>,
-    pub version: Version,
     pub header: PrivateNodeHeader,
+    pub content: PrivateDirectoryContent,
+}
+
+#[derive(Debug)]
+pub struct PrivateDirectoryContent {
+    pub version: Version,
     pub previous: Option<Encrypted<BTreeSet<Cid>>>,
     pub metadata: Metadata,
     pub entries: BTreeMap<String, PrivateRef>,
@@ -101,11 +106,13 @@ impl PrivateDirectory {
     pub fn new(parent_bare_name: Namefilter, time: DateTime<Utc>, rng: &mut impl RngCore) -> Self {
         Self {
             persisted_as: OnceCell::new(),
-            version: Version::new(0, 2, 0),
             header: PrivateNodeHeader::new(parent_bare_name, rng),
-            previous: None,
-            metadata: Metadata::new(time),
-            entries: BTreeMap::new(),
+            content: PrivateDirectoryContent {
+                version: Version::new(0, 2, 0),
+                previous: None,
+                metadata: Metadata::new(time),
+                entries: BTreeMap::new(),
+            },
         }
     }
 
@@ -136,11 +143,13 @@ impl PrivateDirectory {
     ) -> Self {
         Self {
             persisted_as: OnceCell::new(),
-            version: Version::new(0, 2, 0),
             header: PrivateNodeHeader::with_seed(parent_bare_name, ratchet_seed, inumber),
-            metadata: Metadata::new(time),
-            previous: None,
-            entries: BTreeMap::new(),
+            content: PrivateDirectoryContent {
+                version: Version::new(0, 2, 0),
+                metadata: Metadata::new(time),
+                previous: None,
+                entries: BTreeMap::new(),
+            },
         }
     }
 
@@ -151,14 +160,7 @@ impl PrivateDirectory {
         store: &mut B,
         rng: &mut R,
     ) -> Result<PrivateOpResult<()>> {
-        let dir = Rc::new(Self {
-            persisted_as: OnceCell::new(),
-            version: Version::new(0, 2, 0),
-            header: PrivateNodeHeader::new(parent_bare_name, rng),
-            metadata: Metadata::new(time),
-            previous: None,
-            entries: BTreeMap::new(),
-        });
+        let dir = Rc::new(Self::new(parent_bare_name, time, rng));
 
         let forest = forest
             .put(
@@ -186,14 +188,12 @@ impl PrivateDirectory {
         store: &mut B,
         rng: &mut R,
     ) -> Result<PrivateOpResult<()>> {
-        let dir = Rc::new(Self {
-            persisted_as: OnceCell::new(),
-            version: Version::new(0, 2, 0),
-            header: PrivateNodeHeader::with_seed(parent_bare_name, ratchet_seed, inumber),
-            previous: None,
-            metadata: Metadata::new(time),
-            entries: BTreeMap::new(),
-        });
+        let dir = Rc::new(Self::with_seed(
+            parent_bare_name,
+            time,
+            ratchet_seed,
+            inumber,
+        ));
 
         let forest = forest
             .put(
@@ -234,7 +234,7 @@ impl PrivateDirectory {
     /// ```
     #[inline]
     pub fn get_metadata<'a>(self: &'a Rc<Self>) -> &'a Metadata {
-        &self.metadata
+        &self.content.metadata
     }
 
     /// Creates a new `PathNodes` that is not based on an existing file tree.
@@ -378,7 +378,7 @@ impl PrivateDirectory {
         let key = cloned.header.derive_private_ref().revision_key.0;
         let previous = Encrypted::from_value(BTreeSet::from([cid]), &key, rng)?;
 
-        cloned.previous = Some(previous);
+        cloned.content.previous = Some(previous);
         cloned.header.advance_ratchet();
 
         Ok(cloned)
@@ -421,6 +421,7 @@ impl PrivateDirectory {
             let child_private_ref = working_child_dir.header.derive_private_ref();
 
             parent_dir
+                .content
                 .entries
                 .insert(segment.clone(), child_private_ref.clone());
 
@@ -738,6 +739,7 @@ impl PrivateDirectory {
 
         // Insert the file into its parent directory
         directory
+            .content
             .entries
             .insert(filename.to_string(), child_private_ref);
 
@@ -800,7 +802,7 @@ impl PrivateDirectory {
         forest: &PrivateForest,
         store: &impl BlockStore,
     ) -> Result<Option<PrivateNode>> {
-        Ok(match self.entries.get(path_segment) {
+        Ok(match self.content.entries.get(path_segment) {
             Some(private_ref) => {
                 let private_node = forest
                     .get(private_ref, PrivateForest::resolve_lowest, store)
@@ -1000,7 +1002,7 @@ impl PrivateDirectory {
         {
             PathNodesResult::Complete(path_nodes) => {
                 let mut result = vec![];
-                for (name, private_ref) in path_nodes.tail.entries.iter() {
+                for (name, private_ref) in path_nodes.tail.content.entries.iter() {
                     match forest
                         .get(private_ref, PrivateForest::resolve_lowest, store)
                         .await?
@@ -1009,7 +1011,7 @@ impl PrivateDirectory {
                             result.push((name.clone(), file.metadata.clone()));
                         }
                         Some(PrivateNode::Dir(dir)) => {
-                            result.push((name.clone(), dir.metadata.clone()));
+                            result.push((name.clone(), dir.content.metadata.clone()));
                         }
                         _ => bail!(FsError::NotFound),
                     }
@@ -1105,7 +1107,7 @@ impl PrivateDirectory {
         let mut directory = (*directory_path_nodes.tail).clone();
 
         // Remove the entry from its parent directory
-        let removed_node = match directory.entries.remove(node_name) {
+        let removed_node = match directory.content.entries.remove(node_name) {
             Some(ref private_ref) => forest
                 .get(private_ref, PrivateForest::resolve_lowest, store)
                 .await?
@@ -1152,7 +1154,7 @@ impl PrivateDirectory {
         let mut directory = (*path_nodes.tail).clone();
 
         ensure!(
-            !directory.entries.contains_key(filename),
+            !directory.content.entries.contains_key(filename),
             FsError::FileAlreadyExists
         );
 
@@ -1163,6 +1165,7 @@ impl PrivateDirectory {
             .await?;
 
         directory
+            .content
             .entries
             .insert(filename.clone(), node.get_header().derive_private_ref());
 
@@ -1376,7 +1379,7 @@ impl PrivateDirectory {
 
         let mut entries = BTreeMap::new();
 
-        for (name, private_ref) in self.entries.iter() {
+        for (name, private_ref) in self.content.entries.iter() {
             let private_ref_serializable = private_ref
                 .to_serializable(&key, rng)
                 .map_err(SerError::custom)?;
@@ -1392,10 +1395,10 @@ impl PrivateDirectory {
 
         (PrivateDirectorySerializable {
             r#type: NodeType::PrivateDirectory,
-            version: self.version.clone(),
+            version: self.content.version.clone(),
             header,
-            previous: self.previous.clone(),
-            metadata: self.metadata.clone(),
+            previous: self.content.previous.clone(),
+            metadata: self.content.metadata.clone(),
             entries,
         })
         .serialize(serializer)
@@ -1429,14 +1432,16 @@ impl PrivateDirectory {
 
         Ok(Self {
             persisted_as: OnceCell::new_with(Some(from_cid)),
-            version,
-            metadata,
             header: {
                 let cbor_bytes = key.0.decrypt(&header).map_err(DeError::custom)?;
                 dagcbor::decode(&cbor_bytes).map_err(DeError::custom)?
             },
-            previous,
-            entries,
+            content: PrivateDirectoryContent {
+                version,
+                metadata,
+                previous,
+                entries,
+            },
         })
     }
 
@@ -1470,8 +1475,13 @@ impl PrivateDirectory {
 
 impl PartialEq for PrivateDirectory {
     fn eq(&self, other: &Self) -> bool {
+        self.header == other.header && self.content == other.content
+    }
+}
+
+impl PartialEq for PrivateDirectoryContent {
+    fn eq(&self, other: &Self) -> bool {
         self.version == other.version
-            && self.header == other.header
             && self.previous == other.previous
             && self.metadata == other.metadata
             && self.entries == other.entries
@@ -1482,8 +1492,16 @@ impl Clone for PrivateDirectory {
     fn clone(&self) -> Self {
         Self {
             persisted_as: OnceCell::new_with(self.persisted_as.get().cloned()),
-            version: self.version.clone(),
             header: self.header.clone(),
+            content: self.content.clone(),
+        }
+    }
+}
+
+impl Clone for PrivateDirectoryContent {
+    fn clone(&self) -> Self {
+        Self {
+            version: self.version.clone(),
             previous: self.previous.clone(),
             metadata: self.metadata.clone(),
             entries: self.entries.clone(),
@@ -2314,10 +2332,10 @@ mod tests {
             .await
             .unwrap();
 
-        assert!(old_dir.previous.is_none());
+        assert!(old_dir.content.previous.is_none());
 
         let old_key = RevisionKey::from(&old_dir.header.ratchet);
-        let previous_encrypted = new_dir.previous.clone();
+        let previous_encrypted = new_dir.content.previous.clone();
         let previous_links = previous_encrypted
             .unwrap()
             .resolve_value(&old_key.0)
