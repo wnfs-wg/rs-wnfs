@@ -1381,7 +1381,7 @@ impl PrivateDirectory {
 
         for (name, private_ref) in self.content.entries.iter() {
             let private_ref_serializable = private_ref
-                .to_serializable(&key, rng)
+                .to_serializable(&key)
                 .map_err(SerError::custom)?;
             entries.insert(name.clone(), private_ref_serializable);
         }

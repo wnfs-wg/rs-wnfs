@@ -1,9 +1,9 @@
 use std::fmt::Debug;
 
-use super::{AesKey, ContentKey, PrivateNodeHeader, RevisionKey};
-use crate::{FsError, HashOutput, Namefilter};
+use super::{ContentKey, PrivateNodeHeader, RevisionKey, KEY_BYTE_SIZE};
+use crate::{AesError, FsError, HashOutput, Namefilter};
+use aes_kw::KekAes256;
 use anyhow::Result;
-use rand_core::RngCore;
 use serde::{de::Error as DeError, ser::Error as SerError, Deserialize, Serialize};
 
 //--------------------------------------------------------------------------------------------------
@@ -84,53 +84,52 @@ impl PrivateRef {
 
     pub(crate) fn to_serializable(
         &self,
-        revision_key: &RevisionKey,
-        rng: &mut impl RngCore,
+        parent_revision_key: &RevisionKey,
     ) -> Result<PrivateRefSerializable> {
-        let content_key = revision_key.derive_content_key();
+        let content_key = self.revision_key.derive_content_key();
         // encrypt ratchet key
-        let revision_key = revision_key
-            .0
-            .encrypt(&AesKey::generate_nonce(rng), self.revision_key.0.as_bytes())?;
+        let mut revision_key_as_kek = KekAes256::from(parent_revision_key.0.clone().bytes());
+        let revision_key_wrapped = revision_key_as_kek
+            .wrap_with_padding_vec(self.revision_key.0.as_bytes())
+            .map_err(|e| AesError::UnableToEncrypt(format!("{e}")))?;
         Ok(PrivateRefSerializable {
             saturated_name_hash: self.saturated_name_hash,
             content_key,
-            revision_key,
+            revision_key: revision_key_wrapped,
         })
     }
 
     pub(crate) fn from_serializable(
         private_ref: PrivateRefSerializable,
-        revision_key: &RevisionKey,
+        parent_revision_key: &RevisionKey,
     ) -> Result<Self> {
-        let revision_key = RevisionKey(AesKey::new(
-            revision_key
-                .0
-                .decrypt(&private_ref.revision_key)?
-                .try_into()
-                .map_err(|e: Vec<u8>| {
-                    FsError::InvalidDeserialization(format!(
-                        "Expected 32 bytes for ratchet key, but got {}",
-                        e.len()
-                    ))
-                })?,
-        ));
+        // TODO: Move key wrapping & unwrapping logic to impl RevisionKey
+        let mut revision_key_as_kek = KekAes256::from(parent_revision_key.0.clone().bytes());
+
+        let revision_key_raw: [u8; KEY_BYTE_SIZE] = revision_key_as_kek
+            .unwrap_with_padding_vec(&private_ref.revision_key)
+            .map_err(|e| AesError::UnableToDecrypt(format!("{e}")))?
+            .try_into()
+            .map_err(|e: Vec<u8>| {
+                FsError::InvalidDeserialization(format!(
+                    "Expected 32 bytes for ratchet key, but got {}",
+                    e.len()
+                ))
+            })?;
+
+        let revision_key = revision_key_raw.into();
+
         Ok(Self {
             saturated_name_hash: private_ref.saturated_name_hash,
             revision_key,
         })
     }
 
-    pub fn serialize<S>(
-        &self,
-        serializer: S,
-        revision_key: &RevisionKey,
-        rng: &mut impl RngCore,
-    ) -> Result<S::Ok, S::Error>
+    pub fn serialize<S>(&self, serializer: S, revision_key: &RevisionKey) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
     {
-        self.to_serializable(revision_key, rng)
+        self.to_serializable(revision_key)
             .map_err(SerError::custom)?
             .serialize(serializer)
     }
