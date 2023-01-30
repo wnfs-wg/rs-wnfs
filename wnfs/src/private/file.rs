@@ -1,6 +1,6 @@
 use super::{
-    encrypted::Encrypted, namefilter::Namefilter, AesKey, PrivateForest, PrivateNodeHeader,
-    RevisionKey, AUTHENTICATION_TAG_SIZE, NONCE_SIZE,
+    encrypted::Encrypted, namefilter::Namefilter, AesKey, ContentKey, PrivateForest,
+    PrivateNodeHeader, RevisionKey, AUTHENTICATION_TAG_SIZE, NONCE_SIZE,
 };
 use crate::{
     dagcbor, utils, utils::get_random_bytes, BlockStore, FsError, Hasher, Id, Metadata, NodeType,
@@ -91,7 +91,7 @@ pub(crate) enum FileContent {
         data: Vec<u8>,
     },
     External {
-        key: AesKey,
+        key: ContentKey,
         block_count: usize,
         block_content_size: usize,
     },
@@ -338,7 +338,7 @@ impl PrivateFile {
         rng: &mut impl RngCore,
     ) -> Result<(FileContent, Rc<PrivateForest>)> {
         // TODO(appcypher): Use a better heuristic to determine when to use external storage.
-        let key = AesKey::new(get_random_bytes(rng));
+        let key = ContentKey(AesKey::new(get_random_bytes(rng)));
         let block_count = (content.len() as f64 / MAX_BLOCK_CONTENT_SIZE as f64).ceil() as usize;
 
         for (index, label) in
@@ -348,7 +348,7 @@ impl PrivateFile {
             let end = content.len().min((index + 1) * MAX_BLOCK_CONTENT_SIZE);
             let slice = &content[start..end];
 
-            let enc_bytes = key.encrypt(&AesKey::generate_nonce(rng), slice)?;
+            let enc_bytes = key.encrypt(slice, rng)?;
             let content_cid = store.put_block(enc_bytes, IpldCodec::Raw).await?;
 
             forest = forest.put_encrypted(label, content_cid, store).await?;
@@ -378,7 +378,7 @@ impl PrivateFile {
 
     /// Decrypts a block of a file's content.
     async fn decrypt_block(
-        key: &AesKey,
+        key: &ContentKey,
         label: &Namefilter,
         forest: &PrivateForest,
         store: &impl BlockStore,
@@ -403,7 +403,7 @@ impl PrivateFile {
 
     /// Generates the labels for the shards of a file.
     fn generate_shard_labels<'a>(
-        key: &'a AesKey,
+        key: &'a ContentKey,
         mut index: usize,
         block_count: usize,
         bare_name: &'a Namefilter,
@@ -420,8 +420,8 @@ impl PrivateFile {
     }
 
     /// Creates the label for a block of a file.
-    fn create_block_label(key: &AesKey, index: usize, bare_name: &Namefilter) -> Namefilter {
-        let key_bytes = key.as_bytes();
+    fn create_block_label(key: &ContentKey, index: usize, bare_name: &Namefilter) -> Namefilter {
+        let key_bytes = key.0.as_bytes();
         let key_hash = Sha3_256::hash(&[key_bytes, &index.to_le_bytes()[..]].concat());
 
         let mut label = bare_name.clone();
@@ -491,11 +491,7 @@ impl PrivateFile {
     }
 
     /// Serializes the file with provided Serde serialilzer.
-    pub(crate) fn serialize<S>(
-        &self,
-        serializer: S,
-        rng: &mut impl RngCore,
-    ) -> Result<S::Ok, S::Error>
+    pub(crate) fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
     {
@@ -506,8 +502,7 @@ impl PrivateFile {
             version: Version::new(0, 2, 0),
             header: {
                 let cbor_bytes = dagcbor::encode(&self.header).map_err(SerError::custom)?;
-                key.0
-                    .encrypt(&AesKey::generate_nonce(rng), &cbor_bytes)
+                key.key_wrap_encrypt(&cbor_bytes)
                     .map_err(SerError::custom)?
             },
             previous: self.content.previous.iter().cloned().collect(),
@@ -545,7 +540,7 @@ impl PrivateFile {
         Ok(Self {
             persisted_as: OnceCell::new_with(Some(from_cid)),
             header: {
-                let cbor_bytes = key.0.decrypt(&header).map_err(DeError::custom)?;
+                let cbor_bytes = key.key_wrap_decrypt(&header).map_err(DeError::custom)?;
                 dagcbor::decode(&cbor_bytes).map_err(DeError::custom)?
             },
             content: PrivateFileContent {
@@ -568,7 +563,7 @@ impl PrivateFile {
                 let private_ref = &self.header.derive_private_ref();
 
                 // Serialize node to cbor.
-                let ipld = self.serialize(libipld::serde::Serializer, rng)?;
+                let ipld = self.serialize(libipld::serde::Serializer)?;
                 let mut bytes = Vec::new();
                 ipld.encode(DagCborCodec, &mut bytes)?;
 
@@ -576,8 +571,7 @@ impl PrivateFile {
                 let enc_bytes = private_ref
                     .revision_key
                     .derive_content_key()
-                    .0
-                    .encrypt(&AesKey::generate_nonce(rng), &bytes)?;
+                    .encrypt(&bytes, rng)?;
 
                 // Store content section in blockstore and get Cid.
                 store.put_block(enc_bytes, libipld::IpldCodec::Raw).await

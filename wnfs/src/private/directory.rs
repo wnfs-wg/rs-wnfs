@@ -1,5 +1,5 @@
 use super::{
-    encrypted::Encrypted, namefilter::Namefilter, AesKey, PrivateFile, PrivateForest, PrivateNode,
+    encrypted::Encrypted, namefilter::Namefilter, PrivateFile, PrivateForest, PrivateNode,
     PrivateNodeHeader, PrivateRef, PrivateRefSerializable, RevisionKey,
 };
 use crate::{
@@ -1371,11 +1371,7 @@ impl PrivateDirectory {
     }
 
     /// Serializes the directory with provided Serde serialilzer.
-    pub(crate) fn serialize<S>(
-        &self,
-        serializer: S,
-        rng: &mut impl RngCore,
-    ) -> Result<S::Ok, S::Error>
+    pub(crate) fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
     {
@@ -1392,8 +1388,7 @@ impl PrivateDirectory {
 
         let header = {
             let cbor_bytes = dagcbor::encode(&self.header).map_err(SerError::custom)?;
-            key.0
-                .encrypt(&AesKey::generate_nonce(rng), &cbor_bytes)
+            key.key_wrap_encrypt(&cbor_bytes)
                 .map_err(SerError::custom)?
         };
 
@@ -1444,7 +1439,7 @@ impl PrivateDirectory {
         Ok(Self {
             persisted_as: OnceCell::new_with(Some(from_cid)),
             header: {
-                let cbor_bytes = key.0.decrypt(&header).map_err(DeError::custom)?;
+                let cbor_bytes = key.key_wrap_decrypt(&header).map_err(DeError::custom)?;
                 dagcbor::decode(&cbor_bytes).map_err(DeError::custom)?
             },
             content: PrivateDirectoryContent {
@@ -1464,7 +1459,7 @@ impl PrivateDirectory {
                 let private_ref = &self.header.derive_private_ref();
 
                 // Serialize node to cbor.
-                let ipld = self.serialize(libipld::serde::Serializer, rng)?;
+                let ipld = self.serialize(libipld::serde::Serializer)?;
                 let mut bytes = Vec::new();
                 ipld.encode(DagCborCodec, &mut bytes)?;
 
@@ -1472,8 +1467,7 @@ impl PrivateDirectory {
                 let enc_bytes = private_ref
                     .revision_key
                     .derive_content_key()
-                    .0
-                    .encrypt(&AesKey::generate_nonce(rng), &bytes)?;
+                    .encrypt(&bytes, rng)?;
 
                 // Store content section in blockstore and get Cid.
                 store.put_block(enc_bytes, libipld::IpldCodec::Raw).await

@@ -1,8 +1,9 @@
 use super::{
     encrypted::Encrypted, hamt::Hasher, namefilter::Namefilter, AesKey, PrivateDirectory,
-    PrivateFile, PrivateForest, PrivateRef,
+    PrivateFile, PrivateForest, PrivateRef, NONCE_SIZE,
 };
 use crate::{utils, AesError, BlockStore, FsError, HashOutput, Id, NodeType, HASH_BYTE_SIZE};
+use aes_gcm::{aead::Aead, Aes256Gcm, KeyInit, Nonce};
 use aes_kw::KekAes256;
 use anyhow::{bail, Result};
 use async_recursion::async_recursion;
@@ -461,7 +462,6 @@ impl PrivateNode {
         let cbor_bytes = private_ref
             .revision_key
             .derive_content_key()
-            .0
             .decrypt(&enc_bytes)?;
 
         // Deserialize
@@ -771,6 +771,61 @@ impl RevisionKey {
     }
 }
 
+impl ContentKey {
+    /// Encrypts the given plaintext using the key.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use wnfs::{private::AesKey, utils};
+    /// use rand::thread_rng;
+    ///
+    /// let rng = &mut thread_rng();
+    /// let key = ContentKey(AesKey::new(utils::get_random_bytes(rng)));
+    ///
+    /// let plaintext = b"Hello World!";
+    /// let ciphertext = key.encrypt(&plaintext, rng).unwrap();
+    /// let decrypted = key.decrypt(&ciphertext).unwrap();
+    ///
+    /// assert_eq!(plaintext, &decrypted[..]);
+    /// ```
+    pub fn encrypt(&self, data: &[u8], rng: &mut impl RngCore) -> Result<Vec<u8>> {
+        let nonce_bytes = utils::get_random_bytes::<NONCE_SIZE>(rng);
+        let nonce = Nonce::from_slice(&nonce_bytes);
+
+        let cipher_text = Aes256Gcm::new_from_slice(self.0.as_bytes())?
+            .encrypt(nonce, data)
+            .map_err(|e| AesError::UnableToEncrypt(format!("{e}")))?;
+
+        Ok([nonce_bytes.to_vec(), cipher_text].concat())
+    }
+
+    /// Decrypts the given ciphertext using the key.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use wnfs::{private::AesKey, utils};
+    /// use rand::thread_rng;
+    ///
+    /// let rng = &mut thread_rng();
+    /// let key = ContentKey(AesKey::new(utils::get_random_bytes(rng)));
+    ///
+    /// let plaintext = b"Hello World!";
+    /// let ciphertext = key.encrypt(&plaintext, rng).unwrap();
+    /// let decrypted = key.decrypt(&ciphertext).unwrap();
+    ///
+    /// assert_eq!(plaintext, &decrypted[..]);
+    /// ```
+    pub fn decrypt(&self, cipher_text: &[u8]) -> Result<Vec<u8>> {
+        let (nonce_bytes, data) = cipher_text.split_at(NONCE_SIZE);
+
+        Ok(Aes256Gcm::new_from_slice(self.0.as_bytes())?
+            .decrypt(Nonce::from_slice(nonce_bytes), data)
+            .map_err(|e| AesError::UnableToDecrypt(format!("{e}")))?)
+    }
+}
+
 //--------------------------------------------------------------------------------------------------
 // Tests
 //--------------------------------------------------------------------------------------------------
@@ -808,5 +863,37 @@ mod tests {
         let deserialized_node = PrivateNode::load(cid, &private_ref, store).await.unwrap();
 
         assert_eq!(file, deserialized_node);
+    }
+}
+
+//--------------------------------------------------------------------------------------------------
+// Proptests
+//--------------------------------------------------------------------------------------------------
+
+#[cfg(test)]
+mod proptests {
+    use crate::private::KEY_BYTE_SIZE;
+
+    use super::*;
+    use proptest::{
+        prelude::any,
+        prop_assert_eq,
+        test_runner::{RngAlgorithm, TestRng},
+    };
+    use test_strategy::proptest;
+
+    #[proptest(cases = 100)]
+    fn content_key_can_encrypt_and_decrypt_data(
+        #[strategy(any::<Vec<u8>>())] data: Vec<u8>,
+        #[strategy(any::<[u8; KEY_BYTE_SIZE]>())] rng_seed: [u8; KEY_BYTE_SIZE],
+        key_bytes: [u8; KEY_BYTE_SIZE],
+    ) {
+        let key = ContentKey(AesKey::new(key_bytes));
+        let rng = &mut TestRng::from_seed(RngAlgorithm::ChaCha, &rng_seed);
+
+        let encrypted = key.encrypt(&data, rng).unwrap();
+        let decrypted = key.decrypt(&encrypted).unwrap();
+
+        prop_assert_eq!(decrypted, data);
     }
 }
