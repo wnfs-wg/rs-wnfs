@@ -442,7 +442,7 @@ impl PrivateFile {
         let mut cloned = Rc::try_unwrap(self).unwrap_or_else(|rc| (*rc).clone());
         cloned.persisted_as = OnceCell::new(); // Also done in `.clone()`, but need this to work in case try_unwrap optimizes.
         let key = cloned.header.derive_private_ref().revision_key.0;
-        let previous = Encrypted::from_value(BTreeSet::from([cid]), &key, rng)?;
+        let previous = Encrypted::from_value(BTreeSet::from([cid]), &key)?;
 
         cloned.previous = Some(previous);
         cloned.header.advance_ratchet();

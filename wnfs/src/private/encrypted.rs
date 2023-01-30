@@ -1,12 +1,12 @@
 use std::io::Cursor;
 
+use aes_kw::KekAes256;
 use anyhow::Result;
 use libipld::{cbor::DagCborCodec, codec::Decode, prelude::Encode, Ipld};
 use once_cell::sync::OnceCell;
-use rand_core::RngCore;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
-use crate::FsError;
+use crate::{AesError, FsError};
 
 use super::AesKey;
 
@@ -32,14 +32,16 @@ impl<T> Encrypted<T> {
     ///
     /// To ensure confidentiality, the randomness should be cryptographically secure
     /// randomness.
-    pub fn from_value(value: T, key: &AesKey, rng: &mut impl RngCore) -> Result<Self>
+    pub fn from_value(value: T, key: &AesKey) -> Result<Self>
     where
         T: Serialize,
     {
         let ipld = value.serialize(libipld::serde::Serializer)?;
         let mut bytes = Vec::new();
         ipld.encode(DagCborCodec, &mut bytes)?;
-        let ciphertext = key.encrypt(&AesKey::generate_nonce(rng), &bytes)?;
+        let ciphertext = KekAes256::from(key.clone().bytes())
+            .wrap_with_padding_vec(&bytes)
+            .map_err(|e| AesError::UnableToEncrypt(format!("{e}")))?;
 
         Ok(Self {
             value_cache: OnceCell::from(value),
@@ -68,7 +70,9 @@ impl<T> Encrypted<T> {
         T: DeserializeOwned,
     {
         self.value_cache.get_or_try_init(|| {
-            let bytes = key.decrypt(&self.ciphertext)?;
+            let bytes = KekAes256::from(key.clone().bytes())
+                .unwrap_with_padding_vec(&self.ciphertext)
+                .map_err(|e| AesError::UnableToDecrypt(format!("{e}")))?;
             let ipld = Ipld::decode(DagCborCodec, &mut Cursor::new(bytes))?;
             libipld::serde::from_ipld::<T>(ipld)
                 .map_err(|e| FsError::InvalidDeserialization(e.to_string()).into())

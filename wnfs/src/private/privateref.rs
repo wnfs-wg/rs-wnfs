@@ -88,7 +88,7 @@ impl PrivateRef {
     ) -> Result<PrivateRefSerializable> {
         let content_key = self.revision_key.derive_content_key();
         // encrypt ratchet key
-        let mut revision_key_as_kek = KekAes256::from(parent_revision_key.0.clone().bytes());
+        let revision_key_as_kek = KekAes256::from(parent_revision_key.0.clone().bytes());
         let revision_key_wrapped = revision_key_as_kek
             .wrap_with_padding_vec(self.revision_key.0.as_bytes())
             .map_err(|e| AesError::UnableToEncrypt(format!("{e}")))?;
@@ -104,7 +104,7 @@ impl PrivateRef {
         parent_revision_key: &RevisionKey,
     ) -> Result<Self> {
         // TODO: Move key wrapping & unwrapping logic to impl RevisionKey
-        let mut revision_key_as_kek = KekAes256::from(parent_revision_key.0.clone().bytes());
+        let revision_key_as_kek = KekAes256::from(parent_revision_key.0.clone().bytes());
 
         let revision_key_raw: [u8; KEY_BYTE_SIZE] = revision_key_as_kek
             .unwrap_with_padding_vec(&private_ref.revision_key)

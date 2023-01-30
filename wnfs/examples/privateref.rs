@@ -6,7 +6,6 @@ use wnfs::{
     ipld::{DagCborCodec, Decode, Encode, Ipld, Serializer},
     private::{AesKey, PrivateForest, PrivateRef, RevisionKey},
     ratchet::Ratchet,
-    rng::RngCore,
     utils, Hasher, MemoryBlockStore, Namefilter, PrivateDirectory, PrivateOpResult,
 };
 
@@ -65,7 +64,7 @@ async fn main() -> anyhow::Result<()> {
     let revision_key = RevisionKey::from(&ratchet);
 
     // Now let's serialize the root_dir's private_ref.
-    let cbor = encode(&root_dir.header.derive_private_ref(), &revision_key, rng)?;
+    let cbor = encode(&root_dir.header.derive_private_ref(), &revision_key)?;
 
     // We can deserialize the private_ref using the revision_key at hand.
     let private_ref = decode(cbor, &revision_key)?;
@@ -102,13 +101,9 @@ async fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
-fn encode(
-    private_ref: &PrivateRef,
-    revision_key: &RevisionKey,
-    rng: &mut impl RngCore,
-) -> anyhow::Result<Vec<u8>> {
+fn encode(private_ref: &PrivateRef, revision_key: &RevisionKey) -> anyhow::Result<Vec<u8>> {
     let mut bytes = Vec::new();
-    let ipld = private_ref.serialize(Serializer, revision_key, rng)?;
+    let ipld = private_ref.serialize(Serializer, revision_key)?;
     ipld.encode(DagCborCodec, &mut bytes)?;
     Ok(bytes)
 }
