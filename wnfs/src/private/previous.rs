@@ -52,7 +52,7 @@ pub struct PrivateNodeHistory {
     /// the `ratchets` iterator.
     header: PrivateNodeHeader,
     /// The private node tracks which previous revision's value it was a modification of.
-    previous: Option<Encrypted<BTreeSet<Cid>>>,
+    previous: BTreeSet<Encrypted<Cid>>,
     /// The iterator for previous revision ratchets.
     ratchets: PreviousIterator,
 }
@@ -84,7 +84,7 @@ impl PrivateNodeHistory {
     /// See also `PrivateNodeHistory::of`.
     pub fn from_header(
         header: PrivateNodeHeader,
-        previous: Option<Encrypted<BTreeSet<Cid>>>,
+        previous: BTreeSet<Encrypted<Cid>>,
         past_ratchet: &Ratchet,
         discrepancy_budget: usize,
         forest: Rc<PrivateForest>,
@@ -136,13 +136,12 @@ impl PrivateNodeHistory {
     }
 
     fn resolve_previous_cids(&self, previous_ratchet: &Ratchet) -> Result<BTreeSet<Cid>> {
-        if let Some(encrypted) = &self.previous {
-            let revision_key = RevisionKey::from(previous_ratchet);
-            // Cloning here because otherwise lifetimes are hard
-            Ok(encrypted.resolve_value(&revision_key.0)?.clone())
-        } else {
-            Ok(BTreeSet::new())
-        }
+        // TODO: For now we assume they're all encrypted with the same key
+        let revision_key = RevisionKey::from(previous_ratchet);
+        self.previous
+            .iter()
+            .map(|encrypted_cid| encrypted_cid.resolve_value(&revision_key).cloned())
+            .collect()
     }
 
     /// Like `previous_node`, but attempts to resolve a directory.

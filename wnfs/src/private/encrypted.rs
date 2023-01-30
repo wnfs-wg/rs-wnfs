@@ -8,7 +8,7 @@ use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 use crate::{AesError, FsError};
 
-use super::AesKey;
+use super::RevisionKey;
 
 /// A wrapper for encrypted data.
 ///
@@ -32,14 +32,14 @@ impl<T> Encrypted<T> {
     ///
     /// To ensure confidentiality, the randomness should be cryptographically secure
     /// randomness.
-    pub fn from_value(value: T, key: &AesKey) -> Result<Self>
+    pub fn from_value(value: T, revision_key: &RevisionKey) -> Result<Self>
     where
         T: Serialize,
     {
         let ipld = value.serialize(libipld::serde::Serializer)?;
         let mut bytes = Vec::new();
         ipld.encode(DagCborCodec, &mut bytes)?;
-        let ciphertext = KekAes256::from(key.clone().bytes())
+        let ciphertext = KekAes256::from(revision_key.0.clone().bytes())
             .wrap_with_padding_vec(&bytes)
             .map_err(|e| AesError::UnableToEncrypt(format!("{e}")))?;
 
@@ -65,12 +65,12 @@ impl<T> Encrypted<T> {
     ///
     /// This operation may fail if given key doesn't decrypt the ciphertext or
     /// deserializing the value from the encrypted plaintext doesn't work.
-    pub fn resolve_value(&self, key: &AesKey) -> Result<&T>
+    pub fn resolve_value(&self, revision_key: &RevisionKey) -> Result<&T>
     where
         T: DeserializeOwned,
     {
         self.value_cache.get_or_try_init(|| {
-            let bytes = KekAes256::from(key.clone().bytes())
+            let bytes = KekAes256::from(revision_key.0.clone().bytes())
                 .unwrap_with_padding_vec(&self.ciphertext)
                 .map_err(|e| AesError::UnableToDecrypt(format!("{e}")))?;
             let ipld = Ipld::decode(DagCborCodec, &mut Cursor::new(bytes))?;
@@ -115,8 +115,22 @@ impl<T> Serialize for Encrypted<T> {
     }
 }
 
+// Custom Eq/Ord implementations that bypass the OnceCell:
+
 impl<T: PartialEq> PartialEq for Encrypted<T> {
     fn eq(&self, other: &Self) -> bool {
         self.get_ciphertext() == other.get_ciphertext()
+    }
+}
+
+impl<T: PartialEq + PartialOrd> PartialOrd for Encrypted<T> {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        self.ciphertext.partial_cmp(&other.ciphertext)
+    }
+}
+
+impl<T: Eq + Ord> Ord for Encrypted<T> {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.ciphertext.cmp(&other.ciphertext)
     }
 }

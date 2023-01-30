@@ -54,7 +54,7 @@ pub struct PrivateDirectory {
 #[derive(Debug)]
 pub struct PrivateDirectoryContent {
     pub version: Version,
-    pub previous: Option<Encrypted<BTreeSet<Cid>>>,
+    pub previous: BTreeSet<Encrypted<Cid>>,
     pub metadata: Metadata,
     pub entries: BTreeMap<String, PrivateRef>,
 }
@@ -64,7 +64,7 @@ struct PrivateDirectorySerializable {
     pub r#type: NodeType,
     pub version: Version,
     pub header: Vec<u8>,
-    pub previous: Option<Encrypted<BTreeSet<Cid>>>,
+    pub previous: Vec<Encrypted<Cid>>,
     pub metadata: Metadata,
     pub entries: BTreeMap<String, PrivateRefSerializable>,
 }
@@ -109,7 +109,7 @@ impl PrivateDirectory {
             header: PrivateNodeHeader::new(parent_bare_name, rng),
             content: PrivateDirectoryContent {
                 version: Version::new(0, 2, 0),
-                previous: None,
+                previous: BTreeSet::new(),
                 metadata: Metadata::new(time),
                 entries: BTreeMap::new(),
             },
@@ -147,7 +147,7 @@ impl PrivateDirectory {
             content: PrivateDirectoryContent {
                 version: Version::new(0, 2, 0),
                 metadata: Metadata::new(time),
-                previous: None,
+                previous: BTreeSet::new(),
                 entries: BTreeMap::new(),
             },
         }
@@ -374,11 +374,15 @@ impl PrivateDirectory {
         let cid = self.store(store, rng).await?;
 
         let mut cloned = Rc::try_unwrap(self).unwrap_or_else(|rc| (*rc).clone());
-        cloned.persisted_as = OnceCell::new(); // Also done in `.clone()`, but need this to work in case try_unwrap optimizes.
-        let key = cloned.header.derive_private_ref().revision_key.0;
-        let previous = Encrypted::from_value(BTreeSet::from([cid]), &key)?;
+        let revision_key = cloned.header.derive_private_ref().revision_key;
 
-        cloned.content.previous = Some(previous);
+        cloned.persisted_as = OnceCell::new(); // Also done in `.clone()`, but need this to work in case try_unwrap optimizes.
+        cloned.content.previous.clear();
+        cloned
+            .content
+            .previous
+            .insert(Encrypted::from_value(cid, &revision_key)?);
+
         cloned.header.advance_ratchet();
 
         Ok(cloned)
@@ -1397,7 +1401,7 @@ impl PrivateDirectory {
             r#type: NodeType::PrivateDirectory,
             version: self.content.version.clone(),
             header,
-            previous: self.content.previous.clone(),
+            previous: self.content.previous.iter().cloned().collect(),
             metadata: self.content.metadata.clone(),
             entries,
         })
@@ -1439,7 +1443,7 @@ impl PrivateDirectory {
             content: PrivateDirectoryContent {
                 version,
                 metadata,
-                previous,
+                previous: previous.into_iter().collect(),
                 entries,
             },
         })
@@ -2332,16 +2336,7 @@ mod tests {
             .await
             .unwrap();
 
-        assert!(old_dir.content.previous.is_none());
-
-        let old_key = RevisionKey::from(&old_dir.header.ratchet);
-        let previous_encrypted = new_dir.content.previous.clone();
-        let previous_links = previous_encrypted
-            .unwrap()
-            .resolve_value(&old_key.0)
-            .cloned()
-            .unwrap();
-
-        assert_eq!(previous_links.len(), 1);
+        assert!(old_dir.content.previous.is_empty());
+        assert_eq!(new_dir.content.previous.len(), 1);
     }
 }

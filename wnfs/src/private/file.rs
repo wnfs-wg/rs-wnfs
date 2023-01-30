@@ -74,7 +74,7 @@ pub struct PrivateFile {
     persisted_as: OnceCell<Cid>,
     pub version: Version,
     pub header: PrivateNodeHeader,
-    pub previous: Option<Encrypted<BTreeSet<Cid>>>,
+    pub previous: BTreeSet<Encrypted<Cid>>,
     pub metadata: Metadata,
     pub(crate) content: FileContent,
 }
@@ -98,7 +98,7 @@ struct PrivateFileSerializable {
     pub r#type: NodeType,
     pub version: Version,
     pub header: Vec<u8>,
-    pub previous: Option<Encrypted<BTreeSet<Cid>>>,
+    pub previous: Vec<Encrypted<Cid>>,
     pub metadata: Metadata,
     pub content: FileContent,
 }
@@ -132,7 +132,7 @@ impl PrivateFile {
             version: Version::new(0, 2, 0),
             metadata: Metadata::new(time),
             header: PrivateNodeHeader::new(parent_bare_name, rng),
-            previous: None,
+            previous: BTreeSet::new(),
             content: FileContent::Inline { data: vec![] },
         }
     }
@@ -189,7 +189,7 @@ impl PrivateFile {
                 version: Version::new(0, 2, 0),
                 metadata: Metadata::new(time),
                 header,
-                previous: None,
+                previous: BTreeSet::new(),
                 content,
             },
             forest,
@@ -440,11 +440,14 @@ impl PrivateFile {
         let cid = self.store(store, rng).await?;
 
         let mut cloned = Rc::try_unwrap(self).unwrap_or_else(|rc| (*rc).clone());
-        cloned.persisted_as = OnceCell::new(); // Also done in `.clone()`, but need this to work in case try_unwrap optimizes.
-        let key = cloned.header.derive_private_ref().revision_key.0;
-        let previous = Encrypted::from_value(BTreeSet::from([cid]), &key)?;
+        let revision_key = cloned.header.derive_private_ref().revision_key;
 
-        cloned.previous = Some(previous);
+        cloned.persisted_as = OnceCell::new(); // Also done in `.clone()`, but need this to work in case try_unwrap optimizes.
+        cloned.previous.clear();
+        cloned
+            .previous
+            .insert(Encrypted::from_value(cid, &revision_key)?);
+
         cloned.header.advance_ratchet();
 
         Ok(cloned)
@@ -500,7 +503,7 @@ impl PrivateFile {
                     .encrypt(&AesKey::generate_nonce(rng), &cbor_bytes)
                     .map_err(SerError::custom)?
             },
-            previous: self.previous.clone(),
+            previous: self.previous.iter().cloned().collect(),
             metadata: self.metadata.clone(),
             content: self.content.clone(),
         })
@@ -528,7 +531,7 @@ impl PrivateFile {
         Ok(Self {
             persisted_as: OnceCell::new_with(Some(from_cid)),
             version,
-            previous,
+            previous: previous.into_iter().collect(),
             metadata,
             header: {
                 let cbor_bytes = key.0.decrypt(&header).map_err(DeError::custom)?;
