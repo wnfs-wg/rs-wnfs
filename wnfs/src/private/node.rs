@@ -780,14 +780,15 @@ impl ContentKey {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::{private::AesKey, utils};
+    /// use wnfs::private::{AesKey, ContentKey};
+    /// use wnfs::utils;
     /// use rand::thread_rng;
     ///
     /// let rng = &mut thread_rng();
     /// let key = ContentKey(AesKey::new(utils::get_random_bytes(rng)));
     ///
     /// let plaintext = b"Hello World!";
-    /// let ciphertext = key.encrypt(&plaintext, rng).unwrap();
+    /// let ciphertext = key.encrypt(plaintext, rng).unwrap();
     /// let decrypted = key.decrypt(&ciphertext).unwrap();
     ///
     /// assert_eq!(plaintext, &decrypted[..]);
@@ -808,14 +809,15 @@ impl ContentKey {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::{private::AesKey, utils};
+    /// use wnfs::private::{AesKey, ContentKey};
+    /// use wnfs::utils;
     /// use rand::thread_rng;
     ///
     /// let rng = &mut thread_rng();
     /// let key = ContentKey(AesKey::new(utils::get_random_bytes(rng)));
     ///
     /// let plaintext = b"Hello World!";
-    /// let ciphertext = key.encrypt(&plaintext, rng).unwrap();
+    /// let ciphertext = key.encrypt(plaintext, rng).unwrap();
     /// let decrypted = key.decrypt(&ciphertext).unwrap();
     ///
     /// assert_eq!(plaintext, &decrypted[..]);
