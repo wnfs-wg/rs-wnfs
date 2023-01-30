@@ -72,8 +72,12 @@ pub const MAX_BLOCK_CONTENT_SIZE: usize = MAX_BLOCK_SIZE - NONCE_SIZE - AUTHENTI
 #[derive(Debug)]
 pub struct PrivateFile {
     persisted_as: OnceCell<Cid>,
-    pub version: Version,
     pub header: PrivateNodeHeader,
+    pub content: PrivateFileContent,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct PrivateFileContent {
     pub previous: BTreeSet<(usize, Encrypted<Cid>)>,
     pub metadata: Metadata,
     pub(crate) content: FileContent,
@@ -129,11 +133,12 @@ impl PrivateFile {
     pub fn new(parent_bare_name: Namefilter, time: DateTime<Utc>, rng: &mut impl RngCore) -> Self {
         Self {
             persisted_as: OnceCell::new(),
-            version: Version::new(0, 2, 0),
-            metadata: Metadata::new(time),
             header: PrivateNodeHeader::new(parent_bare_name, rng),
-            previous: BTreeSet::new(),
-            content: FileContent::Inline { data: vec![] },
+            content: PrivateFileContent {
+                metadata: Metadata::new(time),
+                previous: BTreeSet::new(),
+                content: FileContent::Inline { data: vec![] },
+            },
         }
     }
 
@@ -186,11 +191,12 @@ impl PrivateFile {
         Ok((
             Self {
                 persisted_as: OnceCell::new(),
-                version: Version::new(0, 2, 0),
-                metadata: Metadata::new(time),
                 header,
-                previous: BTreeSet::new(),
-                content,
+                content: PrivateFileContent {
+                    metadata: Metadata::new(time),
+                    previous: BTreeSet::new(),
+                    content,
+                },
             },
             forest,
         ))
@@ -245,7 +251,7 @@ impl PrivateFile {
         store: &'a impl BlockStore,
     ) -> impl Stream<Item = Result<Vec<u8>>> + 'a {
         Box::pin(try_stream! {
-            match &self.content {
+            match &self.content.content {
                 FileContent::Inline { data } => {
                     if index != 0 {
                         Err(FsError::FileShardNotFound)?
@@ -270,7 +276,7 @@ impl PrivateFile {
 
     /// Gets the metadata of the file
     pub fn get_metadata(&self) -> &Metadata {
-        &self.metadata
+        &self.content.metadata
     }
 
     /// Gets the entire content of a file.
@@ -360,7 +366,7 @@ impl PrivateFile {
 
     /// Gets the upper bound of a file content size.
     pub(crate) fn get_content_size_upper_bound(&self) -> usize {
-        match &self.content {
+        match &self.content.content {
             FileContent::Inline { data } => data.len(),
             FileContent::External {
                 block_count,
@@ -443,8 +449,9 @@ impl PrivateFile {
         let revision_key = cloned.header.derive_private_ref().revision_key;
 
         cloned.persisted_as = OnceCell::new(); // Also done in `.clone()`, but need this to work in case try_unwrap optimizes.
-        cloned.previous.clear();
+        cloned.content.previous.clear();
         cloned
+            .content
             .previous
             .insert((1, Encrypted::from_value(cid, &revision_key)?));
 
@@ -478,7 +485,7 @@ impl PrivateFile {
 
         let (content, forest) =
             Self::prepare_content(&self.header.bare_name, content, forest, store, rng).await?;
-        self.content = content;
+        self.content.content = content;
 
         Ok(forest)
     }
@@ -496,16 +503,16 @@ impl PrivateFile {
 
         (PrivateFileSerializable {
             r#type: NodeType::PrivateFile,
-            version: self.version.clone(),
+            version: Version::new(0, 2, 0),
             header: {
                 let cbor_bytes = dagcbor::encode(&self.header).map_err(SerError::custom)?;
                 key.0
                     .encrypt(&AesKey::generate_nonce(rng), &cbor_bytes)
                     .map_err(SerError::custom)?
             },
-            previous: self.previous.iter().cloned().collect(),
-            metadata: self.metadata.clone(),
-            content: self.content.clone(),
+            previous: self.content.previous.iter().cloned().collect(),
+            metadata: self.content.metadata.clone(),
+            content: self.content.content.clone(),
         })
         .serialize(serializer)
     }
@@ -528,16 +535,24 @@ impl PrivateFile {
             ..
         } = PrivateFileSerializable::deserialize(deserializer)?;
 
+        if version.major != 0 || version.minor != 2 {
+            return Err(DeError::custom(FsError::InvalidDeserialization(format!(
+                "Couldn't deserialize file: Expected version 0.2.0 but got {}",
+                version.to_string()
+            ))));
+        }
+
         Ok(Self {
             persisted_as: OnceCell::new_with(Some(from_cid)),
-            version,
-            previous: previous.into_iter().collect(),
-            metadata,
             header: {
                 let cbor_bytes = key.0.decrypt(&header).map_err(DeError::custom)?;
                 dagcbor::decode(&cbor_bytes).map_err(DeError::custom)?
             },
-            content,
+            content: PrivateFileContent {
+                previous: previous.into_iter().collect(),
+                metadata,
+                content,
+            },
         })
     }
 
@@ -575,11 +590,7 @@ impl PrivateFile {
 
 impl PartialEq for PrivateFile {
     fn eq(&self, other: &Self) -> bool {
-        self.header == other.header
-            && self.version == other.version
-            && self.previous == other.previous
-            && self.metadata == other.metadata
-            && self.content == other.content
+        self.header == other.header && self.content == other.content
     }
 }
 
@@ -587,10 +598,7 @@ impl Clone for PrivateFile {
     fn clone(&self) -> Self {
         Self {
             persisted_as: OnceCell::new(),
-            version: self.version.clone(),
             header: self.header.clone(),
-            previous: self.previous.clone(),
-            metadata: self.metadata.clone(),
             content: self.content.clone(),
         }
     }

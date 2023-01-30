@@ -129,7 +129,7 @@ impl PrivateNode {
         match self {
             Self::File(file) => {
                 let mut file = (**file).clone();
-                file.metadata.upsert_mtime(time);
+                file.content.metadata.upsert_mtime(time);
                 Self::File(Rc::new(file))
             }
             Self::Dir(dir) => {
@@ -243,7 +243,7 @@ impl PrivateNode {
     /// the `BTreeSet` inside is empty.
     pub fn get_previous(&self) -> &BTreeSet<(usize, Encrypted<Cid>)> {
         match self {
-            Self::File(file) => &file.previous,
+            Self::File(file) => &file.content.previous,
             Self::Dir(dir) => &dir.content.previous,
         }
     }

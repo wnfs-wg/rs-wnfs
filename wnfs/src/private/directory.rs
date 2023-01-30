@@ -51,7 +51,7 @@ pub struct PrivateDirectory {
     pub content: PrivateDirectoryContent,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct PrivateDirectoryContent {
     pub version: Version,
     pub previous: BTreeSet<(usize, Encrypted<Cid>)>,
@@ -711,8 +711,8 @@ impl PrivateDirectory {
                     rng,
                 )
                 .await?;
-                file.content = content;
-                file.metadata.upsert_mtime(time);
+                file.content.content = content;
+                file.content.metadata.upsert_mtime(time);
 
                 (file, forest)
             }
@@ -1012,7 +1012,7 @@ impl PrivateDirectory {
                         .await?
                     {
                         Some(PrivateNode::File(file)) => {
-                            result.push((name.clone(), file.metadata.clone()));
+                            result.push((name.clone(), file.content.metadata.clone()));
                         }
                         Some(PrivateNode::Dir(dir)) => {
                             result.push((name.clone(), dir.content.metadata.clone()));
@@ -1426,6 +1426,13 @@ impl PrivateDirectory {
             ..
         } = PrivateDirectorySerializable::deserialize(deserializer)?;
 
+        if version.major != 0 || version.minor != 2 {
+            return Err(DeError::custom(FsError::InvalidDeserialization(format!(
+                "Couldn't deserialize directory: Expected version 0.2.0 but got {}",
+                version.to_string()
+            ))));
+        }
+
         let mut entries = BTreeMap::new();
 
         for (name, private_ref_serializable) in entries_encrypted {
@@ -1483,32 +1490,12 @@ impl PartialEq for PrivateDirectory {
     }
 }
 
-impl PartialEq for PrivateDirectoryContent {
-    fn eq(&self, other: &Self) -> bool {
-        self.version == other.version
-            && self.previous == other.previous
-            && self.metadata == other.metadata
-            && self.entries == other.entries
-    }
-}
-
 impl Clone for PrivateDirectory {
     fn clone(&self) -> Self {
         Self {
             persisted_as: OnceCell::new_with(self.persisted_as.get().cloned()),
             header: self.header.clone(),
             content: self.content.clone(),
-        }
-    }
-}
-
-impl Clone for PrivateDirectoryContent {
-    fn clone(&self) -> Self {
-        Self {
-            version: self.version.clone(),
-            previous: self.previous.clone(),
-            metadata: self.metadata.clone(),
-            entries: self.entries.clone(),
         }
     }
 }
