@@ -2,7 +2,8 @@ use super::{
     encrypted::Encrypted, hamt::Hasher, namefilter::Namefilter, AesKey, PrivateDirectory,
     PrivateFile, PrivateForest, PrivateRef,
 };
-use crate::{utils, BlockStore, FsError, HashOutput, Id, NodeType, HASH_BYTE_SIZE};
+use crate::{utils, AesError, BlockStore, FsError, HashOutput, Id, NodeType, HASH_BYTE_SIZE};
+use aes_kw::KekAes256;
 use anyhow::{bail, Result};
 use async_recursion::async_recursion;
 use chrono::{DateTime, Utc};
@@ -755,6 +756,18 @@ impl RevisionKey {
     pub fn derive_content_key(&self) -> ContentKey {
         let RevisionKey(key) = self;
         ContentKey(AesKey::new(Sha3_256::hash(&key.as_bytes())))
+    }
+
+    pub fn key_wrap_encrypt(&self, cleartext: &[u8]) -> Result<Vec<u8>> {
+        Ok(KekAes256::from(self.0.clone().bytes())
+            .wrap_with_padding_vec(&cleartext)
+            .map_err(|e| AesError::UnableToEncrypt(format!("{e}")))?)
+    }
+
+    pub fn key_wrap_decrypt(&self, ciphertext: &[u8]) -> Result<Vec<u8>> {
+        Ok(KekAes256::from(self.0.clone().bytes())
+            .unwrap_with_padding_vec(&ciphertext)
+            .map_err(|e| AesError::UnableToEncrypt(format!("{e}")))?)
     }
 }
 

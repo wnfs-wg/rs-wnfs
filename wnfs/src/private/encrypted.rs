@@ -1,12 +1,11 @@
 use std::io::Cursor;
 
-use aes_kw::KekAes256;
 use anyhow::Result;
 use libipld::{cbor::DagCborCodec, codec::Decode, prelude::Encode, Ipld};
 use once_cell::sync::OnceCell;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
-use crate::{AesError, FsError};
+use crate::FsError;
 
 use super::RevisionKey;
 
@@ -39,9 +38,7 @@ impl<T> Encrypted<T> {
         let ipld = value.serialize(libipld::serde::Serializer)?;
         let mut bytes = Vec::new();
         ipld.encode(DagCborCodec, &mut bytes)?;
-        let ciphertext = KekAes256::from(revision_key.0.clone().bytes())
-            .wrap_with_padding_vec(&bytes)
-            .map_err(|e| AesError::UnableToEncrypt(format!("{e}")))?;
+        let ciphertext = revision_key.key_wrap_encrypt(&bytes)?;
 
         Ok(Self {
             value_cache: OnceCell::from(value),
@@ -70,9 +67,7 @@ impl<T> Encrypted<T> {
         T: DeserializeOwned,
     {
         self.value_cache.get_or_try_init(|| {
-            let bytes = KekAes256::from(revision_key.0.clone().bytes())
-                .unwrap_with_padding_vec(&self.ciphertext)
-                .map_err(|e| AesError::UnableToDecrypt(format!("{e}")))?;
+            let bytes = revision_key.key_wrap_decrypt(&self.ciphertext)?;
             let ipld = Ipld::decode(DagCborCodec, &mut Cursor::new(bytes))?;
             libipld::serde::from_ipld::<T>(ipld)
                 .map_err(|e| FsError::InvalidDeserialization(e.to_string()).into())
