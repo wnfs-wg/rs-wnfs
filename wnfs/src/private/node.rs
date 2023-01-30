@@ -753,17 +753,20 @@ impl From<ContentKey> for AesKey {
 }
 
 impl RevisionKey {
+    /// TODO(matheus23) docs
     pub fn derive_content_key(&self) -> ContentKey {
         let RevisionKey(key) = self;
         ContentKey(AesKey::new(Sha3_256::hash(&key.as_bytes())))
     }
 
+    /// TODO(matheus23) docs
     pub fn key_wrap_encrypt(&self, cleartext: &[u8]) -> Result<Vec<u8>> {
         Ok(KekAes256::from(self.0.clone().bytes())
             .wrap_with_padding_vec(&cleartext)
             .map_err(|e| AesError::UnableToEncrypt(format!("{e}")))?)
     }
 
+    /// TODO(matheus23) docs
     pub fn key_wrap_decrypt(&self, ciphertext: &[u8]) -> Result<Vec<u8>> {
         Ok(KekAes256::from(self.0.clone().bytes())
             .unwrap_with_padding_vec(&ciphertext)
