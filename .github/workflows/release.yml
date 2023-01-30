@@ -73,7 +73,7 @@ jobs:
           command: install
 
       - name: Verify Publishing of crate
-        uses: katyo/publish-crates@v1
+        uses: katyo/publish-crates@v2
         with:
           dry-run: true
 
