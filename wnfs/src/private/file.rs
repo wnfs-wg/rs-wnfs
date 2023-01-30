@@ -74,7 +74,7 @@ pub struct PrivateFile {
     persisted_as: OnceCell<Cid>,
     pub version: Version,
     pub header: PrivateNodeHeader,
-    pub previous: BTreeSet<Encrypted<Cid>>,
+    pub previous: BTreeSet<(usize, Encrypted<Cid>)>,
     pub metadata: Metadata,
     pub(crate) content: FileContent,
 }
@@ -98,7 +98,7 @@ struct PrivateFileSerializable {
     pub r#type: NodeType,
     pub version: Version,
     pub header: Vec<u8>,
-    pub previous: Vec<Encrypted<Cid>>,
+    pub previous: Vec<(usize, Encrypted<Cid>)>,
     pub metadata: Metadata,
     pub content: FileContent,
 }
@@ -446,7 +446,7 @@ impl PrivateFile {
         cloned.previous.clear();
         cloned
             .previous
-            .insert(Encrypted::from_value(cid, &revision_key)?);
+            .insert((1, Encrypted::from_value(cid, &revision_key)?));
 
         cloned.header.advance_ratchet();
 

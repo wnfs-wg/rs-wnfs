@@ -52,7 +52,7 @@ pub struct PrivateNodeHistory {
     /// the `ratchets` iterator.
     header: PrivateNodeHeader,
     /// The private node tracks which previous revision's value it was a modification of.
-    previous: BTreeSet<Encrypted<Cid>>,
+    previous: BTreeSet<(usize, Encrypted<Cid>)>,
     /// The iterator for previous revision ratchets.
     ratchets: PreviousIterator,
 }
@@ -84,7 +84,7 @@ impl PrivateNodeHistory {
     /// See also `PrivateNodeHistory::of`.
     pub fn from_header(
         header: PrivateNodeHeader,
-        previous: BTreeSet<Encrypted<Cid>>,
+        previous: BTreeSet<(usize, Encrypted<Cid>)>,
         past_ratchet: &Ratchet,
         discrepancy_budget: usize,
         forest: Rc<PrivateForest>,
@@ -114,7 +114,9 @@ impl PrivateNodeHistory {
             return Ok(None);
         };
 
-        let previous_cids = self.resolve_previous_cids(&previous_ratchet)?;
+        let Some(previous_cid) = self.resolve_previous_cid(&previous_ratchet)? else {
+            return Ok(None);
+        };
 
         self.header.ratchet = previous_ratchet;
 
@@ -122,7 +124,9 @@ impl PrivateNodeHistory {
             .forest
             .get(
                 &self.header.derive_private_ref(),
-                PrivateForest::resolve_one_of::<fn(&BTreeSet<Cid>) -> Option<&Cid>>(&previous_cids),
+                PrivateForest::resolve_one_of::<fn(&BTreeSet<Cid>) -> Option<&Cid>>(
+                    &[previous_cid].into_iter().collect(),
+                ),
                 store,
             )
             .await?;
@@ -135,13 +139,22 @@ impl PrivateNodeHistory {
         }
     }
 
-    fn resolve_previous_cids(&self, previous_ratchet: &Ratchet) -> Result<BTreeSet<Cid>> {
-        // TODO: For now we assume they're all encrypted with the same key
+    fn resolve_previous_cid(&self, previous_ratchet: &Ratchet) -> Result<Option<Cid>> {
+        // TODO(matheus23): Support walking forked history paths.
+        // That would need an additional API that allows 'selecting' one of the forks before moving on.
+        // Then this function would derive the nth-previous ratchet by "peeking" ahead the current
+        // self.ratchets iterator for n (the "# of revisions back" usize attached to the previous pointer)
         let revision_key = RevisionKey::from(previous_ratchet);
-        self.previous
+        let Some((_, first_backpointer)) = self
+            .previous
             .iter()
-            .map(|encrypted_cid| encrypted_cid.resolve_value(&revision_key).cloned())
-            .collect()
+            .find(|(revisions_back, _)| *revisions_back == 1)
+        else {
+            return Ok(None)
+        };
+        Ok(Some(
+            first_backpointer.resolve_value(&revision_key)?.clone(),
+        ))
     }
 
     /// Like `previous_node`, but attempts to resolve a directory.

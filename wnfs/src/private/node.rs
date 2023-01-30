@@ -241,7 +241,7 @@ impl PrivateNode {
     /// The previous links is `None`, it doesn't have previous Cids.
     /// The node is malformed if the previous links are `Some`, but
     /// the `BTreeSet` inside is empty.
-    pub fn get_previous(&self) -> &BTreeSet<Encrypted<Cid>> {
+    pub fn get_previous(&self) -> &BTreeSet<(usize, Encrypted<Cid>)> {
         match self {
             Self::File(file) => &file.previous,
             Self::Dir(dir) => &dir.content.previous,

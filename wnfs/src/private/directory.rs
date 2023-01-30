@@ -54,7 +54,7 @@ pub struct PrivateDirectory {
 #[derive(Debug)]
 pub struct PrivateDirectoryContent {
     pub version: Version,
-    pub previous: BTreeSet<Encrypted<Cid>>,
+    pub previous: BTreeSet<(usize, Encrypted<Cid>)>,
     pub metadata: Metadata,
     pub entries: BTreeMap<String, PrivateRef>,
 }
@@ -64,7 +64,7 @@ struct PrivateDirectorySerializable {
     pub r#type: NodeType,
     pub version: Version,
     pub header: Vec<u8>,
-    pub previous: Vec<Encrypted<Cid>>,
+    pub previous: Vec<(usize, Encrypted<Cid>)>,
     pub metadata: Metadata,
     pub entries: BTreeMap<String, PrivateRefSerializable>,
 }
@@ -381,7 +381,7 @@ impl PrivateDirectory {
         cloned
             .content
             .previous
-            .insert(Encrypted::from_value(cid, &revision_key)?);
+            .insert((1, Encrypted::from_value(cid, &revision_key)?));
 
         cloned.header.advance_ratchet();
 
