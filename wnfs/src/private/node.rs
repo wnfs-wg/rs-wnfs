@@ -56,13 +56,6 @@ pub struct ContentKey(pub AesKey);
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct RevisionKey(pub AesKey);
 
-/// The two types of keys.
-#[derive(Debug, Serialize, Deserialize)]
-pub enum KeyType {
-    Temporal(ContentKey),
-    Snapshot(RevisionKey),
-}
-
 /// This is the header of a private node. It contains secret information about the node which includes
 /// the inumber, the ratchet, and the namefilter.
 ///
