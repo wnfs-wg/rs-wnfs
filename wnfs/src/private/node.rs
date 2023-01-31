@@ -2,13 +2,15 @@ use super::{
     encrypted::Encrypted, hamt::Hasher, namefilter::Namefilter, AesKey, PrivateDirectory,
     PrivateFile, PrivateForest, PrivateRef, NONCE_SIZE,
 };
-use crate::{utils, AesError, BlockStore, FsError, HashOutput, Id, NodeType, HASH_BYTE_SIZE};
+use crate::{
+    dagcbor, utils, AesError, BlockStore, FsError, HashOutput, Id, NodeType, HASH_BYTE_SIZE,
+};
 use aes_gcm::{aead::Aead, Aes256Gcm, KeyInit, Nonce};
 use aes_kw::KekAes256;
 use anyhow::{bail, Result};
 use async_recursion::async_recursion;
 use chrono::{DateTime, Utc};
-use libipld::{cbor::DagCborCodec, prelude::Decode, Cid, Ipld};
+use libipld::{cbor::DagCborCodec, prelude::Decode, Cid, Ipld, IpldCodec};
 use rand_core::RngCore;
 use serde::{Deserialize, Serialize};
 use sha3::Sha3_256;
@@ -697,6 +699,25 @@ impl PrivateNodeHeader {
     pub fn get_saturated_name(&self) -> Namefilter {
         let revision_key = self.derive_revision_key();
         self.get_saturated_name_with_key(&revision_key)
+    }
+
+    /// TODO(matheus23) docs
+    pub async fn store(&self, store: &mut impl BlockStore) -> Result<Cid> {
+        let revision_key = self.derive_revision_key();
+        let cbor_bytes = dagcbor::encode(self)?;
+        let ciphertext = revision_key.key_wrap_encrypt(&cbor_bytes)?;
+        store.put_block(ciphertext, IpldCodec::Raw).await
+    }
+
+    /// TODO(matheus23) docs
+    pub async fn load(
+        cid: Cid,
+        revision_key: &RevisionKey,
+        store: &impl BlockStore,
+    ) -> Result<PrivateNodeHeader> {
+        let ciphertext = store.get_block(&cid).await?;
+        let cbor_bytes = revision_key.key_wrap_decrypt(&ciphertext)?;
+        dagcbor::decode(&cbor_bytes)
     }
 }
 
