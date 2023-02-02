@@ -9,7 +9,12 @@ use crate::FsError;
 
 use super::RevisionKey;
 
-/// A wrapper for encrypted data.
+/// A wrapper for AES-KWP deterministically encrypted (key-wrapped) data.
+///
+/// Any data wrapped like this **must not have low entropy**.
+///
+/// For anything that could potentially have low entropy,
+/// please use AES-GCM instead via `ContentKey`.
 ///
 /// When serialized or deserialized this will only
 /// ever emit or consume ciphertexts.

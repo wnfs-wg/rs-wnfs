@@ -3,7 +3,7 @@ use super::{
     namefilter::Namefilter,
     PrivateNode, PrivateRef,
 };
-use crate::{utils::UnwrapOrClone, BlockStore, HashOutput, Hasher, Link};
+use crate::{utils::UnwrapOrClone, BlockStore, FsError, HashOutput, Hasher, Link};
 use anyhow::Result;
 use libipld::Cid;
 use log::debug;
@@ -38,7 +38,7 @@ pub type PrivateForest = Hamt<Namefilter, BTreeSet<Cid>>;
 //--------------------------------------------------------------------------------------------------
 
 impl PrivateForest {
-    /// Puts a new value at the given key.
+    /// Stores a PrivateNode in the PrivateForest.
     ///
     /// # Examples
     ///
@@ -72,18 +72,21 @@ impl PrivateForest {
     /// ```
     pub async fn put(
         self: Rc<Self>,
-        saturated_name: Namefilter,
-        private_ref: &PrivateRef,
-        value: &PrivateNode,
+        node: &PrivateNode,
         store: &mut impl BlockStore,
         rng: &mut impl RngCore,
-    ) -> Result<Rc<Self>> {
-        debug!("Private Forest Set: PrivateRef: {:?}", private_ref);
+    ) -> Result<(Rc<Self>, PrivateRef)> {
+        let (header_cid, content_cid) = node.store(store, rng).await?;
+        let saturated_name = node.get_header().get_saturated_name();
 
-        let content_cid = value.store(store, rng).await?;
+        debug!("Private Forest Put: Namefilter: {:?}", saturated_name);
 
-        // Store header and Cid in root node.
-        self.put_encrypted(saturated_name, content_cid, store).await
+        // Store the header and content blocks.
+        let forest = self;
+        let forest = forest
+            .put_encrypted(saturated_name.clone(), vec![header_cid, content_cid], store)
+            .await?;
+        Ok((forest, node.get_header().derive_private_ref(content_cid)))
     }
 
     /// Gets the value at the given key.
@@ -132,26 +135,20 @@ impl PrivateForest {
     pub async fn get(
         &self,
         private_ref: &PrivateRef,
-        resolve_bias: impl FnOnce(&BTreeSet<Cid>) -> Option<&Cid>,
         store: &impl BlockStore,
-    ) -> Result<Option<PrivateNode>> {
+    ) -> Result<PrivateNode> {
         debug!("Private Forest Get: PrivateRef: {:?}", private_ref);
 
         // Fetch Cid from root node.
-        let cids = match self
+        let _cid = match self
             .get_encrypted(&private_ref.saturated_name_hash, store)
             .await?
         {
-            Some(cids) => cids,
-            None => return Ok(None),
+            Some(cids) if cids.contains(&private_ref.content_cid) => private_ref.content_cid,
+            _ => return Err(FsError::NotFound.into()),
         };
 
-        let cid = match resolve_bias(cids) {
-            Some(cid) => cid,
-            None => return Ok(None),
-        };
-
-        Ok(Some(PrivateNode::load(*cid, private_ref, store).await?))
+        Ok(PrivateNode::load(private_ref, store).await?)
     }
 
     /// Checks that a value with the given saturated name hash key exists.
@@ -201,30 +198,31 @@ impl PrivateForest {
             .is_some())
     }
 
-    /// Sets a new encrypted value at the given key.
+    /// Adds new encrypted values at the given key.
     pub async fn put_encrypted(
         self: Rc<Self>,
         name: Namefilter,
-        value: Cid,
+        values: impl IntoIterator<Item = Cid>,
         store: &mut impl BlockStore,
     ) -> Result<Rc<Self>> {
         // TODO(matheus23): This iterates the path in the HAMT twice.
         // We could consider implementing something like upsert instead.
-        let mut values = self
+        // Or some kind of "cursor".
+        let mut cids = self
             .root
             .get(&name, store)
             .await?
             .cloned()
             .unwrap_or_default();
 
-        values.insert(value);
+        cids.extend(values);
 
         let mut forest = self.unwrap_or_clone()?;
-        forest.root = forest.root.set(name, values, store).await?;
+        forest.root = forest.root.set(name, cids, store).await?;
         Ok(Rc::new(forest))
     }
 
-    /// Gets the encrypted value at the given key.
+    /// Gets the encrypted values at the given key.
     #[inline]
     pub async fn get_encrypted<'b>(
         &'b self,
@@ -461,26 +459,15 @@ mod tests {
             rng,
         ));
 
-        let private_ref = dir.header.derive_private_ref();
-        let saturated_name = dir.header.get_saturated_name();
         let private_node = PrivateNode::Dir(dir.clone());
-
-        let forest = forest
-            .put(saturated_name, &private_ref, &private_node, store, rng)
-            .await
-            .unwrap();
-
-        let retrieved = forest
-            .get(&private_ref, PrivateForest::resolve_lowest, store)
-            .await
-            .unwrap()
-            .unwrap();
+        let (forest, private_ref) = forest.put(&private_node, store, rng).await.unwrap();
+        let retrieved = forest.get(&private_ref, store).await.unwrap();
 
         assert_eq!(retrieved, private_node);
     }
 
     #[async_std::test]
-    async fn inserted_multivalue_items_can_be_fetched_with_bias() {
+    async fn multivalue_conflict_can_be_fetched_individually() {
         let store = &mut MemoryBlockStore::new();
         let forest = Rc::new(PrivateForest::new());
         let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
@@ -497,32 +484,22 @@ mod tests {
             Rc::new(dir)
         };
 
-        let private_ref = dir.header.derive_private_ref();
-        let private_ref_conflict = dir_conflict.header.derive_private_ref();
-        let saturated_name = dir.header.get_saturated_name();
-        let saturated_name_conflict = dir_conflict.header.get_saturated_name();
         let private_node = PrivateNode::Dir(dir.clone());
         let private_node_conflict = PrivateNode::Dir(dir_conflict.clone());
 
-        assert_eq!(saturated_name_conflict, saturated_name);
-
         // Put the original node in the private forest
-        let forest = forest
-            .put(saturated_name, &private_ref, &private_node, store, rng)
-            .await
-            .unwrap();
+        let (forest, private_ref) = forest.put(&private_node, store, rng).await.unwrap();
 
         // Put the conflicting node in the private forest at the same key
-        let forest = forest
-            .put(
-                saturated_name_conflict,
-                &private_ref_conflict,
-                &private_node_conflict,
-                store,
-                rng,
-            )
+        let (forest, private_ref_conflict) = forest
+            .put(&private_node_conflict, store, rng)
             .await
             .unwrap();
+
+        assert_eq!(
+            private_ref.saturated_name_hash,
+            private_ref_conflict.saturated_name_hash
+        );
 
         let ciphertext_cids = forest
             .get_encrypted(&private_ref.saturated_name_hash, store)
@@ -531,23 +508,14 @@ mod tests {
             .unwrap();
 
         // We expect there to be a conflict, a multivalue
-        assert_eq!(ciphertext_cids.len(), 2);
+        // Two of these CIDs should be content blocks, one CID should be the header block they share.
+        assert_eq!(ciphertext_cids.len(), 3);
 
-        let conflict_cid = ciphertext_cids.iter().last().unwrap();
+        let retrieved = forest.get(&private_ref, store).await.unwrap();
+        let retrieved_conflict = forest.get(&private_ref_conflict, store).await.unwrap();
 
-        let retrieved = forest
-            .get(
-                &private_ref,
-                PrivateForest::resolve_one_of::<fn(&BTreeSet<Cid>) -> Option<&Cid>>(
-                    &BTreeSet::from([*conflict_cid]),
-                ),
-                store,
-            )
-            .await
-            .unwrap()
-            .unwrap();
-
-        assert_eq!(retrieved, private_node_conflict);
+        assert_eq!(retrieved, private_node);
+        assert_eq!(retrieved_conflict, private_node_conflict);
     }
 
     #[async_std::test]

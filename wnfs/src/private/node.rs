@@ -1,6 +1,7 @@
 use super::{
     encrypted::Encrypted, hamt::Hasher, namefilter::Namefilter, AesKey, PrivateDirectory,
-    PrivateFile, PrivateForest, PrivateRef, NONCE_SIZE,
+    PrivateDirectoryContent, PrivateFile, PrivateFileContent, PrivateForest, PrivateRef,
+    NONCE_SIZE,
 };
 use crate::{
     dagcbor, utils, AesError, BlockStore, FsError, HashOutput, Id, NodeType, HASH_BYTE_SIZE,
@@ -8,6 +9,7 @@ use crate::{
 use aes_gcm::{aead::Aead, Aes256Gcm, KeyInit, Nonce};
 use aes_kw::KekAes256;
 use anyhow::{bail, Result};
+use async_once_cell::OnceCell;
 use async_recursion::async_recursion;
 use chrono::{DateTime, Utc};
 use libipld::{cbor::DagCborCodec, prelude::Decode, Cid, Ipld, IpldCodec};
@@ -48,6 +50,12 @@ pub type INumber = HashOutput;
 pub enum PrivateNode {
     File(Rc<PrivateFile>),
     Dir(Rc<PrivateDirectory>),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum PrivateNodeContent {
+    File(PrivateFileContent),
+    Dir(PrivateDirectoryContent),
 }
 
 /// The key used to encrypt the content of a node.
@@ -145,7 +153,8 @@ impl PrivateNode {
         mut forest: Rc<PrivateForest>,
         store: &mut impl BlockStore,
         rng: &mut impl RngCore,
-    ) -> Result<Rc<PrivateForest>> {
+        // TODO(matheus23) consider PrivateOpResult
+    ) -> Result<(Rc<PrivateForest>, PrivateRef)> {
         match self {
             Self::File(file) => {
                 let mut file = (**file).clone();
@@ -160,18 +169,15 @@ impl PrivateNode {
                 let mut dir = (**old_dir).clone();
 
                 for (name, private_ref) in &old_dir.content.entries {
-                    let mut node = forest
-                        .get(private_ref, PrivateForest::resolve_lowest, store)
-                        .await?
-                        .ok_or(FsError::NotFound)?;
+                    let mut node = forest.get(private_ref, store).await?;
 
-                    forest = node
+                    let (new_forest, private_ref) = node
                         .update_ancestry(dir.header.bare_name.clone(), forest, store, rng)
                         .await?;
 
-                    dir.content
-                        .entries
-                        .insert(name.clone(), node.get_header().derive_private_ref());
+                    forest = new_forest;
+
+                    dir.content.entries.insert(name.clone(), private_ref);
                 }
 
                 dir.prepare_key_rotation(parent_bare_name, rng);
@@ -180,17 +186,7 @@ impl PrivateNode {
             }
         };
 
-        let header = self.get_header();
-
-        forest
-            .put(
-                header.get_saturated_name(),
-                &header.derive_private_ref(),
-                self,
-                store,
-                rng,
-            )
-            .await
+        forest.put(self, store, rng).await
     }
 
     /// Gets the header of the node.
@@ -396,11 +392,29 @@ impl PrivateNode {
         forest: &PrivateForest,
         store: &impl BlockStore,
     ) -> Result<PrivateNode> {
+        self.search_latest_nodes(forest, store)
+            .await?
+            .into_iter()
+            .next()
+            .into_iter()
+            .next()
+            // We expect the latest revision to have found valid nodes.
+            // otherwise it's a revision that's filled with other stuff
+            // than PrivateNodes, which should be an error.
+            .ok_or(FsError::NotFound.into())
+    }
+
+    /// TODO(matheus23) docs
+    pub async fn search_latest_nodes(
+        &self,
+        forest: &PrivateForest,
+        store: &impl BlockStore,
+    ) -> Result<Vec<PrivateNode>> {
         let header = self.get_header();
 
-        let private_ref = &header.derive_private_ref();
-        if !forest.has(&private_ref.saturated_name_hash, store).await? {
-            return Ok(self.clone());
+        let current_name = &header.get_saturated_name_hash();
+        if !forest.has(&current_name, store).await? {
+            return Ok(vec![self.clone()]);
         }
 
         // Start an exponential search, starting with a small jump.
@@ -415,10 +429,7 @@ impl PrivateNode {
             current_header.ratchet = current.clone();
 
             let has_curr = forest
-                .has(
-                    &current_header.derive_private_ref().saturated_name_hash,
-                    store,
-                )
+                .has(&current_header.get_saturated_name_hash(), store)
                 .await?;
 
             let ord = if has_curr {
@@ -434,63 +445,37 @@ impl PrivateNode {
 
         current_header.ratchet = search.current().clone();
 
-        let latest_private_ref = current_header.derive_private_ref();
-
         match forest
-            .get(&latest_private_ref, PrivateForest::resolve_lowest, store)
+            .get_encrypted(&current_header.get_saturated_name_hash(), store)
             .await?
         {
-            Some(node) => Ok(node),
-            None => unreachable!(),
+            Some(cids) => {
+                let mut nodes = Vec::with_capacity(cids.len());
+                for cid in cids {
+                    match PrivateNode::load(&current_header.derive_private_ref(*cid), store).await {
+                        Ok(node) => nodes.push(node),
+                        // ignore nodes we can't parse. E.g. header nodes
+                        // TODO(matheus23) figure out how to match only AES errors
+                        Err(_) => {}
+                    }
+                }
+                Ok(nodes)
+            }
+            None => unreachable!(), // we tested that this works above with forest.has()
         }
     }
 
     pub(crate) async fn load(
-        cid: Cid,
         private_ref: &PrivateRef,
         store: &impl BlockStore,
     ) -> Result<PrivateNode> {
-        // Fetch encrypted bytes from blockstore.
-        let enc_bytes = store.get_block(&cid).await?;
-
-        // Decrypt bytes
-        let cbor_bytes = private_ref
-            .revision_key
-            .derive_content_key()
-            .decrypt(&enc_bytes)?;
-
-        // Deserialize
-        PrivateNode::deserialize_from_cbor(&cbor_bytes, &private_ref.revision_key, cid)
-    }
-
-    pub(crate) async fn store(
-        &self,
-        store: &mut impl BlockStore,
-        rng: &mut impl RngCore,
-    ) -> Result<Cid> {
-        match self {
-            PrivateNode::File(file) => file.store(store, rng).await,
-            PrivateNode::Dir(dir) => dir.store(store, rng).await,
-        }
-    }
-
-    /// Deserializes the node from dag-cbor bytes.
-    pub(crate) fn deserialize_from_cbor(
-        bytes: &[u8],
-        key: &RevisionKey,
-        from_cid: Cid,
-    ) -> Result<Self> {
+        let encrypted_bytes = store.get_block(&private_ref.content_cid).await?;
+        let content_key = private_ref.revision_key.derive_content_key();
+        let bytes = content_key.decrypt(&encrypted_bytes)?;
         let ipld = Ipld::decode(DagCborCodec, &mut Cursor::new(bytes))?;
-        (ipld, key, from_cid).try_into()
-    }
-}
 
-impl TryFrom<(Ipld, &RevisionKey, Cid)> for PrivateNode {
-    type Error = anyhow::Error;
-
-    fn try_from(triple: (Ipld, &RevisionKey, Cid)) -> Result<Self> {
-        match triple {
-            (Ipld::Map(map), key, from_cid) => {
+        match ipld {
+            Ipld::Map(map) => {
                 let r#type: NodeType = map
                     .get("type")
                     .ok_or(FsError::MissingNodeType)?
@@ -498,17 +483,46 @@ impl TryFrom<(Ipld, &RevisionKey, Cid)> for PrivateNode {
 
                 Ok(match r#type {
                     NodeType::PrivateFile => {
-                        PrivateNode::from(PrivateFile::deserialize(Ipld::Map(map), key, from_cid)?)
+                        let (content, header_cid) =
+                            PrivateFileContent::deserialize(Ipld::Map(map))?;
+                        let header =
+                            PrivateNodeHeader::load(&header_cid, &private_ref.revision_key, store)
+                                .await?;
+                        PrivateNode::File(Rc::new(PrivateFile {
+                            persisted_as: OnceCell::new_with(Some(private_ref.content_cid)),
+                            header,
+                            content,
+                        }))
                     }
-                    NodeType::PrivateDirectory => PrivateNode::from(PrivateDirectory::deserialize(
-                        Ipld::Map(map),
-                        key,
-                        from_cid,
-                    )?),
+                    NodeType::PrivateDirectory => {
+                        let (content, header_cid) = PrivateDirectoryContent::deserialize(
+                            Ipld::Map(map),
+                            &private_ref.revision_key,
+                        )?;
+                        let header =
+                            PrivateNodeHeader::load(&header_cid, &private_ref.revision_key, store)
+                                .await?;
+                        PrivateNode::Dir(Rc::new(PrivateDirectory {
+                            persisted_as: OnceCell::new_with(Some(private_ref.content_cid)),
+                            header,
+                            content,
+                        }))
+                    }
                     other => bail!(FsError::UnexpectedNodeType(other)),
                 })
             }
             other => bail!("Expected `Ipld::Map` got {:#?}", other),
+        }
+    }
+
+    pub(crate) async fn store(
+        &self,
+        store: &mut impl BlockStore,
+        rng: &mut impl RngCore,
+    ) -> Result<(Cid, Cid)> {
+        match self {
+            PrivateNode::File(file) => file.store(store, rng).await,
+            PrivateNode::Dir(dir) => dir.store(store, rng).await,
         }
     }
 }
@@ -607,14 +621,20 @@ impl PrivateNodeHeader {
     ///
     /// println!("Private ref: {:?}", private_ref);
     /// ```
-    pub fn derive_private_ref(&self) -> PrivateRef {
+    pub fn derive_private_ref(&self, content_cid: Cid) -> PrivateRef {
         let revision_key = self.derive_revision_key();
-        let saturated_name_hash = Sha3_256::hash(&self.get_saturated_name_with_key(&revision_key));
+        let saturated_name_hash = self.get_saturated_name_hash();
 
         PrivateRef {
             saturated_name_hash,
             revision_key,
+            content_cid,
         }
+    }
+
+    /// TODO(matheus23) docs
+    pub fn get_saturated_name_hash(&self) -> HashOutput {
+        Sha3_256::hash(&self.get_saturated_name())
     }
 
     /// Derives the revision key.
@@ -711,11 +731,11 @@ impl PrivateNodeHeader {
 
     /// TODO(matheus23) docs
     pub async fn load(
-        cid: Cid,
+        cid: &Cid,
         revision_key: &RevisionKey,
         store: &impl BlockStore,
     ) -> Result<PrivateNodeHeader> {
-        let ciphertext = store.get_block(&cid).await?;
+        let ciphertext = store.get_block(cid).await?;
         let cbor_bytes = revision_key.key_wrap_decrypt(&ciphertext)?;
         dagcbor::decode(&cbor_bytes)
     }
@@ -876,10 +896,10 @@ mod tests {
         .unwrap();
 
         let file = PrivateNode::File(Rc::new(file));
-        let private_ref = file.get_header().derive_private_ref();
-        let cid = file.store(store, rng).await.unwrap();
+        let (_, content_cid) = file.store(store, rng).await.unwrap();
+        let private_ref = file.get_header().derive_private_ref(content_cid);
 
-        let deserialized_node = PrivateNode::load(cid, &private_ref, store).await.unwrap();
+        let deserialized_node = PrivateNode::load(&private_ref, store).await.unwrap();
 
         assert_eq!(file, deserialized_node);
     }

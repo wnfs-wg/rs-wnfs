@@ -64,15 +64,13 @@ async fn main() -> anyhow::Result<()> {
     let revision_key = RevisionKey::from(&ratchet);
 
     // Now let's serialize the root_dir's private_ref.
-    let cbor = encode(&root_dir.header.derive_private_ref(), &revision_key)?;
+    let cbor = encode(&root_dir.header.derive_private_ref(), &revision_key, rng)?;
 
     // We can deserialize the private_ref using the revision_key at hand.
     let private_ref = decode(cbor, &revision_key)?;
 
     // Now we can fetch the directory from the forest using the private_ref.
-    let fetched_node = forest
-        .get(&private_ref, PrivateForest::resolve_lowest, store)
-        .await?;
+    let fetched_node = forest.get(&private_ref, store).await?;
 
     println!("{:#?}", fetched_node);
 
@@ -82,19 +80,13 @@ async fn main() -> anyhow::Result<()> {
     let private_ref = PrivateRef::with_seed(Namefilter::default(), ratchet_seed, inumber);
 
     // And we can fetch the directory again using the generated private_ref.
-    let fetched_node = forest
-        .get(&private_ref, PrivateForest::resolve_lowest, store)
-        .await?;
+    let fetched_node = forest.get(&private_ref, store).await?;
 
     println!("{:#?}", fetched_node);
 
     // The private_ref might point to some old revision of the root_dir.
     // We can do the following to get the latest revision.
-    let fetched_dir = fetched_node
-        .unwrap()
-        .search_latest(&forest, store)
-        .await?
-        .as_dir()?;
+    let fetched_dir = fetched_node.search_latest(&forest, store).await?.as_dir()?;
 
     println!("{:#?}", fetched_dir);
 

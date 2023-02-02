@@ -9,10 +9,11 @@ use self::sharer::share;
 
 use super::{ContentKey, PrivateRef, RevisionKey, RsaKeyPair};
 use crate::{
-    private::PrivateForest, public::PublicLink, BlockStore, HashOutput, Hasher, NodeType,
+    private::PrivateForest, public::PublicLink, BlockStore, FsError, HashOutput, Hasher, NodeType,
     PrivateNode, ShareError,
 };
 use anyhow::{bail, Result};
+use libipld::Cid;
 use rand_core::RngCore;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use sha3::Sha3_256;
@@ -59,12 +60,14 @@ pub enum SharePayload {
 #[derive(Debug, Clone)]
 pub struct TemporalSharePointer {
     pub label: HashOutput,
+    pub content_cid: Cid,
     pub revision_key: RevisionKey,
 }
 
 #[derive(Debug, Clone)]
 pub struct SnapshotSharePointer {
     pub label: HashOutput,
+    pub content_cid: Cid,
     pub content_key: ContentKey,
 }
 
@@ -72,6 +75,7 @@ pub struct SnapshotSharePointer {
 struct TemporalSharePointerSerializable {
     r#type: NodeType,
     label: HashOutput,
+    content_cid: Cid,
     revision_key: RevisionKey,
 }
 
@@ -79,6 +83,7 @@ struct TemporalSharePointerSerializable {
 struct SnapshotSharePointerSerializable {
     r#type: NodeType,
     label: HashOutput,
+    content_cid: Cid,
     content_key: ContentKey,
 }
 
@@ -154,24 +159,30 @@ impl SharePayload {
         store: &mut impl BlockStore,
         rng: &mut impl RngCore,
     ) -> Result<(Self, Rc<PrivateForest>)> {
+        let (header_cid, content_cid) = node.store(store, rng).await?;
         let header = node.get_header();
         let revision_key = header.derive_revision_key();
         let saturated_name = header.get_saturated_name_with_key(&revision_key);
-        let private_ref =
-            PrivateRef::with_revision_key(Sha3_256::hash(&saturated_name), revision_key.clone());
+        let private_ref = PrivateRef::with_revision_key(
+            Sha3_256::hash(&saturated_name),
+            revision_key.clone(),
+            content_cid,
+        );
 
         let forest = forest
-            .put(saturated_name.clone(), &private_ref, node, store, rng)
+            .put_encrypted(saturated_name.clone(), vec![header_cid, content_cid], store)
             .await?;
 
         let payload = if temporal {
             Self::Temporal(TemporalSharePointer {
                 label: private_ref.saturated_name_hash,
+                content_cid,
                 revision_key,
             })
         } else {
             Self::Snapshot(SnapshotSharePointer {
                 label: private_ref.saturated_name_hash,
+                content_cid,
                 content_key: revision_key.derive_content_key(),
             })
         };
@@ -195,18 +206,23 @@ impl TemporalSharePointer {
         store: &mut impl BlockStore,
         rng: &mut impl RngCore,
     ) -> Result<(Self, Rc<PrivateForest>)> {
+        let (header_cid, content_cid) = node.store(store, rng).await?;
         let header = node.get_header();
         let revision_key = header.derive_revision_key();
         let saturated_name = header.get_saturated_name_with_key(&revision_key);
-        let private_ref =
-            PrivateRef::with_revision_key(Sha3_256::hash(&saturated_name), revision_key.clone());
+        let private_ref = PrivateRef::with_revision_key(
+            Sha3_256::hash(&saturated_name),
+            revision_key.clone(),
+            content_cid,
+        );
 
         let forest = forest
-            .put(saturated_name.clone(), &private_ref, node, store, rng)
+            .put_encrypted(saturated_name.clone(), vec![header_cid, content_cid], store)
             .await?;
 
         let payload = TemporalSharePointer {
             label: private_ref.saturated_name_hash,
+            content_cid,
             revision_key,
         };
 
@@ -222,20 +238,24 @@ impl SnapshotSharePointer {
         store: &mut impl BlockStore,
         rng: &mut impl RngCore,
     ) -> Result<(Self, Rc<PrivateForest>)> {
+        let (header_cid, content_cid) = node.store(store, rng).await?;
         let header = node.get_header();
         let revision_key = header.derive_revision_key();
-        let content_key = revision_key.derive_content_key();
         let saturated_name = header.get_saturated_name_with_key(&revision_key);
-        let private_ref =
-            PrivateRef::with_revision_key(Sha3_256::hash(&saturated_name), revision_key);
+        let private_ref = PrivateRef::with_revision_key(
+            Sha3_256::hash(&saturated_name),
+            revision_key.clone(),
+            content_cid,
+        );
 
         let forest = forest
-            .put(saturated_name, &private_ref, node, store, rng)
+            .put_encrypted(saturated_name.clone(), vec![header_cid, content_cid], store)
             .await?;
 
         let payload = SnapshotSharePointer {
             label: private_ref.saturated_name_hash,
-            content_key,
+            content_cid,
+            content_key: revision_key.derive_content_key(),
         };
 
         Ok((payload, forest))
@@ -247,12 +267,13 @@ impl Serialize for TemporalSharePointer {
     where
         S: Serializer,
     {
-        TemporalSharePointerSerializable {
-            r#type: NodeType::TemporalSharePointer,
-            label: self.label,
-            revision_key: self.revision_key.clone(),
-        }
-        .serialize(serializer)
+        (
+            NodeType::TemporalSharePointer,
+            self.label,
+            self.content_cid,
+            self.revision_key.clone(),
+        )
+            .serialize(serializer)
     }
 }
 
@@ -261,12 +282,13 @@ impl Serialize for SnapshotSharePointer {
     where
         S: Serializer,
     {
-        SnapshotSharePointerSerializable {
-            r#type: NodeType::SnapshotSharePointer,
-            label: self.label,
-            content_key: self.content_key.clone(),
-        }
-        .serialize(serializer)
+        (
+            NodeType::SnapshotSharePointer,
+            self.label,
+            self.content_cid,
+            self.content_key.clone(),
+        )
+            .serialize(serializer)
     }
 }
 
@@ -276,10 +298,23 @@ impl<'de> Deserialize<'de> for SnapshotSharePointer {
         D: Deserializer<'de>,
     {
         let SnapshotSharePointerSerializable {
-            label, content_key, ..
+            r#type,
+            label,
+            content_key,
+            content_cid,
         } = SnapshotSharePointerSerializable::deserialize(deserializer)?;
 
-        Ok(Self { label, content_key })
+        if r#type != NodeType::SnapshotSharePointer {
+            return Err(serde::de::Error::custom(FsError::UnexpectedNodeType(
+                r#type,
+            )));
+        }
+
+        Ok(Self {
+            label,
+            content_cid,
+            content_key,
+        })
     }
 }
 
@@ -289,13 +324,21 @@ impl<'de> Deserialize<'de> for TemporalSharePointer {
         D: Deserializer<'de>,
     {
         let TemporalSharePointerSerializable {
+            r#type,
             label,
             revision_key,
-            ..
+            content_cid,
         } = TemporalSharePointerSerializable::deserialize(deserializer)?;
+
+        if r#type != NodeType::TemporalSharePointer {
+            return Err(serde::de::Error::custom(FsError::UnexpectedNodeType(
+                r#type,
+            )));
+        }
 
         Ok(Self {
             label,
+            content_cid,
             revision_key,
         })
     }
@@ -346,7 +389,7 @@ pub mod sharer {
                 .await?;
 
             sharer_forest = sharer_forest
-                .put_encrypted(share_label, payload_cid, sharer_store)
+                .put_encrypted(share_label, Some(payload_cid), sharer_store)
                 .await?;
         }
 
@@ -424,7 +467,7 @@ pub mod recipient {
         recipient_store: &mut impl BlockStore,
         sharer_forest: Rc<PrivateForest>,
         sharer_store: &mut impl BlockStore,
-    ) -> Result<Option<PrivateNode>> {
+    ) -> Result<PrivateNode> {
         // Get cid to encrypted payload from sharer's forest using share_label
         let payload_cid = sharer_forest
             .get_encrypted(&Sha3_256::hash(&share_label), sharer_store)
@@ -437,20 +480,19 @@ pub mod recipient {
         let encrypted_payload = recipient_store.get_block(payload_cid).await?.to_vec();
         let payload: SharePayload = dagcbor::decode(&recipient_key.decrypt(&encrypted_payload)?)?;
 
-        let (label, revision_key) = match payload {
+        let (label, content_cid, revision_key) = match payload {
             SharePayload::Temporal(TemporalSharePointer {
                 label,
+                content_cid,
                 revision_key,
-            }) => (label, revision_key),
+            }) => (label, content_cid, revision_key),
             // TODO(appcypher): We currently need both RevisionKey and ContentKey to decrypt a node.
             _ => bail!(ShareError::UnsupportedSnapshotShareReceipt),
         };
 
         // Use decrypted payload to get cid to encrypted node in sharer's forest.
-        let private_ref = PrivateRef::with_revision_key(label, revision_key);
-        sharer_forest
-            .get(&private_ref, PrivateForest::resolve_lowest, sharer_store)
-            .await
+        let private_ref = PrivateRef::with_revision_key(label, revision_key, content_cid);
+        sharer_forest.get(&private_ref, sharer_store).await
     }
 }
 

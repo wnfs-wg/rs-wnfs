@@ -1,9 +1,9 @@
 use super::{
     encrypted::Encrypted, namefilter::Namefilter, AesKey, ContentKey, PrivateForest,
-    PrivateNodeHeader, RevisionKey, AUTHENTICATION_TAG_SIZE, NONCE_SIZE,
+    PrivateNodeHeader, AUTHENTICATION_TAG_SIZE, NONCE_SIZE,
 };
 use crate::{
-    dagcbor, utils, utils::get_random_bytes, BlockStore, FsError, Hasher, Id, Metadata, NodeType,
+    utils, utils::get_random_bytes, BlockStore, FsError, Hasher, Id, Metadata, NodeType,
     MAX_BLOCK_SIZE,
 };
 use anyhow::Result;
@@ -14,7 +14,7 @@ use futures::{Stream, StreamExt};
 use libipld::{cbor::DagCborCodec, prelude::Encode, Cid, IpldCodec};
 use rand_core::RngCore;
 use semver::Version;
-use serde::{de::Error as DeError, ser::Error as SerError, Deserialize, Deserializer, Serialize};
+use serde::{de::Error as DeError, Deserialize, Deserializer, Serialize};
 use sha3::Sha3_256;
 use std::{collections::BTreeSet, iter, rc::Rc};
 
@@ -71,7 +71,7 @@ pub const MAX_BLOCK_CONTENT_SIZE: usize = MAX_BLOCK_SIZE - NONCE_SIZE - AUTHENTI
 /// ```
 #[derive(Debug)]
 pub struct PrivateFile {
-    persisted_as: OnceCell<Cid>,
+    pub(crate) persisted_as: OnceCell<Cid>,
     pub header: PrivateNodeHeader,
     pub content: PrivateFileContent,
 }
@@ -98,10 +98,11 @@ pub(crate) enum FileContent {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-struct PrivateFileSerializable {
+struct PrivateFileContentSerializable {
     pub r#type: NodeType,
     pub version: Version,
-    pub header: Vec<u8>,
+    #[serde(rename = "headerCid")]
+    pub header_cid: Cid,
     pub previous: Vec<(usize, Encrypted<Cid>)>,
     pub metadata: Metadata,
     pub content: FileContent,
@@ -351,7 +352,9 @@ impl PrivateFile {
             let enc_bytes = key.encrypt(slice, rng)?;
             let content_cid = store.put_block(enc_bytes, IpldCodec::Raw).await?;
 
-            forest = forest.put_encrypted(label, content_cid, store).await?;
+            forest = forest
+                .put_encrypted(label, Some(content_cid), store)
+                .await?;
         }
 
         Ok((
@@ -443,17 +446,17 @@ impl PrivateFile {
         store: &mut impl BlockStore,
         rng: &mut impl RngCore,
     ) -> Result<Self> {
-        let cid = self.store(store, rng).await?;
+        let (_, content_cid) = self.store(store, rng).await?;
 
         let mut cloned = Rc::try_unwrap(self).unwrap_or_else(|rc| (*rc).clone());
-        let revision_key = cloned.header.derive_private_ref().revision_key;
+        let revision_key = cloned.header.derive_revision_key();
 
         cloned.persisted_as = OnceCell::new(); // Also done in `.clone()`, but need this to work in case try_unwrap optimizes.
         cloned.content.previous.clear();
         cloned
             .content
             .previous
-            .insert((1, Encrypted::from_value(cid, &revision_key)?));
+            .insert((1, Encrypted::from_value(content_cid, &revision_key)?));
 
         cloned.header.advance_ratchet();
 
@@ -490,95 +493,88 @@ impl PrivateFile {
         Ok(forest)
     }
 
+    pub(crate) async fn store(
+        &self,
+        store: &mut impl BlockStore,
+        rng: &mut impl RngCore,
+    ) -> Result<(Cid, Cid)> {
+        let header_cid = self.header.store(store).await?;
+
+        let content_cid = self
+            .persisted_as
+            .get_or_try_init::<anyhow::Error>(async {
+                // TODO(matheus23) deduplicate when reworking serialization
+                let revision_key = self.header.derive_revision_key();
+                let content_key = self.header.derive_content_key();
+
+                // Serialize node to cbor.
+                let content_ipld = self
+                    .content
+                    .serialize(libipld::serde::Serializer, header_cid)?;
+                let mut content_bytes = Vec::new();
+                content_ipld.encode(DagCborCodec, &mut content_bytes)?;
+
+                // Encrypt bytes with content key.
+                let content_enc_bytes = content_key.encrypt(&content_bytes, rng)?;
+
+                // Store content section in blockstore and get Cid.
+                store
+                    .put_block(content_enc_bytes, libipld::IpldCodec::Raw)
+                    .await
+            })
+            .await?;
+
+        Ok((header_cid, *content_cid))
+    }
+}
+
+impl PrivateFileContent {
     /// Serializes the file with provided Serde serialilzer.
-    pub(crate) fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    pub(crate) fn serialize<S>(&self, serializer: S, header_cid: Cid) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
     {
-        let key = self.header.derive_private_ref().revision_key;
-
-        (PrivateFileSerializable {
+        (PrivateFileContentSerializable {
             r#type: NodeType::PrivateFile,
             version: Version::new(0, 2, 0),
-            header: {
-                let cbor_bytes = dagcbor::encode(&self.header).map_err(SerError::custom)?;
-                key.key_wrap_encrypt(&cbor_bytes)
-                    .map_err(SerError::custom)?
-            },
-            previous: self.content.previous.iter().cloned().collect(),
-            metadata: self.content.metadata.clone(),
-            content: self.content.content.clone(),
+            previous: self.previous.iter().cloned().collect(),
+            header_cid,
+            metadata: self.metadata.clone(),
+            content: self.content.clone(),
         })
         .serialize(serializer)
     }
 
     /// Deserializes the file with provided Serde deserializer and key.
-    pub(crate) fn deserialize<'de, D>(
-        deserializer: D,
-        key: &RevisionKey,
-        from_cid: Cid,
-    ) -> Result<Self, D::Error>
+    pub(crate) fn deserialize<'de, D>(deserializer: D) -> Result<(Self, Cid), D::Error>
     where
         D: Deserializer<'de>,
     {
-        let PrivateFileSerializable {
+        let PrivateFileContentSerializable {
+            r#type,
             version,
             metadata,
-            header,
             previous,
+            header_cid,
             content,
-            ..
-        } = PrivateFileSerializable::deserialize(deserializer)?;
+        } = PrivateFileContentSerializable::deserialize(deserializer)?;
 
         if version.major != 0 || version.minor != 2 {
-            return Err(DeError::custom(FsError::InvalidDeserialization(format!(
-                "Couldn't deserialize file: Expected version 0.2.0 but got {}",
-                version.to_string()
-            ))));
+            return Err(DeError::custom(FsError::UnexpectedVersion(version)));
         }
 
-        Ok(Self {
-            persisted_as: OnceCell::new_with(Some(from_cid)),
-            header: {
-                let cbor_bytes = key.key_wrap_decrypt(&header).map_err(DeError::custom)?;
-                dagcbor::decode(&cbor_bytes).map_err(DeError::custom)?
-            },
-            content: PrivateFileContent {
+        if r#type != NodeType::PrivateFile {
+            return Err(DeError::custom(FsError::UnexpectedNodeType(r#type)));
+        }
+
+        Ok((
+            Self {
                 previous: previous.into_iter().collect(),
                 metadata,
                 content,
             },
-        })
-    }
-
-    pub(crate) async fn store(
-        &self,
-        store: &mut impl BlockStore,
-        rng: &mut impl RngCore,
-    ) -> Result<Cid> {
-        let cid = self
-            .persisted_as
-            .get_or_try_init::<anyhow::Error>(async {
-                // TODO(matheus23) deduplicate when reworking serialization
-                let private_ref = &self.header.derive_private_ref();
-
-                // Serialize node to cbor.
-                let ipld = self.serialize(libipld::serde::Serializer)?;
-                let mut bytes = Vec::new();
-                ipld.encode(DagCborCodec, &mut bytes)?;
-
-                // Encrypt bytes with content key.
-                let enc_bytes = private_ref
-                    .revision_key
-                    .derive_content_key()
-                    .encrypt(&bytes, rng)?;
-
-                // Store content section in blockstore and get Cid.
-                store.put_block(enc_bytes, libipld::IpldCodec::Raw).await
-            })
-            .await?;
-
-        Ok(*cid)
+            header_cid,
+        ))
     }
 }
 

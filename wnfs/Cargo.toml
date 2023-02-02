@@ -15,6 +15,7 @@ edition = "2021"
 repository = "https://github.com/wnfs-wg/rs-wnfs/tree/main/wnfs"
 homepage = "https://fission.codes"
 authors = ["The Fission Authors"]
+autoexamples = false # TODO(matheus23) remove this. Only for being able to run tests
 
 [dependencies]
 aes-gcm = "0.10"

@@ -1,6 +1,7 @@
 //! File system errors.
 
 use anyhow::Result;
+use semver::Version;
 use skip_ratchet::PreviousErr;
 use thiserror::Error;
 
@@ -53,6 +54,9 @@ pub enum FsError {
 
     #[error("Found unexpected node type: {0:?}")]
     UnexpectedNodeType(NodeType),
+
+    #[error("Found unexpected version: {0:?}")]
+    UnexpectedVersion(Version),
 
     #[error("Cannot compute in-between ratchet {0}")]
     NoIntermediateRatchet(PreviousErr),

@@ -122,21 +122,11 @@ impl PrivateNodeHistory {
 
         let previous_node = self
             .forest
-            .get(
-                &self.header.derive_private_ref(),
-                PrivateForest::resolve_one_of::<fn(&BTreeSet<Cid>) -> Option<&Cid>>(
-                    &[previous_cid].into_iter().collect(),
-                ),
-                store,
-            )
+            .get(&self.header.derive_private_ref(previous_cid), store)
             .await?;
 
-        if let Some(previous_node) = previous_node {
-            self.previous = previous_node.get_previous().clone();
-            Ok(Some(previous_node))
-        } else {
-            Ok(None)
-        }
+        self.previous = previous_node.get_previous().clone();
+        Ok(Some(previous_node))
     }
 
     fn resolve_previous_cid(&self, previous_ratchet: &Ratchet) -> Result<Option<Cid>> {
@@ -558,14 +548,8 @@ mod tests {
         let rng = &mut rng;
         let store = &mut store;
 
-        let forest = forest
-            .put(
-                root_dir.header.get_saturated_name(),
-                &root_dir.header.derive_private_ref(),
-                &PrivateNode::Dir(Rc::clone(&root_dir)),
-                store,
-                rng,
-            )
+        let (forest, _) = forest
+            .put(&PrivateNode::Dir(Rc::clone(&root_dir)), store, rng)
             .await
             .unwrap();
 
@@ -652,14 +636,8 @@ mod tests {
         let rng = &mut rng;
         let store = &mut store;
 
-        let forest = forest
-            .put(
-                root_dir.header.get_saturated_name(),
-                &root_dir.header.derive_private_ref(),
-                &PrivateNode::Dir(Rc::clone(&root_dir)),
-                store,
-                rng,
-            )
+        let (forest, _) = forest
+            .put(&PrivateNode::Dir(Rc::clone(&root_dir)), store, rng)
             .await
             .unwrap();
 
@@ -761,14 +739,8 @@ mod tests {
         let rng = &mut rng;
         let store = &mut store;
 
-        let forest = forest
-            .put(
-                root_dir.header.get_saturated_name(),
-                &root_dir.header.derive_private_ref(),
-                &PrivateNode::Dir(Rc::clone(&root_dir)),
-                store,
-                rng,
-            )
+        let (forest, _) = forest
+            .put(&PrivateNode::Dir(Rc::clone(&root_dir)), store, rng)
             .await
             .unwrap();
 
@@ -1046,14 +1018,8 @@ mod tests {
 
         let root_dir = Rc::new(root_dir.prepare_next_revision(store, rng).await.unwrap());
 
-        let forest = forest
-            .put(
-                root_dir.header.get_saturated_name(),
-                &root_dir.header.derive_private_ref(),
-                &PrivateNode::Dir(Rc::clone(&root_dir)),
-                store,
-                rng,
-            )
+        let (forest, _) = forest
+            .put(&PrivateNode::Dir(Rc::clone(&root_dir)), store, rng)
             .await
             .unwrap();
 
