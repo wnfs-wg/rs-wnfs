@@ -1344,7 +1344,6 @@ impl PrivateDirectory {
             .persisted_as
             .get_or_try_init::<anyhow::Error>(async {
                 // TODO(matheus23) deduplicate when reworking serialization
-
                 let revision_key = self.header.derive_revision_key();
                 let content_key = self.header.derive_content_key();
 

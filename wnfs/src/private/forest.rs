@@ -1,10 +1,12 @@
 use super::{
     hamt::{self, Hamt},
     namefilter::Namefilter,
-    PrivateNode, PrivateRef,
+    PrivateNode, PrivateRef, RevisionRef,
 };
 use crate::{utils::UnwrapOrClone, BlockStore, FsError, HashOutput, Hasher, Link};
 use anyhow::Result;
+use async_stream::stream;
+use futures::Stream;
 use libipld::Cid;
 use log::debug;
 use rand_core::RngCore;
@@ -244,28 +246,30 @@ impl PrivateForest {
         Ok((Rc::new(cloned), pair.map(|p| p.value)))
     }
 
-    /// Convenience function for usage within `PrivateForest.get`.
-    /// Will return the first element in given BTreeSet.
-    pub fn resolve_lowest(set: &BTreeSet<Cid>) -> Option<&Cid> {
-        set.iter().next()
-    }
-
-    /// Convenience function for usage within `PrivateForest.get`.
-    /// Will return a CID in given set, if the set has exactly one element.
-    pub fn resolve_single(set: &BTreeSet<Cid>) -> Option<&Cid> {
-        match &*set.iter().collect::<Vec<&Cid>>() {
-            &[cid] => Some(cid),
-            _ => None,
-        }
-    }
-
-    /// Convenience function builder for `PrivateForest.get`.
-    /// The returned function will return the first CID in `set`
-    /// that also appears in `one_of`.
-    pub fn resolve_one_of<F>(
-        one_of: &BTreeSet<Cid>,
-    ) -> impl Fn(&BTreeSet<Cid>) -> Option<&Cid> + '_ {
-        |set: &BTreeSet<Cid>| set.iter().find(|cid| one_of.contains(cid))
+    /// TODO(matheus23) docs
+    pub fn get_multivalue<'a>(
+        &'a self,
+        revision: &'a RevisionRef,
+        store: &'a impl BlockStore,
+    ) -> impl Stream<Item = PrivateNode> + 'a {
+        Box::pin(stream! {
+            match self
+                .get_encrypted(&revision.saturated_name_hash, store)
+                .await
+            {
+                Ok(Some(cids)) => {
+                    for cid in cids {
+                        match PrivateNode::load(&revision.clone().as_private_ref(*cid), store).await {
+                            Ok(node) => yield node,
+                            // ignore nodes we can't parse. E.g. header nodes
+                            // TODO(matheus23) figure out how to match only AES errors
+                            Err(_) => {}
+                        }
+                    }
+                }
+                _ => {},
+            }
+        })
     }
 }
 

@@ -28,10 +28,7 @@ async fn main() {
         .unwrap();
 
     // Fetch and decrypt a directory from the private forest using provided private ref.
-    let dir = forest
-        .get(&private_ref, PrivateForest::resolve_lowest, store)
-        .await
-        .unwrap();
+    let dir = forest.get(&private_ref, store).await.unwrap();
 
     // Print the directory.
     println!("{:#?}", dir);

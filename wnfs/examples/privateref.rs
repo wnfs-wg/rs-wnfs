@@ -1,10 +1,11 @@
 use chrono::Utc;
+use futures::StreamExt;
 use rand::thread_rng;
 use sha3::Sha3_256;
 use std::{io::Cursor, rc::Rc};
 use wnfs::{
     ipld::{DagCborCodec, Decode, Encode, Ipld, Serializer},
-    private::{AesKey, PrivateForest, PrivateRef, RevisionKey},
+    private::{AesKey, PrivateForest, PrivateRef, RevisionKey, RevisionRef},
     ratchet::Ratchet,
     utils, Hasher, MemoryBlockStore, Namefilter, PrivateDirectory, PrivateOpResult,
 };
@@ -18,6 +19,9 @@ async fn main() -> anyhow::Result<()> {
     let forest = Rc::new(PrivateForest::new());
 
     // ----------- Create a private directory -----------
+
+    // TODO(matheus23) why the extra step with the `AesKey::new` and the random stuff + hash?
+    // I think we could probably just use a random ratchet seed then :)
 
     // Some existing user key.
     let some_key = AesKey::new(utils::get_random_bytes::<32>(rng));
@@ -56,6 +60,8 @@ async fn main() -> anyhow::Result<()> {
             rng,
         )
         .await?;
+    // TODO(matheus23) rework this
+    let (_, content_cid) = root_dir.store(store, rng).await?;
 
     // --------- Generate a private ref (Method 1) -----------
 
@@ -64,7 +70,10 @@ async fn main() -> anyhow::Result<()> {
     let revision_key = RevisionKey::from(&ratchet);
 
     // Now let's serialize the root_dir's private_ref.
-    let cbor = encode(&root_dir.header.derive_private_ref(), &revision_key, rng)?;
+    let cbor = encode(
+        &root_dir.header.derive_private_ref(content_cid),
+        &revision_key,
+    )?;
 
     // We can deserialize the private_ref using the revision_key at hand.
     let private_ref = decode(cbor, &revision_key)?;
@@ -76,11 +85,15 @@ async fn main() -> anyhow::Result<()> {
 
     // --------- Generate a private ref (Method 2) -----------
 
-    // We can also create a private_ref from scratch if we remember the parameters.
-    let private_ref = PrivateRef::with_seed(Namefilter::default(), ratchet_seed, inumber);
+    // We can also create a revision ref from scratch if we remember the parameters.
+    let revision_ref = RevisionRef::with_seed(Namefilter::default(), ratchet_seed, inumber);
 
-    // And we can fetch the directory again using the generated private_ref.
-    let fetched_node = forest.get(&private_ref, store).await?;
+    // And we can fetch the directory again using the generated revision_ref.
+    let fetched_node = forest
+        .get_multivalue(&revision_ref, store)
+        .next()
+        .await
+        .unwrap();
 
     println!("{:#?}", fetched_node);
 

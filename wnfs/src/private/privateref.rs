@@ -37,6 +37,15 @@ pub(crate) struct PrivateRefSerializable {
     pub(crate) content_cid: Cid,
 }
 
+/// TODO(matheus23) docs
+/// This is outside spec: Just a pointer to a revision without
+/// disambiguating the actual content block.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RevisionRef {
+    pub saturated_name_hash: HashOutput,
+    pub revision_key: RevisionKey,
+}
+
 //--------------------------------------------------------------------------------------------------
 // Implementations
 //--------------------------------------------------------------------------------------------------
@@ -175,6 +184,38 @@ impl Debug for PrivateRef {
             .field("revision_key", &self.revision_key.0)
             .field("content_cid", &self.content_cid)
             .finish()
+    }
+}
+
+impl RevisionRef {
+    /// Creates a PrivateRef from provided namefilter, ratchet seed and inumber.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use wnfs::{private::PrivateRef, Namefilter};
+    /// use rand::{thread_rng, Rng};
+    ///
+    /// let rng = &mut thread_rng();
+    /// let private_ref = PrivateRef::with_seed(
+    ///     Namefilter::default(),
+    ///     rng.gen::<[u8; 32]>(),
+    ///     rng.gen::<[u8; 32]>(),
+    /// );
+    ///
+    /// println!("Private ref: {:?}", private_ref);
+    /// ```
+    pub fn with_seed(name: Namefilter, ratchet_seed: HashOutput, inumber: HashOutput) -> Self {
+        PrivateNodeHeader::with_seed(name, ratchet_seed, inumber).derive_revision_ref()
+    }
+
+    /// TODO(matheus23) docs
+    pub fn as_private_ref(self, content_cid: Cid) -> PrivateRef {
+        PrivateRef {
+            saturated_name_hash: self.saturated_name_hash,
+            revision_key: self.revision_key,
+            content_cid,
+        }
     }
 }
 

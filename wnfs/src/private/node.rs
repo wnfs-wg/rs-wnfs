@@ -1,7 +1,7 @@
 use super::{
     encrypted::Encrypted, hamt::Hasher, namefilter::Namefilter, AesKey, PrivateDirectory,
     PrivateDirectoryContent, PrivateFile, PrivateFileContent, PrivateForest, PrivateRef,
-    NONCE_SIZE,
+    RevisionRef, NONCE_SIZE,
 };
 use crate::{
     dagcbor, utils, AesError, BlockStore, FsError, HashOutput, Id, NodeType, HASH_BYTE_SIZE,
@@ -12,6 +12,7 @@ use anyhow::{bail, Result};
 use async_once_cell::OnceCell;
 use async_recursion::async_recursion;
 use chrono::{DateTime, Utc};
+use futures::StreamExt;
 use libipld::{cbor::DagCborCodec, prelude::Decode, Cid, Ipld, IpldCodec};
 use rand_core::RngCore;
 use serde::{Deserialize, Serialize};
@@ -445,24 +446,12 @@ impl PrivateNode {
 
         current_header.ratchet = search.current().clone();
 
-        match forest
-            .get_encrypted(&current_header.get_saturated_name_hash(), store)
-            .await?
-        {
-            Some(cids) => {
-                let mut nodes = Vec::with_capacity(cids.len());
-                for cid in cids {
-                    match PrivateNode::load(&current_header.derive_private_ref(*cid), store).await {
-                        Ok(node) => nodes.push(node),
-                        // ignore nodes we can't parse. E.g. header nodes
-                        // TODO(matheus23) figure out how to match only AES errors
-                        Err(_) => {}
-                    }
-                }
-                Ok(nodes)
-            }
-            None => unreachable!(), // we tested that this works above with forest.has()
-        }
+        // TODO(matheus23) perhaps refactor to return a stream for this function, too?
+        // Had some trouble doing that with the constant `return Ok(vec![self.clone()])` above, though.
+        Ok(forest
+            .get_multivalue(&current_header.derive_revision_ref(), store)
+            .collect()
+            .await)
     }
 
     pub(crate) async fn load(
@@ -622,13 +611,17 @@ impl PrivateNodeHeader {
     /// println!("Private ref: {:?}", private_ref);
     /// ```
     pub fn derive_private_ref(&self, content_cid: Cid) -> PrivateRef {
+        self.derive_revision_ref().as_private_ref(content_cid)
+    }
+
+    /// TODO(matheus23) docs
+    pub fn derive_revision_ref(&self) -> RevisionRef {
         let revision_key = self.derive_revision_key();
         let saturated_name_hash = self.get_saturated_name_hash();
 
-        PrivateRef {
+        RevisionRef {
             saturated_name_hash,
             revision_key,
-            content_cid,
         }
     }
 
