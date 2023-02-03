@@ -590,7 +590,7 @@ impl PrivateNodeHeader {
         self.ratchet = Ratchet::zero(utils::get_random_bytes(rng))
     }
 
-    /// Derives the private ref of the current header.
+    /// Derives the revision ref of the current header.
     ///
     /// # Examples
     ///
@@ -606,15 +606,10 @@ impl PrivateNodeHeader {
     ///     Utc::now(),
     ///     rng,
     /// ));
-    /// let private_ref = file.header.derive_private_ref(Default::default());
+    /// let revision_ref = file.header.derive_revision_ref();
     ///
-    /// println!("Private ref: {:?}", private_ref);
+    /// println!("Private ref: {:?}", revision_ref);
     /// ```
-    pub fn derive_private_ref(&self, content_cid: Cid) -> PrivateRef {
-        self.derive_revision_ref().as_private_ref(content_cid)
-    }
-
-    /// TODO(matheus23) docs
     pub fn derive_revision_ref(&self) -> RevisionRef {
         let revision_key = self.derive_revision_key();
         let saturated_name_hash = self.get_saturated_name_hash();
@@ -890,7 +885,10 @@ mod tests {
 
         let file = PrivateNode::File(Rc::new(file));
         let (_, content_cid) = file.store(store, rng).await.unwrap();
-        let private_ref = file.get_header().derive_private_ref(content_cid);
+        let private_ref = file
+            .get_header()
+            .derive_revision_ref()
+            .as_private_ref(content_cid);
 
         let deserialized_node = PrivateNode::load(&private_ref, store).await.unwrap();
 

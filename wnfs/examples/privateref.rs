@@ -71,7 +71,10 @@ async fn main() -> anyhow::Result<()> {
 
     // Now let's serialize the root_dir's private_ref.
     let cbor = encode(
-        &root_dir.header.derive_private_ref(content_cid),
+        &root_dir
+            .header
+            .derive_revision_ref()
+            .as_private_ref(content_cid),
         &revision_key,
     )?;
 

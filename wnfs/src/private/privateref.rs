@@ -250,7 +250,8 @@ mod tests {
 
         let mut result = None;
         for cid in retrieved_node_cids {
-            match PrivateNode::load(&header.derive_private_ref(*cid), store).await {
+            match PrivateNode::load(&header.derive_revision_ref().as_private_ref(*cid), store).await
+            {
                 Ok(node) => {
                     result = Some(node);
                     break;

@@ -86,7 +86,12 @@ impl PrivateForest {
         let forest = forest
             .put_encrypted(saturated_name.clone(), vec![header_cid, content_cid], store)
             .await?;
-        Ok((forest, node.get_header().derive_private_ref(content_cid)))
+        Ok((
+            forest,
+            node.get_header()
+                .derive_revision_ref()
+                .as_private_ref(content_cid),
+        ))
     }
 
     /// Gets the value at the given key.

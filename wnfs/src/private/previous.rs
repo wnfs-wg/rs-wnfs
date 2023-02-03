@@ -122,7 +122,13 @@ impl PrivateNodeHistory {
 
         let previous_node = self
             .forest
-            .get(&self.header.derive_private_ref(previous_cid), store)
+            .get(
+                &self
+                    .header
+                    .derive_revision_ref()
+                    .as_private_ref(previous_cid),
+                store,
+            )
             .await?;
 
         self.previous = previous_node.get_previous().clone();
