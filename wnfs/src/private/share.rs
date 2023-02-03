@@ -159,31 +159,19 @@ impl SharePayload {
         store: &mut impl BlockStore,
         rng: &mut impl RngCore,
     ) -> Result<(Self, Rc<PrivateForest>)> {
-        let (header_cid, content_cid) = node.store(store, rng).await?;
-        let header = node.get_header();
-        let revision_key = header.derive_revision_key();
-        let saturated_name = header.get_saturated_name_with_key(&revision_key);
-        let private_ref = PrivateRef::with_revision_key(
-            Sha3_256::hash(&saturated_name),
-            revision_key.clone(),
-            content_cid,
-        );
-
-        let forest = forest
-            .put_encrypted(saturated_name.clone(), vec![header_cid, content_cid], store)
-            .await?;
+        let (forest, private_ref) = forest.put(&node, store, rng).await?;
 
         let payload = if temporal {
             Self::Temporal(TemporalSharePointer {
                 label: private_ref.saturated_name_hash,
-                content_cid,
-                revision_key,
+                content_cid: private_ref.content_cid,
+                revision_key: private_ref.revision_key,
             })
         } else {
             Self::Snapshot(SnapshotSharePointer {
                 label: private_ref.saturated_name_hash,
-                content_cid,
-                content_key: revision_key.derive_content_key(),
+                content_cid: private_ref.content_cid,
+                content_key: private_ref.revision_key.derive_content_key(),
             })
         };
 
@@ -206,24 +194,12 @@ impl TemporalSharePointer {
         store: &mut impl BlockStore,
         rng: &mut impl RngCore,
     ) -> Result<(Self, Rc<PrivateForest>)> {
-        let (header_cid, content_cid) = node.store(store, rng).await?;
-        let header = node.get_header();
-        let revision_key = header.derive_revision_key();
-        let saturated_name = header.get_saturated_name_with_key(&revision_key);
-        let private_ref = PrivateRef::with_revision_key(
-            Sha3_256::hash(&saturated_name),
-            revision_key.clone(),
-            content_cid,
-        );
+        let (forest, private_ref) = forest.put(&node, store, rng).await?;
 
-        let forest = forest
-            .put_encrypted(saturated_name.clone(), vec![header_cid, content_cid], store)
-            .await?;
-
-        let payload = TemporalSharePointer {
+        let payload = Self {
             label: private_ref.saturated_name_hash,
-            content_cid,
-            revision_key,
+            content_cid: private_ref.content_cid,
+            revision_key: private_ref.revision_key,
         };
 
         Ok((payload, forest))
@@ -238,24 +214,12 @@ impl SnapshotSharePointer {
         store: &mut impl BlockStore,
         rng: &mut impl RngCore,
     ) -> Result<(Self, Rc<PrivateForest>)> {
-        let (header_cid, content_cid) = node.store(store, rng).await?;
-        let header = node.get_header();
-        let revision_key = header.derive_revision_key();
-        let saturated_name = header.get_saturated_name_with_key(&revision_key);
-        let private_ref = PrivateRef::with_revision_key(
-            Sha3_256::hash(&saturated_name),
-            revision_key.clone(),
-            content_cid,
-        );
+        let (forest, private_ref) = forest.put(&node, store, rng).await?;
 
-        let forest = forest
-            .put_encrypted(saturated_name.clone(), vec![header_cid, content_cid], store)
-            .await?;
-
-        let payload = SnapshotSharePointer {
+        let payload = Self {
             label: private_ref.saturated_name_hash,
-            content_cid,
-            content_key: revision_key.derive_content_key(),
+            content_cid: private_ref.content_cid,
+            content_key: private_ref.revision_key.derive_content_key(),
         };
 
         Ok((payload, forest))

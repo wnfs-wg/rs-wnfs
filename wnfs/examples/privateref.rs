@@ -20,8 +20,7 @@ async fn main() -> anyhow::Result<()> {
 
     // ----------- Create a private directory -----------
 
-    // TODO(matheus23) why the extra step with the `AesKey::new` and the random stuff + hash?
-    // I think we could probably just use a random ratchet seed then :)
+    // TODO(matheus23) perhaps rework this into something HKDF-based instead & also derive the inumber
 
     // Some existing user key.
     let some_key = AesKey::new(utils::get_random_bytes::<32>(rng));
