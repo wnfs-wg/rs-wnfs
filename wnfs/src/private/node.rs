@@ -487,15 +487,12 @@ impl PrivateNode {
                         let (content, header_cid) = PrivateDirectoryContent::deserialize(
                             Ipld::Map(map),
                             &private_ref.revision_key,
+                            private_ref.content_cid,
                         )?;
                         let header =
                             PrivateNodeHeader::load(&header_cid, &private_ref.revision_key, store)
                                 .await?;
-                        PrivateNode::Dir(Rc::new(PrivateDirectory {
-                            persisted_as: OnceCell::new_with(Some(private_ref.content_cid)),
-                            header,
-                            content,
-                        }))
+                        PrivateNode::Dir(Rc::new(PrivateDirectory { header, content }))
                     }
                     other => bail!(FsError::UnexpectedNodeType(other)),
                 })

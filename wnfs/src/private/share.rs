@@ -9,7 +9,7 @@ use self::sharer::share;
 
 use super::{ContentKey, RevisionKey, RsaKeyPair};
 use crate::{
-    private::PrivateForest, public::PublicLink, BlockStore, FsError, HashOutput, Hasher, NodeType,
+    private::PrivateForest, public::PublicLink, BlockStore, FsError, HashOutput, NodeType,
     PrivateNode, ShareError,
 };
 use anyhow::{bail, Result};

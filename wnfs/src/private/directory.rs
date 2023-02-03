@@ -44,15 +44,15 @@ pub type PrivatePathNodesResult = PathNodesResult<PrivateDirectory>;
 ///
 /// println!("dir = {:?}", dir);
 /// ```
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct PrivateDirectory {
-    pub(crate) persisted_as: OnceCell<Cid>,
     pub header: PrivateNodeHeader,
     pub content: PrivateDirectoryContent,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug)]
 pub struct PrivateDirectoryContent {
+    pub(crate) persisted_as: OnceCell<Cid>,
     pub previous: BTreeSet<(usize, Encrypted<Cid>)>,
     pub metadata: Metadata,
     pub entries: BTreeMap<String, PrivateRef>,
@@ -105,9 +105,9 @@ impl PrivateDirectory {
     /// ```
     pub fn new(parent_bare_name: Namefilter, time: DateTime<Utc>, rng: &mut impl RngCore) -> Self {
         Self {
-            persisted_as: OnceCell::new(),
             header: PrivateNodeHeader::new(parent_bare_name, rng),
             content: PrivateDirectoryContent {
+                persisted_as: OnceCell::new(),
                 previous: BTreeSet::new(),
                 metadata: Metadata::new(time),
                 entries: BTreeMap::new(),
@@ -141,9 +141,9 @@ impl PrivateDirectory {
         inumber: HashOutput,
     ) -> Self {
         Self {
-            persisted_as: OnceCell::new(),
             header: PrivateNodeHeader::with_seed(parent_bare_name, ratchet_seed, inumber),
             content: PrivateDirectoryContent {
+                persisted_as: OnceCell::new(),
                 metadata: Metadata::new(time),
                 previous: BTreeSet::new(),
                 entries: BTreeMap::new(),
@@ -357,12 +357,18 @@ impl PrivateDirectory {
         store: &mut impl BlockStore,
         rng: &mut impl RngCore,
     ) -> Result<Self> {
-        let (_, content_cid) = self.store(store, rng).await?;
+        // key from the *current*, not the next revision
+        let revision_key = self.header.derive_revision_key();
+
+        let header_cid = self.header.store(store).await?;
+        let content_cid = self
+            .content
+            .store(header_cid, &revision_key, store, rng)
+            .await?;
 
         let mut cloned = Rc::try_unwrap(self).unwrap_or_else(|rc| (*rc).clone());
-        let revision_key = cloned.header.derive_revision_key();
 
-        cloned.persisted_as = OnceCell::new(); // Also done in `.clone()`, but need this to work in case try_unwrap optimizes.
+        cloned.content.persisted_as = OnceCell::new(); // Also done in `.clone()`, but need this to work in case try_unwrap optimizes.
         cloned.content.previous.clear();
         cloned
             .content
@@ -390,7 +396,7 @@ impl PrivateDirectory {
         self.header.inumber = utils::get_random_bytes(rng);
         self.header.update_bare_name(parent_bare_name);
         self.header.reset_ratchet(rng);
-        self.persisted_as = OnceCell::new();
+        self.content.persisted_as = OnceCell::new();
     }
 
     /// Fix up `PathNodes` so that parents refer to the newly updated children.
@@ -1336,34 +1342,14 @@ impl PrivateDirectory {
         rng: &mut impl RngCore,
     ) -> Result<(Cid, Cid)> {
         let header_cid = self.header.store(store).await?;
+        let revision_key = self.header.derive_revision_key();
 
         let content_cid = self
-            .persisted_as
-            .get_or_try_init::<anyhow::Error>(async {
-                // TODO(matheus23) deduplicate when reworking serialization
-                let revision_key = self.header.derive_revision_key();
-                let content_key = self.header.derive_content_key();
-
-                // Serialize node to cbor.
-                let content_ipld = self.content.serialize(
-                    libipld::serde::Serializer,
-                    &revision_key,
-                    header_cid,
-                )?;
-                let mut content_bytes = Vec::new();
-                content_ipld.encode(DagCborCodec, &mut content_bytes)?;
-
-                // Encrypt bytes with content key.
-                let content_enc_bytes = content_key.encrypt(&content_bytes, rng)?;
-
-                // Store content section in blockstore and get Cid.
-                store
-                    .put_block(content_enc_bytes, libipld::IpldCodec::Raw)
-                    .await
-            })
+            .content
+            .store(header_cid, &revision_key, store, rng)
             .await?;
 
-        Ok((header_cid, *content_cid))
+        Ok((header_cid, content_cid))
     }
 }
 
@@ -1402,6 +1388,7 @@ impl PrivateDirectoryContent {
     pub(crate) fn deserialize<'de, D>(
         deserializer: D,
         revision_key: &RevisionKey,
+        from_cid: Cid,
     ) -> Result<(Self, Cid), D::Error>
     where
         D: Deserializer<'de>,
@@ -1433,6 +1420,7 @@ impl PrivateDirectoryContent {
 
         Ok((
             Self {
+                persisted_as: OnceCell::new_with(Some(from_cid)),
                 metadata,
                 previous: previous.into_iter().collect(),
                 entries,
@@ -1440,20 +1428,51 @@ impl PrivateDirectoryContent {
             header_cid,
         ))
     }
-}
 
-impl PartialEq for PrivateDirectory {
-    fn eq(&self, other: &Self) -> bool {
-        self.header == other.header && self.content == other.content
+    /// TODO(matheus23) docs
+    pub async fn store(
+        &self,
+        header_cid: Cid,
+        revision_key: &RevisionKey,
+        store: &mut impl BlockStore,
+        rng: &mut impl RngCore,
+    ) -> Result<Cid> {
+        Ok(*self
+            .persisted_as
+            .get_or_try_init::<anyhow::Error>(async {
+                // TODO(matheus23) deduplicate when reworking serialization (see file.rs)
+                let content_key = revision_key.derive_content_key();
+
+                // Serialize node to cbor.
+                let ipld = self.serialize(libipld::serde::Serializer, &revision_key, header_cid)?;
+                let mut bytes = Vec::new();
+                ipld.encode(DagCborCodec, &mut bytes)?;
+
+                // Encrypt bytes with content key.
+                let block = content_key.encrypt(&bytes, rng)?;
+
+                // Store content section in blockstore and get Cid.
+                store.put_block(block, libipld::IpldCodec::Raw).await
+            })
+            .await?)
     }
 }
 
-impl Clone for PrivateDirectory {
+impl PartialEq for PrivateDirectoryContent {
+    fn eq(&self, other: &Self) -> bool {
+        self.previous == other.previous
+            && self.metadata == other.metadata
+            && self.entries == other.entries
+    }
+}
+
+impl Clone for PrivateDirectoryContent {
     fn clone(&self) -> Self {
         Self {
             persisted_as: OnceCell::new_with(self.persisted_as.get().cloned()),
-            header: self.header.clone(),
-            content: self.content.clone(),
+            previous: self.previous.clone(),
+            metadata: self.metadata.clone(),
+            entries: self.entries.clone(),
         }
     }
 }
