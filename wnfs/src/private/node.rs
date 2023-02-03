@@ -9,7 +9,6 @@ use crate::{
 use aes_gcm::{aead::Aead, Aes256Gcm, KeyInit, Nonce};
 use aes_kw::KekAes256;
 use anyhow::{bail, Result};
-use async_once_cell::OnceCell;
 use async_recursion::async_recursion;
 use chrono::{DateTime, Utc};
 use futures::StreamExt;
@@ -472,16 +471,14 @@ impl PrivateNode {
 
                 Ok(match r#type {
                     NodeType::PrivateFile => {
-                        let (content, header_cid) =
-                            PrivateFileContent::deserialize(Ipld::Map(map))?;
+                        let (content, header_cid) = PrivateFileContent::deserialize(
+                            Ipld::Map(map),
+                            private_ref.content_cid,
+                        )?;
                         let header =
                             PrivateNodeHeader::load(&header_cid, &private_ref.revision_key, store)
                                 .await?;
-                        PrivateNode::File(Rc::new(PrivateFile {
-                            persisted_as: OnceCell::new_with(Some(private_ref.content_cid)),
-                            header,
-                            content,
-                        }))
+                        PrivateNode::File(Rc::new(PrivateFile { header, content }))
                     }
                     NodeType::PrivateDirectory => {
                         let (content, header_cid) = PrivateDirectoryContent::deserialize(

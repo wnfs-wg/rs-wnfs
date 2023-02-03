@@ -52,7 +52,7 @@ pub struct PrivateDirectory {
 
 #[derive(Debug)]
 pub struct PrivateDirectoryContent {
-    pub(crate) persisted_as: OnceCell<Cid>,
+    persisted_as: OnceCell<Cid>,
     pub previous: BTreeSet<(usize, Encrypted<Cid>)>,
     pub metadata: Metadata,
     pub entries: BTreeMap<String, PrivateRef>,
