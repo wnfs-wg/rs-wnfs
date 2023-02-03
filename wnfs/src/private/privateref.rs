@@ -59,10 +59,12 @@ impl PrivateRef {
     /// use wnfs::{private::{PrivateRef, RevisionKey}, private::AesKey};
     /// use rand::{thread_rng, Rng};
     ///
+    /// let content_cid = Default::default();
     /// let rng = &mut thread_rng();
     /// let private_ref = PrivateRef::with_revision_key(
     ///     rng.gen::<[u8; 32]>(),
     ///     RevisionKey::from(AesKey::new(rng.gen::<[u8; 32]>())),
+    ///     content_cid,
     /// );
     ///
     /// println!("Private ref: {:?}", private_ref);
@@ -77,32 +79,6 @@ impl PrivateRef {
             revision_key,
             content_cid,
         }
-    }
-
-    /// Creates a PrivateRef from provided namefilter, ratchet seed and inumber.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use wnfs::{private::PrivateRef, Namefilter};
-    /// use rand::{thread_rng, Rng};
-    ///
-    /// let rng = &mut thread_rng();
-    /// let private_ref = PrivateRef::with_seed(
-    ///     Namefilter::default(),
-    ///     rng.gen::<[u8; 32]>(),
-    ///     rng.gen::<[u8; 32]>(),
-    /// );
-    ///
-    /// println!("Private ref: {:?}", private_ref);
-    /// ```
-    pub fn with_seed(
-        name: Namefilter,
-        ratchet_seed: HashOutput,
-        inumber: HashOutput,
-        content_cid: Cid,
-    ) -> Self {
-        PrivateNodeHeader::with_seed(name, ratchet_seed, inumber).derive_private_ref(content_cid)
     }
 
     pub(crate) fn to_serializable(
@@ -170,6 +146,19 @@ impl PrivateRef {
         let private_ref = PrivateRefSerializable::deserialize(deserializer)?;
         PrivateRef::from_serializable(private_ref, revision_key).map_err(DeError::custom)
     }
+
+    /// TODO(matheus23) docs
+    pub fn as_revision_ref(self) -> RevisionRef {
+        RevisionRef {
+            saturated_name_hash: self.saturated_name_hash,
+            revision_key: self.revision_key,
+        }
+    }
+
+    /// TODO(matheus23) docs
+    pub fn get_saturated_name_hash(&self) -> &HashOutput {
+        &self.saturated_name_hash
+    }
 }
 
 impl Debug for PrivateRef {
@@ -188,22 +177,22 @@ impl Debug for PrivateRef {
 }
 
 impl RevisionRef {
-    /// Creates a PrivateRef from provided namefilter, ratchet seed and inumber.
+    /// Creates a RevisionRef from provided namefilter, ratchet seed and inumber.
     ///
     /// # Examples
     ///
     /// ```
-    /// use wnfs::{private::PrivateRef, Namefilter};
+    /// use wnfs::{private::RevisionRef, Namefilter};
     /// use rand::{thread_rng, Rng};
     ///
     /// let rng = &mut thread_rng();
-    /// let private_ref = PrivateRef::with_seed(
+    /// let revision_ref = RevisionRef::with_seed(
     ///     Namefilter::default(),
     ///     rng.gen::<[u8; 32]>(),
     ///     rng.gen::<[u8; 32]>(),
     /// );
     ///
-    /// println!("Private ref: {:?}", private_ref);
+    /// println!("Private ref: {:?}", revision_ref);
     /// ```
     pub fn with_seed(name: Namefilter, ratchet_seed: HashOutput, inumber: HashOutput) -> Self {
         PrivateNodeHeader::with_seed(name, ratchet_seed, inumber).derive_revision_ref()

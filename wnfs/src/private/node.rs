@@ -606,7 +606,7 @@ impl PrivateNodeHeader {
     ///     Utc::now(),
     ///     rng,
     /// ));
-    /// let private_ref = file.header.derive_private_ref();
+    /// let private_ref = file.header.derive_private_ref(Default::default());
     ///
     /// println!("Private ref: {:?}", private_ref);
     /// ```

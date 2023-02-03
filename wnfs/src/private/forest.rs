@@ -64,12 +64,10 @@ impl PrivateForest {
     ///         rng,
     ///     ));
     ///
-    ///     let private_ref = &dir.header.derive_private_ref();
-    ///     let name = dir.header.get_saturated_name();
     ///     let node = PrivateNode::Dir(dir);
     ///
-    ///     let forest = forest.put(name, private_ref, &node, store, rng).await.unwrap();
-    ///     assert_eq!(forest.get(private_ref, PrivateForest::resolve_lowest, store).await.unwrap(), Some(node));
+    ///     let (forest, private_ref) = forest.put(&node, store, rng).await.unwrap();
+    ///     assert_eq!(forest.get(&private_ref, store).await.unwrap(), node);
     /// }
     /// ```
     pub async fn put(
@@ -126,12 +124,11 @@ impl PrivateForest {
     ///         rng,
     ///     ));
     ///
-    ///     let private_ref = &dir.header.derive_private_ref();
-    ///     let name = dir.header.get_saturated_name();
     ///     let node = PrivateNode::Dir(dir);
     ///
-    ///     let forest = forest.put(name, private_ref, &node, store, rng).await.unwrap();
-    ///     assert_eq!(forest.get(private_ref, PrivateForest::resolve_lowest, store).await.unwrap(), Some(node));
+    ///     let (forest, private_ref) = forest.put(&node, store, rng).await.unwrap();
+    ///
+    ///     assert_eq!(forest.get(&private_ref, store).await.unwrap(), node);
     /// }
     /// ```
     pub async fn get(
@@ -178,14 +175,10 @@ impl PrivateForest {
     ///         rng,
     ///     ));
     ///
-    ///     let private_ref = &dir.header.derive_private_ref();
-    ///     let name = dir.header.get_saturated_name();
     ///     let node = PrivateNode::Dir(dir);
-    ///     let forest = forest.put(name.clone(), private_ref, &node, store, rng).await.unwrap();
+    ///     let (forest, private_ref) = forest.put(&node, store, rng).await.unwrap();
     ///
-    ///     let name_hash = &Sha3_256::hash(&name.as_bytes());
-    ///
-    ///     assert!(forest.has(name_hash, store).await.unwrap());
+    ///     assert!(forest.has(private_ref.get_saturated_name_hash(), store).await.unwrap());
     /// }
     /// ```
     pub async fn has(
@@ -286,8 +279,9 @@ where
     /// use std::rc::Rc;
     /// use chrono::{Utc, Days};
     /// use rand::{thread_rng, Rng};
+    /// use futures::StreamExt;
     /// use wnfs::{
-    ///     private::{PrivateForest, PrivateRef}, PrivateNode,
+    ///     private::{PrivateForest, RevisionRef}, PrivateNode,
     ///     BlockStore, MemoryBlockStore, Namefilter, PrivateDirectory, PrivateOpResult,
     /// };
     ///
@@ -306,10 +300,8 @@ where
     ///         ratchet_seed,
     ///         inumber
     ///     ));
-    ///     let main_forest = main_forest
+    ///     let (main_forest, _) = main_forest
     ///         .put(
-    ///             root_dir.header.get_saturated_name(),
-    ///             &root_dir.header.derive_private_ref(),
     ///             &PrivateNode::Dir(Rc::clone(&root_dir)),
     ///             store,
     ///             rng
@@ -324,10 +316,8 @@ where
     ///         ratchet_seed,
     ///         inumber
     ///     ));
-    ///     let other_forest = other_forest
+    ///     let (other_forest, _) = other_forest
     ///         .put(
-    ///             root_dir.header.get_saturated_name(),
-    ///             &root_dir.header.derive_private_ref(),
     ///             &PrivateNode::Dir(Rc::clone(&root_dir)),
     ///             store,
     ///             rng
@@ -337,14 +327,18 @@ where
     ///
     ///     let merge_forest = main_forest.merge(&other_forest, store).await.unwrap();
     ///
+    ///     let revision_ref = RevisionRef::with_seed(
+    ///         Namefilter::default(),
+    ///         ratchet_seed,
+    ///         inumber
+    ///     );
+    ///
     ///     assert_eq!(
     ///         2,
     ///         merge_forest
-    ///             .root
-    ///             .get(&root_dir.header.get_saturated_name(), store)
+    ///             .get_multivalue(&revision_ref, store)
+    ///             .collect::<Vec<PrivateNode>>()
     ///             .await
-    ///             .unwrap()
-    ///             .unwrap()
     ///             .len()
     ///     );
     /// }
