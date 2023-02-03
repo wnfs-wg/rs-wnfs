@@ -7,7 +7,7 @@
 
 use self::sharer::share;
 
-use super::{ContentKey, PrivateRef, RevisionKey, RsaKeyPair};
+use super::{ContentKey, RevisionKey, RsaKeyPair};
 use crate::{
     private::PrivateForest, public::PublicLink, BlockStore, FsError, HashOutput, Hasher, NodeType,
     PrivateNode, ShareError,
@@ -16,7 +16,6 @@ use anyhow::{bail, Result};
 use libipld::Cid;
 use rand_core::RngCore;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use sha3::Sha3_256;
 use std::{marker::PhantomData, rc::Rc};
 
 //--------------------------------------------------------------------------------------------------

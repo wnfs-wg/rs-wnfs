@@ -53,7 +53,6 @@ pub struct PrivateDirectory {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct PrivateDirectoryContent {
-    pub version: Version,
     pub previous: BTreeSet<(usize, Encrypted<Cid>)>,
     pub metadata: Metadata,
     pub entries: BTreeMap<String, PrivateRef>,
@@ -109,7 +108,6 @@ impl PrivateDirectory {
             persisted_as: OnceCell::new(),
             header: PrivateNodeHeader::new(parent_bare_name, rng),
             content: PrivateDirectoryContent {
-                version: Version::new(0, 2, 0),
                 previous: BTreeSet::new(),
                 metadata: Metadata::new(time),
                 entries: BTreeMap::new(),
@@ -146,7 +144,6 @@ impl PrivateDirectory {
             persisted_as: OnceCell::new(),
             header: PrivateNodeHeader::with_seed(parent_bare_name, ratchet_seed, inumber),
             content: PrivateDirectoryContent {
-                version: Version::new(0, 2, 0),
                 metadata: Metadata::new(time),
                 previous: BTreeSet::new(),
                 entries: BTreeMap::new(),
@@ -1392,7 +1389,7 @@ impl PrivateDirectoryContent {
 
         (PrivateDirectoryContentSerializable {
             r#type: NodeType::PrivateDirectory,
-            version: self.version.clone(),
+            version: Version::new(0, 2, 0),
             previous: self.previous.iter().cloned().collect(),
             header_cid,
             metadata: self.metadata.clone(),
@@ -1436,7 +1433,6 @@ impl PrivateDirectoryContent {
 
         Ok((
             Self {
-                version,
                 metadata,
                 previous: previous.into_iter().collect(),
                 entries,
