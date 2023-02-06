@@ -53,10 +53,10 @@ pub(crate) fn generate_ops_and_changes(
 }
 
 pub(crate) async fn apply_changes<K, V, B>(
-    mut node: Rc<Node<K, V>>,
+    node: &mut Rc<Node<K, V>>,
     changes: &Vec<Change<K, V>>,
     store: &B,
-) -> Result<Rc<Node<K, V>>>
+) -> Result<()>
 where
     K: Debug + Clone + AsRef<[u8]> + DeserializeOwned,
     V: Debug + Clone + DeserializeOwned,
@@ -65,25 +65,25 @@ where
     for change in changes {
         match change {
             Change::Add(k, v) => {
-                node = node.set(k.clone(), v.clone(), store).await?;
+                node.set(k.clone(), v.clone(), store).await?;
             }
             Change::Remove(k) => {
-                (node, _) = node.remove(k, store).await?;
+                node.remove(k, store).await?;
             }
             Change::Modify(k, v) => {
-                node = node.set(k.clone(), v.clone(), store).await?;
+                node.set(k.clone(), v.clone(), store).await?;
             }
         }
     }
 
-    Ok(node)
+    Ok(())
 }
 
 pub(crate) async fn prepare_node<K, V, B>(
-    mut node: Rc<Node<K, V>>,
+    node: &mut Rc<Node<K, V>>,
     changes: &Vec<Change<K, V>>,
     store: &B,
-) -> Result<Rc<Node<K, V>>>
+) -> Result<()>
 where
     K: Debug + Clone + AsRef<[u8]> + DeserializeOwned,
     V: Debug + Clone + DeserializeOwned,
@@ -91,9 +91,9 @@ where
 {
     for change in changes {
         if let Change::Add(k, _) = change {
-            (node, _) = node.remove(k, store).await?;
+            node.remove(k, store).await?;
         }
     }
 
-    Ok(node)
+    Ok(())
 }

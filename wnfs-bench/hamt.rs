@@ -63,7 +63,7 @@ fn node_set_consecutive(c: &mut Criterion) {
             },
             |(mut node, store, kvs)| async move {
                 for (key, value) in kvs {
-                    node = black_box(node.set(key, value, &store).await.unwrap());
+                    black_box(node.set(key, value, &store).await.unwrap());
                 }
             },
             BatchSize::SmallInput,
@@ -76,7 +76,7 @@ fn node_load_get(c: &mut Criterion) {
     let cid = async_std::task::block_on(async {
         let mut node = Rc::new(<Node<_, _>>::default());
         for i in 0..50 {
-            node = node.set(i.to_string(), i, &store).await.unwrap();
+            node.set(i.to_string(), i, &store).await.unwrap();
         }
 
         let encoded_hamt = dagcbor::async_encode(&Hamt::with_root(node), &mut store)
@@ -108,7 +108,7 @@ fn node_load_remove(c: &mut Criterion) {
     let cid = async_std::task::block_on(async {
         let mut node = Rc::new(<Node<_, _>>::default());
         for i in 0..50 {
-            node = node.set(i.to_string(), i, &store).await.unwrap();
+            node.set(i.to_string(), i, &store).await.unwrap();
         }
 
         let encoded_hamt = dagcbor::async_encode(&Hamt::with_root(node), &mut store)
@@ -125,9 +125,8 @@ fn node_load_remove(c: &mut Criterion) {
                 black_box(dagcbor::decode(encoded_hamt.as_ref()).unwrap());
 
             for i in 0..50 {
-                let (root, value) = hamt.root.remove(&i.to_string(), &store).await.unwrap();
+                let value = hamt.root.remove(&i.to_string(), &store).await.unwrap();
                 assert!(value.is_some());
-                hamt.root = root;
             }
         })
     });
@@ -138,7 +137,7 @@ fn hamt_load_decode(c: &mut Criterion) {
     let (cid, bytes) = async_std::task::block_on(async {
         let mut node = Rc::new(<Node<_, _>>::default());
         for i in 0..50 {
-            node = node.set(i.to_string(), i, &store).await.unwrap();
+            node.set(i.to_string(), i, &store).await.unwrap();
         }
 
         let encoded_hamt = dagcbor::async_encode(&Hamt::with_root(node), &mut store)
@@ -172,7 +171,7 @@ fn hamt_set_encode(c: &mut Criterion) {
             },
             |(mut store, mut node)| async move {
                 for i in 0..50 {
-                    node = node.set(i.to_string(), i, &store).await.unwrap();
+                    node.set(i.to_string(), i, &store).await.unwrap();
                 }
 
                 let hamt = Hamt::with_root(node);

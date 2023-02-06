@@ -150,17 +150,15 @@ impl PrivateNode {
     pub(crate) async fn update_ancestry(
         &mut self,
         parent_bare_name: Namefilter,
-        mut forest: Rc<PrivateForest>,
+        forest: &mut Rc<PrivateForest>,
         store: &mut impl BlockStore,
         rng: &mut impl RngCore,
-        // TODO(matheus23) consider using forest: &mut Rc<PrivateForest> instead.
-    ) -> Result<(Rc<PrivateForest>, PrivateRef)> {
+    ) -> Result<PrivateRef> {
         match self {
             Self::File(file) => {
                 let mut file = (**file).clone();
 
-                forest = file
-                    .prepare_key_rotation(parent_bare_name, forest, store, rng)
+                file.prepare_key_rotation(parent_bare_name, forest, store, rng)
                     .await?;
 
                 *self = Self::File(Rc::new(file));
@@ -171,11 +169,9 @@ impl PrivateNode {
                 for (name, private_ref) in &old_dir.content.entries {
                     let mut node = forest.get(private_ref, store).await?;
 
-                    let (new_forest, private_ref) = node
+                    let private_ref = node
                         .update_ancestry(dir.header.bare_name.clone(), forest, store, rng)
                         .await?;
-
-                    forest = new_forest;
 
                     dir.content.entries.insert(name.clone(), private_ref);
                 }
@@ -360,9 +356,9 @@ impl PrivateNode {
     /// async fn main() {
     ///     let store = &mut MemoryBlockStore::default();
     ///     let rng = &mut thread_rng();
-    ///     let forest = Rc::new(PrivateForest::new());
+    ///     let forest = &mut Rc::new(PrivateForest::new());
     ///
-    ///     let PrivateOpResult { forest, root_dir: init_dir, .. } = PrivateDirectory::new_and_store(
+    ///     let PrivateOpResult { root_dir: init_dir, .. } = PrivateDirectory::new_and_store(
     ///         Default::default(),
     ///         Utc::now(),
     ///         forest,
@@ -370,17 +366,17 @@ impl PrivateNode {
     ///         rng
     ///     ).await.unwrap();
     ///
-    ///     let PrivateOpResult { forest, root_dir, .. } = Rc::clone(&init_dir)
+    ///     let PrivateOpResult { root_dir, .. } = Rc::clone(&init_dir)
     ///         .mkdir(&["pictures".into(), "cats".into()], true, Utc::now(), forest, store, rng)
     ///         .await
     ///         .unwrap();
     ///
-    ///     let latest_node = PrivateNode::Dir(init_dir).search_latest(&forest, store).await.unwrap();
+    ///     let latest_node = PrivateNode::Dir(init_dir).search_latest(forest, store).await.unwrap();
     ///
     ///     let found_node = latest_node
     ///         .as_dir()
     ///         .unwrap()
-    ///         .lookup_node("pictures", true, &forest, store)
+    ///         .lookup_node("pictures", true, forest, store)
     ///         .await
     ///         .unwrap();
     ///
@@ -878,10 +874,10 @@ mod tests {
     async fn serialized_private_node_can_be_deserialized() {
         let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
         let content = b"Lorem ipsum dolor sit amet";
-        let forest = Rc::new(PrivateForest::new());
+        let forest = &mut Rc::new(PrivateForest::new());
         let store = &mut MemoryBlockStore::new();
 
-        let (file, _) = PrivateFile::with_content(
+        let file = PrivateFile::with_content(
             Namefilter::default(),
             Utc::now(),
             content.to_vec(),

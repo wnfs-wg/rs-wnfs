@@ -123,21 +123,20 @@ impl<'a, R: RsaKeyPair, S: BlockStore> Share<'a, R, S> {
     /// Performs the sharing operation with the previously set sharer and recipients.
     /// It takes the payload, sharer, and recipients, and performs the share operation,
     /// encrypts the payload and stores it in the sharer's private forest.
-    pub async fn finish(&mut self) -> Result<Rc<PrivateForest>> {
+    pub async fn finish(&mut self) -> Result<()> {
         if matches!((&self.sharer, self.recipients.len()), (None, 0)) {
             bail!(ShareError::NoSharerOrRecipients);
         }
 
-        let sharer = self.sharer.take().unwrap();
+        let mut sharer = self.sharer.take().unwrap();
         let recipients = std::mem::take(&mut self.recipients);
 
-        let mut forest = sharer.forest;
         for recipient in recipients {
-            forest = share::<R>(
+            share::<R>(
                 self.payload,
                 self.count,
                 &sharer.root_did,
-                forest,
+                &mut sharer.forest,
                 sharer.store,
                 recipient.exchange_root,
                 recipient.store,
@@ -145,7 +144,7 @@ impl<'a, R: RsaKeyPair, S: BlockStore> Share<'a, R, S> {
             .await?;
         }
 
-        Ok(forest)
+        Ok(())
     }
 }
 
@@ -154,11 +153,11 @@ impl SharePayload {
     pub async fn from_node(
         node: &PrivateNode,
         temporal: bool,
-        forest: Rc<PrivateForest>,
+        forest: &mut Rc<PrivateForest>,
         store: &mut impl BlockStore,
         rng: &mut impl RngCore,
-    ) -> Result<(Self, Rc<PrivateForest>)> {
-        let (forest, private_ref) = forest.put(node, store, rng).await?;
+    ) -> Result<Self> {
+        let private_ref = forest.put(node, store, rng).await?;
 
         let payload = if temporal {
             Self::Temporal(TemporalSharePointer {
@@ -174,7 +173,7 @@ impl SharePayload {
             })
         };
 
-        Ok((payload, forest))
+        Ok(payload)
     }
 
     pub fn get_label(&self) -> HashOutput {
@@ -189,11 +188,11 @@ impl TemporalSharePointer {
     /// Create a temporal share pointer from a private fs node.
     pub async fn from_node(
         node: &PrivateNode,
-        forest: Rc<PrivateForest>,
+        forest: &mut Rc<PrivateForest>,
         store: &mut impl BlockStore,
         rng: &mut impl RngCore,
-    ) -> Result<(Self, Rc<PrivateForest>)> {
-        let (forest, private_ref) = forest.put(node, store, rng).await?;
+    ) -> Result<Self> {
+        let private_ref = forest.put(node, store, rng).await?;
 
         let payload = Self {
             label: private_ref.saturated_name_hash,
@@ -201,7 +200,7 @@ impl TemporalSharePointer {
             temporal_key: private_ref.temporal_key,
         };
 
-        Ok((payload, forest))
+        Ok(payload)
     }
 }
 
@@ -209,11 +208,11 @@ impl SnapshotSharePointer {
     /// Create a snapshot share pointer from a private fs node.
     pub async fn from_node(
         node: &PrivateNode,
-        forest: Rc<PrivateForest>,
+        forest: &mut Rc<PrivateForest>,
         store: &mut impl BlockStore,
         rng: &mut impl RngCore,
-    ) -> Result<(Self, Rc<PrivateForest>)> {
-        let (forest, private_ref) = forest.put(node, store, rng).await?;
+    ) -> Result<Self> {
+        let private_ref = forest.put(node, store, rng).await?;
 
         let payload = Self {
             label: private_ref.saturated_name_hash,
@@ -221,7 +220,7 @@ impl SnapshotSharePointer {
             snapshot_key: private_ref.temporal_key.derive_snapshot_key(),
         };
 
-        Ok((payload, forest))
+        Ok(payload)
     }
 }
 
@@ -332,11 +331,11 @@ pub mod sharer {
         share_payload: &SharePayload,
         share_count: usize,
         sharer_root_did: &str,
-        mut sharer_forest: Rc<PrivateForest>,
+        sharer_forest: &mut Rc<PrivateForest>,
         sharer_store: &mut impl BlockStore,
         recipient_exchange_root: PublicLink,
         recipient_store: &impl BlockStore,
-    ) -> Result<Rc<PrivateForest>> {
+    ) -> Result<()> {
         let mut exchange_keys = fetch_exchange_keys(recipient_exchange_root, recipient_store).await;
         let encoded_payload = &dagcbor::encode(share_payload)?;
 
@@ -351,12 +350,12 @@ pub mod sharer {
                 .put_block(encrypted_payload, IpldCodec::Raw)
                 .await?;
 
-            sharer_forest = sharer_forest
+            sharer_forest
                 .put_encrypted(share_label, Some(payload_cid), sharer_store)
                 .await?;
         }
 
-        Ok(sharer_forest)
+        Ok(())
     }
 
     /// Fetches the exchange keys of recipients using their exchange root, resolve the root_dir,

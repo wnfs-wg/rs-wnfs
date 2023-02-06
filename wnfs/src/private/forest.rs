@@ -3,7 +3,7 @@ use super::{
     namefilter::Namefilter,
     PrivateNode, PrivateRef, RevisionRef,
 };
-use crate::{utils::UnwrapOrClone, AesError, BlockStore, FsError, HashOutput, Hasher, Link};
+use crate::{AesError, BlockStore, FsError, HashOutput, Hasher, Link};
 use anyhow::Result;
 use async_stream::stream;
 use futures::Stream;
@@ -57,7 +57,7 @@ impl PrivateForest {
     /// async fn main() {
     ///     let store = &mut MemoryBlockStore::default();
     ///     let rng = &mut thread_rng();
-    ///     let forest = Rc::new(PrivateForest::new());
+    ///     let forest = &mut Rc::new(PrivateForest::new());
     ///     let dir = Rc::new(PrivateDirectory::new(
     ///         Namefilter::default(),
     ///         Utc::now(),
@@ -66,32 +66,29 @@ impl PrivateForest {
     ///
     ///     let node = PrivateNode::Dir(dir);
     ///
-    ///     let (forest, private_ref) = forest.put(&node, store, rng).await.unwrap();
+    ///     let private_ref = forest.put(&node, store, rng).await.unwrap();
     ///     assert_eq!(forest.get(&private_ref, store).await.unwrap(), node);
     /// }
     /// ```
     pub async fn put(
-        self: Rc<Self>,
+        self: &mut Rc<Self>,
         node: &PrivateNode,
         store: &mut impl BlockStore,
         rng: &mut impl RngCore,
-    ) -> Result<(Rc<Self>, PrivateRef)> {
+    ) -> Result<PrivateRef> {
         let (header_cid, content_cid) = node.store(store, rng).await?;
         let saturated_name = node.get_header().get_saturated_name();
 
         debug!("Private Forest Put: Namefilter: {:?}", saturated_name);
 
         // Store the header and content blocks.
-        let forest = self;
-        let forest = forest
-            .put_encrypted(saturated_name.clone(), vec![header_cid, content_cid], store)
+        self.put_encrypted(saturated_name.clone(), vec![header_cid, content_cid], store)
             .await?;
-        Ok((
-            forest,
-            node.get_header()
-                .derive_revision_ref()
-                .as_private_ref(content_cid),
-        ))
+
+        Ok(node
+            .get_header()
+            .derive_revision_ref()
+            .as_private_ref(content_cid))
     }
 
     /// Gets the value at the given key.
@@ -122,7 +119,7 @@ impl PrivateForest {
     /// async fn main() {
     ///     let store = &mut MemoryBlockStore::default();
     ///     let rng = &mut thread_rng();
-    ///     let forest = Rc::new(PrivateForest::new());
+    ///     let forest = &mut Rc::new(PrivateForest::new());
     ///     let dir = Rc::new(PrivateDirectory::new(
     ///         Namefilter::default(),
     ///         Utc::now(),
@@ -131,7 +128,7 @@ impl PrivateForest {
     ///
     ///     let node = PrivateNode::Dir(dir);
     ///
-    ///     let (forest, private_ref) = forest.put(&node, store, rng).await.unwrap();
+    ///     let private_ref = forest.put(&node, store, rng).await.unwrap();
     ///
     ///     assert_eq!(forest.get(&private_ref, store).await.unwrap(), node);
     /// }
@@ -173,7 +170,7 @@ impl PrivateForest {
     /// async fn main() {
     ///     let store = &mut MemoryBlockStore::default();
     ///     let rng = &mut thread_rng();
-    ///     let forest = Rc::new(PrivateForest::new());
+    ///     let forest = &mut Rc::new(PrivateForest::new());
     ///     let dir = Rc::new(PrivateDirectory::new(
     ///         Namefilter::default(),
     ///         Utc::now(),
@@ -181,7 +178,7 @@ impl PrivateForest {
     ///     ));
     ///
     ///     let node = PrivateNode::Dir(dir);
-    ///     let (forest, private_ref) = forest.put(&node, store, rng).await.unwrap();
+    ///     let private_ref = forest.put(&node, store, rng).await.unwrap();
     ///
     ///     assert!(forest.has(private_ref.get_saturated_name_hash(), store).await.unwrap());
     /// }
@@ -200,11 +197,11 @@ impl PrivateForest {
 
     /// Adds new encrypted values at the given key.
     pub async fn put_encrypted(
-        self: Rc<Self>,
+        self: &mut Rc<Self>,
         name: Namefilter,
         values: impl IntoIterator<Item = Cid>,
         store: &mut impl BlockStore,
-    ) -> Result<Rc<Self>> {
+    ) -> Result<()> {
         // TODO(matheus23): This iterates the path in the HAMT twice.
         // We could consider implementing something like upsert instead.
         // Or some kind of "cursor".
@@ -217,9 +214,8 @@ impl PrivateForest {
 
         cids.extend(values);
 
-        let mut forest = self.unwrap_or_clone()?;
-        forest.root = forest.root.set(name, cids, store).await?;
-        Ok(Rc::new(forest))
+        Rc::make_mut(self).root.set(name, cids, store).await?;
+        Ok(())
     }
 
     /// Gets the encrypted values at the given key.
@@ -234,14 +230,15 @@ impl PrivateForest {
 
     /// Removes the encrypted value at the given key.
     pub async fn remove_encrypted(
-        self: Rc<Self>,
+        self: &mut Rc<Self>,
         name_hash: &HashOutput,
         store: &mut impl BlockStore,
-    ) -> Result<(Rc<Self>, Option<BTreeSet<Cid>>)> {
-        let mut cloned = (*self).clone();
-        let (root, pair) = cloned.root.remove_by_hash(name_hash, store).await?;
-        cloned.root = root;
-        Ok((Rc::new(cloned), pair.map(|p| p.value)))
+    ) -> Result<Option<BTreeSet<Cid>>> {
+        let pair = Rc::make_mut(self)
+            .root
+            .remove_by_hash(name_hash, store)
+            .await?;
+        Ok(pair.map(|p| p.value))
     }
 
     /// Returns a stream of all private nodes that could be decrypted at given revision.
@@ -305,14 +302,14 @@ where
     ///     let ratchet_seed = rng.gen::<[u8; 32]>();
     ///     let inumber = rng.gen::<[u8; 32]>();
     ///
-    ///     let main_forest = Rc::new(PrivateForest::new());
+    ///     let main_forest = &mut Rc::new(PrivateForest::new());
     ///     let root_dir = Rc::new(PrivateDirectory::with_seed(
     ///         Namefilter::default(),
     ///         Utc::now(),
     ///         ratchet_seed,
     ///         inumber
     ///     ));
-    ///     let (main_forest, _) = main_forest
+    ///     main_forest
     ///         .put(
     ///             &PrivateNode::Dir(Rc::clone(&root_dir)),
     ///             store,
@@ -321,14 +318,14 @@ where
     ///         .await
     ///         .unwrap();
     ///
-    ///     let other_forest = Rc::new(PrivateForest::new());
+    ///     let other_forest = &mut Rc::new(PrivateForest::new());
     ///     let root_dir = Rc::new(PrivateDirectory::with_seed(
     ///         Namefilter::default(),
     ///         Utc::now().checked_add_days(Days::new(1)).unwrap(),
     ///         ratchet_seed,
     ///         inumber
     ///     ));
-    ///     let (other_forest, _) = other_forest
+    ///     other_forest
     ///         .put(
     ///             &PrivateNode::Dir(Rc::clone(&root_dir)),
     ///             store,
@@ -337,7 +334,7 @@ where
     ///         .await
     ///         .unwrap();
     ///
-    ///     let merge_forest = main_forest.merge(&other_forest, store).await.unwrap();
+    ///     let merge_forest = main_forest.merge(other_forest, store).await.unwrap();
     ///
     ///     let revision_ref = RevisionRef::with_seed(
     ///         Namefilter::default(),
@@ -463,7 +460,7 @@ mod tests {
     #[async_std::test]
     async fn inserted_items_can_be_fetched() {
         let store = &mut MemoryBlockStore::new();
-        let forest = Rc::new(PrivateForest::new());
+        let forest = &mut Rc::new(PrivateForest::new());
         let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
 
         let dir = Rc::new(PrivateDirectory::new(
@@ -473,7 +470,7 @@ mod tests {
         ));
 
         let private_node = PrivateNode::Dir(dir.clone());
-        let (forest, private_ref) = forest.put(&private_node, store, rng).await.unwrap();
+        let private_ref = forest.put(&private_node, store, rng).await.unwrap();
         let retrieved = forest.get(&private_ref, store).await.unwrap();
 
         assert_eq!(retrieved, private_node);
@@ -482,7 +479,7 @@ mod tests {
     #[async_std::test]
     async fn multivalue_conflict_can_be_fetched_individually() {
         let store = &mut MemoryBlockStore::new();
-        let forest = Rc::new(PrivateForest::new());
+        let forest = &mut Rc::new(PrivateForest::new());
         let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
 
         let dir = Rc::new(PrivateDirectory::new(
@@ -501,10 +498,10 @@ mod tests {
         let private_node_conflict = PrivateNode::Dir(dir_conflict.clone());
 
         // Put the original node in the private forest
-        let (forest, private_ref) = forest.put(&private_node, store, rng).await.unwrap();
+        let private_ref = forest.put(&private_node, store, rng).await.unwrap();
 
         // Put the conflicting node in the private forest at the same key
-        let (forest, private_ref_conflict) = forest
+        let private_ref_conflict = forest
             .put(&private_node_conflict, store, rng)
             .await
             .unwrap();
@@ -536,9 +533,9 @@ mod tests {
         let (store, rng) = test_setup::init!(mut store, mut rng);
 
         // A node that adds the first 3 pairs of HASH_KV_PAIRS.
-        let mut other_node = Rc::new(Node::<_, _, MockHasher>::default());
+        let other_node = &mut Rc::new(Node::<_, _, MockHasher>::default());
         for (digest, k, v) in HASH_KV_PAIRS.iter().take(3) {
-            other_node = other_node
+            other_node
                 .set_value(
                     &mut HashNibbles::new(digest),
                     k.clone(),
@@ -550,8 +547,8 @@ mod tests {
         }
 
         // Another node that keeps the first pair, modify the second pair, removes the third pair, and adds the fourth and fifth pair.
-        let mut main_node = Rc::new(Node::<_, _, MockHasher>::default());
-        main_node = main_node
+        let main_node = &mut Rc::new(Node::<_, _, MockHasher>::default());
+        main_node
             .set_value(
                 &mut HashNibbles::new(&HASH_KV_PAIRS[0].0),
                 HASH_KV_PAIRS[0].1.clone(),
@@ -562,7 +559,7 @@ mod tests {
             .unwrap();
 
         let new_cid = generate_cid(rng);
-        main_node = main_node
+        main_node
             .set_value(
                 &mut HashNibbles::new(&HASH_KV_PAIRS[1].0),
                 HASH_KV_PAIRS[1].1.clone(),
@@ -573,7 +570,7 @@ mod tests {
             .unwrap();
 
         for (digest, k, v) in HASH_KV_PAIRS.iter().skip(3).take(2) {
-            main_node = main_node
+            main_node
                 .set_value(
                     &mut HashNibbles::new(digest),
                     k.clone(),
@@ -584,8 +581,8 @@ mod tests {
                 .unwrap();
         }
 
-        let main_forest = Hamt::<Namefilter, BTreeSet<Cid>, _>::with_root(main_node);
-        let other_forest = Hamt::<Namefilter, BTreeSet<Cid>, _>::with_root(other_node);
+        let main_forest = Hamt::<Namefilter, BTreeSet<Cid>, _>::with_root(Rc::clone(main_node));
+        let other_forest = Hamt::<Namefilter, BTreeSet<Cid>, _>::with_root(Rc::clone(other_node));
 
         let merge_forest = main_forest.merge(&other_forest, store).await.unwrap();
 

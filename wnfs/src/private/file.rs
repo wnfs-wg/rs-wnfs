@@ -53,9 +53,9 @@ pub const MAX_BLOCK_CONTENT_SIZE: usize = MAX_BLOCK_SIZE - NONCE_SIZE - AUTHENTI
 /// async fn main() {
 ///     let store = &mut MemoryBlockStore::default();
 ///     let rng = &mut thread_rng();
-///     let forest = Rc::new(PrivateForest::new());
+///     let forest = &mut Rc::new(PrivateForest::new());
 ///
-///     let (file, _) = PrivateFile::with_content(
+///     let file = PrivateFile::with_content(
 ///         Namefilter::default(),
 ///         Utc::now(),
 ///         get_random_bytes::<100>(rng).to_vec(),
@@ -161,9 +161,9 @@ impl PrivateFile {
     /// async fn main() {
     ///     let store = &mut MemoryBlockStore::default();
     ///     let rng = &mut thread_rng();
-    ///     let forest = Rc::new(PrivateForest::new());
+    ///     let forest = &mut Rc::new(PrivateForest::new());
     ///
-    ///     let (file, _) = PrivateFile::with_content(
+    ///     let file = PrivateFile::with_content(
     ///         Namefilter::default(),
     ///         Utc::now(),
     ///         get_random_bytes::<100>(rng).to_vec(),
@@ -181,26 +181,22 @@ impl PrivateFile {
         parent_bare_name: Namefilter,
         time: DateTime<Utc>,
         content: Vec<u8>,
-        forest: Rc<PrivateForest>,
+        forest: &mut Rc<PrivateForest>,
         store: &mut impl BlockStore,
         rng: &mut impl RngCore,
-    ) -> Result<(Self, Rc<PrivateForest>)> {
+    ) -> Result<Self> {
         let header = PrivateNodeHeader::new(parent_bare_name, rng);
-        let (content, forest) =
-            Self::prepare_content(&header.bare_name, content, forest, store, rng).await?;
+        let content = Self::prepare_content(&header.bare_name, content, forest, store, rng).await?;
 
-        Ok((
-            Self {
-                header,
-                content: PrivateFileContent {
-                    persisted_as: OnceCell::new(),
-                    metadata: Metadata::new(time),
-                    previous: BTreeSet::new(),
-                    content,
-                },
+        Ok(Self {
+            header,
+            content: PrivateFileContent {
+                persisted_as: OnceCell::new(),
+                metadata: Metadata::new(time),
+                previous: BTreeSet::new(),
+                content,
             },
-            forest,
-        ))
+        })
     }
 
     /// Streams the content of a file as chunk of blocks.
@@ -222,10 +218,10 @@ impl PrivateFile {
     /// async fn main() {
     ///     let store = &mut MemoryBlockStore::default();
     ///     let rng = &mut thread_rng();
-    ///     let forest = Rc::new(PrivateForest::new());
+    ///     let forest = &mut Rc::new(PrivateForest::new());
     ///
     ///     let content = get_random_bytes::<100>(rng).to_vec();
-    ///     let (file, forest) = PrivateFile::with_content(
+    ///     let file = PrivateFile::with_content(
     ///         Namefilter::default(),
     ///         Utc::now(),
     ///         content.clone(),
@@ -298,10 +294,10 @@ impl PrivateFile {
     /// async fn main() {
     ///     let store = &mut MemoryBlockStore::default();
     ///     let rng = &mut thread_rng();
-    ///     let forest = Rc::new(PrivateForest::new());
+    ///     let forest = &mut Rc::new(PrivateForest::new());
     ///
     ///     let content = get_random_bytes::<100>(rng).to_vec();
-    ///     let (file, forest) = PrivateFile::with_content(
+    ///     let file = PrivateFile::with_content(
     ///         Namefilter::default(),
     ///         Utc::now(),
     ///         content.clone(),
@@ -312,7 +308,7 @@ impl PrivateFile {
     ///     .await
     ///     .unwrap();
     ///
-    ///     let mut all_content = file.get_content(&forest, store).await.unwrap();
+    ///     let mut all_content = file.get_content(forest, store).await.unwrap();
     ///
     ///     assert_eq!(content, all_content);
     /// }
@@ -334,10 +330,10 @@ impl PrivateFile {
     pub(super) async fn prepare_content(
         bare_name: &Namefilter,
         content: Vec<u8>,
-        mut forest: Rc<PrivateForest>,
+        forest: &mut Rc<PrivateForest>,
         store: &mut impl BlockStore,
         rng: &mut impl RngCore,
-    ) -> Result<(FileContent, Rc<PrivateForest>)> {
+    ) -> Result<FileContent> {
         // TODO(appcypher): Use a better heuristic to determine when to use external storage.
         let key = SnapshotKey(AesKey::new(get_random_bytes(rng)));
         let block_count = (content.len() as f64 / MAX_BLOCK_CONTENT_SIZE as f64).ceil() as usize;
@@ -352,19 +348,16 @@ impl PrivateFile {
             let enc_bytes = key.encrypt(slice, rng)?;
             let content_cid = store.put_block(enc_bytes, IpldCodec::Raw).await?;
 
-            forest = forest
+            forest
                 .put_encrypted(label, Some(content_cid), store)
                 .await?;
         }
 
-        Ok((
-            FileContent::External {
-                key,
-                block_count,
-                block_content_size: MAX_BLOCK_CONTENT_SIZE,
-            },
-            forest,
-        ))
+        Ok(FileContent::External {
+            key,
+            block_count,
+            block_content_size: MAX_BLOCK_CONTENT_SIZE,
+        })
     }
 
     /// Gets the upper bound of a file content size.
@@ -480,22 +473,22 @@ impl PrivateFile {
     pub(crate) async fn prepare_key_rotation(
         &mut self,
         parent_bare_name: Namefilter,
-        forest: Rc<PrivateForest>,
+        forest: &mut Rc<PrivateForest>,
         store: &mut impl BlockStore,
         rng: &mut impl RngCore,
-    ) -> Result<Rc<PrivateForest>> {
-        let content = self.get_content(&forest, store).await?;
+    ) -> Result<()> {
+        let content = self.get_content(forest, store).await?;
 
         self.header.inumber = utils::get_random_bytes(rng);
         self.header.update_bare_name(parent_bare_name);
         self.header.reset_ratchet(rng);
         self.content.persisted_as = OnceCell::new();
 
-        let (content, forest) =
+        let content =
             Self::prepare_content(&self.header.bare_name, content, forest, store, rng).await?;
         self.content.content = content;
 
-        Ok(forest)
+        Ok(())
     }
 
     pub(crate) async fn store(
@@ -645,7 +638,7 @@ mod tests {
         let mut content = vec![0u8; MAX_BLOCK_CONTENT_SIZE * 5];
         rand::thread_rng().fill(&mut content[..]);
 
-        let (file, (ref forest, ref store, _)) = test_setup::private!(file, content.clone());
+        let (file, (ref mut forest, ref store, _)) = test_setup::private!(file, content.clone());
 
         let mut collected_content = Vec::new();
         let mut stream = file.stream_content(2, forest, store);

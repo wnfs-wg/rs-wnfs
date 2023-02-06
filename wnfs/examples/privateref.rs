@@ -16,7 +16,7 @@ async fn main() -> anyhow::Result<()> {
 
     let store = &mut MemoryBlockStore::default();
     let rng = &mut thread_rng();
-    let forest = Rc::new(PrivateForest::new());
+    let forest = &mut Rc::new(PrivateForest::new());
 
     // ----------- Create a private directory -----------
 
@@ -30,9 +30,7 @@ async fn main() -> anyhow::Result<()> {
     let inumber = utils::get_random_bytes::<32>(rng); // Needs to be random
 
     // Create a root directory from the ratchet_seed, inumber and namefilter. Directory gets saved in forest.
-    let PrivateOpResult {
-        forest, root_dir, ..
-    } = PrivateDirectory::new_with_seed_and_store(
+    let PrivateOpResult { root_dir, .. } = PrivateDirectory::new_with_seed_and_store(
         Namefilter::default(),
         Utc::now(),
         ratchet_seed,
@@ -47,9 +45,7 @@ async fn main() -> anyhow::Result<()> {
     // ----------- Create a subdirectory -----------
 
     // Add a /movies/anime to the directory.
-    let PrivateOpResult {
-        forest, root_dir, ..
-    } = root_dir
+    let PrivateOpResult { root_dir, .. } = root_dir
         .mkdir(
             &["movies".into(), "anime".into()],
             true,

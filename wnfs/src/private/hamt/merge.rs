@@ -30,7 +30,7 @@ where
     for change in kv_changes {
         match change.r#type {
             ChangeType::Remove => {
-                merge_node = merge_node
+                merge_node
                     .set(change.key, change.other_value.unwrap(), store)
                     .await?;
             }
@@ -45,7 +45,7 @@ where
                     .await?
                     .ok_or(HamtError::KeyNotFound)?;
 
-                merge_node = merge_node
+                merge_node
                     .set(change.key, f(main_value, other_value)?, store)
                     .await?;
             }

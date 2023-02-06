@@ -544,7 +544,7 @@ mod tests {
         let TestSetup {
             mut rng,
             mut store,
-            forest,
+            ref mut forest,
             root_dir,
             discrepancy_budget,
         } = TestSetup::new();
@@ -552,16 +552,14 @@ mod tests {
         let rng = &mut rng;
         let store = &mut store;
 
-        let (forest, _) = forest
+        forest
             .put(&PrivateNode::Dir(Rc::clone(&root_dir)), store, rng)
             .await
             .unwrap();
 
         let past_ratchet = root_dir.header.ratchet.clone();
 
-        let PrivateOpResult {
-            root_dir, forest, ..
-        } = root_dir
+        let PrivateOpResult { root_dir, .. } = root_dir
             .write(
                 &["file.txt".into()],
                 true,
@@ -574,9 +572,7 @@ mod tests {
             .await
             .unwrap();
 
-        let PrivateOpResult {
-            root_dir, forest, ..
-        } = root_dir
+        let PrivateOpResult { root_dir, .. } = root_dir
             .mkdir(&["docs".into()], true, Utc::now(), forest, store, rng)
             .await
             .unwrap();
@@ -587,7 +583,7 @@ mod tests {
             discrepancy_budget,
             &[],
             true,
-            Rc::clone(&forest),
+            Rc::clone(forest),
             store,
         )
         .await
@@ -632,7 +628,7 @@ mod tests {
         let TestSetup {
             mut rng,
             mut store,
-            forest,
+            ref mut forest,
             root_dir,
             discrepancy_budget,
         } = TestSetup::new();
@@ -640,7 +636,7 @@ mod tests {
         let rng = &mut rng;
         let store = &mut store;
 
-        let (forest, _) = forest
+        forest
             .put(&PrivateNode::Dir(Rc::clone(&root_dir)), store, rng)
             .await
             .unwrap();
@@ -649,16 +645,12 @@ mod tests {
 
         let path = ["Docs".into(), "Notes.md".into()];
 
-        let PrivateOpResult {
-            root_dir, forest, ..
-        } = root_dir
+        let PrivateOpResult { root_dir, .. } = root_dir
             .write(&path, true, Utc::now(), b"Hi".to_vec(), forest, store, rng)
             .await
             .unwrap();
 
-        let PrivateOpResult {
-            root_dir, forest, ..
-        } = root_dir
+        let PrivateOpResult { root_dir, .. } = root_dir
             .write(
                 &path,
                 true,
@@ -677,7 +669,7 @@ mod tests {
             discrepancy_budget,
             &path,
             true,
-            Rc::clone(&forest),
+            Rc::clone(forest),
             store,
         )
         .await
@@ -691,7 +683,7 @@ mod tests {
                 .unwrap()
                 .as_file()
                 .unwrap()
-                .get_content(&forest, store)
+                .get_content(forest, store)
                 .await
                 .unwrap(),
             b"Hi".to_vec()
@@ -735,7 +727,7 @@ mod tests {
         let TestSetup {
             mut rng,
             mut store,
-            forest,
+            ref mut forest,
             root_dir,
             discrepancy_budget,
         } = TestSetup::new();
@@ -743,7 +735,7 @@ mod tests {
         let rng = &mut rng;
         let store = &mut store;
 
-        let (forest, _) = forest
+        forest
             .put(&PrivateNode::Dir(Rc::clone(&root_dir)), store, rng)
             .await
             .unwrap();
@@ -752,16 +744,13 @@ mod tests {
 
         let path = ["Docs".into(), "Notes.md".into()];
 
-        let PrivateOpResult {
-            root_dir, forest, ..
-        } = root_dir
+        let PrivateOpResult { root_dir, .. } = root_dir
             .write(&path, true, Utc::now(), b"Hi".to_vec(), forest, store, rng)
             .await
             .unwrap();
 
         let PrivateOpResult {
             root_dir,
-            forest,
             result: docs_dir,
             ..
         } = root_dir
@@ -771,7 +760,7 @@ mod tests {
 
         let docs_dir = docs_dir.unwrap().as_dir().unwrap();
 
-        let PrivateOpResult { forest, .. } = docs_dir
+        docs_dir
             .write(
                 &["Notes.md".into()],
                 true,
@@ -790,7 +779,7 @@ mod tests {
             discrepancy_budget,
             &path,
             true,
-            Rc::clone(&forest),
+            Rc::clone(forest),
             store,
         )
         .await
@@ -804,7 +793,7 @@ mod tests {
                 .unwrap()
                 .as_file()
                 .unwrap()
-                .get_content(&forest, store)
+                .get_content(forest, store)
                 .await
                 .unwrap(),
             b"Hi".to_vec()
@@ -848,7 +837,7 @@ mod tests {
         let TestSetup {
             mut rng,
             mut store,
-            forest,
+            ref mut forest,
             root_dir,
             discrepancy_budget,
         } = TestSetup::new();
@@ -858,9 +847,7 @@ mod tests {
 
         let path = ["Docs".into(), "Notes.md".into()];
 
-        let PrivateOpResult {
-            root_dir, forest, ..
-        } = root_dir
+        let PrivateOpResult { root_dir, .. } = root_dir
             .write(
                 &path,
                 true,
@@ -877,7 +864,6 @@ mod tests {
 
         let PrivateOpResult {
             root_dir,
-            forest,
             result: docs_dir,
             ..
         } = root_dir
@@ -887,7 +873,7 @@ mod tests {
 
         let docs_dir = docs_dir.unwrap().as_dir().unwrap();
 
-        let PrivateOpResult { forest, .. } = docs_dir
+        docs_dir
             .write(
                 &["Notes.md".into()],
                 true,
@@ -900,9 +886,7 @@ mod tests {
             .await
             .unwrap();
 
-        let PrivateOpResult {
-            root_dir, forest, ..
-        } = root_dir
+        let PrivateOpResult { root_dir, .. } = root_dir
             .write(
                 &path,
                 true,
@@ -921,7 +905,7 @@ mod tests {
             discrepancy_budget,
             &path,
             true,
-            Rc::clone(&forest),
+            Rc::clone(forest),
             store,
         )
         .await
@@ -935,7 +919,7 @@ mod tests {
                 .unwrap()
                 .as_file()
                 .unwrap()
-                .get_content(&forest, store)
+                .get_content(forest, store)
                 .await
                 .unwrap(),
             b"rev 1".to_vec()
@@ -949,7 +933,7 @@ mod tests {
                 .unwrap()
                 .as_file()
                 .unwrap()
-                .get_content(&forest, store)
+                .get_content(forest, store)
                 .await
                 .unwrap(),
             b"rev 0".to_vec()
@@ -993,7 +977,7 @@ mod tests {
         let TestSetup {
             mut rng,
             mut store,
-            forest,
+            ref mut forest,
             root_dir,
             discrepancy_budget,
         } = TestSetup::new();
@@ -1003,9 +987,7 @@ mod tests {
 
         let path = ["Docs".into(), "Notes.md".into()];
 
-        let PrivateOpResult {
-            root_dir, forest, ..
-        } = root_dir
+        let PrivateOpResult { root_dir, .. } = root_dir
             .write(
                 &path,
                 true,
@@ -1022,14 +1004,12 @@ mod tests {
 
         let root_dir = Rc::new(root_dir.prepare_next_revision(store, rng).await.unwrap());
 
-        let (forest, _) = forest
+        forest
             .put(&PrivateNode::Dir(Rc::clone(&root_dir)), store, rng)
             .await
             .unwrap();
 
-        let PrivateOpResult {
-            root_dir, forest, ..
-        } = root_dir
+        let PrivateOpResult { root_dir, .. } = root_dir
             .write(
                 &path,
                 true,
@@ -1053,7 +1033,7 @@ mod tests {
             discrepancy_budget,
             &path,
             true,
-            Rc::clone(&forest),
+            Rc::clone(forest),
             store,
         )
         .await
@@ -1067,7 +1047,7 @@ mod tests {
                 .unwrap()
                 .as_file()
                 .unwrap()
-                .get_content(&forest, store)
+                .get_content(forest, store)
                 .await
                 .unwrap(),
             b"rev 0".to_vec()
