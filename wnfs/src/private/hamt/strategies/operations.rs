@@ -188,10 +188,10 @@ where
     for op in &operations.0 {
         match op {
             Operation::Insert(key, value) => {
-                node = node.set(key.clone(), value.clone(), store).await?;
+                node.set(key.clone(), value.clone(), store).await?;
             }
             Operation::Remove(key) => {
-                (node, _) = node.remove(key, store).await?;
+                node.remove(key, store).await?;
             }
         };
     }

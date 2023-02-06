@@ -235,7 +235,7 @@ mod tests {
 
     #[async_std::test]
     async fn can_create_revisionref_deterministically_with_user_provided_seeds() {
-        let (forest, store, rng) = test_setup::init!(forest, mut store, mut rng);
+        let (ref mut forest, store, rng) = test_setup::init!(forest, mut store, mut rng);
         let ratchet_seed = utils::get_random_bytes::<32>(rng);
         let inumber = utils::get_random_bytes::<32>(rng);
 
@@ -247,7 +247,7 @@ mod tests {
         ));
 
         // Throwing away the private ref
-        let (forest, _) = forest.put(&dir, store, rng).await.unwrap();
+        forest.put(&dir, store, rng).await.unwrap();
 
         // Creating deterministic revision ref and retrieve the content.
         let revision_ref = RevisionRef::with_seed(Default::default(), ratchet_seed, inumber);

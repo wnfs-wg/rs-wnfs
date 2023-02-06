@@ -36,7 +36,7 @@ where
 {
     let mut node: Rc<Node<K, V>> = Rc::new(Node::default());
     for (k, v) in pairs {
-        node = node.set(k, v, store).await?;
+        node.set(k, v, store).await?;
     }
 
     Ok(node)

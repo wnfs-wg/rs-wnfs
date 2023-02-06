@@ -95,16 +95,16 @@ impl<K, V, H: Hasher> Hamt<K, V, H> {
     ///     let store = &mut MemoryBlockStore::default();
     ///
     ///     let main_hamt = Hamt::<String, usize>::with_root({
-    ///         let node = Rc::new(Node::default());
-    ///         let node = node.set("foo".into(), 400, store).await.unwrap();
-    ///         let node = node.set("bar".into(), 500, store).await.unwrap();
+    ///         let mut node = Rc::new(Node::default());
+    ///         node.set("foo".into(), 400, store).await.unwrap();
+    ///         node.set("bar".into(), 500, store).await.unwrap();
     ///         node
     ///     });
     ///
     ///     let other_hamt = Hamt::<String, usize>::with_root({
-    ///         let node = Rc::new(Node::default());
-    ///         let node = node.set("foo".into(), 200, store).await.unwrap();
-    ///         let node = node.set("qux".into(), 600, store).await.unwrap();
+    ///         let mut node = Rc::new(Node::default());
+    ///         node.set("foo".into(), 200, store).await.unwrap();
+    ///         node.set("qux".into(), 600, store).await.unwrap();
     ///         node
     ///     });
     ///
@@ -147,16 +147,16 @@ impl<K, V, H: Hasher> Hamt<K, V, H> {
     ///     let store = &mut MemoryBlockStore::default();
     ///
     ///     let main_hamt = Hamt::<String, usize>::with_root({
-    ///         let node = Rc::new(Node::default());
-    ///         let node = node.set("foo".into(), 400, store).await.unwrap();
-    ///         let node = node.set("bar".into(), 500, store).await.unwrap();
+    ///         let mut node = Rc::new(Node::default());
+    ///         node.set("foo".into(), 400, store).await.unwrap();
+    ///         node.set("bar".into(), 500, store).await.unwrap();
     ///         node
     ///     });
     ///
     ///     let other_hamt = Hamt::<String, usize>::with_root({
-    ///         let node = Rc::new(Node::default());
-    ///         let node = node.set("foo".into(), 200, store).await.unwrap();
-    ///         let node = node.set("qux".into(), 600, store).await.unwrap();
+    ///         let mut node = Rc::new(Node::default());
+    ///         node.set("foo".into(), 200, store).await.unwrap();
+    ///         node.set("qux".into(), 600, store).await.unwrap();
     ///         node
     ///     });
     ///

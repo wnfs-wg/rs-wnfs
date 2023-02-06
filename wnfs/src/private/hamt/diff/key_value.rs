@@ -40,23 +40,23 @@ type EitherPairOrNode<'a, K, V, H> = Option<Either<&'a Pair<K, V>, &'a Rc<Node<K
 /// #[async_std::main]
 /// async fn main() {
 ///     let store = &mut MemoryBlockStore::new();
-///     let mut main_node = Rc::new(Node::<[u8; 4], String>::default());
+///     let main_node = &mut Rc::new(Node::<[u8; 4], String>::default());
 ///     for i in 0u32..3 {
-///         main_node = main_node
+///         main_node
 ///             .set(i.to_le_bytes(), i.to_string(), store)
 ///             .await
 ///             .unwrap();
 ///     }
 ///
-///     let mut other_node = Rc::new(Node::<[u8; 4], String>::default());
-///     other_node = other_node
+///     let other_node = &mut Rc::new(Node::<[u8; 4], String>::default());
+///     other_node
 ///         .set(0_u32.to_le_bytes(), 0_u32.to_string(), store)
 ///         .await
 ///         .unwrap();
 ///
 ///     let changes = diff::kv_diff(
-///         Link::from(Rc::clone(&main_node)),
-///         Link::from(Rc::clone(&other_node)),
+///         Link::from(Rc::clone(main_node)),
+///         Link::from(Rc::clone(other_node)),
 ///         store,
 ///     )
 ///     .await
@@ -214,23 +214,23 @@ mod tests {
     async fn can_diff_main_node_with_added_removed_pairs() {
         let store = test_setup::init!(mut store);
 
-        let mut main_node = Rc::new(Node::<[u8; 4], String>::default());
+        let main_node = &mut Rc::new(Node::<[u8; 4], String>::default());
         for i in 0u32..3 {
-            main_node = main_node
+            main_node
                 .set(i.to_le_bytes(), i.to_string(), store)
                 .await
                 .unwrap();
         }
 
-        let mut other_node = Rc::new(Node::<[u8; 4], String>::default());
-        other_node = other_node
+        let other_node = &mut Rc::new(Node::<[u8; 4], String>::default());
+        other_node
             .set(0_u32.to_le_bytes(), 0_u32.to_string(), store)
             .await
             .unwrap();
 
         let changes = kv_diff(
-            Link::from(Rc::clone(&main_node)),
-            Link::from(Rc::clone(&other_node)),
+            Link::from(Rc::clone(main_node)),
+            Link::from(Rc::clone(other_node)),
             store,
         )
         .await
@@ -254,9 +254,13 @@ mod tests {
             ]
         );
 
-        let changes = kv_diff(Link::from(other_node), Link::from(main_node), store)
-            .await
-            .unwrap();
+        let changes = kv_diff(
+            Link::from(Rc::clone(other_node)),
+            Link::from(Rc::clone(main_node)),
+            store,
+        )
+        .await
+        .unwrap();
 
         assert_eq!(
             changes,
@@ -281,25 +285,29 @@ mod tests {
     async fn can_diff_main_node_with_no_changes() {
         let store = test_setup::init!(mut store);
 
-        let mut main_node = Rc::new(Node::<_, _>::default());
+        let main_node = &mut Rc::new(Node::<_, _>::default());
         for i in 0_u32..3 {
-            main_node = main_node
+            main_node
                 .set(i.to_le_bytes(), i.to_string(), store)
                 .await
                 .unwrap();
         }
 
-        let mut other_node = Rc::new(Node::<_, _>::default());
+        let other_node = &mut Rc::new(Node::<_, _>::default());
         for i in 0_u32..3 {
-            other_node = other_node
+            other_node
                 .set(i.to_le_bytes(), i.to_string(), store)
                 .await
                 .unwrap();
         }
 
-        let changes = kv_diff(Link::from(main_node), Link::from(other_node), store)
-            .await
-            .unwrap();
+        let changes = kv_diff(
+            Link::from(Rc::clone(main_node)),
+            Link::from(Rc::clone(other_node)),
+            store,
+        )
+        .await
+        .unwrap();
 
         assert!(changes.is_empty());
     }
@@ -309,9 +317,9 @@ mod tests {
         let store = test_setup::init!(mut store);
 
         // A node that adds the first 3 pairs of HASH_KV_PAIRS.
-        let mut other_node = Rc::new(Node::<_, _, MockHasher>::default());
+        let other_node = &mut Rc::new(Node::<_, _, MockHasher>::default());
         for (digest, kv) in HASH_KV_PAIRS.iter().take(3) {
-            other_node = other_node
+            other_node
                 .set_value(
                     &mut HashNibbles::new(digest),
                     kv.to_string(),
@@ -323,8 +331,8 @@ mod tests {
         }
 
         // Another node that keeps the first pair, modify the second pair, removes the third pair, and adds the fourth and fifth pair.
-        let mut main_node = Rc::new(Node::<_, _, MockHasher>::default());
-        main_node = main_node
+        let main_node = &mut Rc::new(Node::<_, _, MockHasher>::default());
+        main_node
             .set_value(
                 &mut HashNibbles::new(&HASH_KV_PAIRS[0].0),
                 HASH_KV_PAIRS[0].1.to_string(),
@@ -334,7 +342,7 @@ mod tests {
             .await
             .unwrap();
 
-        main_node = main_node
+        main_node
             .set_value(
                 &mut HashNibbles::new(&HASH_KV_PAIRS[1].0),
                 HASH_KV_PAIRS[1].1.to_string(),
@@ -345,7 +353,7 @@ mod tests {
             .unwrap();
 
         for (digest, kv) in HASH_KV_PAIRS.iter().skip(3).take(2) {
-            main_node = main_node
+            main_node
                 .set_value(
                     &mut HashNibbles::new(digest),
                     kv.to_string(),
@@ -357,8 +365,8 @@ mod tests {
         }
 
         let changes = kv_diff(
-            Link::from(Rc::clone(&main_node)),
-            Link::from(Rc::clone(&other_node)),
+            Link::from(Rc::clone(main_node)),
+            Link::from(Rc::clone(other_node)),
             store,
         )
         .await
@@ -394,9 +402,13 @@ mod tests {
             ]
         );
 
-        let changes = kv_diff(Link::from(other_node), Link::from(main_node), store)
-            .await
-            .unwrap();
+        let changes = kv_diff(
+            Link::from(Rc::clone(other_node)),
+            Link::from(Rc::clone(main_node)),
+            store,
+        )
+        .await
+        .unwrap();
 
         assert_eq!(
             changes,
@@ -455,22 +467,19 @@ mod proptests {
             let store = test_setup::init!(mut store);
             let (ops, strategy_changes) = ops_changes;
 
-            let other_node = strategies::prepare_node(
-                strategies::node_from_operations(&ops, store).await.unwrap(),
-                &strategy_changes,
-                store,
-            )
-            .await
-            .unwrap();
+            let other_node = &mut strategies::node_from_operations(&ops, store).await.unwrap();
+            strategies::prepare_node(other_node, &strategy_changes, store)
+                .await
+                .unwrap();
 
-            let main_node =
-                strategies::apply_changes(Rc::clone(&other_node), &strategy_changes, store)
-                    .await
-                    .unwrap();
+            let main_node = &mut Rc::clone(other_node);
+            strategies::apply_changes(main_node, &strategy_changes, store)
+                .await
+                .unwrap();
 
             let changes = super::kv_diff(
-                Link::from(Rc::clone(&main_node)),
-                Link::from(Rc::clone(&other_node)),
+                Link::from(Rc::clone(main_node)),
+                Link::from(Rc::clone(other_node)),
                 store,
             )
             .await

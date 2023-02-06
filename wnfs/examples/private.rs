@@ -39,7 +39,7 @@ async fn get_forest_cid_and_private_ref(
     rng: &mut impl RngCore,
 ) -> (Cid, PrivateRef) {
     // Create the private forest (a HAMT), a map-like structure where file and directory ciphertexts are stored.
-    let forest = Rc::new(PrivateForest::new());
+    let forest = &mut Rc::new(PrivateForest::new());
 
     // Create a new directory.
     let dir = Rc::new(PrivateDirectory::new(
@@ -49,9 +49,7 @@ async fn get_forest_cid_and_private_ref(
     ));
 
     // Add a /pictures/cats subdirectory.
-    let PrivateOpResult {
-        forest, root_dir, ..
-    } = dir
+    let PrivateOpResult { root_dir, .. } = dir
         .mkdir(
             &["pictures".into(), "cats".into()],
             true,
@@ -64,7 +62,7 @@ async fn get_forest_cid_and_private_ref(
         .unwrap();
 
     // Persist encoded private forest to the block store.
-    let forest_cid = store.put_async_serializable(&forest).await.unwrap();
+    let forest_cid = store.put_async_serializable(forest).await.unwrap();
 
     let (_, content_cid) = root_dir.store(store, rng).await.unwrap();
 
