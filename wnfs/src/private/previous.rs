@@ -82,7 +82,6 @@ impl PrivateNodeHistory {
     /// Create a history iterator for a node given its header.
     ///
     /// See also `PrivateNodeHistory::of`.
-    #[allow(clippy::mutable_key_type)]
     pub fn from_header(
         header: PrivateNodeHeader,
         previous: BTreeSet<(usize, Encrypted<Cid>)>,
