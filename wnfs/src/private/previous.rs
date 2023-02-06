@@ -82,6 +82,7 @@ impl PrivateNodeHistory {
     /// Create a history iterator for a node given its header.
     ///
     /// See also `PrivateNodeHistory::of`.
+    #[allow(clippy::mutable_key_type)]
     pub fn from_header(
         header: PrivateNodeHeader,
         previous: BTreeSet<(usize, Encrypted<Cid>)>,
@@ -136,7 +137,7 @@ impl PrivateNodeHistory {
     }
 
     fn resolve_previous_cid(&self, previous_ratchet: &Ratchet) -> Result<Option<Cid>> {
-        // TODO(matheus23): Support walking forked history paths.
+        // TODO(matheus23): Once we have private merge: Support walking forked history paths.
         // That would need an additional API that allows 'selecting' one of the forks before moving on.
         // Then this function would derive the nth-previous ratchet by "peeking" ahead the current
         // self.ratchets iterator for n (the "# of revisions back" usize attached to the previous pointer)
@@ -148,9 +149,7 @@ impl PrivateNodeHistory {
         else {
             return Ok(None)
         };
-        Ok(Some(
-            first_backpointer.resolve_value(&revision_key)?.clone(),
-        ))
+        Ok(Some(*first_backpointer.resolve_value(&revision_key)?))
     }
 
     /// Like `previous_node`, but attempts to resolve a directory.

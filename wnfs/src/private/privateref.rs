@@ -11,17 +11,16 @@ use serde::{de::Error as DeError, ser::Error as SerError, Deserialize, Serialize
 // Type Definitions
 //--------------------------------------------------------------------------------------------------
 
-/// PrivateRef holds the information to fetch associated node from a private forest and decrypt it if it is present.
+/// PrivateRef holds the information to fetch a specific node from the private forest and decrypt it.
 ///
-/// It also includes required key material to decrypt/encrypt the revision it points to
-/// as well as any future revisions.
+/// It also includes required key material to decrypt/encrypt any future revisions of the node it points to.
 #[derive(Clone, PartialEq, Eq)]
 pub struct PrivateRef {
     /// Sha3-256 hash of saturated namefilter.
     pub(crate) saturated_name_hash: HashOutput,
     /// Skip-ratchet-derived key.
     pub(crate) revision_key: RevisionKey,
-    /// TODO(matheus23) docs
+    /// CID that identifies the exact value in the multivalue
     pub(crate) content_cid: Cid,
 }
 
@@ -37,13 +36,13 @@ pub(crate) struct PrivateRefSerializable {
     pub(crate) content_cid: Cid,
 }
 
-/// TODO(matheus23) docs
-/// This is outside spec: Just a pointer to a revision without
-/// disambiguating the actual content block.
+/// A pointer to a specific revision in the private forest
+/// together with the RevisionKey to decrypt any of these
+/// revisions.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RevisionRef {
-    pub saturated_name_hash: HashOutput,
-    pub revision_key: RevisionKey,
+    pub(crate) saturated_name_hash: HashOutput,
+    pub(crate) revision_key: RevisionKey,
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -147,7 +146,8 @@ impl PrivateRef {
         PrivateRef::from_serializable(private_ref, revision_key).map_err(DeError::custom)
     }
 
-    /// TODO(matheus23) docs
+    /// Returns a revision ref that refers to all other multivalues
+    /// next to this private ref's value.
     pub fn as_revision_ref(self) -> RevisionRef {
         RevisionRef {
             saturated_name_hash: self.saturated_name_hash,
@@ -155,7 +155,7 @@ impl PrivateRef {
         }
     }
 
-    /// TODO(matheus23) docs
+    /// Returns the label used for identifying the revision in the PrivateForest.
     pub fn get_saturated_name_hash(&self) -> &HashOutput {
         &self.saturated_name_hash
     }
@@ -198,13 +198,23 @@ impl RevisionRef {
         PrivateNodeHeader::with_seed(name, ratchet_seed, inumber).derive_revision_ref()
     }
 
-    /// TODO(matheus23) docs
+    /// Turns a reivison ref into a more specific pointer, a private ref.
+    ///
+    /// The revision ref refers to a whole multivalue that may or may not exist
+    /// or may refer to multiple private nodes.
+    ///
+    /// The resulting private ref refers to the given CID in the multivalue.
     pub fn as_private_ref(self, content_cid: Cid) -> PrivateRef {
         PrivateRef {
             saturated_name_hash: self.saturated_name_hash,
             revision_key: self.revision_key,
             content_cid,
         }
+    }
+
+    /// Returns the label used for identifying the revision in the PrivateForest.
+    pub fn get_saturated_name_hash(&self) -> &HashOutput {
+        &self.saturated_name_hash
     }
 }
 
@@ -215,14 +225,16 @@ impl RevisionRef {
 #[cfg(test)]
 mod tests {
     use crate::{
-        private::PrivateNodeHeader,
         utils::{self, test_setup},
         PrivateDirectory, PrivateNode,
     };
     use chrono::Utc;
+    use futures::StreamExt;
+
+    use super::RevisionRef;
 
     #[async_std::test]
-    async fn can_create_privateref_deterministically_with_user_provided_seeds() {
+    async fn can_create_revisionref_deterministically_with_user_provided_seeds() {
         let (forest, store, rng) = test_setup::init!(forest, mut store, mut rng);
         let ratchet_seed = utils::get_random_bytes::<32>(rng);
         let inumber = utils::get_random_bytes::<32>(rng);
@@ -237,31 +249,14 @@ mod tests {
         // Throwing away the private ref
         let (forest, _) = forest.put(&dir, store, rng).await.unwrap();
 
-        // TODO(matheus23) refactor this (!!!)
-
-        // Creating deterministic header and retrieve the content.
-        let header = PrivateNodeHeader::with_seed(Default::default(), ratchet_seed, inumber);
-        let saturated_name_hash = header.get_saturated_name_hash();
-        let retrieved_node_cids = forest
-            .get_encrypted(&saturated_name_hash, store)
+        // Creating deterministic revision ref and retrieve the content.
+        let revision_ref = RevisionRef::with_seed(Default::default(), ratchet_seed, inumber);
+        let retrieved_node = forest
+            .get_multivalue(&revision_ref, store)
+            .next()
             .await
             .unwrap()
             .unwrap();
-
-        let mut result = None;
-        for cid in retrieved_node_cids {
-            match PrivateNode::load(&header.derive_revision_ref().as_private_ref(*cid), store).await
-            {
-                Ok(node) => {
-                    result = Some(node);
-                    break;
-                }
-                // TODO(matheus23) only match AES errors
-                Err(_) => {}
-            }
-        }
-
-        let retrieved_node = result.unwrap();
 
         assert_eq!(retrieved_node, dir);
     }

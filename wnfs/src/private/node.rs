@@ -153,7 +153,7 @@ impl PrivateNode {
         mut forest: Rc<PrivateForest>,
         store: &mut impl BlockStore,
         rng: &mut impl RngCore,
-        // TODO(matheus23) consider PrivateOpResult
+        // TODO(matheus23) consider using forest: &mut Rc<PrivateForest> instead.
     ) -> Result<(Rc<PrivateForest>, PrivateRef)> {
         match self {
             Self::File(file) => {
@@ -234,6 +234,7 @@ impl PrivateNode {
     /// The previous links is `None`, it doesn't have previous Cids.
     /// The node is malformed if the previous links are `Some`, but
     /// the `BTreeSet` inside is empty.
+    #[allow(clippy::mutable_key_type)]
     pub fn get_previous(&self) -> &BTreeSet<(usize, Encrypted<Cid>)> {
         match self {
             Self::File(file) => &file.content.previous,
@@ -396,15 +397,16 @@ impl PrivateNode {
             .await?
             .into_iter()
             .next()
-            .into_iter()
-            .next()
             // We expect the latest revision to have found valid nodes.
             // otherwise it's a revision that's filled with other stuff
             // than PrivateNodes, which should be an error.
             .ok_or(FsError::NotFound.into())
     }
 
-    /// TODO(matheus23) docs
+    /// Seek ahead to the latest revision in this node's history.
+    ///
+    /// The result are all nodes from the latest revision, each one
+    /// representing an instance of a concurrent write.
     pub async fn search_latest_nodes(
         &self,
         forest: &PrivateForest,
@@ -413,7 +415,7 @@ impl PrivateNode {
         let header = self.get_header();
 
         let current_name = &header.get_saturated_name_hash();
-        if !forest.has(&current_name, store).await? {
+        if !forest.has(current_name, store).await? {
             return Ok(vec![self.clone()]);
         }
 
@@ -445,12 +447,13 @@ impl PrivateNode {
 
         current_header.ratchet = search.current().clone();
 
-        // TODO(matheus23) perhaps refactor to return a stream for this function, too?
-        // Had some trouble doing that with the constant `return Ok(vec![self.clone()])` above, though.
         Ok(forest
             .get_multivalue(&current_header.derive_revision_ref(), store)
-            .collect()
-            .await)
+            .collect::<Vec<Result<PrivateNode>>>()
+            .await
+            .into_iter()
+            .filter_map(|result| result.ok()) // Should we filter out errors?
+            .collect())
     }
 
     pub(crate) async fn load(
@@ -614,7 +617,7 @@ impl PrivateNodeHeader {
         }
     }
 
-    /// TODO(matheus23) docs
+    /// Returns the label used for identifying the revision in the PrivateForest.
     pub fn get_saturated_name_hash(&self) -> HashOutput {
         Sha3_256::hash(&self.get_saturated_name())
     }
@@ -703,7 +706,8 @@ impl PrivateNodeHeader {
         self.get_saturated_name_with_key(&revision_key)
     }
 
-    /// TODO(matheus23) docs
+    /// Encrypts this private node header in an block, then stores that in the given
+    /// BlockStore and returns its CID.
     pub async fn store(&self, store: &mut impl BlockStore) -> Result<Cid> {
         let revision_key = self.derive_revision_key();
         let cbor_bytes = dagcbor::encode(self)?;
@@ -711,8 +715,9 @@ impl PrivateNodeHeader {
         store.put_block(ciphertext, IpldCodec::Raw).await
     }
 
-    /// TODO(matheus23) docs
-    pub async fn load(
+    /// Loads a private node header from a given CID linking to the ciphertext block
+    /// to be decrypted with given key.
+    pub(crate) async fn load(
         cid: &Cid,
         revision_key: &RevisionKey,
         store: &impl BlockStore,
@@ -769,23 +774,34 @@ impl From<ContentKey> for AesKey {
 }
 
 impl RevisionKey {
-    /// TODO(matheus23) docs
+    /// Turn this RevisionKey, which gives read access to the current revision and any future
+    /// revisions into a ContentKey, which only gives read access to the current revision.
     pub fn derive_content_key(&self) -> ContentKey {
         let RevisionKey(key) = self;
         ContentKey(AesKey::new(Sha3_256::hash(&key.as_bytes())))
     }
 
-    /// TODO(matheus23) docs
+    /// Encrypt a cleartext with this revision key.
+    ///
+    /// Uses authenticated deterministic encryption via AES key wrap with padding (AES-KWP).
+    ///
+    /// The resulting ciphertext is 8 bytes longer than the next multiple of 8 bytes of the
+    /// cleartext input length.
     pub fn key_wrap_encrypt(&self, cleartext: &[u8]) -> Result<Vec<u8>> {
         Ok(KekAes256::from(self.0.clone().bytes())
-            .wrap_with_padding_vec(&cleartext)
+            .wrap_with_padding_vec(cleartext)
             .map_err(|e| AesError::UnableToEncrypt(format!("{e}")))?)
     }
 
-    /// TODO(matheus23) docs
+    /// Decrypt a ciphertext that was encrypted with this revision key.
+    ///
+    /// Uses authenticated deterministic encryption via AES key wrap with padding (AES-KWP).
+    ///
+    /// The input ciphertext is 8 bytes longer than the next multiple of 8 bytes of the
+    /// resulting cleartext length.
     pub fn key_wrap_decrypt(&self, ciphertext: &[u8]) -> Result<Vec<u8>> {
         Ok(KekAes256::from(self.0.clone().bytes())
-            .unwrap_with_padding_vec(&ciphertext)
+            .unwrap_with_padding_vec(ciphertext)
             .map_err(|e| AesError::UnableToEncrypt(format!("{e}")))?)
     }
 }

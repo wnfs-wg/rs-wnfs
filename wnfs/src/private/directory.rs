@@ -1336,6 +1336,8 @@ impl PrivateDirectory {
             .await
     }
 
+    /// Store the whole directory and return the header block's CID
+    /// and the content block's CID.
     pub async fn store(
         &self,
         store: &mut impl BlockStore,
@@ -1429,7 +1431,16 @@ impl PrivateDirectoryContent {
         ))
     }
 
-    /// TODO(matheus23) docs
+    /// Encrypts the directory contents by
+    /// - wrapping all subdirectory revision keys given the current revision key
+    /// - encrypting the whole directory using the content key derived from the revision key.
+    ///
+    /// The resulting ciphertext is then stored in the given BlockStore. Its CID is finally returned.
+    ///
+    /// Randomness is required for randomized encryption.
+    ///
+    /// The header cid is required as it's not stored in the PrivateDirectoryContent itself, but
+    /// stored in the serialized format.
     pub async fn store(
         &self,
         header_cid: Cid,
@@ -1444,7 +1455,7 @@ impl PrivateDirectoryContent {
                 let content_key = revision_key.derive_content_key();
 
                 // Serialize node to cbor.
-                let ipld = self.serialize(libipld::serde::Serializer, &revision_key, header_cid)?;
+                let ipld = self.serialize(libipld::serde::Serializer, revision_key, header_cid)?;
                 let mut bytes = Vec::new();
                 ipld.encode(DagCborCodec, &mut bytes)?;
 

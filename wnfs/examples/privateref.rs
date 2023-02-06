@@ -1,12 +1,12 @@
 use chrono::Utc;
 use futures::StreamExt;
 use rand::thread_rng;
+use serde::{Deserialize, Serialize};
 use sha3::Sha3_256;
 use std::{io::Cursor, rc::Rc};
 use wnfs::{
     ipld::{DagCborCodec, Decode, Encode, Ipld, Serializer},
-    private::{AesKey, PrivateForest, PrivateRef, RevisionKey, RevisionRef},
-    ratchet::Ratchet,
+    private::{AesKey, PrivateForest, RevisionRef},
     utils, Hasher, MemoryBlockStore, Namefilter, PrivateDirectory, PrivateOpResult,
 };
 
@@ -59,33 +59,25 @@ async fn main() -> anyhow::Result<()> {
             rng,
         )
         .await?;
-    // TODO(matheus23) rework this
-    let (_, content_cid) = root_dir.store(store, rng).await?;
 
-    // --------- Generate a private ref (Method 1) -----------
+    // --------- Method 1: Exchange serialized revision ref -----------
 
-    // We can create a revision_key from our ratchet_seed.
-    let ratchet = Ratchet::zero(ratchet_seed);
-    let revision_key = RevisionKey::from(&ratchet);
+    // serialize the root_dir's revision_ref.
+    let cbor = encode(&root_dir.header.derive_revision_ref())?;
 
-    // Now let's serialize the root_dir's private_ref.
-    let cbor = encode(
-        &root_dir
-            .header
-            .derive_revision_ref()
-            .as_private_ref(content_cid),
-        &revision_key,
-    )?;
+    // We can deserialize the revision_ref on the other end.
+    let revision_ref = decode(cbor)?;
 
-    // We can deserialize the private_ref using the revision_key at hand.
-    let private_ref = decode(cbor, &revision_key)?;
-
-    // Now we can fetch the directory from the forest using the private_ref.
-    let fetched_node = forest.get(&private_ref, store).await?;
+    // Now we can fetch the directory from the forest using the revision_ref.
+    let fetched_node = forest
+        .get_multivalue(&revision_ref, store)
+        .next()
+        .await
+        .unwrap()?;
 
     println!("{:#?}", fetched_node);
 
-    // --------- Generate a private ref (Method 2) -----------
+    // --------- Method 2: Generate a revision ref from a shared secret -----------
 
     // We can also create a revision ref from scratch if we remember the parameters.
     let revision_ref = RevisionRef::with_seed(Namefilter::default(), ratchet_seed, inumber);
@@ -95,7 +87,7 @@ async fn main() -> anyhow::Result<()> {
         .get_multivalue(&revision_ref, store)
         .next()
         .await
-        .unwrap();
+        .unwrap()?;
 
     println!("{:#?}", fetched_node);
 
@@ -108,14 +100,14 @@ async fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
-fn encode(private_ref: &PrivateRef, revision_key: &RevisionKey) -> anyhow::Result<Vec<u8>> {
+fn encode(revision_ref: &RevisionRef) -> anyhow::Result<Vec<u8>> {
     let mut bytes = Vec::new();
-    let ipld = private_ref.serialize(Serializer, revision_key)?;
+    let ipld = revision_ref.serialize(Serializer)?;
     ipld.encode(DagCborCodec, &mut bytes)?;
     Ok(bytes)
 }
 
-fn decode(bytes: Vec<u8>, revision_key: &RevisionKey) -> anyhow::Result<PrivateRef> {
+fn decode(bytes: Vec<u8>) -> anyhow::Result<RevisionRef> {
     let ipld = Ipld::decode(DagCborCodec, &mut Cursor::new(bytes))?;
-    PrivateRef::deserialize(ipld, revision_key).map_err(Into::into)
+    RevisionRef::deserialize(ipld).map_err(Into::into)
 }

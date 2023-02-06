@@ -3,7 +3,7 @@ use super::{
     namefilter::Namefilter,
     PrivateNode, PrivateRef, RevisionRef,
 };
-use crate::{utils::UnwrapOrClone, BlockStore, FsError, HashOutput, Hasher, Link};
+use crate::{utils::UnwrapOrClone, AesError, BlockStore, FsError, HashOutput, Hasher, Link};
 use anyhow::Result;
 use async_stream::stream;
 use futures::Stream;
@@ -152,7 +152,7 @@ impl PrivateForest {
             _ => return Err(FsError::NotFound.into()),
         };
 
-        Ok(PrivateNode::load(private_ref, store).await?)
+        PrivateNode::load(private_ref, store).await
     }
 
     /// Checks that a value with the given saturated name hash key exists.
@@ -244,12 +244,16 @@ impl PrivateForest {
         Ok((Rc::new(cloned), pair.map(|p| p.value)))
     }
 
-    /// TODO(matheus23) docs
+    /// Returns a stream of all private nodes that could be decrypted at given revision.
+    ///
+    /// The stream of results is ordered by CID.
+    ///
+    /// Each item in the resulting stream represents an instance of a concurrent write.
     pub fn get_multivalue<'a>(
         &'a self,
         revision: &'a RevisionRef,
         store: &'a impl BlockStore,
-    ) -> impl Stream<Item = PrivateNode> + 'a {
+    ) -> impl Stream<Item = Result<PrivateNode>> + 'a {
         Box::pin(stream! {
             match self
                 .get_encrypted(&revision.saturated_name_hash, store)
@@ -258,10 +262,13 @@ impl PrivateForest {
                 Ok(Some(cids)) => {
                     for cid in cids {
                         match PrivateNode::load(&revision.clone().as_private_ref(*cid), store).await {
-                            Ok(node) => yield node,
-                            // ignore nodes we can't parse. E.g. header nodes
-                            // TODO(matheus23) figure out how to match only AES errors
-                            Err(_) => {}
+                            Ok(node) => yield Ok(node),
+                            Err(e) if matches!(e.downcast_ref::<AesError>(), Some(_)) => {
+                                // we likely matched a PrivateNodeHeader instead of a PrivateNode.
+                                // we skip it
+                            }
+                            // If something else goes wrong, we tell the user about it
+                            Err(e) => yield Err(e)
                         }
                     }
                 }
@@ -342,8 +349,11 @@ where
     ///         2,
     ///         merge_forest
     ///             .get_multivalue(&revision_ref, store)
-    ///             .collect::<Vec<PrivateNode>>()
+    ///             .collect::<Vec<anyhow::Result<PrivateNode>>>()
     ///             .await
+    ///             .into_iter()
+    ///             .filter_map(|result| result.ok())
+    ///             .collect::<Vec<PrivateNode>>()
     ///             .len()
     ///     );
     /// }
