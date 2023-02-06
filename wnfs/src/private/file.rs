@@ -1,6 +1,6 @@
 use super::{
-    encrypted::Encrypted, namefilter::Namefilter, AesKey, ContentKey, PrivateForest,
-    PrivateNodeHeader, AUTHENTICATION_TAG_SIZE, NONCE_SIZE,
+    encrypted::Encrypted, namefilter::Namefilter, AesKey, PrivateForest, PrivateNodeHeader,
+    SnapshotKey, AUTHENTICATION_TAG_SIZE, NONCE_SIZE,
 };
 use crate::{
     utils, utils::get_random_bytes, BlockStore, FsError, Hasher, Id, Metadata, NodeType,
@@ -91,7 +91,7 @@ pub(crate) enum FileContent {
         data: Vec<u8>,
     },
     External {
-        key: ContentKey,
+        key: SnapshotKey,
         block_count: usize,
         block_content_size: usize,
     },
@@ -339,7 +339,7 @@ impl PrivateFile {
         rng: &mut impl RngCore,
     ) -> Result<(FileContent, Rc<PrivateForest>)> {
         // TODO(appcypher): Use a better heuristic to determine when to use external storage.
-        let key = ContentKey(AesKey::new(get_random_bytes(rng)));
+        let key = SnapshotKey(AesKey::new(get_random_bytes(rng)));
         let block_count = (content.len() as f64 / MAX_BLOCK_CONTENT_SIZE as f64).ceil() as usize;
 
         for (index, label) in
@@ -381,7 +381,7 @@ impl PrivateFile {
 
     /// Decrypts a block of a file's content.
     async fn decrypt_block(
-        key: &ContentKey,
+        key: &SnapshotKey,
         label: &Namefilter,
         forest: &PrivateForest,
         store: &impl BlockStore,
@@ -406,7 +406,7 @@ impl PrivateFile {
 
     /// Generates the labels for the shards of a file.
     fn generate_shard_labels<'a>(
-        key: &'a ContentKey,
+        key: &'a SnapshotKey,
         mut index: usize,
         block_count: usize,
         bare_name: &'a Namefilter,
@@ -423,7 +423,7 @@ impl PrivateFile {
     }
 
     /// Creates the label for a block of a file.
-    fn create_block_label(key: &ContentKey, index: usize, bare_name: &Namefilter) -> Namefilter {
+    fn create_block_label(key: &SnapshotKey, index: usize, bare_name: &Namefilter) -> Namefilter {
         let key_bytes = key.0.as_bytes();
         let key_hash = Sha3_256::hash(&[key_bytes, &index.to_le_bytes()[..]].concat());
 
@@ -446,12 +446,12 @@ impl PrivateFile {
         store: &mut impl BlockStore,
         rng: &mut impl RngCore,
     ) -> Result<Self> {
-        let revision_key = self.header.derive_revision_key();
-        let content_key = revision_key.derive_content_key();
+        let temporal_key = self.header.derive_temporal_key();
+        let snapshot_key = temporal_key.derive_snapshot_key();
         let header_cid = self.header.store(store).await?;
         let content_cid = self
             .content
-            .store(header_cid, &content_key, store, rng)
+            .store(header_cid, &snapshot_key, store, rng)
             .await?;
 
         let mut cloned = Rc::try_unwrap(self).unwrap_or_else(|rc| (*rc).clone());
@@ -461,7 +461,7 @@ impl PrivateFile {
         cloned
             .content
             .previous
-            .insert((1, Encrypted::from_value(content_cid, &revision_key)?));
+            .insert((1, Encrypted::from_value(content_cid, &temporal_key)?));
 
         cloned.header.advance_ratchet();
 
@@ -505,11 +505,11 @@ impl PrivateFile {
     ) -> Result<(Cid, Cid)> {
         let header_cid = self.header.store(store).await?;
 
-        let content_key = self.header.derive_content_key();
+        let snapshot_key = self.header.derive_snapshot_key();
 
         let content_cid = self
             .content
-            .store(header_cid, &content_key, store, rng)
+            .store(header_cid, &snapshot_key, store, rng)
             .await?;
 
         Ok((header_cid, content_cid))
@@ -572,7 +572,7 @@ impl PrivateFileContent {
     pub(crate) async fn store(
         &self,
         header_cid: Cid,
-        content_key: &ContentKey,
+        snapshot_key: &SnapshotKey,
         store: &mut impl BlockStore,
         rng: &mut impl RngCore,
     ) -> Result<Cid> {
@@ -586,8 +586,8 @@ impl PrivateFileContent {
                 let mut bytes = Vec::new();
                 ipld.encode(DagCborCodec, &mut bytes)?;
 
-                // Encrypt bytes with content key.
-                let block = content_key.encrypt(&bytes, rng)?;
+                // Encrypt bytes with snapshot key.
+                let block = snapshot_key.encrypt(&bytes, rng)?;
 
                 // Store content section in blockstore and get Cid.
                 store.put_block(block, libipld::IpldCodec::Raw).await

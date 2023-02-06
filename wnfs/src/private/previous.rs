@@ -6,7 +6,7 @@ use skip_ratchet::{ratchet::PreviousIterator, Ratchet};
 
 use super::{
     encrypted::Encrypted, PrivateDirectory, PrivateFile, PrivateForest, PrivateNode,
-    PrivateNodeHeader, RevisionKey,
+    PrivateNodeHeader, TemporalKey,
 };
 
 use crate::{BlockStore, FsError, PathNodes, PathNodesResult};
@@ -140,7 +140,7 @@ impl PrivateNodeHistory {
         // That would need an additional API that allows 'selecting' one of the forks before moving on.
         // Then this function would derive the nth-previous ratchet by "peeking" ahead the current
         // self.ratchets iterator for n (the "# of revisions back" usize attached to the previous pointer)
-        let revision_key = RevisionKey::from(previous_ratchet);
+        let temporal_key = TemporalKey::from(previous_ratchet);
         let Some((_, first_backpointer)) = self
             .previous
             .iter()
@@ -148,7 +148,7 @@ impl PrivateNodeHistory {
         else {
             return Ok(None)
         };
-        Ok(Some(*first_backpointer.resolve_value(&revision_key)?))
+        Ok(Some(*first_backpointer.resolve_value(&temporal_key)?))
     }
 
     /// Like `previous_node`, but attempts to resolve a directory.

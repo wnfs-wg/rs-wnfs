@@ -60,11 +60,11 @@ pub enum PrivateNodeContent {
 
 /// The key used to encrypt the content of a node.
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
-pub struct ContentKey(pub AesKey);
+pub struct SnapshotKey(pub AesKey);
 
 /// The key used to encrypt the header section of a node.
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
-pub struct RevisionKey(pub AesKey);
+pub struct TemporalKey(pub AesKey);
 
 /// This is the header of a private node. It contains secret information about the node which includes
 /// the inumber, the ratchet, and the namefilter.
@@ -220,7 +220,7 @@ impl PrivateNode {
     /// Gets the previous links of the node.
     ///
     /// The previous links are encrypted with the previous revision's
-    /// revision key, so you need to know an 'older' revision of the
+    /// temporal key, so you need to know an 'older' revision of the
     /// skip ratchet to decrypt these.
     ///
     /// The previous links is exactly one Cid in most cases and refers
@@ -460,8 +460,8 @@ impl PrivateNode {
         store: &impl BlockStore,
     ) -> Result<PrivateNode> {
         let encrypted_bytes = store.get_block(&private_ref.content_cid).await?;
-        let content_key = private_ref.revision_key.derive_content_key();
-        let bytes = content_key.decrypt(&encrypted_bytes)?;
+        let snapshot_key = private_ref.temporal_key.derive_snapshot_key();
+        let bytes = snapshot_key.decrypt(&encrypted_bytes)?;
         let ipld = Ipld::decode(DagCborCodec, &mut Cursor::new(bytes))?;
 
         match ipld {
@@ -478,18 +478,18 @@ impl PrivateNode {
                             private_ref.content_cid,
                         )?;
                         let header =
-                            PrivateNodeHeader::load(&header_cid, &private_ref.revision_key, store)
+                            PrivateNodeHeader::load(&header_cid, &private_ref.temporal_key, store)
                                 .await?;
                         PrivateNode::File(Rc::new(PrivateFile { header, content }))
                     }
                     NodeType::PrivateDirectory => {
                         let (content, header_cid) = PrivateDirectoryContent::deserialize(
                             Ipld::Map(map),
-                            &private_ref.revision_key,
+                            &private_ref.temporal_key,
                             private_ref.content_cid,
                         )?;
                         let header =
-                            PrivateNodeHeader::load(&header_cid, &private_ref.revision_key, store)
+                            PrivateNodeHeader::load(&header_cid, &private_ref.temporal_key, store)
                                 .await?;
                         PrivateNode::Dir(Rc::new(PrivateDirectory { header, content }))
                     }
@@ -607,12 +607,12 @@ impl PrivateNodeHeader {
     /// println!("Private ref: {:?}", revision_ref);
     /// ```
     pub fn derive_revision_ref(&self) -> RevisionRef {
-        let revision_key = self.derive_revision_key();
+        let temporal_key = self.derive_temporal_key();
         let saturated_name_hash = self.get_saturated_name_hash();
 
         RevisionRef {
             saturated_name_hash,
-            revision_key,
+            temporal_key,
         }
     }
 
@@ -621,7 +621,7 @@ impl PrivateNodeHeader {
         Sha3_256::hash(&self.get_saturated_name())
     }
 
-    /// Derives the revision key.
+    /// Derives the temporal key.
     ///
     /// # Examples
     ///
@@ -637,16 +637,16 @@ impl PrivateNodeHeader {
     ///     Utc::now(),
     ///     rng,
     /// ));
-    /// let revision_key = file.header.derive_revision_key();
+    /// let temporal_key = file.header.derive_temporal_key();
     ///
-    /// println!("Revision Key: {:?}", revision_key);
+    /// println!("Temporal Key: {:?}", temporal_key);
     /// ```
     #[inline]
-    pub fn derive_revision_key(&self) -> RevisionKey {
+    pub fn derive_temporal_key(&self) -> TemporalKey {
         AesKey::new(self.ratchet.derive_key()).into()
     }
 
-    /// Derives the content key.
+    /// Derives the snapshot key.
     ///
     /// # Examples
     ///
@@ -662,19 +662,19 @@ impl PrivateNodeHeader {
     ///     Utc::now(),
     ///     rng,
     /// ));
-    /// let content_key = file.header.derive_content_key();
+    /// let snapshot_key = file.header.derive_snapshot_key();
     ///
-    /// println!("Content Key: {:?}", content_key);
+    /// println!("Snapshot Key: {:?}", snapshot_key);
     /// ```
     #[inline]
-    pub fn derive_content_key(&self) -> ContentKey {
+    pub fn derive_snapshot_key(&self) -> SnapshotKey {
         AesKey::new(Sha3_256::hash(&self.ratchet.derive_key())).into()
     }
 
     /// Gets the saturated namefilter for this node using the provided ratchet key.
-    pub(crate) fn get_saturated_name_with_key(&self, revision_key: &RevisionKey) -> Namefilter {
+    pub(crate) fn get_saturated_name_with_key(&self, temporal_key: &TemporalKey) -> Namefilter {
         let mut name = self.bare_name.clone();
-        name.add(&revision_key.0.as_bytes());
+        name.add(&temporal_key.0.as_bytes());
         name.saturate();
         name
     }
@@ -701,16 +701,16 @@ impl PrivateNodeHeader {
     /// ```
     #[inline]
     pub fn get_saturated_name(&self) -> Namefilter {
-        let revision_key = self.derive_revision_key();
-        self.get_saturated_name_with_key(&revision_key)
+        let temporal_key = self.derive_temporal_key();
+        self.get_saturated_name_with_key(&temporal_key)
     }
 
     /// Encrypts this private node header in an block, then stores that in the given
     /// BlockStore and returns its CID.
     pub async fn store(&self, store: &mut impl BlockStore) -> Result<Cid> {
-        let revision_key = self.derive_revision_key();
+        let temporal_key = self.derive_temporal_key();
         let cbor_bytes = dagcbor::encode(self)?;
-        let ciphertext = revision_key.key_wrap_encrypt(&cbor_bytes)?;
+        let ciphertext = temporal_key.key_wrap_encrypt(&cbor_bytes)?;
         store.put_block(ciphertext, IpldCodec::Raw).await
     }
 
@@ -718,11 +718,11 @@ impl PrivateNodeHeader {
     /// to be decrypted with given key.
     pub(crate) async fn load(
         cid: &Cid,
-        revision_key: &RevisionKey,
+        temporal_key: &TemporalKey,
         store: &impl BlockStore,
     ) -> Result<PrivateNodeHeader> {
         let ciphertext = store.get_block(cid).await?;
-        let cbor_bytes = revision_key.key_wrap_decrypt(&ciphertext)?;
+        let cbor_bytes = temporal_key.key_wrap_decrypt(&ciphertext)?;
         dagcbor::decode(&cbor_bytes)
     }
 }
@@ -742,45 +742,45 @@ impl Debug for PrivateNodeHeader {
     }
 }
 
-impl From<AesKey> for RevisionKey {
+impl From<AesKey> for TemporalKey {
     fn from(key: AesKey) -> Self {
         Self(key)
     }
 }
 
-impl From<[u8; 32]> for RevisionKey {
+impl From<[u8; 32]> for TemporalKey {
     fn from(key: [u8; 32]) -> Self {
         Self(AesKey::new(key))
     }
 }
 
-impl From<&Ratchet> for RevisionKey {
+impl From<&Ratchet> for TemporalKey {
     fn from(ratchet: &Ratchet) -> Self {
         Self::from(AesKey::new(ratchet.derive_key()))
     }
 }
 
-impl From<AesKey> for ContentKey {
+impl From<AesKey> for SnapshotKey {
     fn from(key: AesKey) -> Self {
         Self(key)
     }
 }
 
-impl From<ContentKey> for AesKey {
-    fn from(key: ContentKey) -> Self {
+impl From<SnapshotKey> for AesKey {
+    fn from(key: SnapshotKey) -> Self {
         key.0
     }
 }
 
-impl RevisionKey {
-    /// Turn this RevisionKey, which gives read access to the current revision and any future
-    /// revisions into a ContentKey, which only gives read access to the current revision.
-    pub fn derive_content_key(&self) -> ContentKey {
-        let RevisionKey(key) = self;
-        ContentKey(AesKey::new(Sha3_256::hash(&key.as_bytes())))
+impl TemporalKey {
+    /// Turn this TemporalKey, which gives read access to the current revision and any future
+    /// revisions into a SnapshotKey, which only gives read access to the current revision.
+    pub fn derive_snapshot_key(&self) -> SnapshotKey {
+        let TemporalKey(key) = self;
+        SnapshotKey(AesKey::new(Sha3_256::hash(&key.as_bytes())))
     }
 
-    /// Encrypt a cleartext with this revision key.
+    /// Encrypt a cleartext with this temporal key.
     ///
     /// Uses authenticated deterministic encryption via AES key wrap with padding (AES-KWP).
     ///
@@ -792,7 +792,7 @@ impl RevisionKey {
             .map_err(|e| AesError::UnableToEncrypt(format!("{e}")))?)
     }
 
-    /// Decrypt a ciphertext that was encrypted with this revision key.
+    /// Decrypt a ciphertext that was encrypted with this temporal key.
     ///
     /// Uses authenticated deterministic encryption via AES key wrap with padding (AES-KWP).
     ///
@@ -805,18 +805,18 @@ impl RevisionKey {
     }
 }
 
-impl ContentKey {
+impl SnapshotKey {
     /// Encrypts the given plaintext using the key.
     ///
     /// # Examples
     ///
     /// ```
-    /// use wnfs::private::{AesKey, ContentKey};
+    /// use wnfs::private::{AesKey, SnapshotKey};
     /// use wnfs::utils;
     /// use rand::thread_rng;
     ///
     /// let rng = &mut thread_rng();
-    /// let key = ContentKey(AesKey::new(utils::get_random_bytes(rng)));
+    /// let key = SnapshotKey(AesKey::new(utils::get_random_bytes(rng)));
     ///
     /// let plaintext = b"Hello World!";
     /// let ciphertext = key.encrypt(plaintext, rng).unwrap();
@@ -840,12 +840,12 @@ impl ContentKey {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::private::{AesKey, ContentKey};
+    /// use wnfs::private::{AesKey, SnapshotKey};
     /// use wnfs::utils;
     /// use rand::thread_rng;
     ///
     /// let rng = &mut thread_rng();
-    /// let key = ContentKey(AesKey::new(utils::get_random_bytes(rng)));
+    /// let key = SnapshotKey(AesKey::new(utils::get_random_bytes(rng)));
     ///
     /// let plaintext = b"Hello World!";
     /// let ciphertext = key.encrypt(plaintext, rng).unwrap();
@@ -922,12 +922,12 @@ mod proptests {
     use test_strategy::proptest;
 
     #[proptest(cases = 100)]
-    fn content_key_can_encrypt_and_decrypt_data(
+    fn snapshot_key_can_encrypt_and_decrypt_data(
         #[strategy(any::<Vec<u8>>())] data: Vec<u8>,
         #[strategy(any::<[u8; KEY_BYTE_SIZE]>())] rng_seed: [u8; KEY_BYTE_SIZE],
         key_bytes: [u8; KEY_BYTE_SIZE],
     ) {
-        let key = ContentKey(AesKey::new(key_bytes));
+        let key = SnapshotKey(AesKey::new(key_bytes));
         let rng = &mut TestRng::from_seed(RngAlgorithm::ChaCha, &rng_seed);
 
         let encrypted = key.encrypt(&data, rng).unwrap();

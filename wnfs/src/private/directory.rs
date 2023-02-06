@@ -1,6 +1,6 @@
 use super::{
     encrypted::Encrypted, namefilter::Namefilter, PrivateFile, PrivateForest, PrivateNode,
-    PrivateNodeHeader, PrivateRef, PrivateRefSerializable, RevisionKey,
+    PrivateNodeHeader, PrivateRef, PrivateRefSerializable, TemporalKey,
 };
 use crate::{
     error, utils, BlockStore, FsError, HashOutput, Id, Metadata, NodeType, PathNodes,
@@ -358,12 +358,12 @@ impl PrivateDirectory {
         rng: &mut impl RngCore,
     ) -> Result<Self> {
         // key from the *current*, not the next revision
-        let revision_key = self.header.derive_revision_key();
+        let temporal_key = self.header.derive_temporal_key();
 
         let header_cid = self.header.store(store).await?;
         let content_cid = self
             .content
-            .store(header_cid, &revision_key, store, rng)
+            .store(header_cid, &temporal_key, store, rng)
             .await?;
 
         let mut cloned = Rc::try_unwrap(self).unwrap_or_else(|rc| (*rc).clone());
@@ -373,7 +373,7 @@ impl PrivateDirectory {
         cloned
             .content
             .previous
-            .insert((1, Encrypted::from_value(content_cid, &revision_key)?));
+            .insert((1, Encrypted::from_value(content_cid, &temporal_key)?));
 
         cloned.header.advance_ratchet();
 
@@ -1344,11 +1344,11 @@ impl PrivateDirectory {
         rng: &mut impl RngCore,
     ) -> Result<(Cid, Cid)> {
         let header_cid = self.header.store(store).await?;
-        let revision_key = self.header.derive_revision_key();
+        let temporal_key = self.header.derive_temporal_key();
 
         let content_cid = self
             .content
-            .store(header_cid, &revision_key, store, rng)
+            .store(header_cid, &temporal_key, store, rng)
             .await?;
 
         Ok((header_cid, content_cid))
@@ -1360,7 +1360,7 @@ impl PrivateDirectoryContent {
     pub(crate) fn serialize<S>(
         &self,
         serializer: S,
-        revision_key: &RevisionKey,
+        temporal_key: &TemporalKey,
         header_cid: Cid,
     ) -> Result<S::Ok, S::Error>
     where
@@ -1370,7 +1370,7 @@ impl PrivateDirectoryContent {
 
         for (name, private_ref) in self.entries.iter() {
             let private_ref_serializable = private_ref
-                .to_serializable(revision_key)
+                .to_serializable(temporal_key)
                 .map_err(SerError::custom)?;
             entries.insert(name.clone(), private_ref_serializable);
         }
@@ -1386,10 +1386,10 @@ impl PrivateDirectoryContent {
         .serialize(serializer)
     }
 
-    /// Deserializes the directory with provided Serde deserializer and revision key.
+    /// Deserializes the directory with provided Serde deserializer and temporal key.
     pub(crate) fn deserialize<'de, D>(
         deserializer: D,
-        revision_key: &RevisionKey,
+        temporal_key: &TemporalKey,
         from_cid: Cid,
     ) -> Result<(Self, Cid), D::Error>
     where
@@ -1415,7 +1415,7 @@ impl PrivateDirectoryContent {
         let mut entries = BTreeMap::new();
 
         for (name, private_ref_serializable) in entries_encrypted {
-            let private_ref = PrivateRef::from_serializable(private_ref_serializable, revision_key)
+            let private_ref = PrivateRef::from_serializable(private_ref_serializable, temporal_key)
                 .map_err(DeError::custom)?;
             entries.insert(name, private_ref);
         }
@@ -1432,8 +1432,8 @@ impl PrivateDirectoryContent {
     }
 
     /// Encrypts the directory contents by
-    /// - wrapping all subdirectory revision keys given the current revision key
-    /// - encrypting the whole directory using the content key derived from the revision key.
+    /// - wrapping all subdirectory temporal keys given the current temporal key
+    /// - encrypting the whole directory using the snapshot key derived from the temporal key.
     ///
     /// The resulting ciphertext is then stored in the given BlockStore. Its CID is finally returned.
     ///
@@ -1444,7 +1444,7 @@ impl PrivateDirectoryContent {
     pub async fn store(
         &self,
         header_cid: Cid,
-        revision_key: &RevisionKey,
+        temporal_key: &TemporalKey,
         store: &mut impl BlockStore,
         rng: &mut impl RngCore,
     ) -> Result<Cid> {
@@ -1452,15 +1452,15 @@ impl PrivateDirectoryContent {
             .persisted_as
             .get_or_try_init::<anyhow::Error>(async {
                 // TODO(matheus23) deduplicate when reworking serialization (see file.rs)
-                let content_key = revision_key.derive_content_key();
+                let snapshot_key = temporal_key.derive_snapshot_key();
 
                 // Serialize node to cbor.
-                let ipld = self.serialize(libipld::serde::Serializer, revision_key, header_cid)?;
+                let ipld = self.serialize(libipld::serde::Serializer, temporal_key, header_cid)?;
                 let mut bytes = Vec::new();
                 ipld.encode(DagCborCodec, &mut bytes)?;
 
-                // Encrypt bytes with content key.
-                let block = content_key.encrypt(&bytes, rng)?;
+                // Encrypt bytes with snapshot key.
+                let block = snapshot_key.encrypt(&bytes, rng)?;
 
                 // Store content section in blockstore and get Cid.
                 store.put_block(block, libipld::IpldCodec::Raw).await
@@ -1519,8 +1519,8 @@ mod tests {
             PrivateDirectory::with_seed(Namefilter::default(), Utc::now(), ratchet_seed, inumber);
 
         assert_eq!(
-            dir1.header.derive_revision_key(),
-            dir2.header.derive_revision_key()
+            dir1.header.derive_temporal_key(),
+            dir2.header.derive_temporal_key()
         );
 
         assert_eq!(

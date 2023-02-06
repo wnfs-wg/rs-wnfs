@@ -15,7 +15,7 @@ use rand_core::RngCore;
 use serde::{de::DeserializeOwned, Serialize};
 use std::collections::HashMap;
 
-use crate::{private::ContentKey, AsyncSerialize, BlockStoreError, MAX_BLOCK_SIZE};
+use crate::{private::SnapshotKey, AsyncSerialize, BlockStoreError, MAX_BLOCK_SIZE};
 
 use super::FsError;
 
@@ -41,7 +41,7 @@ pub trait BlockStore {
     async fn put_private_serializable<V: Serialize>(
         &mut self,
         value: &V,
-        key: &ContentKey,
+        key: &SnapshotKey,
         rng: &mut impl RngCore,
     ) -> Result<Cid> {
         let ipld = ipld_serde::to_ipld(value)?;
@@ -69,7 +69,7 @@ pub trait BlockStore {
     async fn get_private_deserializable<'a, V: DeserializeOwned>(
         &'a self,
         cid: &Cid,
-        key: &ContentKey,
+        key: &SnapshotKey,
     ) -> Result<V> {
         let enc_bytes = self.get_block(cid).await?;
         let bytes = key.decrypt(enc_bytes.as_ref())?;

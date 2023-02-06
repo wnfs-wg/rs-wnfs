@@ -7,14 +7,14 @@ use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 use crate::FsError;
 
-use super::RevisionKey;
+use super::TemporalKey;
 
 /// A wrapper for AES-KWP deterministically encrypted (key-wrapped) data.
 ///
 /// Any data wrapped like this **must not have low entropy**.
 ///
 /// For anything that could potentially have low entropy,
-/// please use AES-GCM instead via `ContentKey`.
+/// please use AES-GCM instead via `SnapshotKey`.
 ///
 /// When serialized or deserialized this will only
 /// ever emit or consume ciphertexts.
@@ -36,14 +36,14 @@ impl<T> Encrypted<T> {
     ///
     /// To ensure confidentiality, the randomness should be cryptographically secure
     /// randomness.
-    pub fn from_value(value: T, revision_key: &RevisionKey) -> Result<Self>
+    pub fn from_value(value: T, temporal_key: &TemporalKey) -> Result<Self>
     where
         T: Serialize,
     {
         let ipld = value.serialize(libipld::serde::Serializer)?;
         let mut bytes = Vec::new();
         ipld.encode(DagCborCodec, &mut bytes)?;
-        let ciphertext = revision_key.key_wrap_encrypt(&bytes)?;
+        let ciphertext = temporal_key.key_wrap_encrypt(&bytes)?;
 
         Ok(Self {
             value_cache: OnceCell::from(value),
@@ -67,12 +67,12 @@ impl<T> Encrypted<T> {
     ///
     /// This operation may fail if given key doesn't decrypt the ciphertext or
     /// deserializing the value from the encrypted plaintext doesn't work.
-    pub fn resolve_value(&self, revision_key: &RevisionKey) -> Result<&T>
+    pub fn resolve_value(&self, temporal_key: &TemporalKey) -> Result<&T>
     where
         T: DeserializeOwned,
     {
         self.value_cache.get_or_try_init(|| {
-            let bytes = revision_key.key_wrap_decrypt(&self.ciphertext)?;
+            let bytes = temporal_key.key_wrap_decrypt(&self.ciphertext)?;
             let ipld = Ipld::decode(DagCborCodec, &mut Cursor::new(bytes))?;
             libipld::serde::from_ipld::<T>(ipld)
                 .map_err(|e| FsError::InvalidDeserialization(e.to_string()).into())

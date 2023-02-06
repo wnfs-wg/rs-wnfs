@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 
-use super::{ContentKey, PrivateNodeHeader, RevisionKey, KEY_BYTE_SIZE};
+use super::{PrivateNodeHeader, SnapshotKey, TemporalKey, KEY_BYTE_SIZE};
 use crate::{AesError, FsError, HashOutput, Namefilter};
 use aes_kw::KekAes256;
 use anyhow::Result;
@@ -19,7 +19,7 @@ pub struct PrivateRef {
     /// Sha3-256 hash of saturated namefilter.
     pub(crate) saturated_name_hash: HashOutput,
     /// Skip-ratchet-derived key.
-    pub(crate) revision_key: RevisionKey,
+    pub(crate) temporal_key: TemporalKey,
     /// CID that identifies the exact value in the multivalue
     pub(crate) content_cid: Cid,
 }
@@ -28,21 +28,21 @@ pub struct PrivateRef {
 pub(crate) struct PrivateRefSerializable {
     #[serde(rename = "name")]
     pub(crate) saturated_name_hash: HashOutput,
-    #[serde(rename = "contentKey")]
-    pub(crate) content_key: ContentKey,
-    #[serde(rename = "revisionKey")]
-    pub(crate) revision_key: Vec<u8>,
+    #[serde(rename = "snapshotKey")]
+    pub(crate) snapshot_key: SnapshotKey,
+    #[serde(rename = "temporalKey")]
+    pub(crate) temporal_key: Vec<u8>,
     #[serde(rename = "contentCid")]
     pub(crate) content_cid: Cid,
 }
 
 /// A pointer to a specific revision in the private forest
-/// together with the RevisionKey to decrypt any of these
+/// together with the TemporalKey to decrypt any of these
 /// revisions.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RevisionRef {
     pub(crate) saturated_name_hash: HashOutput,
-    pub(crate) revision_key: RevisionKey,
+    pub(crate) temporal_key: TemporalKey,
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -50,64 +50,64 @@ pub struct RevisionRef {
 //--------------------------------------------------------------------------------------------------
 
 impl PrivateRef {
-    /// Creates a PrivateRef from provided saturated name and revision key.
+    /// Creates a PrivateRef from provided saturated name and temporal key.
     ///
     /// # Examples
     ///
     /// ```
-    /// use wnfs::{private::{PrivateRef, RevisionKey}, private::AesKey};
+    /// use wnfs::{private::{PrivateRef, TemporalKey}, private::AesKey};
     /// use rand::{thread_rng, Rng};
     ///
     /// let content_cid = Default::default();
     /// let rng = &mut thread_rng();
-    /// let private_ref = PrivateRef::with_revision_key(
+    /// let private_ref = PrivateRef::with_temporal_key(
     ///     rng.gen::<[u8; 32]>(),
-    ///     RevisionKey::from(AesKey::new(rng.gen::<[u8; 32]>())),
+    ///     TemporalKey::from(AesKey::new(rng.gen::<[u8; 32]>())),
     ///     content_cid,
     /// );
     ///
     /// println!("Private ref: {:?}", private_ref);
     /// ```
-    pub fn with_revision_key(
+    pub fn with_temporal_key(
         saturated_name_hash: HashOutput,
-        revision_key: RevisionKey,
+        temporal_key: TemporalKey,
         content_cid: Cid,
     ) -> Self {
         Self {
             saturated_name_hash,
-            revision_key,
+            temporal_key,
             content_cid,
         }
     }
 
     pub(crate) fn to_serializable(
         &self,
-        parent_revision_key: &RevisionKey,
+        parent_temporal_key: &TemporalKey,
     ) -> Result<PrivateRefSerializable> {
-        let content_key = self.revision_key.derive_content_key();
+        let snapshot_key = self.temporal_key.derive_snapshot_key();
         // encrypt ratchet key
-        let revision_key_as_kek = KekAes256::from(parent_revision_key.0.clone().bytes());
-        let revision_key_wrapped = revision_key_as_kek
-            .wrap_with_padding_vec(self.revision_key.0.as_bytes())
+        let temporal_key_as_kek = KekAes256::from(parent_temporal_key.0.clone().bytes());
+        let temporal_key_wrapped = temporal_key_as_kek
+            .wrap_with_padding_vec(self.temporal_key.0.as_bytes())
             .map_err(|e| AesError::UnableToEncrypt(format!("{e}")))?;
 
         Ok(PrivateRefSerializable {
             saturated_name_hash: self.saturated_name_hash,
-            content_key,
-            revision_key: revision_key_wrapped,
+            snapshot_key,
+            temporal_key: temporal_key_wrapped,
             content_cid: self.content_cid,
         })
     }
 
     pub(crate) fn from_serializable(
         private_ref: PrivateRefSerializable,
-        parent_revision_key: &RevisionKey,
+        parent_temporal_key: &TemporalKey,
     ) -> Result<Self> {
-        // TODO: Move key wrapping & unwrapping logic to impl RevisionKey
-        let revision_key_as_kek = KekAes256::from(parent_revision_key.0.clone().bytes());
+        // TODO: Move key wrapping & unwrapping logic to impl TemporalKey
+        let temporal_key_as_kek = KekAes256::from(parent_temporal_key.0.clone().bytes());
 
-        let revision_key_raw: [u8; KEY_BYTE_SIZE] = revision_key_as_kek
-            .unwrap_with_padding_vec(&private_ref.revision_key)
+        let temporal_key_raw: [u8; KEY_BYTE_SIZE] = temporal_key_as_kek
+            .unwrap_with_padding_vec(&private_ref.temporal_key)
             .map_err(|e| AesError::UnableToDecrypt(format!("{e}")))?
             .try_into()
             .map_err(|e: Vec<u8>| {
@@ -117,33 +117,33 @@ impl PrivateRef {
                 ))
             })?;
 
-        let revision_key = revision_key_raw.into();
+        let temporal_key = temporal_key_raw.into();
 
         Ok(Self {
             saturated_name_hash: private_ref.saturated_name_hash,
-            revision_key,
+            temporal_key,
             content_cid: private_ref.content_cid,
         })
     }
 
-    pub fn serialize<S>(&self, serializer: S, revision_key: &RevisionKey) -> Result<S::Ok, S::Error>
+    pub fn serialize<S>(&self, serializer: S, temporal_key: &TemporalKey) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
     {
-        self.to_serializable(revision_key)
+        self.to_serializable(temporal_key)
             .map_err(SerError::custom)?
             .serialize(serializer)
     }
 
     pub fn deserialize<'de, D>(
         deserializer: D,
-        revision_key: &RevisionKey,
+        temporal_key: &TemporalKey,
     ) -> Result<Self, D::Error>
     where
         D: serde::Deserializer<'de>,
     {
         let private_ref = PrivateRefSerializable::deserialize(deserializer)?;
-        PrivateRef::from_serializable(private_ref, revision_key).map_err(DeError::custom)
+        PrivateRef::from_serializable(private_ref, temporal_key).map_err(DeError::custom)
     }
 
     /// Returns a revision ref that refers to all other multivalues
@@ -151,7 +151,7 @@ impl PrivateRef {
     pub fn as_revision_ref(self) -> RevisionRef {
         RevisionRef {
             saturated_name_hash: self.saturated_name_hash,
-            revision_key: self.revision_key,
+            temporal_key: self.temporal_key,
         }
     }
 
@@ -170,7 +170,7 @@ impl Debug for PrivateRef {
 
         f.debug_struct("PrivateRef")
             .field("saturated_name_hash", &sat_name_hash_str)
-            .field("revision_key", &self.revision_key.0)
+            .field("temporal_key", &self.temporal_key.0)
             .field("content_cid", &self.content_cid)
             .finish()
     }
@@ -207,7 +207,7 @@ impl RevisionRef {
     pub fn as_private_ref(self, content_cid: Cid) -> PrivateRef {
         PrivateRef {
             saturated_name_hash: self.saturated_name_hash,
-            revision_key: self.revision_key,
+            temporal_key: self.temporal_key,
             content_cid,
         }
     }

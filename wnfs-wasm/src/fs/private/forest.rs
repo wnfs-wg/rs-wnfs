@@ -4,7 +4,7 @@ use js_sys::Promise;
 use wasm_bindgen::{prelude::wasm_bindgen, JsValue};
 use wasm_bindgen_futures::future_to_promise;
 use wnfs::{
-    private::{AesKey, PrivateForest as WnfsPrivateForest, PrivateRef, RevisionKey, KEY_BYTE_SIZE},
+    private::{AesKey, PrivateForest as WnfsPrivateForest, PrivateRef, TemporalKey, KEY_BYTE_SIZE},
     HASH_BYTE_SIZE,
 };
 
@@ -43,7 +43,7 @@ impl PrivateForest {
     pub fn get(
         &self,
         saturated_namefilter_hash: Vec<u8>,
-        revision_key: Vec<u8>,
+        temporal_key: Vec<u8>,
         store: BlockStore,
     ) -> JsResult<Promise> {
         let store = ForeignBlockStore(store);
@@ -51,11 +51,11 @@ impl PrivateForest {
 
         let saturated_name_hash = utils::expect_bytes::<HASH_BYTE_SIZE>(saturated_namefilter_hash)?;
 
-        let key_bytes = utils::expect_bytes::<KEY_BYTE_SIZE>(revision_key)?;
+        let key_bytes = utils::expect_bytes::<KEY_BYTE_SIZE>(temporal_key)?;
         let key = AesKey::new(key_bytes);
-        let revision_key = RevisionKey(key);
+        let temporal_key = TemporalKey(key);
 
-        let private_ref = PrivateRef::with_revision_key(saturated_name_hash, revision_key);
+        let private_ref = PrivateRef::with_temporal_key(saturated_name_hash, temporal_key);
 
         Ok(future_to_promise(async move {
             let node_option = forest
