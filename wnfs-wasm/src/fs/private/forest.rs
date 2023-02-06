@@ -58,15 +58,12 @@ impl PrivateForest {
         let private_ref = PrivateRef::with_temporal_key(saturated_name_hash, temporal_key);
 
         Ok(future_to_promise(async move {
-            let node_option = forest
-                .get(&private_ref, WnfsPrivateForest::resolve_lowest, &store)
+            let node = forest
+                .get(&private_ref, &store)
                 .await
                 .map_err(error("Cannot 'get' in forest"))?;
 
-            Ok(match node_option {
-                Some(node) => value!(PrivateNode(node)),
-                None => JsValue::NULL,
-            })
+            Ok(value!(PrivateNode(node)))
         }))
     }
 }

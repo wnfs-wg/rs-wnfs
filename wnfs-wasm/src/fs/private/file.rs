@@ -47,19 +47,20 @@ impl PrivateFile {
         parent_bare_name: Namefilter,
         time: &Date,
         content: Vec<u8>,
-        forest: PrivateForest,
+        forest: &PrivateForest,
         store: BlockStore,
         mut rng: Rng,
     ) -> JsResult<Promise> {
         let mut store = ForeignBlockStore(store);
         let time = DateTime::<Utc>::from(time);
+        let mut forest = Rc::clone(&forest.0);
 
         Ok(future_to_promise(async move {
-            let (file, forest) = WnfsPrivateFile::with_content(
+            let file = WnfsPrivateFile::with_content(
                 parent_bare_name.0,
                 time,
                 content,
-                forest.0,
+                &mut forest,
                 &mut store,
                 &mut rng,
             )
@@ -68,7 +69,7 @@ impl PrivateFile {
 
             Ok(utils::create_private_file_result(
                 PrivateFile(Rc::new(file)),
-                PrivateForest(forest),
+                forest,
             )?)
         }))
     }
