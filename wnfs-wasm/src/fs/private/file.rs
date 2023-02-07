@@ -4,7 +4,7 @@ use crate::{
     fs::{
         metadata::JsMetadata,
         utils::{self, error},
-        BlockStore, ForeignBlockStore, JsResult, Namefilter, PrivateForest, Rng,
+        BlockStore, ForeignBlockStore, JsResult, Namefilter, PrivateForest, PrivateNode, Rng,
     },
     value,
 };
@@ -13,7 +13,7 @@ use js_sys::{Date, Promise, Uint8Array};
 use std::rc::Rc;
 use wasm_bindgen::{prelude::wasm_bindgen, JsValue};
 use wasm_bindgen_futures::future_to_promise;
-use wnfs::{Id, PrivateFile as WnfsPrivateFile};
+use wnfs::{Id, PrivateFile as WnfsPrivateFile, PrivateNode as WnfsPrivateNode};
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
@@ -67,8 +67,8 @@ impl PrivateFile {
             .await
             .map_err(error("Cannot create a file with provided content"))?;
 
-            Ok(utils::create_private_file_result(
-                PrivateFile(Rc::new(file)),
+            Ok(utils::create_private_forest_result(
+                PrivateFile(Rc::new(file)).into(),
                 forest,
             )?)
         }))
@@ -99,5 +99,11 @@ impl PrivateFile {
     #[wasm_bindgen(js_name = "getId")]
     pub fn get_id(&self) -> String {
         self.0.get_id()
+    }
+
+    /// Converts this file to a node.
+    #[wasm_bindgen(js_name = "asNode")]
+    pub fn as_node(&self) -> PrivateNode {
+        PrivateNode(WnfsPrivateNode::File(Rc::clone(&self.0)))
     }
 }

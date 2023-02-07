@@ -9,14 +9,14 @@ declare global {
         Rng: typeof import("../mock").Rng;
       };
       wnfs: {
-        PublicDirectory: typeof import("../../pkg/index").PublicDirectory;
-        PublicFile: typeof import("../../pkg/index").PublicFile;
-        PublicNode: typeof import("../../pkg/index").PublicNode;
-        PrivateDirectory: typeof import("../../pkg/index").PrivateDirectory;
-        PrivateForest: typeof import("../../pkg/index").PrivateForest;
-        PrivateFile: typeof import("../../pkg/index").PrivateFile;
-        PrivateNode: typeof import("../../pkg/index").PrivateNode;
-        Namefilter: typeof import("../../pkg/index").Namefilter;
+        PublicDirectory: typeof import("../../pkg/wnfs_wasm.d").PublicDirectory;
+        PublicFile: typeof import("../../pkg/wnfs_wasm.d").PublicFile;
+        PublicNode: typeof import("../../pkg/wnfs_wasm.d").PublicNode;
+        PrivateDirectory: typeof import("../../pkg/wnfs_wasm.d").PrivateDirectory;
+        PrivateForest: typeof import("../../pkg/wnfs_wasm.d").PrivateForest;
+        PrivateFile: typeof import("../../pkg/wnfs_wasm.d").PrivateFile;
+        PrivateNode: typeof import("../../pkg/wnfs_wasm.d").PrivateNode;
+        Namefilter: typeof import("../../pkg/wnfs_wasm.d").Namefilter;
       };
     }>;
   }

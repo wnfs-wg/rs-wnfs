@@ -438,3 +438,51 @@ test.describe("PrivateFile", () => {
     expect(result.created).not.toBeUndefined();
   });
 });
+
+test.describe("PrivateForest", () => {
+  test("put returns a PrivateRef", async ({ page }) => {
+    const result = await page.evaluate(async () => {
+      const {
+        wnfs: { Namefilter, PrivateFile, PrivateForest },
+        mock: { MemoryBlockStore, Rng }
+      } = await window.setup();
+
+      const rng = new Rng();
+      const store = new MemoryBlockStore();
+      const time = new Date();
+      const file = new PrivateFile(new Namefilter(), time, rng);
+      const node = file.asNode();
+      const forest = new PrivateForest();
+
+      return await forest.put(node, store, rng)
+    });
+
+    expect(result).toBeDefined();
+  });
+
+  test("get returns what was put", async ({ page }) => {
+    const [metadataBefore, metadataAfter] = await page.evaluate(async () => {
+      const {
+        wnfs: { Namefilter, PrivateFile, PrivateForest },
+        mock: { MemoryBlockStore, Rng }
+      } = await window.setup();
+
+      const rng = new Rng();
+      const store = new MemoryBlockStore();
+      const time = new Date();
+      const file = new PrivateFile(new Namefilter(), time, rng);
+      const node = file.asNode();
+      const forest = new PrivateForest();
+      const [privateRef, newForest] = await forest.put(node, store, rng);
+      const fetched = await newForest.get(privateRef, store);
+      const metadataBefore = node.asFile().metadata();
+      const metadataAfter = fetched.asFile().metadata();
+      return [metadataBefore, metadataAfter];
+    });
+
+    expect(metadataBefore).toBeDefined();
+    expect(metadataAfter).toBeDefined();
+    expect(metadataBefore.created).toEqual(metadataAfter.created);
+    expect(metadataBefore.modified).toEqual(metadataAfter.modified);
+  });
+});

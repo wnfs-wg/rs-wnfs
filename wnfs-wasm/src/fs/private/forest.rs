@@ -1,17 +1,21 @@
 use std::rc::Rc;
 
 use js_sys::Promise;
+use libipld::Cid;
 use wasm_bindgen::{prelude::wasm_bindgen, JsValue};
 use wasm_bindgen_futures::future_to_promise;
 use wnfs::{
-    private::{AesKey, PrivateForest as WnfsPrivateForest, PrivateRef, TemporalKey, KEY_BYTE_SIZE},
+    private::{
+        AesKey, PrivateForest as WnfsPrivateForest, PrivateRef as WnfsPrivateRef, TemporalKey,
+        KEY_BYTE_SIZE,
+    },
     HASH_BYTE_SIZE,
 };
 
 use crate::{
     fs::{
         utils::{self, error},
-        BlockStore, ForeignBlockStore, JsResult,
+        BlockStore, ForeignBlockStore, JsResult, Rng,
     },
     value,
 };
@@ -25,6 +29,13 @@ use super::PrivateNode;
 /// A reference to a private forest. Used for the private file system.
 #[wasm_bindgen]
 pub struct PrivateForest(pub(crate) Rc<WnfsPrivateForest>);
+
+#[wasm_bindgen]
+pub struct PrivateRef {
+    pub(crate) label: Vec<u8>,
+    pub(crate) temporal_key: Vec<u8>,
+    pub(crate) content_cid: Vec<u8>,
+}
 
 //--------------------------------------------------------------------------------------------------
 // Implementations
@@ -40,30 +51,91 @@ impl PrivateForest {
     }
 
     #[wasm_bindgen]
-    pub fn get(
-        &self,
-        saturated_namefilter_hash: Vec<u8>,
-        temporal_key: Vec<u8>,
-        store: BlockStore,
-    ) -> JsResult<Promise> {
+    pub fn get(&self, private_ref: PrivateRef, store: BlockStore) -> JsResult<Promise> {
         let store = ForeignBlockStore(store);
-        let forest = self.0.clone();
+        let forest = Rc::clone(&self.0);
 
-        let saturated_name_hash = utils::expect_bytes::<HASH_BYTE_SIZE>(saturated_namefilter_hash)?;
+        Ok(future_to_promise(async move {
+            let private_ref = private_ref.try_into()?;
+
+            let node = forest
+                .get(&private_ref, &store)
+                .await
+                .map_err(error("Error in private forest 'get'"))?;
+
+            Ok(value!(PrivateNode(node)))
+        }))
+    }
+
+    #[wasm_bindgen]
+    pub fn put(&self, node: &PrivateNode, store: BlockStore, mut rng: Rng) -> JsResult<Promise> {
+        let mut store = ForeignBlockStore(store);
+        let mut forest = Rc::clone(&self.0);
+        let node = node.0.clone(); // cheap clone
+
+        Ok(future_to_promise(async move {
+            let private_ref = forest
+                .put(&node, &mut store, &mut rng)
+                .await
+                .map_err(error("Error in private forest 'put'"))?;
+
+            let private_ref: PrivateRef = private_ref.into();
+
+            Ok(utils::create_private_forest_result(
+                private_ref.into(),
+                forest,
+            )?)
+        }))
+    }
+}
+
+#[wasm_bindgen]
+impl PrivateRef {
+    #[wasm_bindgen(constructor)]
+    pub fn new(label: Vec<u8>, temporal_key: Vec<u8>, content_cid: Vec<u8>) -> Self {
+        Self {
+            label,
+            temporal_key,
+            content_cid,
+        }
+    }
+}
+
+impl TryInto<WnfsPrivateRef> for PrivateRef {
+    type Error = js_sys::Error;
+
+    fn try_into(self) -> Result<WnfsPrivateRef, Self::Error> {
+        let PrivateRef {
+            label,
+            temporal_key,
+            content_cid,
+        } = self;
+        let saturated_name_hash = utils::expect_bytes::<HASH_BYTE_SIZE>(label)?;
 
         let key_bytes = utils::expect_bytes::<KEY_BYTE_SIZE>(temporal_key)?;
         let key = AesKey::new(key_bytes);
         let temporal_key = TemporalKey(key);
 
-        let private_ref = PrivateRef::with_temporal_key(saturated_name_hash, temporal_key);
+        let content_cid = Cid::try_from(content_cid).map_err(error("Error parsing CID"))?;
+        Ok(WnfsPrivateRef {
+            saturated_name_hash,
+            temporal_key,
+            content_cid,
+        })
+    }
+}
 
-        Ok(future_to_promise(async move {
-            let node = forest
-                .get(&private_ref, &store)
-                .await
-                .map_err(error("Cannot 'get' in forest"))?;
-
-            Ok(value!(PrivateNode(node)))
-        }))
+impl From<WnfsPrivateRef> for PrivateRef {
+    fn from(private_ref: WnfsPrivateRef) -> Self {
+        let WnfsPrivateRef {
+            saturated_name_hash,
+            temporal_key,
+            content_cid,
+        } = private_ref;
+        PrivateRef {
+            label: Vec::from(saturated_name_hash),
+            temporal_key: Vec::from(temporal_key.0.bytes()),
+            content_cid: content_cid.to_bytes(),
+        }
     }
 }

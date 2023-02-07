@@ -16,12 +16,12 @@ use serde::{de::Error as DeError, ser::Error as SerError, Deserialize, Serialize
 /// It also includes required key material to decrypt/encrypt any future revisions of the node it points to.
 #[derive(Clone, PartialEq, Eq)]
 pub struct PrivateRef {
-    /// Sha3-256 hash of saturated namefilter.
-    pub(crate) saturated_name_hash: HashOutput,
-    /// Skip-ratchet-derived key.
-    pub(crate) temporal_key: TemporalKey,
-    /// CID that identifies the exact value in the multivalue
-    pub(crate) content_cid: Cid,
+    /// Sha3-256 hash of saturated namefilter. Used as the label for identifying revisions of PrivateNodes in the PrivateForest.
+    pub saturated_name_hash: HashOutput,
+    /// Skip-ratchet-derived key. Gives read access to the revision pointed to and any newer revisions.
+    pub temporal_key: TemporalKey,
+    /// CID that identifies the exact value in the multivalue.
+    pub content_cid: Cid,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -41,8 +41,10 @@ pub(crate) struct PrivateRefSerializable {
 /// revisions.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RevisionRef {
-    pub(crate) saturated_name_hash: HashOutput,
-    pub(crate) temporal_key: TemporalKey,
+    /// Sha3-256 hash of saturated namefilter. Used as the label for private nodes in the private forest.
+    pub saturated_name_hash: HashOutput,
+    /// Skip-ratchet-derived key. Gives read access to the revision pointed to and any newer revisions.
+    pub temporal_key: TemporalKey,
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -154,11 +156,6 @@ impl PrivateRef {
             temporal_key: self.temporal_key,
         }
     }
-
-    /// Returns the label used for identifying the revision in the PrivateForest.
-    pub fn get_saturated_name_hash(&self) -> &HashOutput {
-        &self.saturated_name_hash
-    }
 }
 
 impl Debug for PrivateRef {
@@ -210,11 +207,6 @@ impl RevisionRef {
             temporal_key: self.temporal_key,
             content_cid,
         }
-    }
-
-    /// Returns the label used for identifying the revision in the PrivateForest.
-    pub fn get_saturated_name_hash(&self) -> &HashOutput {
-        &self.saturated_name_hash
     }
 }
 

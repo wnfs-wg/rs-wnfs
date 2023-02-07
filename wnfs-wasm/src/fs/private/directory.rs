@@ -110,10 +110,11 @@ impl PrivateDirectory {
         let directory = Rc::clone(&self.0);
         let store = ForeignBlockStore(store);
         let path_segment = path_segment.to_string();
+        let forest = Rc::clone(&forest.0);
 
         Ok(future_to_promise(async move {
             let found_node = directory
-                .lookup_node(&path_segment, search_latest, &forest.0, &store)
+                .lookup_node(&path_segment, search_latest, &forest, &store)
                 .await
                 .map_err(error("Cannot lookup node"))?;
 
