@@ -44,4 +44,4 @@ class Rng {
   }
 }
 
-export { sampleCID, MemoryBlockStore, Rng };
+export { sampleCID, MemoryBlockStore, Rng, CID };

@@ -443,8 +443,8 @@ test.describe("PrivateForest", () => {
   test("put returns a PrivateRef", async ({ page }) => {
     const result = await page.evaluate(async () => {
       const {
-        wnfs: { Namefilter, PrivateFile, PrivateForest },
-        mock: { MemoryBlockStore, Rng }
+        wnfs: { Namefilter, PrivateFile, PrivateForest, PrivateRef },
+        mock: { MemoryBlockStore, Rng, CID }
       } = await window.setup();
 
       const rng = new Rng();
@@ -453,11 +453,18 @@ test.describe("PrivateForest", () => {
       const file = new PrivateFile(new Namefilter(), time, rng);
       const node = file.asNode();
       const forest = new PrivateForest();
-
-      return await forest.put(node, store, rng)
+      const [privateRef, _] = await forest.put(node, store, rng);
+      return {
+        // Need to be converted to arrays so they can be passed as JSON
+        label: Array.from(privateRef.getLabel()),
+        temporalKey: Array.from(privateRef.getTemporalKey()),
+        contentCid: CID.decode(privateRef.getContentCid()).toString(),
+      }
     });
 
-    expect(result).toBeDefined();
+    expect(result.label.length).toEqual(32);
+    expect(result.temporalKey.length).toEqual(32);
+    expect(result.contentCid).toBeDefined();
   });
 
   test("get returns what was put", async ({ page }) => {
