@@ -180,7 +180,7 @@ impl PrivateForest {
     ///     let node = PrivateNode::Dir(dir);
     ///     let private_ref = forest.put(&node, store, rng).await.unwrap();
     ///
-    ///     assert!(forest.has(private_ref.saturated_name_hash, store).await.unwrap());
+    ///     assert!(forest.has(&private_ref.saturated_name_hash, store).await.unwrap());
     /// }
     /// ```
     pub async fn has(
