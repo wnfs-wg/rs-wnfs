@@ -10,7 +10,7 @@ use anyhow::Result;
 use async_once_cell::OnceCell;
 use async_stream::try_stream;
 use chrono::{DateTime, Utc};
-use futures::{Stream, StreamExt};
+use futures::{AsyncRead, AsyncReadExt, Stream, StreamExt};
 use libipld::{cbor::DagCborCodec, prelude::Encode, Cid, IpldCodec};
 use rand_core::RngCore;
 use semver::Version;
@@ -199,6 +199,29 @@ impl PrivateFile {
         })
     }
 
+    pub async fn with_content_streaming(
+        parent_bare_name: Namefilter,
+        time: DateTime<Utc>,
+        content: impl AsyncRead + Unpin,
+        forest: &mut Rc<PrivateForest>,
+        store: &mut impl BlockStore,
+        rng: &mut impl RngCore,
+    ) -> Result<Self> {
+        let header = PrivateNodeHeader::new(parent_bare_name, rng);
+        let content =
+            Self::prepare_content_streaming(&header.bare_name, content, forest, store, rng).await?;
+
+        Ok(Self {
+            header,
+            content: PrivateFileContent {
+                persisted_as: OnceCell::new(),
+                metadata: Metadata::new(time),
+                previous: BTreeSet::new(),
+                content,
+            },
+        })
+    }
+
     /// Streams the content of a file as chunk of blocks.
     ///
     /// # Examples
@@ -356,6 +379,73 @@ impl PrivateFile {
         Ok(FileContent::External {
             key,
             block_count,
+            block_content_size: MAX_BLOCK_CONTENT_SIZE,
+        })
+    }
+
+    /// TODO(matheus23): docs
+    /// Determines where to put the content of a file. This can either be inline or stored up in chunks in a private forest.
+    pub(super) async fn prepare_content_streaming(
+        bare_name: &Namefilter,
+        mut content: impl AsyncRead + Unpin,
+        forest: &mut Rc<PrivateForest>,
+        store: &mut impl BlockStore,
+        rng: &mut impl RngCore,
+    ) -> Result<FileContent> {
+        let key = SnapshotKey(AesKey::new(get_random_bytes(rng)));
+
+        let mut block_index = 0;
+
+        loop {
+            let mut current_block = [0u8; MAX_BLOCK_SIZE];
+            let nonce = SnapshotKey::generate_nonce(rng);
+            current_block[..NONCE_SIZE].copy_from_slice(&nonce);
+
+            // read up to MAX_BLOCK_CONTENT_SIZE content
+            let bytes_written = {
+                // I'd like to abstract this into a helper, but there's problems with the pin_mut!
+                let content_end = NONCE_SIZE + MAX_BLOCK_CONTENT_SIZE;
+                let mut bytes_read = 0;
+                loop {
+                    let cursor = NONCE_SIZE + bytes_read;
+                    let bytes_read_in_iteration = content
+                        .read(&mut current_block[cursor..content_end])
+                        .await?;
+
+                    println!("Read {bytes_read_in_iteration} bytes!");
+                    if bytes_read_in_iteration == 0 {
+                        break;
+                    }
+                    bytes_read += bytes_read_in_iteration;
+                }
+                bytes_read
+            };
+
+            // Indicates end of file, we're done
+            if bytes_written == 0 {
+                break;
+            }
+
+            // Turn the slice into a vector that is truncated appropriately.
+            let mut current_block = current_block.to_vec();
+            current_block.truncate(bytes_written + NONCE_SIZE);
+
+            let tag = key.encrypt_in_place(&nonce, &mut current_block[NONCE_SIZE..])?;
+            current_block.extend_from_slice(&tag);
+
+            let content_cid = store.put_block(current_block, IpldCodec::Raw).await?;
+
+            let label = Self::create_block_label(&key, block_index, bare_name);
+            forest
+                .put_encrypted(label, Some(content_cid), store)
+                .await?;
+
+            block_index += 1;
+        }
+
+        Ok(FileContent::External {
+            key,
+            block_count: block_index + 1,
             block_content_size: MAX_BLOCK_CONTENT_SIZE,
         })
     }
@@ -621,7 +711,9 @@ impl Id for PrivateFile {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::utils::test_setup;
+    use crate::{utils::test_setup, MemoryBlockStore};
+    use async_std::fs::File;
+    use proptest::test_runner::{RngAlgorithm, TestRng};
     use rand::Rng;
 
     #[async_std::test]
@@ -656,6 +748,29 @@ mod tests {
             collected_content,
             content[2 * MAX_BLOCK_CONTENT_SIZE..4 * MAX_BLOCK_CONTENT_SIZE]
         );
+    }
+
+    #[test]
+    fn can_construct_file_from_stream() {
+        // FIXME why is this stack-overflowing?
+        async_std::task::block_on(async {
+            let disk_file = File::open("./src/private/directory.rs").await.unwrap();
+
+            let forest = &mut Rc::new(PrivateForest::new());
+            let store = &mut MemoryBlockStore::new();
+            let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
+
+            let _file = PrivateFile::with_content_streaming(
+                Namefilter::default(),
+                Utc::now(),
+                disk_file,
+                forest,
+                store,
+                rng,
+            )
+            .await
+            .unwrap();
+        });
     }
 }
 

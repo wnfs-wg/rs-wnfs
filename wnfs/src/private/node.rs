@@ -6,7 +6,10 @@ use super::{
 use crate::{
     dagcbor, utils, AesError, BlockStore, FsError, HashOutput, Id, NodeType, HASH_BYTE_SIZE,
 };
-use aes_gcm::{aead::Aead, Aes256Gcm, KeyInit, Nonce};
+use aes_gcm::{
+    aead::{consts::U12, Aead},
+    AeadInPlace, Aes256Gcm, KeyInit, Nonce, Tag,
+};
 use aes_kw::KekAes256;
 use anyhow::{bail, Result};
 use async_recursion::async_recursion;
@@ -829,6 +832,21 @@ impl SnapshotKey {
             .map_err(|e| AesError::UnableToEncrypt(format!("{e}")))?;
 
         Ok([nonce_bytes.to_vec(), cipher_text].concat())
+    }
+
+    /// TODO(matheus23): docs
+    pub fn generate_nonce(rng: &mut impl RngCore) -> Nonce<U12> {
+        let mut nonce = Nonce::default();
+        rng.fill_bytes(&mut nonce);
+        nonce
+    }
+
+    /// TODO(matheus23): docs
+    pub fn encrypt_in_place(&self, nonce: &Nonce<U12>, buffer: &mut [u8]) -> Result<Tag> {
+        let tag = Aes256Gcm::new_from_slice(self.0.as_bytes())?
+            .encrypt_in_place_detached(nonce, &[], &mut buffer[12..])
+            .map_err(|e| AesError::UnableToEncrypt(format!("{e}")))?;
+        Ok(tag)
     }
 
     /// Decrypts the given ciphertext using the key.
