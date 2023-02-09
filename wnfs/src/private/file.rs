@@ -199,6 +199,46 @@ impl PrivateFile {
         })
     }
 
+    /// Creates a file with provided content as a stream.
+    ///
+    /// Depending on the BlockStore implementation this will
+    /// use essentially O(1) memory (roughly `2 * MAX_BLOCK_CONTENT_SIZE` bytes).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use std::rc::Rc;
+    /// use async_std::fs::File;
+    /// use chrono::Utc;
+    /// use rand::thread_rng;
+    /// use wnfs::{
+    ///     private::{PrivateForest, PrivateRef},
+    ///     MemoryBlockStore, Namefilter, PrivateFile,
+    ///     MAX_BLOCK_SIZE
+    /// };
+    ///
+    /// #[async_std::main]
+    /// async fn main() {
+    ///     let disk_file = File::open("./src/private/directory.rs").await.unwrap();
+    ///
+    ///     let store = &mut MemoryBlockStore::default();
+    ///     let rng = &mut thread_rng();
+    ///     let forest = &mut Rc::new(PrivateForest::new());
+    ///
+    ///     let file = PrivateFile::with_content_streaming(
+    ///         Namefilter::default(),
+    ///         Utc::now(),
+    ///         disk_file,
+    ///         forest,
+    ///         store,
+    ///         rng,
+    ///     )
+    ///     .await
+    ///     .unwrap();
+    ///
+    ///     println!("file = {:?}", file);
+    /// }
+    /// ```
     pub async fn with_content_streaming(
         parent_bare_name: Namefilter,
         time: DateTime<Utc>,
@@ -383,8 +423,10 @@ impl PrivateFile {
         })
     }
 
-    /// TODO(matheus23): docs
-    /// Determines where to put the content of a file. This can either be inline or stored up in chunks in a private forest.
+    /// Drains the content streamed-in and puts it into the private forest
+    /// as blocks of encrypted data.
+    /// Returns an external `FileContent` that contains necessary information
+    /// to later retrieve the data.
     pub(super) async fn prepare_content_streaming(
         bare_name: &Namefilter,
         mut content: impl AsyncRead + Unpin,
@@ -737,10 +779,7 @@ mod tests {
 
     #[async_std::test]
     async fn can_construct_file_from_stream() {
-        let disk_file =
-            File::open("/home/philipp/Videos/OBS Recordings/rs-wnfs-nonnested-refactor-loom.mp4")
-                .await
-                .unwrap();
+        let disk_file = File::open("./src/private/directory.rs").await.unwrap();
 
         let forest = &mut Rc::new(PrivateForest::new());
         let store = &mut MemoryBlockStore::new();
@@ -757,7 +796,9 @@ mod tests {
         .await
         .unwrap();
 
-        println!("{:#?}", file.content);
+        assert!(
+            matches!(file.content.content, FileContent::External { block_count, .. } if block_count > 0)
+        );
     }
 }
 
