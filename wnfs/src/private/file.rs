@@ -10,7 +10,7 @@ use anyhow::Result;
 use async_once_cell::OnceCell;
 use async_stream::try_stream;
 use chrono::{DateTime, Utc};
-use futures::{AsyncRead, AsyncReadExt, Stream, StreamExt};
+use futures::{AsyncRead, Stream, StreamExt};
 use libipld::{cbor::DagCborCodec, prelude::Encode, Cid, IpldCodec};
 use rand_core::RngCore;
 use semver::Version;
@@ -397,37 +397,18 @@ impl PrivateFile {
         let mut block_index = 0;
 
         loop {
-            let mut current_block = [0u8; MAX_BLOCK_SIZE];
+            let mut current_block = vec![0u8; MAX_BLOCK_SIZE];
             let nonce = SnapshotKey::generate_nonce(rng);
             current_block[..NONCE_SIZE].copy_from_slice(&nonce);
 
             // read up to MAX_BLOCK_CONTENT_SIZE content
-            let bytes_written = {
-                // I'd like to abstract this into a helper, but there's problems with the pin_mut!
-                let content_end = NONCE_SIZE + MAX_BLOCK_CONTENT_SIZE;
-                let mut bytes_read = 0;
-                loop {
-                    let cursor = NONCE_SIZE + bytes_read;
-                    let bytes_read_in_iteration = content
-                        .read(&mut current_block[cursor..content_end])
-                        .await?;
 
-                    println!("Read {bytes_read_in_iteration} bytes!");
-                    if bytes_read_in_iteration == 0 {
-                        break;
-                    }
-                    bytes_read += bytes_read_in_iteration;
-                }
-                bytes_read
-            };
+            let content_end = NONCE_SIZE + MAX_BLOCK_CONTENT_SIZE;
+            let (bytes_written, done) =
+                utils::read_fully(&mut content, &mut current_block[NONCE_SIZE..content_end])
+                    .await?;
 
-            // Indicates end of file, we're done
-            if bytes_written == 0 {
-                break;
-            }
-
-            // Turn the slice into a vector that is truncated appropriately.
-            let mut current_block = current_block.to_vec();
+            // truncate the vector to its actual length.
             current_block.truncate(bytes_written + NONCE_SIZE);
 
             let tag = key.encrypt_in_place(&nonce, &mut current_block[NONCE_SIZE..])?;
@@ -441,11 +422,15 @@ impl PrivateFile {
                 .await?;
 
             block_index += 1;
+
+            if done {
+                break;
+            }
         }
 
         Ok(FileContent::External {
             key,
-            block_count: block_index + 1,
+            block_count: block_index,
             block_content_size: MAX_BLOCK_CONTENT_SIZE,
         })
     }
@@ -750,27 +735,29 @@ mod tests {
         );
     }
 
-    #[test]
-    fn can_construct_file_from_stream() {
-        // FIXME why is this stack-overflowing?
-        async_std::task::block_on(async {
-            let disk_file = File::open("./src/private/directory.rs").await.unwrap();
+    #[async_std::test]
+    async fn can_construct_file_from_stream() {
+        let disk_file =
+            File::open("/home/philipp/Videos/OBS Recordings/rs-wnfs-nonnested-refactor-loom.mp4")
+                .await
+                .unwrap();
 
-            let forest = &mut Rc::new(PrivateForest::new());
-            let store = &mut MemoryBlockStore::new();
-            let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
+        let forest = &mut Rc::new(PrivateForest::new());
+        let store = &mut MemoryBlockStore::new();
+        let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
 
-            let _file = PrivateFile::with_content_streaming(
-                Namefilter::default(),
-                Utc::now(),
-                disk_file,
-                forest,
-                store,
-                rng,
-            )
-            .await
-            .unwrap();
-        });
+        let file = PrivateFile::with_content_streaming(
+            Namefilter::default(),
+            Utc::now(),
+            disk_file,
+            forest,
+            store,
+            rng,
+        )
+        .await
+        .unwrap();
+
+        println!("{:#?}", file.content);
     }
 }
 

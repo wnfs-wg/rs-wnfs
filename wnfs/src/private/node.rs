@@ -824,27 +824,30 @@ impl SnapshotKey {
     /// assert_eq!(plaintext, &decrypted[..]);
     /// ```
     pub fn encrypt(&self, data: &[u8], rng: &mut impl RngCore) -> Result<Vec<u8>> {
-        let nonce_bytes = utils::get_random_bytes::<NONCE_SIZE>(rng);
-        let nonce = Nonce::from_slice(&nonce_bytes);
+        let nonce = Self::generate_nonce(rng);
 
         let cipher_text = Aes256Gcm::new_from_slice(self.0.as_bytes())?
-            .encrypt(nonce, data)
+            .encrypt(&nonce, data)
             .map_err(|e| AesError::UnableToEncrypt(format!("{e}")))?;
 
-        Ok([nonce_bytes.to_vec(), cipher_text].concat())
+        Ok([nonce.to_vec(), cipher_text].concat())
     }
 
-    /// TODO(matheus23): docs
-    pub fn generate_nonce(rng: &mut impl RngCore) -> Nonce<U12> {
+    /// Generates a random 12-byte nonce for encryption.
+    pub(crate) fn generate_nonce(rng: &mut impl RngCore) -> Nonce<U12> {
         let mut nonce = Nonce::default();
         rng.fill_bytes(&mut nonce);
         nonce
     }
 
-    /// TODO(matheus23): docs
-    pub fn encrypt_in_place(&self, nonce: &Nonce<U12>, buffer: &mut [u8]) -> Result<Tag> {
+    /// Encrypts the cleartext in the given buffer in-place, with given key.
+    ///
+    /// The nonce is usually pre-pended to the ciphertext.
+    ///
+    /// The authentication tag is required for decryption and usually appended to the ciphertext.
+    pub(crate) fn encrypt_in_place(&self, nonce: &Nonce<U12>, buffer: &mut [u8]) -> Result<Tag> {
         let tag = Aes256Gcm::new_from_slice(self.0.as_bytes())?
-            .encrypt_in_place_detached(nonce, &[], &mut buffer[12..])
+            .encrypt_in_place_detached(nonce, &[], buffer)
             .map_err(|e| AesError::UnableToEncrypt(format!("{e}")))?;
         Ok(tag)
     }
@@ -873,6 +876,23 @@ impl SnapshotKey {
         Ok(Aes256Gcm::new_from_slice(self.0.as_bytes())?
             .decrypt(Nonce::from_slice(nonce_bytes), data)
             .map_err(|e| AesError::UnableToDecrypt(format!("{e}")))?)
+    }
+
+    /// Decrypts the ciphertext in the given buffer in-place, with given key.
+    ///
+    /// Usually the nonce is stored as the cipher's prefix and the tag as
+    /// the cipher's suffix.
+    #[allow(dead_code)] // I figured it makes sense to have this for completeness sake.
+    pub(crate) fn decrypt_in_place(
+        &self,
+        nonce: &Nonce<U12>,
+        tag: &Tag,
+        buffer: &mut [u8],
+    ) -> Result<()> {
+        Aes256Gcm::new_from_slice(self.0.as_bytes())?
+            .decrypt_in_place_detached(nonce, &[], buffer, tag)
+            .map_err(|e| AesError::UnableToDecrypt(format!("{e}")))?;
+        Ok(())
     }
 }
 
@@ -930,7 +950,7 @@ mod proptests {
     use super::*;
     use proptest::{
         prelude::any,
-        prop_assert_eq,
+        prop_assert_eq, prop_assert_ne,
         test_runner::{RngAlgorithm, TestRng},
     };
     use test_strategy::proptest;
@@ -947,6 +967,31 @@ mod proptests {
         let encrypted = key.encrypt(&data, rng).unwrap();
         let decrypted = key.decrypt(&encrypted).unwrap();
 
-        prop_assert_eq!(decrypted, data);
+        if data.len() > 0 {
+            let cipher_part = &encrypted[NONCE_SIZE..NONCE_SIZE + data.len()];
+            prop_assert_ne!(cipher_part, &decrypted);
+        }
+        prop_assert_eq!(&decrypted, &data);
+    }
+
+    #[proptest(cases = 100)]
+    fn snapshot_key_can_encrypt_and_decrypt_data_in_place(
+        data: Vec<u8>,
+        key_bytes: [u8; KEY_BYTE_SIZE],
+        nonce: [u8; NONCE_SIZE],
+    ) {
+        let mut buffer = data.clone();
+        let nonce = Nonce::from_slice(&nonce);
+        let key = SnapshotKey(AesKey::new(key_bytes));
+
+        let tag = key.encrypt_in_place(nonce, &mut buffer).unwrap();
+
+        if buffer.len() > 0 {
+            prop_assert_ne!(&buffer, &data);
+        }
+
+        key.decrypt_in_place(nonce, &tag, &mut buffer).unwrap();
+
+        prop_assert_eq!(&buffer, &data);
     }
 }

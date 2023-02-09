@@ -1,5 +1,6 @@
 use crate::{error, FsError, HashOutput};
 use anyhow::Result;
+use futures::{AsyncRead, AsyncReadExt};
 #[cfg(any(test, feature = "test_strategies"))]
 use proptest::{
     strategy::{Strategy, ValueTree},
@@ -64,6 +65,29 @@ pub(crate) fn split_last(path_segments: &[String]) -> Result<(&[String], &String
         Some((last, rest)) => Ok((rest, last)),
         None => error(FsError::InvalidPath),
     }
+}
+
+pub(crate) async fn read_fully(
+    stream: &mut (impl AsyncRead + Unpin),
+    buffer: &mut [u8],
+) -> Result<(usize, bool)> {
+    let mut bytes_read = 0;
+    let mut done = false;
+    loop {
+        let bytes_read_in_iteration = stream.read(&mut buffer[bytes_read..]).await?;
+
+        bytes_read += bytes_read_in_iteration;
+
+        if bytes_read_in_iteration == 0 {
+            done = true;
+            break;
+        }
+
+        if bytes_read == buffer.len() {
+            break;
+        }
+    }
+    Ok((bytes_read, done))
 }
 
 /// Generates a random byte array of the given length.
