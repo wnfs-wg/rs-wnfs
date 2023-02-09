@@ -1465,6 +1465,11 @@ impl PrivateDirectory {
 
         Ok(*cid)
     }
+
+    /// Wraps the directory in a [`PrivateNode`].
+    pub fn as_node(self: &Rc<Self>) -> PrivateNode {
+        PrivateNode::Dir(Rc::clone(self))
+    }
 }
 
 impl PartialEq for PrivateDirectory {
