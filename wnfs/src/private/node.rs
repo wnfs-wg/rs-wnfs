@@ -635,31 +635,6 @@ impl PrivateNodeHeader {
         AesKey::new(self.ratchet.derive_key()).into()
     }
 
-    /// Derives the content key.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use std::rc::Rc;
-    /// use wnfs::{PrivateFile, Namefilter, Id};
-    /// use chrono::Utc;
-    /// use rand::thread_rng;
-    ///
-    /// let rng = &mut thread_rng();
-    /// let file = Rc::new(PrivateFile::new(
-    ///     Namefilter::default(),
-    ///     Utc::now(),
-    ///     rng,
-    /// ));
-    /// let content_key = file.header.derive_content_key();
-    ///
-    /// println!("Content Key: {:?}", content_key);
-    /// ```
-    #[inline]
-    pub fn derive_content_key(&self) -> ContentKey {
-        AesKey::new(Sha3_256::hash(&self.ratchet.derive_key())).into()
-    }
-
     /// Gets the saturated namefilter for this node using the provided ratchet key.
     pub(crate) fn get_saturated_name_with_key(&self, revision_key: &RevisionKey) -> Namefilter {
         let mut name = self.bare_name.clone();

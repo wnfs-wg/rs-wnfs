@@ -1,5 +1,6 @@
 use std::{fmt::Debug, rc::Rc};
 
+use super::{metadata::JsMetadata, PrivateDirectory, PrivateFile, PrivateForest, PublicDirectory};
 use crate::{fs::JsResult, value};
 use js_sys::{Array, Error, Object, Reflect};
 use wasm_bindgen::JsValue;
@@ -9,17 +10,22 @@ use wnfs::{
     Metadata,
 };
 
-use super::{metadata::JsMetadata, PrivateDirectory, PrivateFile, PrivateForest, PublicDirectory};
-
 //--------------------------------------------------------------------------------------------------
 // Functions
 //--------------------------------------------------------------------------------------------------
 
-pub(crate) fn error<E>(message: &str) -> impl FnOnce(E) -> js_sys::Error + '_
+pub(crate) fn error<E>(message: &str) -> impl FnOnce(E) -> Error + '_
 where
     E: Debug,
 {
     move |e| Error::new(&format!("{message}: {e:?}"))
+}
+
+pub(crate) fn anyhow_error<E>(message: &str) -> impl FnOnce(E) -> anyhow::Error + '_
+where
+    E: Debug,
+{
+    move |e| anyhow::Error::msg(format!("{message}: {e:?}"))
 }
 
 pub(crate) fn map_to_rust_vec<T, F: FnMut(JsValue) -> JsResult<T>>(

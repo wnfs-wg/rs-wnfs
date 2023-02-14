@@ -322,8 +322,8 @@ pub mod sharer {
 
         while let Some(result) = exchange_keys.next().await {
             let public_key_modulus = result?;
-            let exchange_key = K::from_exchange_key(&public_key_modulus)?;
-            let encrypted_payload = exchange_key.encrypt(encoded_payload)?;
+            let exchange_key = K::from_modulus(&public_key_modulus).await?;
+            let encrypted_payload = exchange_key.encrypt(encoded_payload).await?;
             let share_label = create_share_label(share_count, sharer_root_did, &public_key_modulus);
 
             let payload_cid = sharer_store
@@ -343,24 +343,24 @@ pub mod sharer {
     /// yield the exchange key's value.
     pub async fn fetch_exchange_keys(
         recipient_exchange_root: PublicLink,
-        recipient_store: &impl BlockStore,
+        store: &impl BlockStore,
     ) -> impl Stream<Item = Result<PublicKeyModulus>> + '_ {
         Box::pin(try_stream! {
             let root_dir = recipient_exchange_root
-                .resolve_value(recipient_store)
+                .resolve_value(store)
                 .await?
                 .as_dir()?;
 
-            let PublicOpResult { result: devices, mut root_dir } = root_dir.ls(&[], recipient_store).await?;
+            let PublicOpResult { result: devices, mut root_dir } = root_dir.ls(&[], store).await?;
             for (device, _) in devices {
-                let value = root_dir.ls(&[device.clone()], recipient_store).await?;
+                let value = root_dir.ls(&[device.clone()], store).await?;
                 root_dir = value.root_dir;
 
                 for (name, _) in value.result {
                     if name == EXCHANGE_KEY_NAME {
-                        let value = root_dir.read(&[device, name], recipient_store).await?;
+                        let value = root_dir.read(&[device, name], store).await?;
                         root_dir = value.root_dir;
-                        yield recipient_store.get_block(&value.result).await?.to_vec();
+                        yield store.get_block(&value.result).await?.to_vec();
                         break
                     }
                 }
@@ -403,7 +403,7 @@ pub mod recipient {
         recipient_exchange_key: &[u8],
         sharer_root_did: &str,
         sharer_forest: &PrivateForest,
-        sharer_store: &impl BlockStore,
+        store: &impl BlockStore,
     ) -> Result<Option<u64>> {
         for i in 0..limit {
             let share_label = sharer::create_share_label(
@@ -413,7 +413,7 @@ pub mod recipient {
             );
 
             if sharer_forest
-                .has(&Sha3_256::hash(&share_label), sharer_store)
+                .has(&Sha3_256::hash(&share_label), store)
                 .await?
             {
                 return Ok(Some(share_count + i));
@@ -429,21 +429,22 @@ pub mod recipient {
         share_label: Namefilter,
         recipient_key: &impl PrivateKey,
         sharer_forest: Rc<PrivateForest>,
-        sharer_store: &mut impl BlockStore,
+        store: &impl BlockStore,
     ) -> Result<Option<PrivateNode>> {
         // Get cid to encrypted payload from sharer's forest using share_label
         let payload_cid = sharer_forest
-            .get_encrypted(&Sha3_256::hash(&share_label), sharer_store)
+            .get_encrypted(&Sha3_256::hash(&share_label), store)
             .await?
             .ok_or(ShareError::SharePayloadNotFound)?
             .first()
             .ok_or(ShareError::SharePayloadNotFound)?;
 
-        // Get encrypted payload from sharer's store using cid
-        let encrypted_payload = sharer_store.get_block(payload_cid).await?.to_vec();
+        // Get encrypted payload from store using cid
+        let encrypted_payload = store.get_block(payload_cid).await?.to_vec();
 
         // Decrypt payload using recipient's private key and decode it.
-        let payload: SharePayload = dagcbor::decode(&recipient_key.decrypt(&encrypted_payload)?)?;
+        let payload: SharePayload =
+            dagcbor::decode(&recipient_key.decrypt(&encrypted_payload).await?)?;
 
         let SharePayload::Temporal(TemporalSharePointer {
             label,
@@ -456,7 +457,7 @@ pub mod recipient {
         // Use decrypted payload to get cid to encrypted node in sharer's forest.
         let private_ref = PrivateRef::with_revision_key(label, revision_key);
         sharer_forest
-            .get(&private_ref, PrivateForest::resolve_lowest, sharer_store)
+            .get(&private_ref, PrivateForest::resolve_lowest, store)
             .await
     }
 }
@@ -606,24 +607,21 @@ mod tests {
 
     #[async_std::test]
     async fn serialized_share_payload_can_be_deserialized() {
-        async_std::task::block_on(async {
-            let (forest, store, rng) = test_setup::init!(forest, mut store, mut rng);
+        let (forest, store, rng) = test_setup::init!(forest, mut store, mut rng);
 
-            let PrivateOpResult {
-                root_dir, forest, ..
-            } = PrivateDirectory::new_and_store(Default::default(), Utc::now(), forest, store, rng)
-                .await
-                .unwrap();
+        let PrivateOpResult {
+            root_dir, forest, ..
+        } = PrivateDirectory::new_and_store(Default::default(), Utc::now(), forest, store, rng)
+            .await
+            .unwrap();
 
-            let (payload, _) =
-                SharePayload::from_node(&root_dir.as_node(), true, forest, store, rng)
-                    .await
-                    .unwrap();
+        let (payload, _) = SharePayload::from_node(&root_dir.as_node(), true, forest, store, rng)
+            .await
+            .unwrap();
 
-            let serialized = dagcbor::encode(&payload).unwrap();
-            let deserialized: SharePayload = dagcbor::decode(&serialized).unwrap();
+        let serialized = dagcbor::encode(&payload).unwrap();
+        let deserialized: SharePayload = dagcbor::decode(&serialized).unwrap();
 
-            assert_eq!(payload, deserialized);
-        })
+        assert_eq!(payload, deserialized);
     }
 }
