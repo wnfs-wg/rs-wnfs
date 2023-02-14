@@ -1,6 +1,7 @@
 ///<reference path="server/index.d.ts"/>
 
 import { expect, test } from "@playwright/test";
+import { PublicDirectory } from "../pkg";
 
 const url = "http://localhost:8085";
 
@@ -216,4 +217,36 @@ test.describe("PublicDirectory", () => {
 
     expect(result.created).not.toBeUndefined();
   });
+});
+
+test.describe("BlockStore", () => {
+  test("borrowing stuff", async ({ page }) => {
+    const result = await page.evaluate(async () => {
+      const {
+        wnfs: { PublicDirectory },
+        mock: { MemoryBlockStore, sampleCID },
+      } = await window.setup();
+
+      const time = new Date();
+      const store = new MemoryBlockStore();
+      const root = new PublicDirectory(time);
+
+      const { rootDir } = await root.write(["text.txt"], sampleCID, time, store);
+
+      (rootDir as PublicDirectory).store(store)
+
+      let promises = [];
+      const iters = 0x1000000;
+      for (let i = 0; i < 0x1000000; i++) {
+        promises.push(rootDir.getNode(["text.txt"], store))
+        if ((i & 0xFFFF) == 0) {
+          console.time(`After ${(i*100/iters).toFixed(2)}% iterations:`)
+          await Promise.all(promises);
+          console.timeEnd(`After ${(i*100/iters).toFixed(2)}% iterations:`)
+          promises = [];
+        }
+      }
+      console.log("DONE")
+    });
+  })
 });

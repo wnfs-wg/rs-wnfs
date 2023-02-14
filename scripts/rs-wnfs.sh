@@ -113,7 +113,7 @@ build_fs() {
 build_wasm() {
     display_header "💿 | BUILDING WNFS-WASM PROJECT | 💿"
     cd $script_dir/../wnfs-wasm
-    WASM_BINDGEN_WEAKREF=1 wasm-pack build --target web
+    WASM_BINDGEN_WEAKREF=1 wasm-pack build --target web --dev
 	sed -i.bak \
         -e 's/"name": "wnfs-wasm"/"name": "wnfs",\n  "type": "module"/g' \
         -e 's/"module": "wnfs_wasm\.js"/"module": "wnfs_wasm\.js",\n  "main": "wnfs_wasm\.js"/g' \

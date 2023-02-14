@@ -12,6 +12,7 @@ use wnfs::{
 };
 
 use crate::{
+    console_log,
     fs::{
         metadata::JsMetadata,
         utils::{self, error},
@@ -28,6 +29,17 @@ use crate::{
 #[wasm_bindgen]
 pub struct PublicDirectory(pub(crate) Rc<WnfsPublicDirectory>);
 
+impl Drop for PublicDirectory {
+    fn drop(&mut self) {
+        console_log!(
+            "Dropping PublicDirectory {:p}({:p} count {})",
+            self,
+            self.0,
+            Rc::strong_count(&self.0),
+        );
+    }
+}
+
 //--------------------------------------------------------------------------------------------------
 // Implementations
 //--------------------------------------------------------------------------------------------------
@@ -38,7 +50,14 @@ impl PublicDirectory {
     #[wasm_bindgen(constructor)]
     pub fn new(time: &Date) -> Self {
         let time = DateTime::<Utc>::from(time);
-        Self(Rc::new(WnfsPublicDirectory::new(time)))
+        let s = Self(Rc::new(WnfsPublicDirectory::new(time)));
+        console_log!(
+            "Allocating PublicDirectory {:p}({:p} count {}) (new)",
+            &s,
+            s.0,
+            Rc::strong_count(&s.0)
+        );
+        s
     }
 
     /// Follows a path and fetches the node at the end of the path.

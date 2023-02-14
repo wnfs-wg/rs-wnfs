@@ -1,6 +1,6 @@
 use std::{fmt::Debug, rc::Rc};
 
-use crate::{fs::JsResult, value};
+use crate::{console_log, fs::JsResult, value};
 use js_sys::{Array, Error, Object, Reflect};
 use wasm_bindgen::JsValue;
 use wnfs::{
@@ -46,12 +46,16 @@ pub(crate) fn create_public_op_result<T: Into<JsValue>>(
 ) -> JsResult<JsValue> {
     let op_result = Object::new();
 
-    Reflect::set(
-        &op_result,
-        &value!("rootDir"),
-        &PublicDirectory(root_dir).into(),
-    )
-    .map_err(error("Failed to set rootDir"))?;
+    let public_dir = PublicDirectory(root_dir);
+    // console_log!(
+    //     "Allocating PublicDirectory {:p}({:p} count {}) (op result)",
+    //     &public_dir,
+    //     public_dir.0,
+    //     Rc::strong_count(&public_dir.0)
+    // );
+
+    Reflect::set(&op_result, &value!("rootDir"), &public_dir.into())
+        .map_err(error("Failed to set rootDir"))?;
     Reflect::set(&op_result, &value!("result"), &result.into())
         .map_err(error("Failed to set result"))?;
 
