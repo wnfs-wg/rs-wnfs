@@ -1,4 +1,8 @@
-use super::{diff, KeyValueChange, Node, NodeChange, HAMT_VERSION};
+use super::{
+    diff,
+    diff::{KeyValueChange, NodeChange},
+    Node, HAMT_VERSION,
+};
 use crate::{AsyncSerialize, BlockStore, Hasher, Link};
 use anyhow::Result;
 use async_trait::async_trait;

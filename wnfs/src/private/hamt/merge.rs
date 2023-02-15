@@ -1,4 +1,4 @@
-use super::{diff, ChangeType, Node};
+use super::{diff, diff::ChangeType, Node};
 use crate::{BlockStore, HamtError, Hasher, Link};
 use anyhow::Result;
 use serde::de::DeserializeOwned;

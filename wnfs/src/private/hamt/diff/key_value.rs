@@ -446,8 +446,8 @@ mod tests {
 mod proptests {
     use crate::{
         private::{
+            diff::ChangeType,
             strategies::{self, generate_kvs, generate_ops_and_changes, Change, Operations},
-            ChangeType,
         },
         utils::test_setup,
         Link,
