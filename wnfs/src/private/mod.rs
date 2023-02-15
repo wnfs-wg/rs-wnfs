@@ -5,7 +5,7 @@ mod forest;
 pub mod hamt;
 mod keys;
 pub mod namefilter;
-pub mod node;
+mod node;
 mod previous;
 mod privateref;
 mod share;
