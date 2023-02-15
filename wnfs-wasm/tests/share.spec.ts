@@ -11,82 +11,77 @@ test.beforeEach(async ({ page }) => {
 test.describe("Share", () => {
   test("share and recieve share", async ({ page }) => {
     const result = await page.evaluate(async () => {
-      console.log(window);
-      console.log(window.setup);
-      // const t = await window.setup();
-      // console.log(t);
-      // const {
-      //   wnfs: {
-      //     PrivateForest,
-      //     SharePayload,
-      //     share,
-      //     createShareLabel,
-      //     receiveShare,
-      //   },
-      //   mock: {
-      //     MemoryBlockStore,
-      //     Rng,
-      //     createSharerDir,
-      //     createRecipientExchangeRoot,
-      //   },
-      // } = await window.setup();
+      const {
+        wnfs: {
+          PrivateForest,
+          SharePayload,
+          share,
+          createShareLabel,
+          receiveShare,
+        },
+        mock: {
+          MemoryBlockStore,
+          Rng,
+          createSharerDir,
+          createRecipientExchangeRoot,
+          ExchangeKey,
+        },
+      } = await window.setup();
 
-      // var sharerForest = new PrivateForest();
-      // const sharerStore = new MemoryBlockStore();
-      // const sharerRootDid = "did:key:z6MkqZjY";
-      // const recipientStore = new MemoryBlockStore();
-      // const rng = new Rng();
+      // @ts-ignore
+      globalThis.ExchangeKey = ExchangeKey;
 
-      // var { rootDir: sharerDir, forest: sharerForest } = await createSharerDir(
-      //   sharerForest,
-      //   sharerStore,
-      //   rng
-      // );
+      var sharerForest = new PrivateForest();
+      const sharerStore = new MemoryBlockStore();
+      const sharerRootDid = "did:key:z6MkqZjY";
+      const recipientStore = new MemoryBlockStore();
+      const rng = new Rng();
 
-      // const [recipientKey, recipientExchRoot] =
-      //   await createRecipientExchangeRoot(recipientStore);
+      var { rootDir: sharerDir, forest: sharerForest } = await createSharerDir(
+        sharerForest,
+        sharerStore,
+        rng
+      );
 
-      // const recipientExchRootCid = await recipientExchRoot.store(
-      //   recipientStore
-      // );
+      const [recipientKey, recipientExchRoot] =
+        await createRecipientExchangeRoot(recipientStore);
 
-      // var [sharerPayload, sharerForest2 ] = await SharePayload.fromNode(
-      //   sharerDir.asNode(),
-      //   true,
-      //   sharerForest,
-      //   sharerStore,
-      //   rng
-      // );
+      const recipientExchRootCid = await recipientExchRoot.store(
+        recipientStore
+      );
 
-      // var sharerForest2 = await share(
-      //   sharerPayload,
-      //   BigInt(0),
-      //   sharerRootDid,
-      //   sharerForest2,
-      //   sharerStore,
-      //   recipientExchRootCid,
-      //   recipientStore
-      // );
+      var [sharerPayload, sharerForest2] = await SharePayload.fromNode(
+        sharerDir.asNode(),
+        true,
+        sharerForest,
+        sharerStore,
+        rng
+      );
 
-      // const modulus = await recipientKey.getPublicKey().getPublicKeyModulus();
-      // const shareLabel = createShareLabel(BigInt(0), sharerRootDid, modulus);
+      var sharerForest2 = await share(
+        sharerPayload,
+        BigInt(0),
+        sharerRootDid,
+        sharerForest2,
+        sharerStore,
+        recipientExchRootCid,
+        recipientStore
+      );
 
-      // const recipientPayload = await receiveShare(
-      //   shareLabel,
-      //   recipientKey,
-      //   sharerForest2,
-      //   sharerStore
-      // );
+      const modulus = await recipientKey.getPublicKey().getPublicKeyModulus();
+      const shareLabel = createShareLabel(BigInt(0), sharerRootDid, modulus);
 
-      // // TODO(appcypher): Remove this
-      // console.log("recipientPayload", recipientPayload);
+      const recipientPayload = await receiveShare(
+        shareLabel,
+        recipientKey,
+        sharerForest2,
+        sharerStore
+      );
 
-      // return recipientPayload;
+      console.log("recipientPayload", recipientPayload);
 
-      return null;
+      return recipientPayload;
     });
-
-    await page.waitForTimeout(360_000);
 
     expect(result).toBeDefined();
   });
