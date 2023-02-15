@@ -3,7 +3,11 @@
 
 use chrono::Utc;
 use std::rc::Rc;
-use wnfs::{ipld::Cid, MemoryBlockStore, PublicDirectory, PublicOpResult};
+use wnfs::{
+    ipld::Cid,
+    public::{PublicDirectory, PublicOpResult},
+    MemoryBlockStore,
+};
 
 #[async_std::main]
 async fn main() {

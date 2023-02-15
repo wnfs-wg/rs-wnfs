@@ -9,8 +9,9 @@ use self::sharer::share;
 
 use super::{RsaKeyPair, SnapshotKey, TemporalKey};
 use crate::{
-    private::PrivateForest, public::PublicLink, BlockStore, FsError, HashOutput, NodeType,
-    PrivateNode, ShareError,
+    private::{PrivateForest, PrivateNode},
+    public::PublicLink,
+    BlockStore, FsError, HashOutput, NodeType, ShareError,
 };
 use anyhow::{bail, Result};
 use libipld::Cid;
@@ -314,9 +315,9 @@ pub mod sharer {
     use super::{SharePayload, EXCHANGE_KEY_NAME};
     use crate::{
         dagcbor,
-        private::{PrivateForest, PublicKeyModulus, RsaKeyPair},
-        public::PublicLink,
-        BlockStore, FsError, Namefilter, PublicOpResult,
+        private::{Namefilter, PrivateForest, PublicKeyModulus, RsaKeyPair},
+        public::{PublicLink, PublicOpResult},
+        BlockStore, FsError,
     };
     use anyhow::Result;
     use async_stream::try_stream;
@@ -412,8 +413,8 @@ pub mod sharer {
 pub mod recipient {
     use crate::{
         dagcbor,
-        private::{PrivateForest, PrivateRef, RsaKeyPair},
-        BlockStore, Hasher, Namefilter, PrivateNode, ShareError,
+        private::{hamt::Hasher, Namefilter, PrivateForest, PrivateNode, PrivateRef, RsaKeyPair},
+        BlockStore, ShareError,
     };
     use anyhow::{bail, Result};
     use sha3::Sha3_256;

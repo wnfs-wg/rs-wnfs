@@ -3,8 +3,8 @@ use super::{
     SnapshotKey, AUTHENTICATION_TAG_SIZE, NONCE_SIZE,
 };
 use crate::{
-    utils, utils::get_random_bytes, BlockStore, FsError, Hasher, Id, Metadata, NodeType,
-    MAX_BLOCK_SIZE,
+    private::hamt::Hasher, utils, utils::get_random_bytes, BlockStore, FsError, Id, Metadata,
+    NodeType, MAX_BLOCK_SIZE,
 };
 use anyhow::Result;
 use async_once_cell::OnceCell;

@@ -1,7 +1,7 @@
 use super::ChangeType;
 use crate::{
-    private::hamt::{HashNibbles, HashPrefix, Node, Pointer, HAMT_BITMASK_BIT_SIZE},
-    BlockStore, Hasher, Link, Pair,
+    private::hamt::{HashNibbles, HashPrefix, Hasher, Node, Pair, Pointer, HAMT_BITMASK_BIT_SIZE},
+    BlockStore, Link,
 };
 use anyhow::Result;
 use async_recursion::async_recursion;
@@ -298,7 +298,7 @@ mod tests {
     use std::rc::Rc;
 
     mod helper {
-        use crate::{utils, HashOutput, Hasher};
+        use crate::{private::hamt::Hasher, utils, HashOutput};
         use once_cell::sync::Lazy;
 
         pub(super) static HASH_KV_PAIRS: Lazy<Vec<(HashOutput, &'static str)>> = Lazy::new(|| {

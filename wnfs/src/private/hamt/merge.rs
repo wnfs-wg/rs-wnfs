@@ -1,5 +1,5 @@
 use super::{diff, diff::ChangeType, Node};
-use crate::{BlockStore, HamtError, Hasher, Link};
+use crate::{private::hamt::Hasher, BlockStore, HamtError, Link};
 use anyhow::Result;
 use serde::de::DeserializeOwned;
 use std::{hash::Hash, rc::Rc};

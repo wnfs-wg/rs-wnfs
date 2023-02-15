@@ -196,7 +196,7 @@ pub(crate) mod test_setup {
         }};
         [ file, $content:expr ] => {{
             let (name, mut forest, mut store, mut rng) = test_setup::init!(name, forest, store, rng);
-            let file = $crate::PrivateFile::with_content(
+            let file = $crate::private::PrivateFile::with_content(
                 name,
                 chrono::Utc::now(),
                 $content,
@@ -211,7 +211,7 @@ pub(crate) mod test_setup {
         }};
         [ file ] => {{
             let (name, mut rng) = test_setup::init!(name, rng);
-            let file = $crate::PrivateFile::new(name, chrono::Utc::now(), &mut rng);
+            let file = $crate::private::PrivateFile::new(name, chrono::Utc::now(), &mut rng);
 
             (file, rng)
         }}

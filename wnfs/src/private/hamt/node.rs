@@ -784,7 +784,7 @@ mod tests {
     use helper::*;
 
     mod helper {
-        use crate::{utils, HashOutput, Hasher};
+        use crate::{private::hamt::Hasher, utils, HashOutput};
         use once_cell::sync::Lazy;
 
         pub(super) static HASH_KV_PAIRS: Lazy<Vec<(HashOutput, &'static str)>> = Lazy::new(|| {

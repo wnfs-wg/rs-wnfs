@@ -1,5 +1,8 @@
 use super::ChangeType;
-use crate::{private::hamt::Node, BlockStore, Hasher, Link, Pair};
+use crate::{
+    private::hamt::{Hasher, Node, Pair},
+    BlockStore, Link,
+};
 use anyhow::{Ok, Result};
 use either::Either::{self, *};
 use serde::de::DeserializeOwned;
@@ -185,7 +188,7 @@ mod tests {
     mod helper {
         use once_cell::sync::Lazy;
 
-        use crate::{utils, HashOutput, Hasher};
+        use crate::{private::hamt::Hasher, utils, HashOutput};
 
         pub(super) static HASH_KV_PAIRS: Lazy<Vec<(HashOutput, &'static str)>> = Lazy::new(|| {
             vec![

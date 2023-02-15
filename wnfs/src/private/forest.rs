@@ -3,7 +3,7 @@ use super::{
     namefilter::Namefilter,
     PrivateNode, PrivateRef, RevisionRef,
 };
-use crate::{AesError, BlockStore, FsError, HashOutput, Hasher, Link};
+use crate::{private::hamt::Hasher, AesError, BlockStore, FsError, HashOutput, Link};
 use anyhow::Result;
 use async_stream::stream;
 use futures::Stream;
@@ -392,7 +392,10 @@ mod tests {
     use std::rc::Rc;
 
     mod helper {
-        use crate::{utils, HashOutput, Hasher, Namefilter};
+        use crate::{
+            private::{hamt::Hasher, Namefilter},
+            utils, HashOutput,
+        };
         use libipld::{Cid, Multihash};
         use once_cell::sync::Lazy;
         use rand::{thread_rng, RngCore};

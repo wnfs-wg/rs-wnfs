@@ -1,7 +1,7 @@
 use std::fmt::Debug;
 
 use super::{PrivateNodeHeader, SnapshotKey, TemporalKey, KEY_BYTE_SIZE};
-use crate::{AesError, FsError, HashOutput, Namefilter};
+use crate::{private::Namefilter, AesError, FsError, HashOutput};
 use aes_kw::KekAes256;
 use anyhow::Result;
 use libipld::Cid;
@@ -217,8 +217,8 @@ impl RevisionRef {
 #[cfg(test)]
 mod tests {
     use crate::{
+        private::{PrivateDirectory, PrivateNode},
         utils::{self, test_setup},
-        PrivateDirectory, PrivateNode,
     };
     use chrono::Utc;
     use futures::StreamExt;

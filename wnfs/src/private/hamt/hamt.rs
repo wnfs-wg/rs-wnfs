@@ -3,7 +3,7 @@ use super::{
     diff::{KeyValueChange, NodeChange},
     Node, HAMT_VERSION,
 };
-use crate::{AsyncSerialize, BlockStore, Hasher, Link};
+use crate::{private::hamt::Hasher, AsyncSerialize, BlockStore, Link};
 use anyhow::Result;
 use async_trait::async_trait;
 use libipld::{serde as ipld_serde, Ipld};
