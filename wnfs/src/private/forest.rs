@@ -264,9 +264,7 @@ impl PrivateForest {
     /// Convenience function builder for `PrivateForest.get`.
     /// The returned function will return the first CID in `set`
     /// that also appears in `one_of`.
-    pub fn resolve_one_of<F>(
-        one_of: &BTreeSet<Cid>,
-    ) -> impl Fn(&BTreeSet<Cid>) -> Option<&Cid> + '_ {
+    pub fn resolve_one_of(one_of: &BTreeSet<Cid>) -> impl Fn(&BTreeSet<Cid>) -> Option<&Cid> + '_ {
         |set: &BTreeSet<Cid>| set.iter().find(|cid| one_of.contains(cid))
     }
 }
@@ -538,9 +536,7 @@ mod tests {
         let retrieved = forest
             .get(
                 &private_ref,
-                PrivateForest::resolve_one_of::<fn(&BTreeSet<Cid>) -> Option<&Cid>>(
-                    &BTreeSet::from([*conflict_cid]),
-                ),
+                PrivateForest::resolve_one_of(&BTreeSet::from([*conflict_cid])),
                 store,
             )
             .await

@@ -122,7 +122,7 @@ impl PrivateNodeHistory {
             .forest
             .get(
                 &self.header.derive_private_ref(),
-                PrivateForest::resolve_one_of::<fn(&BTreeSet<Cid>) -> Option<&Cid>>(&previous_cids),
+                PrivateForest::resolve_one_of(&previous_cids),
                 store,
             )
             .await?;
