@@ -1,6 +1,6 @@
 use super::ChangeType;
 use crate::{
-    private::{HashNibbles, HashPrefix, Node, Pointer, HAMT_BITMASK_BIT_SIZE},
+    private::hamt::{HashNibbles, HashPrefix, Node, Pointer, HAMT_BITMASK_BIT_SIZE},
     BlockStore, Hasher, Link, Pair,
 };
 use anyhow::Result;
@@ -290,7 +290,7 @@ where
 mod tests {
     use super::{ChangeType::*, *};
     use crate::{
-        private::{Node, MAX_HASH_NIBBLE_LENGTH},
+        private::hamt::{Node, MAX_HASH_NIBBLE_LENGTH},
         utils::{self, test_setup},
     };
     use helper::*;
@@ -570,7 +570,7 @@ mod tests {
 mod proptests {
     use super::*;
     use crate::{
-        private::strategies::{self, generate_kvs},
+        private::hamt::strategies::{self, generate_kvs},
         utils::test_setup,
     };
     use async_std::task;

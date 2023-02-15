@@ -1,7 +1,7 @@
 #![cfg(test)]
 
 use super::{operations, Operations};
-use crate::{private::Node, BlockStore};
+use crate::{private::hamt::Node, BlockStore};
 use anyhow::Result;
 use proptest::{collection::vec, strategy::Strategy};
 use serde::de::DeserializeOwned;

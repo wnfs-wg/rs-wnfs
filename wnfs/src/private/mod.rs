@@ -13,7 +13,6 @@ mod share;
 pub use directory::*;
 pub use file::*;
 pub use forest::*;
-pub use hamt::*;
 pub use keys::*;
 pub use namefilter::*;
 pub use node::*;

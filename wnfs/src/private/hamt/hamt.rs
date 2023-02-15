@@ -23,7 +23,7 @@ use std::{collections::BTreeMap, fmt, hash::Hash, rc::Rc, str::FromStr};
 /// Hash Array Mapped Trie (HAMT) is an implementation of an associative array that combines the characteristics
 /// of a hash table and an array mapped trie.
 ///
-/// This type wraps the actual implementation which can be found in the [`Node`](crate::private::Node).
+/// This type wraps the actual implementation which can be found in the [`Node`](crate::private::hamt::Node).
 ///
 /// # Examples
 ///

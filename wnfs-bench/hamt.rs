@@ -6,9 +6,9 @@ use proptest::{arbitrary::any, collection::vec, test_runner::TestRunner};
 use std::{rc::Rc, sync::Arc};
 use wnfs::{
     dagcbor,
-    private::{
-        hamt::{Hamt, Node},
+    private::hamt::{
         strategies::{node_from_operations, operations},
+        Hamt, Node,
     },
     utils::Sampleable,
     BlockStore, MemoryBlockStore,

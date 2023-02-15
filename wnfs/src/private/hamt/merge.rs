@@ -63,7 +63,7 @@ where
 #[cfg(test)]
 mod proptests {
     use crate::{
-        private::strategies::{self, generate_kvs},
+        private::hamt::strategies::{self, generate_kvs},
         utils::test_setup,
         Link,
     };

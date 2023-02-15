@@ -379,7 +379,10 @@ where
 mod tests {
     use super::*;
     use crate::{
-        private::{HashNibbles, Node, PrivateDirectory},
+        private::{
+            hamt::{HashNibbles, Node},
+            PrivateDirectory,
+        },
         utils::test_setup,
         MemoryBlockStore,
     };

@@ -1,5 +1,5 @@
 use super::ChangeType;
-use crate::{private::Node, BlockStore, Hasher, Link, Pair};
+use crate::{private::hamt::Node, BlockStore, Hasher, Link, Pair};
 use anyhow::{Ok, Result};
 use either::Either::{self, *};
 use serde::de::DeserializeOwned;
@@ -176,7 +176,7 @@ where
 mod tests {
     use super::{ChangeType::*, *};
     use crate::{
-        private::{HashNibbles, Node},
+        private::hamt::{HashNibbles, Node},
         utils::test_setup,
     };
     use helper::*;
@@ -445,7 +445,7 @@ mod tests {
 #[cfg(test)]
 mod proptests {
     use crate::{
-        private::{
+        private::hamt::{
             diff::ChangeType,
             strategies::{self, generate_kvs, generate_ops_and_changes, Change, Operations},
         },

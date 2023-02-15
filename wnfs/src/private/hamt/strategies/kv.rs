@@ -1,6 +1,6 @@
 #![cfg(test)]
 
-use crate::{private::Node, BlockStore};
+use crate::{private::hamt::Node, BlockStore};
 use anyhow::Result;
 use proptest::{collection::vec, sample::SizeRange, strategy::Strategy};
 use serde::{de::DeserializeOwned, Serialize};

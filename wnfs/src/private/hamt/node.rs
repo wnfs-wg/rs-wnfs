@@ -4,7 +4,7 @@ use super::{
     HashPrefix, Pair, Pointer, HAMT_BITMASK_BIT_SIZE, HAMT_BITMASK_BYTE_SIZE,
 };
 use crate::{
-    private::HAMT_VALUES_BUCKET_SIZE, AsyncSerialize, BlockStore, FsError, HashOutput, Link,
+    private::hamt::HAMT_VALUES_BUCKET_SIZE, AsyncSerialize, BlockStore, FsError, HashOutput, Link,
 };
 use anyhow::{bail, Result};
 use async_recursion::async_recursion;
