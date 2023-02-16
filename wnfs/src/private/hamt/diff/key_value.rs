@@ -1,9 +1,13 @@
-use super::ChangeType;
-use crate::{private::Node, BlockStore, Hasher, Link, Pair};
+use super::{create_node_from_pairs, ChangeType};
+use crate::{
+    private::{Node, Pointer, HAMT_BITMASK_BIT_SIZE},
+    utils::UnwrapOrClone,
+    BlockStore, Hasher, Link, Pair,
+};
 use anyhow::{Ok, Result};
-use either::Either::{self, *};
+use async_recursion::async_recursion;
 use serde::de::DeserializeOwned;
-use std::{hash::Hash, rc::Rc};
+use std::{collections::HashMap, hash::Hash, mem, rc::Rc};
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
@@ -14,11 +18,9 @@ use std::{hash::Hash, rc::Rc};
 pub struct KeyValueChange<K, V> {
     pub r#type: ChangeType,
     pub key: K,
-    pub main_value: Option<V>,
-    pub other_value: Option<V>,
+    pub value1: Option<V>,
+    pub value2: Option<V>,
 }
-
-type EitherPairOrNode<'a, K, V, H> = Option<Either<&'a Pair<K, V>, &'a Rc<Node<K, V, H>>>>;
 
 //--------------------------------------------------------------------------------------------------
 // Functions
@@ -66,105 +68,200 @@ type EitherPairOrNode<'a, K, V, H> = Option<Either<&'a Pair<K, V>, &'a Rc<Node<K
 ///    println!("Changes {:#?}", changes);
 /// }
 /// ```
-pub async fn kv_diff<K, V, H, B>(
+pub async fn kv_diff<K, V, H>(
     main_link: Link<Rc<Node<K, V, H>>>,
     other_link: Link<Rc<Node<K, V, H>>>,
-    store: &mut B,
+    store: &mut impl BlockStore,
 ) -> Result<Vec<KeyValueChange<K, V>>>
 where
     K: DeserializeOwned + Clone + Eq + Hash + AsRef<[u8]>,
     V: DeserializeOwned + Clone + Eq,
     H: Hasher + Clone + 'static,
-    B: BlockStore,
 {
-    let node_changes = super::node_diff(main_link.clone(), other_link.clone(), store).await?;
+    kv_diff_helper(main_link, other_link, 1, store).await
+}
 
-    let main_node = main_link.resolve_value(store).await?;
-    let other_node = other_link.resolve_value(store).await?;
-
-    let mut kv_changes = Vec::new();
-    for change in node_changes {
-        match change.r#type {
-            ChangeType::Add => {
-                let result = main_node.get_node_at(&change.hashprefix, store).await?;
-                kv_changes
-                    .extend(generate_add_or_remove_changes(result, ChangeType::Add, store).await?);
-            }
-            ChangeType::Remove => {
-                let result = other_node.get_node_at(&change.hashprefix, store).await?;
-                kv_changes.extend(
-                    generate_add_or_remove_changes(result, ChangeType::Remove, store).await?,
-                );
-            }
-            ChangeType::Modify => match (
-                main_node.get_node_at(&change.hashprefix, store).await?,
-                other_node.get_node_at(&change.hashprefix, store).await?,
-            ) {
-                (Some(Left(main_pair)), Some(Left(other_pair))) => {
-                    kv_changes.push(KeyValueChange {
-                        r#type: ChangeType::Modify,
-                        key: main_pair.key.clone(),
-                        main_value: Some(main_pair.value.clone()),
-                        other_value: Some(other_pair.value.clone()),
-                    });
-                }
-                _ => unreachable!("Node change type is Modify but nodes not found or not pairs."),
-            },
+#[async_recursion(?Send)]
+pub async fn kv_diff_helper<K, V, H>(
+    main_link: Link<Rc<Node<K, V, H>>>,
+    other_link: Link<Rc<Node<K, V, H>>>,
+    depth: usize,
+    store: &mut impl BlockStore,
+) -> Result<Vec<KeyValueChange<K, V>>>
+where
+    K: DeserializeOwned + Clone + Eq + Hash + AsRef<[u8]>,
+    V: DeserializeOwned + Clone + Eq,
+    H: Hasher + Clone + 'static,
+{
+    // If Cids are available, check to see if they are equal so we can skip further comparisons.
+    if let (Some(cid), Some(cid2)) = (main_link.get_cid(), other_link.get_cid()) {
+        if cid == cid2 {
+            return Ok(vec![]);
         }
     }
 
-    Ok(kv_changes)
+    // Otherwise, get nodes from store.
+    let mut main_node = main_link
+        .resolve_owned_value(store)
+        .await?
+        .unwrap_or_clone()?;
+
+    let mut other_node = other_link
+        .resolve_owned_value(store)
+        .await?
+        .unwrap_or_clone()?;
+
+    let mut changes = vec![];
+    for index in 0..HAMT_BITMASK_BIT_SIZE {
+        match (main_node.bitmask[index], other_node.bitmask[index]) {
+            (true, false) => {
+                // Main has a value, other doesn't.
+                changes.extend(
+                    generate_add_or_remove_changes(
+                        &main_node.pointers[main_node.get_value_index(index)],
+                        ChangeType::Add,
+                        store,
+                    )
+                    .await?,
+                );
+            }
+            (false, true) => {
+                // Main doesn't have a value, other does.
+                changes.extend(
+                    generate_add_or_remove_changes(
+                        &other_node.pointers[other_node.get_value_index(index)],
+                        ChangeType::Remove,
+                        store,
+                    )
+                    .await?,
+                );
+            }
+            (true, true) => {
+                // Main and other have a value. They may be the same or different so we check.
+                let main_index = main_node.get_value_index(index);
+                let main_pointer = mem::take(main_node.pointers.get_mut(main_index).unwrap());
+
+                let other_index = other_node.get_value_index(index);
+                let other_pointer = mem::take(other_node.pointers.get_mut(other_index).unwrap());
+
+                changes.extend(
+                    generate_modify_changes(main_pointer, other_pointer, depth, store).await?,
+                );
+            }
+            (false, false) => { /* No change */ }
+        }
+    }
+
+    Ok(changes)
 }
 
-async fn generate_add_or_remove_changes<'a, K, V, H, B>(
-    node: EitherPairOrNode<'a, K, V, H>,
+async fn generate_add_or_remove_changes<K, V, H>(
+    node_pointer: &Pointer<K, V, H>,
     r#type: ChangeType,
-    store: &B,
+    store: &mut impl BlockStore,
 ) -> Result<Vec<KeyValueChange<K, V>>>
 where
-    B: BlockStore,
-    K: DeserializeOwned + Clone,
-    V: DeserializeOwned + Clone,
+    K: DeserializeOwned + Clone + Eq + Hash + AsRef<[u8]>,
+    V: DeserializeOwned + Clone + Eq,
     H: Hasher + Clone + 'static,
 {
-    match node {
-        Some(Left(Pair { key, value })) => Ok(vec![KeyValueChange {
-            r#type,
-            key: key.clone(),
-            main_value: if r#type == ChangeType::Add {
-                Some(value.clone())
-            } else {
-                None
-            },
-            other_value: if r#type == ChangeType::Remove {
-                Some(value.clone())
-            } else {
-                None
-            },
-        }]),
-        Some(Right(node)) => {
-            node.flat_map(
-                &|Pair { key, value }| {
-                    Ok(KeyValueChange {
-                        r#type,
-                        key: key.clone(),
-                        main_value: if r#type == ChangeType::Add {
-                            Some(value.clone())
-                        } else {
-                            None
-                        },
-                        other_value: if r#type == ChangeType::Remove {
-                            Some(value.clone())
-                        } else {
-                            None
-                        },
-                    })
-                },
-                store,
-            )
-            .await
+    match node_pointer {
+        Pointer::Values(values) => Ok(values
+            .iter()
+            .map(|Pair { key, value }| KeyValueChange {
+                r#type,
+                key: key.clone(),
+                value1: Some(value.clone()),
+                value2: None,
+            })
+            .collect()),
+        Pointer::Link(link) => {
+            let node = link.resolve_value(store).await?;
+            node.as_ref()
+                .flat_map(
+                    &|Pair { key, value }| {
+                        Ok(KeyValueChange {
+                            r#type,
+                            key: key.clone(),
+                            value1: Some(value.clone()),
+                            value2: None,
+                        })
+                    },
+                    store,
+                )
+                .await
         }
-        _ => unreachable!("Node change type is Remove but node is not found."),
+    }
+}
+
+async fn generate_modify_changes<K, V, H>(
+    main_pointer: Pointer<K, V, H>,
+    other_pointer: Pointer<K, V, H>,
+    depth: usize,
+    store: &mut impl BlockStore,
+) -> Result<Vec<KeyValueChange<K, V>>>
+where
+    K: DeserializeOwned + Clone + Eq + Hash + AsRef<[u8]>,
+    V: DeserializeOwned + Clone + Eq,
+    H: Hasher + Clone + 'static,
+{
+    match (main_pointer, other_pointer) {
+        (Pointer::Link(main_link), Pointer::Link(other_link)) => {
+            kv_diff_helper(main_link, other_link, depth + 1, store).await
+        }
+        (Pointer::Values(main_values), Pointer::Values(other_values)) => {
+            let mut changes = vec![];
+            let mut main_map = HashMap::<&K, &V>::default();
+            let other_map = HashMap::<&K, &V>::from_iter(
+                other_values.iter().map(|Pair { key, value }| (key, value)),
+            );
+
+            for Pair { key, value } in &main_values {
+                match other_map.get(&key) {
+                    Some(v) => {
+                        if *v != value {
+                            changes.push(KeyValueChange {
+                                r#type: ChangeType::Modify,
+                                key: key.clone(),
+                                value1: Some(value.clone()),
+                                value2: Some((*v).clone()),
+                            });
+                        }
+                    }
+                    None => {
+                        changes.push(KeyValueChange {
+                            r#type: ChangeType::Add,
+                            key: key.clone(),
+                            value1: Some(value.clone()),
+                            value2: None,
+                        });
+                    }
+                }
+
+                main_map.insert(key, value);
+            }
+
+            for Pair { key, value } in &other_values {
+                if matches!(main_map.get(key), None) {
+                    changes.push(KeyValueChange {
+                        r#type: ChangeType::Remove,
+                        key: key.clone(),
+                        value1: Some(value.clone()),
+                        value2: None,
+                    });
+                }
+            }
+
+            Ok(changes)
+        }
+        (Pointer::Values(main_values), Pointer::Link(other_link)) => {
+            let main_link = Link::from(create_node_from_pairs(main_values, depth, store).await?);
+            kv_diff_helper(main_link, other_link, depth + 1, store).await
+        }
+        (Pointer::Link(main_link), Pointer::Values(other_values)) => {
+            let other_link = Link::from(create_node_from_pairs(other_values, depth, store).await?);
+            kv_diff_helper(main_link, other_link, depth + 1, store).await
+        }
     }
 }
 
@@ -242,14 +339,14 @@ mod tests {
                 KeyValueChange {
                     r#type: Add,
                     key: [2, 0, 0, 0,],
-                    main_value: Some(String::from("2")),
-                    other_value: None,
+                    value1: Some(String::from("2")),
+                    value2: None,
                 },
                 KeyValueChange {
                     r#type: Add,
                     key: [1, 0, 0, 0,],
-                    main_value: Some(String::from("1")),
-                    other_value: None,
+                    value1: Some(String::from("1")),
+                    value2: None,
                 },
             ]
         );
@@ -268,14 +365,14 @@ mod tests {
                 KeyValueChange {
                     r#type: Remove,
                     key: [2, 0, 0, 0,],
-                    main_value: None,
-                    other_value: Some(String::from("2")),
+                    value1: Some(String::from("2")),
+                    value2: None,
                 },
                 KeyValueChange {
                     r#type: Remove,
                     key: [1, 0, 0, 0,],
-                    main_value: None,
-                    other_value: Some(String::from("1")),
+                    value1: Some(String::from("1")),
+                    value2: None,
                 },
             ]
         );
@@ -378,26 +475,26 @@ mod tests {
                 KeyValueChange {
                     r#type: Modify,
                     key: "second".to_string(),
-                    main_value: Some("second_modified".to_string()),
-                    other_value: Some("second".to_string()),
+                    value1: Some("second_modified".to_string()),
+                    value2: Some("second".to_string()),
                 },
                 KeyValueChange {
                     r#type: Remove,
                     key: "third".to_string(),
-                    main_value: None,
-                    other_value: Some("third".to_string()),
+                    value1: Some("third".to_string()),
+                    value2: None,
                 },
                 KeyValueChange {
                     r#type: Add,
                     key: "fourth".to_string(),
-                    main_value: Some("fourth".to_string()),
-                    other_value: None,
+                    value1: Some("fourth".to_string()),
+                    value2: None,
                 },
                 KeyValueChange {
                     r#type: Add,
                     key: "fifth".to_string(),
-                    main_value: Some("fifth".to_string()),
-                    other_value: None,
+                    value1: Some("fifth".to_string()),
+                    value2: None,
                 },
             ]
         );
@@ -416,26 +513,26 @@ mod tests {
                 KeyValueChange {
                     r#type: Modify,
                     key: "second".to_string(),
-                    main_value: Some("second".to_string()),
-                    other_value: Some("second_modified".to_string()),
+                    value1: Some("second".to_string()),
+                    value2: Some("second_modified".to_string()),
                 },
                 KeyValueChange {
                     r#type: Add,
                     key: "third".to_string(),
-                    main_value: Some("third".to_string()),
-                    other_value: None,
+                    value1: Some("third".to_string()),
+                    value2: None,
                 },
                 KeyValueChange {
                     r#type: Remove,
                     key: "fourth".to_string(),
-                    main_value: None,
-                    other_value: Some("fourth".to_string()),
+                    value1: Some("fourth".to_string()),
+                    value2: None,
                 },
                 KeyValueChange {
                     r#type: Remove,
                     key: "fifth".to_string(),
-                    main_value: None,
-                    other_value: Some("fifth".to_string()),
+                    value1: Some("fifth".to_string()),
+                    value2: None,
                 },
             ]
         );
