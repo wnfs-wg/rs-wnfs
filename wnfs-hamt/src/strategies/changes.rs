@@ -1,11 +1,12 @@
 #![cfg(test)]
 
 use super::{operations, Operations};
-use crate::{private::hamt::Node, BlockStore};
+use crate::Node;
 use anyhow::Result;
 use proptest::{collection::vec, strategy::Strategy};
 use serde::de::DeserializeOwned;
 use std::{collections::HashMap, fmt::Debug, rc::Rc};
+use wnfs_common::BlockStore;
 
 //--------------------------------------------------------------------------------------------------
 // Types

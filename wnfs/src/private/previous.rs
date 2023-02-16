@@ -1,15 +1,12 @@
-use std::{collections::BTreeSet, rc::Rc};
-
-use anyhow::{bail, Result};
-use libipld::Cid;
-use skip_ratchet::{ratchet::PreviousIterator, Ratchet};
-
 use super::{
     encrypted::Encrypted, PrivateDirectory, PrivateFile, PrivateForest, PrivateNode,
     PrivateNodeHeader, TemporalKey,
 };
-
-use crate::{BlockStore, FsError, PathNodes, PathNodesResult};
+use anyhow::{bail, Result};
+use libipld::Cid;
+use skip_ratchet::{ratchet::PreviousIterator, Ratchet};
+use std::{collections::BTreeSet, rc::Rc};
+use wnfs_common::{BlockStore, FsError, PathNodes, PathNodesResult};
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
@@ -504,12 +501,10 @@ impl PrivateNodeOnPathHistory {
 mod tests {
 
     use super::*;
-    use crate::{
-        private::{namefilter::Namefilter, PrivateDirectory, PrivateOpResult},
-        MemoryBlockStore,
-    };
+    use crate::private::{namefilter::Namefilter, PrivateDirectory, PrivateOpResult};
     use chrono::Utc;
     use proptest::test_runner::{RngAlgorithm, TestRng};
+    use wnfs_common::MemoryBlockStore;
 
     struct TestSetup {
         rng: TestRng,

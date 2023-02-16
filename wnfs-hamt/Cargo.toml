@@ -1,18 +1,17 @@
 [package]
-name = "wnfs"
+name = "wnfs-hamt"
 version = "0.1.14"
-description = "WebNative filesystem core implementation"
-keywords = ["wnfs", "webnative", "ipfs", "decentralisation"]
+description = "HAMT implementation backing the PrivateForest in WNFS"
+keywords = ["wnfs", "webnative", "ipfs", "decentralisation", "hamt"]
 categories = [
   "filesystem",
-  "cryptography",
   "web-programming",
   "wasm",
 ]
 license = "Apache-2.0"
 readme = "README.md"
 edition = "2021"
-repository = "https://github.com/wnfs-wg/rs-wnfs/tree/main/wnfs"
+repository = "https://github.com/wnfs-wg/rs-wnfs/tree/main/wnfs-hamt"
 homepage = "https://fission.codes"
 authors = ["The Fission Authors"]
 
@@ -45,7 +44,6 @@ sha3 = "0.10"
 skip_ratchet = { version = "0.1", features = ["serde"] }
 thiserror = "1.0"
 wnfs-common = { version = "0.1.14", path = "../wnfs-common" }
-wnfs-hamt = { version = "0.1.14", path = "../wnfs-hamt" }
 xxhash-rust = { version = "0.8", features = ["xxh3"] }
 
 [dev-dependencies]
@@ -57,7 +55,7 @@ test-strategy = "0.3"
 tokio = { version = "1.0", features = ["full"] }
 
 [lib]
-name = "wnfs"
+name = "wnfs_hamt"
 path = "src/lib.rs"
 
 [features]

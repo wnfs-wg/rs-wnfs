@@ -8,12 +8,11 @@
 //! It exposes an immutable API, extending WNFS immutable nature to the in-memory representation of the file system.
 #![deny(unsafe_code)]
 
-mod common;
 pub mod private;
 pub mod public;
 mod traits;
+pub mod utils;
 
-pub use common::*;
 pub use traits::*;
 
 //--------------------------------------------------------------------------------------------------

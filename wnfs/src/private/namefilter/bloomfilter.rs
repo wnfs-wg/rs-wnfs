@@ -5,7 +5,7 @@ use bitvec::prelude::BitArray;
 use serde::{Deserialize, Serialize};
 use xxhash_rust::xxh3;
 
-use crate::utils::ByteArrayVisitor;
+use wnfs_common::utils::ByteArrayVisitor;
 
 //------------------------------------------------------------------------------
 // Type Definitions

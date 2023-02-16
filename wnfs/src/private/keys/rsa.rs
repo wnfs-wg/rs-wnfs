@@ -1,4 +1,5 @@
-use crate::RsaError;
+use wnfs_common::RsaError;
+
 use anyhow::{anyhow, Result};
 use rand_core::{CryptoRng, RngCore};
 use rsa::{

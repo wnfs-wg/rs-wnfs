@@ -1,14 +1,7 @@
 //! Public fs directory node.
+use crate::Id;
 
-use std::{
-    collections::{BTreeMap, BTreeSet},
-    rc::Rc,
-};
-
-use crate::{
-    error, utils, AsyncSerialize, BlockStore, FsError, Id, Metadata, NodeType, PathNodes,
-    PathNodesResult,
-};
+use super::{PublicFile, PublicNode};
 use anyhow::{bail, ensure, Result};
 use async_recursion::async_recursion;
 use async_trait::async_trait;
@@ -16,8 +9,14 @@ use chrono::{DateTime, Utc};
 use libipld::Cid;
 use semver::Version;
 use serde::{ser::Error as SerError, Deserialize, Deserializer, Serialize, Serializer};
-
-use super::{PublicFile, PublicLink, PublicNode};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    rc::Rc,
+};
+use wnfs_common::{
+    error, utils, AsyncSerialize, BlockStore, FsError, Link, Metadata, NodeType, PathNodes,
+    PathNodesResult,
+};
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
@@ -42,7 +41,7 @@ pub type PublicPathNodesResult = PathNodesResult<PublicDirectory>;
 pub struct PublicDirectory {
     pub version: Version,
     pub metadata: Metadata,
-    pub userland: BTreeMap<String, PublicLink>,
+    pub userland: BTreeMap<String, Link<PublicNode>>,
     pub previous: BTreeSet<Cid>,
 }
 
@@ -223,7 +222,7 @@ impl PublicDirectory {
         let mut working_dir = path_nodes.tail;
         for (dir, segment) in path_nodes.path.iter().rev() {
             let mut dir = (**dir).clone();
-            let link = PublicLink::with_dir(working_dir);
+            let link = Link::from(PublicNode::Dir(working_dir));
             dir.userland.insert(segment.clone(), link);
             working_dir = Rc::new(dir);
         }
@@ -463,9 +462,10 @@ impl PublicDirectory {
         };
 
         // insert the file into its parent directory
-        directory
-            .userland
-            .insert(filename.to_string(), PublicLink::with_file(Rc::new(file)));
+        directory.userland.insert(
+            filename.to_string(),
+            Link::from(PublicNode::File(Rc::new(file))),
+        );
         directory_path_nodes.tail = Rc::new(directory);
 
         // Fix up the file path
@@ -729,7 +729,7 @@ impl PublicDirectory {
 
         directory
             .userland
-            .insert(filename.clone(), PublicLink::new(removed_node));
+            .insert(filename.clone(), Link::from(removed_node));
 
         path_nodes.tail = Rc::new(directory);
 
@@ -815,10 +815,10 @@ impl PublicDirectory {
     /// Constructs a tree from directory with `base` as the historical ancestor.
     #[async_recursion(?Send)]
     pub(crate) async fn base_history_on_helper(
-        link: &PublicLink,
-        base_link: &PublicLink,
+        link: &Link<PublicNode>,
+        base_link: &Link<PublicNode>,
         store: &mut impl BlockStore,
-    ) -> Result<Option<PublicLink>> {
+    ) -> Result<Option<Link<PublicNode>>> {
         if link.deep_eq(base_link, store).await? {
             return Ok(None);
         }
@@ -835,7 +835,7 @@ impl PublicDirectory {
             (PublicNode::File(file_rc), PublicNode::File(_)) => {
                 let mut file = (**file_rc).clone();
                 file.previous = BTreeSet::from([*base_link.resolve_cid(store).await?]);
-                return Ok(Some(PublicLink::with_file(Rc::new(file))));
+                return Ok(Some(Link::from(PublicNode::File(Rc::new(file)))));
             }
             _ => {
                 // One is a file and the other is a directory
@@ -854,7 +854,7 @@ impl PublicDirectory {
             }
         }
 
-        Ok(Some(PublicLink::with_dir(Rc::new(dir))))
+        Ok(Some(Link::from(PublicNode::Dir(Rc::new(dir)))))
     }
 }
 
@@ -909,7 +909,7 @@ impl<'de> Deserialize<'de> for PublicDirectory {
 
         let userland = userland
             .into_iter()
-            .map(|(name, cid)| (name, PublicLink::from_cid(cid)))
+            .map(|(name, cid)| (name, Link::from_cid(cid)))
             .collect();
 
         Ok(Self {
@@ -928,9 +928,10 @@ impl<'de> Deserialize<'de> for PublicDirectory {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{dagcbor, public::PublicFile, MemoryBlockStore};
+    use crate::public::PublicFile;
     use chrono::Utc;
     use libipld::Ipld;
+    use wnfs_common::{dagcbor, MemoryBlockStore};
 
     #[async_std::test]
     async fn look_up_can_fetch_file_added_to_directory() {

@@ -2,10 +2,7 @@ use super::{
     encrypted::Encrypted, namefilter::Namefilter, PrivateFile, PrivateForest, PrivateNode,
     PrivateNodeHeader, PrivateRef, PrivateRefSerializable, TemporalKey,
 };
-use crate::{
-    error, utils, BlockStore, FsError, HashOutput, Id, Metadata, NodeType, PathNodes,
-    PathNodesResult,
-};
+use crate::Id;
 use anyhow::{bail, ensure, Result};
 use async_once_cell::OnceCell;
 use chrono::{DateTime, Utc};
@@ -18,6 +15,10 @@ use std::{
     fmt::Debug,
     rc::Rc,
 };
+use wnfs_common::{
+    error, utils, BlockStore, FsError, Metadata, NodeType, PathNodes, PathNodesResult,
+};
+use wnfs_hamt::HashOutput;
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
@@ -1467,8 +1468,8 @@ impl Id for PrivateDirectory {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::MemoryBlockStore;
     use proptest::test_runner::{RngAlgorithm, TestRng};
+    use wnfs_common::MemoryBlockStore;
 
     use test_log::test;
 

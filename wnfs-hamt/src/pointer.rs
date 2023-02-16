@@ -1,18 +1,14 @@
-use std::rc::Rc;
-
+use super::{error::HamtError, hash::Hasher, Node, HAMT_VALUES_BUCKET_SIZE};
 use anyhow::Result;
 use async_trait::async_trait;
 use libipld::{serde as ipld_serde, Ipld};
-
 use serde::{
     de::{DeserializeOwned, Error as DeError},
     ser::Error as SerError,
     Deserialize, Deserializer, Serialize, Serializer,
 };
-
-use crate::{error, AsyncSerialize, BlockStore, Link};
-
-use super::{error::HamtError, hash::Hasher, Node, HAMT_VALUES_BUCKET_SIZE};
+use std::rc::Rc;
+use wnfs_common::{error, AsyncSerialize, BlockStore, Link};
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
@@ -238,10 +234,9 @@ where
 
 #[cfg(test)]
 mod tests {
-    use sha3::Sha3_256;
-
     use super::*;
-    use crate::{dagcbor, MemoryBlockStore};
+    use sha3::Sha3_256;
+    use wnfs_common::{dagcbor, MemoryBlockStore};
 
     #[async_std::test]
     async fn pointer_can_encode_decode_as_cbor() {

@@ -3,14 +3,13 @@
 mod constants;
 pub mod diff;
 mod error;
-#[allow(clippy::module_inception)]
 mod hamt;
-mod hash;
+pub mod hash;
 mod merge;
 mod node;
 mod pointer;
 
-pub(crate) use constants::*;
+pub use constants::*;
 
 pub use hamt::*;
 pub use hash::*;
@@ -20,3 +19,6 @@ pub use pointer::*;
 
 #[cfg(any(test, feature = "test_strategies"))]
 pub mod strategies;
+
+/// The general size of digests in WNFS.
+pub type HashOutput = [u8; HASH_BYTE_SIZE];

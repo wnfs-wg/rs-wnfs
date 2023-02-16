@@ -6,12 +6,10 @@ use sha3::Sha3_256;
 use std::{io::Cursor, rc::Rc};
 use wnfs::{
     ipld::{DagCborCodec, Decode, Encode, Ipld, Serializer},
-    private::{
-        hamt::Hasher, AesKey, Namefilter, PrivateDirectory, PrivateForest, PrivateOpResult,
-        RevisionRef,
-    },
-    utils, MemoryBlockStore,
+    private::{AesKey, Namefilter, PrivateDirectory, PrivateForest, PrivateOpResult, RevisionRef},
 };
+use wnfs_common::{utils, MemoryBlockStore};
+use wnfs_hamt::Hasher;
 
 #[tokio::main(flavor = "multi_thread")]
 async fn main() -> anyhow::Result<()> {

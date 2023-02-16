@@ -1,12 +1,10 @@
 use super::ChangeType;
-use crate::{
-    private::hamt::{HashNibbles, HashPrefix, Hasher, Node, Pair, Pointer, HAMT_BITMASK_BIT_SIZE},
-    BlockStore, Link,
-};
+use crate::{HashNibbles, HashPrefix, Hasher, Node, Pair, Pointer, HAMT_BITMASK_BIT_SIZE};
 use anyhow::Result;
 use async_recursion::async_recursion;
 use serde::de::DeserializeOwned;
 use std::{collections::HashMap, hash::Hash, mem, rc::Rc};
+use wnfs_common::{BlockStore, Link};
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
@@ -289,25 +287,23 @@ where
 #[cfg(test)]
 mod tests {
     use super::{ChangeType::*, *};
-    use crate::{
-        private::hamt::{Node, MAX_HASH_NIBBLE_LENGTH},
-        utils::{self, test_setup},
-    };
+    use crate::{hash, Node, MAX_HASH_NIBBLE_LENGTH};
     use helper::*;
     use sha3::Sha3_256;
     use std::rc::Rc;
+    use wnfs_common::MemoryBlockStore;
 
     mod helper {
-        use crate::{private::hamt::Hasher, utils, HashOutput};
+        use crate::{hash, HashOutput, Hasher};
         use once_cell::sync::Lazy;
 
         pub(super) static HASH_KV_PAIRS: Lazy<Vec<(HashOutput, &'static str)>> = Lazy::new(|| {
             vec![
-                (utils::make_digest(&[0xA0]), "first"),
-                (utils::make_digest(&[0xA3]), "second"),
-                (utils::make_digest(&[0xA7]), "third"),
-                (utils::make_digest(&[0xAC]), "fourth"),
-                (utils::make_digest(&[0xAE]), "fifth"),
+                (hash::truncate(&[0xA0]), "first"),
+                (hash::truncate(&[0xA3]), "second"),
+                (hash::truncate(&[0xA7]), "third"),
+                (hash::truncate(&[0xAC]), "fourth"),
+                (hash::truncate(&[0xAE]), "fifth"),
             ]
         });
 
@@ -326,7 +322,7 @@ mod tests {
 
     #[async_std::test]
     async fn can_diff_main_node_with_added_removed_pairs() {
-        let store = test_setup::init!(mut store);
+        let store = &mut MemoryBlockStore::new();
 
         let main_node = &mut Rc::new(Node::<[u8; 4], String>::default());
         for i in 0u32..3 {
@@ -399,7 +395,7 @@ mod tests {
 
     #[async_std::test]
     async fn can_diff_main_node_with_no_changes() {
-        let store = test_setup::init!(mut store);
+        let store = &mut MemoryBlockStore::new();
 
         let main_node = &mut Rc::new(Node::<_, _>::default());
         for i in 0_u32..3 {
@@ -430,7 +426,7 @@ mod tests {
 
     #[async_std::test]
     async fn can_diff_nodes_with_different_structure_and_modified_changes() {
-        let store = test_setup::init!(mut store);
+        let store = &mut MemoryBlockStore::new();
 
         // A node that adds the first 3 pairs of HASH_KV_PAIRS.
         let other_node = &mut Rc::new(Node::<_, _, MockHasher>::default());
@@ -494,28 +490,28 @@ mod tests {
                 NodeChange {
                     r#type: Modify,
                     hashprefix: HashPrefix::with_length(
-                        utils::make_digest(&[0xA3, 0x00]),
+                        hash::truncate(&[0xA3, 0x00]),
                         MAX_HASH_NIBBLE_LENGTH as u8
                     ),
                 },
                 NodeChange {
                     r#type: Remove,
                     hashprefix: HashPrefix::with_length(
-                        utils::make_digest(&[0xA7, 0x00]),
+                        hash::truncate(&[0xA7, 0x00]),
                         MAX_HASH_NIBBLE_LENGTH as u8
                     ),
                 },
                 NodeChange {
                     r#type: Add,
                     hashprefix: HashPrefix::with_length(
-                        utils::make_digest(&[0xAC, 0x00]),
+                        hash::truncate(&[0xAC, 0x00]),
                         MAX_HASH_NIBBLE_LENGTH as u8
                     ),
                 },
                 NodeChange {
                     r#type: Add,
                     hashprefix: HashPrefix::with_length(
-                        utils::make_digest(&[0xAE, 0x00]),
+                        hash::truncate(&[0xAE, 0x00]),
                         MAX_HASH_NIBBLE_LENGTH as u8
                     ),
                 },
@@ -536,28 +532,28 @@ mod tests {
                 NodeChange {
                     r#type: Modify,
                     hashprefix: HashPrefix::with_length(
-                        utils::make_digest(&[0xA3, 0x00]),
+                        hash::truncate(&[0xA3, 0x00]),
                         MAX_HASH_NIBBLE_LENGTH as u8
                     ),
                 },
                 NodeChange {
                     r#type: Add,
                     hashprefix: HashPrefix::with_length(
-                        utils::make_digest(&[0xA7, 0x00]),
+                        hash::truncate(&[0xA7, 0x00]),
                         MAX_HASH_NIBBLE_LENGTH as u8
                     ),
                 },
                 NodeChange {
                     r#type: Remove,
                     hashprefix: HashPrefix::with_length(
-                        utils::make_digest(&[0xAC, 0x00]),
+                        hash::truncate(&[0xAC, 0x00]),
                         MAX_HASH_NIBBLE_LENGTH as u8
                     ),
                 },
                 NodeChange {
                     r#type: Remove,
                     hashprefix: HashPrefix::with_length(
-                        utils::make_digest(&[0xAE, 0x00]),
+                        hash::truncate(&[0xAE, 0x00]),
                         MAX_HASH_NIBBLE_LENGTH as u8
                     ),
                 },
@@ -569,12 +565,10 @@ mod tests {
 #[cfg(test)]
 mod proptests {
     use super::*;
-    use crate::{
-        private::hamt::strategies::{self, generate_kvs},
-        utils::test_setup,
-    };
+    use crate::strategies::{self, generate_kvs};
     use async_std::task;
     use test_strategy::proptest;
+    use wnfs_common::MemoryBlockStore;
 
     #[proptest]
     fn add_remove_flip(
@@ -582,7 +576,7 @@ mod proptests {
         #[strategy(generate_kvs("[a-z0-9]{1,3}", 0u64..1000, 0..100))] kvs2: Vec<(String, u64)>,
     ) {
         task::block_on(async {
-            let store = test_setup::init!(mut store);
+            let store = &mut MemoryBlockStore::new();
 
             let node1 = strategies::node_from_kvs(kvs1, store).await.unwrap();
             let node2 = strategies::node_from_kvs(kvs2, store).await.unwrap();

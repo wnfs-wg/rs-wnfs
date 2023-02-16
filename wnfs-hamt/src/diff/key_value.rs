@@ -1,12 +1,10 @@
 use super::ChangeType;
-use crate::{
-    private::hamt::{Hasher, Node, Pair},
-    BlockStore, Link,
-};
+use crate::{Hasher, Node, Pair};
 use anyhow::{Ok, Result};
 use either::Either::{self, *};
 use serde::de::DeserializeOwned;
 use std::{hash::Hash, rc::Rc};
+use wnfs_common::{BlockStore, Link};
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
@@ -178,25 +176,23 @@ where
 #[cfg(test)]
 mod tests {
     use super::{ChangeType::*, *};
-    use crate::{
-        private::hamt::{HashNibbles, Node},
-        utils::test_setup,
-    };
+    use crate::{HashNibbles, Node};
     use helper::*;
     use std::rc::Rc;
+    use wnfs_common::MemoryBlockStore;
 
     mod helper {
         use once_cell::sync::Lazy;
 
-        use crate::{private::hamt::Hasher, utils, HashOutput};
+        use crate::{hash, HashOutput, Hasher};
 
         pub(super) static HASH_KV_PAIRS: Lazy<Vec<(HashOutput, &'static str)>> = Lazy::new(|| {
             vec![
-                (utils::make_digest(&[0xA0]), "first"),
-                (utils::make_digest(&[0xA3]), "second"),
-                (utils::make_digest(&[0xA7]), "third"),
-                (utils::make_digest(&[0xAC]), "fourth"),
-                (utils::make_digest(&[0xAE]), "fifth"),
+                (hash::truncate(&[0xA0]), "first"),
+                (hash::truncate(&[0xA3]), "second"),
+                (hash::truncate(&[0xA7]), "third"),
+                (hash::truncate(&[0xAC]), "fourth"),
+                (hash::truncate(&[0xAE]), "fifth"),
             ]
         });
 
@@ -215,7 +211,7 @@ mod tests {
 
     #[async_std::test]
     async fn can_diff_main_node_with_added_removed_pairs() {
-        let store = test_setup::init!(mut store);
+        let store = &mut MemoryBlockStore::new();
 
         let main_node = &mut Rc::new(Node::<[u8; 4], String>::default());
         for i in 0u32..3 {
@@ -286,7 +282,7 @@ mod tests {
 
     #[async_std::test]
     async fn can_diff_main_node_with_no_changes() {
-        let store = test_setup::init!(mut store);
+        let store = &mut MemoryBlockStore::new();
 
         let main_node = &mut Rc::new(Node::<_, _>::default());
         for i in 0_u32..3 {
@@ -317,7 +313,7 @@ mod tests {
 
     #[async_std::test]
     async fn can_diff_nodes_with_different_structure_and_modified_changes() {
-        let store = test_setup::init!(mut store);
+        let store = &mut MemoryBlockStore::new();
 
         // A node that adds the first 3 pairs of HASH_KV_PAIRS.
         let other_node = &mut Rc::new(Node::<_, _, MockHasher>::default());
@@ -448,16 +444,13 @@ mod tests {
 #[cfg(test)]
 mod proptests {
     use crate::{
-        private::hamt::{
-            diff::ChangeType,
-            strategies::{self, generate_kvs, generate_ops_and_changes, Change, Operations},
-        },
-        utils::test_setup,
-        Link,
+        diff::ChangeType,
+        strategies::{self, generate_kvs, generate_ops_and_changes, Change, Operations},
     };
     use async_std::task;
     use std::{collections::HashSet, rc::Rc};
     use test_strategy::proptest;
+    use wnfs_common::{Link, MemoryBlockStore};
 
     #[proptest(cases = 100, max_shrink_iters = 4000)]
     fn diff_correspondence(
@@ -467,7 +460,7 @@ mod proptests {
         ),
     ) {
         task::block_on(async {
-            let store = test_setup::init!(mut store);
+            let store = &mut MemoryBlockStore::new();
             let (ops, strategy_changes) = ops_changes;
 
             let other_node = &mut strategies::node_from_operations(&ops, store).await.unwrap();
@@ -509,7 +502,7 @@ mod proptests {
         #[strategy(generate_kvs("[a-z0-9]{1,3}", 0u64..1000, 0..100))] kvs2: Vec<(String, u64)>,
     ) {
         task::block_on(async {
-            let store = test_setup::init!(mut store);
+            let store = &mut MemoryBlockStore::new();
 
             let node1 = strategies::node_from_kvs(kvs1, store).await.unwrap();
             let node2 = strategies::node_from_kvs(kvs2, store).await.unwrap();
@@ -533,7 +526,7 @@ mod proptests {
         #[strategy(generate_kvs("[a-z0-9]{1,3}", 0u64..1000, 0..100))] kvs2: Vec<(String, u64)>,
     ) {
         task::block_on(async {
-            let store = test_setup::init!(mut store);
+            let store = &mut MemoryBlockStore::new();
 
             let node1 = strategies::node_from_kvs(kvs1, store).await.unwrap();
             let node2 = strategies::node_from_kvs(kvs2, store).await.unwrap();

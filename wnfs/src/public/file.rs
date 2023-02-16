@@ -1,15 +1,13 @@
 //! Public fs file node.
-
-use std::collections::BTreeSet;
-
 use anyhow::Result;
-
 use chrono::{DateTime, Utc};
 use libipld::Cid;
 use semver::Version;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use std::collections::BTreeSet;
+use wnfs_common::{BlockStore, Metadata, NodeType};
 
-use crate::{BlockStore, Id, Metadata, NodeType};
+use crate::Id;
 
 /// Represents a file in the WNFS public filesystem.
 ///
@@ -167,10 +165,10 @@ impl Id for PublicFile {
 
 #[cfg(test)]
 mod tests {
+    use crate::public::PublicFile;
     use chrono::Utc;
     use libipld::Cid;
-
-    use crate::{dagcbor, public::PublicFile};
+    use wnfs_common::dagcbor;
 
     #[async_std::test]
     async fn serialized_public_file_can_be_deserialized() {

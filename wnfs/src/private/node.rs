@@ -1,10 +1,9 @@
+use crate::Id;
+
 use super::{
-    encrypted::Encrypted, hamt::Hasher, namefilter::Namefilter, AesKey, PrivateDirectory,
+    encrypted::Encrypted, namefilter::Namefilter, AesKey, PrivateDirectory,
     PrivateDirectoryContent, PrivateFile, PrivateFileContent, PrivateForest, PrivateRef,
     RevisionRef, NONCE_SIZE,
-};
-use crate::{
-    dagcbor, utils, AesError, BlockStore, FsError, HashOutput, Id, NodeType, HASH_BYTE_SIZE,
 };
 use aes_gcm::{
     aead::{consts::U12, Aead},
@@ -21,6 +20,8 @@ use serde::{Deserialize, Serialize};
 use sha3::Sha3_256;
 use skip_ratchet::{seek::JumpSize, Ratchet, RatchetSeeker};
 use std::{cmp::Ordering, collections::BTreeSet, fmt::Debug, io::Cursor, rc::Rc};
+use wnfs_common::{dagcbor, AesError, BlockStore, FsError, NodeType};
+use wnfs_hamt::{HashOutput, Hasher, HASH_BYTE_SIZE};
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
@@ -535,8 +536,8 @@ impl From<PrivateDirectory> for PrivateNode {
 impl PrivateNodeHeader {
     /// Creates a new PrivateNodeHeader.
     pub(crate) fn new(parent_bare_name: Namefilter, rng: &mut impl RngCore) -> Self {
-        let inumber = crate::utils::get_random_bytes::<HASH_BYTE_SIZE>(rng);
-        let ratchet_seed = crate::utils::get_random_bytes::<HASH_BYTE_SIZE>(rng);
+        let inumber = wnfs_common::utils::get_random_bytes::<HASH_BYTE_SIZE>(rng);
+        let ratchet_seed = wnfs_common::utils::get_random_bytes::<HASH_BYTE_SIZE>(rng);
 
         Self {
             bare_name: {
@@ -582,7 +583,7 @@ impl PrivateNodeHeader {
 
     /// Resets the ratchet.
     pub(crate) fn reset_ratchet(&mut self, rng: &mut impl RngCore) {
-        self.ratchet = Ratchet::zero(utils::get_random_bytes(rng))
+        self.ratchet = Ratchet::zero(wnfs_common::utils::get_random_bytes(rng))
     }
 
     /// Derives the revision ref of the current header.
@@ -902,11 +903,9 @@ impl SnapshotKey {
 
 #[cfg(test)]
 mod tests {
-    use proptest::test_runner::{RngAlgorithm, TestRng};
-
-    use crate::MemoryBlockStore;
-
     use super::*;
+    use proptest::test_runner::{RngAlgorithm, TestRng};
+    use wnfs_common::MemoryBlockStore;
 
     #[async_std::test]
     async fn serialized_private_node_can_be_deserialized() {

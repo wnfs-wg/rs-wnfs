@@ -5,7 +5,7 @@ use libipld::{cbor::DagCborCodec, codec::Decode, prelude::Encode, Ipld};
 use once_cell::sync::OnceCell;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
-use crate::FsError;
+use wnfs_common::FsError;
 
 use super::TemporalKey;
 

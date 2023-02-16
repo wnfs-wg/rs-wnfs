@@ -4,14 +4,10 @@ use criterion::{
 };
 use proptest::{arbitrary::any, collection::vec, test_runner::TestRunner};
 use std::{rc::Rc, sync::Arc};
-use wnfs::{
-    dagcbor,
-    private::hamt::{
-        strategies::{node_from_operations, operations},
-        Hamt, Node,
-    },
-    utils::Sampleable,
-    BlockStore, MemoryBlockStore,
+use wnfs_common::{dagcbor, utils::Sampleable, BlockStore, MemoryBlockStore};
+use wnfs_hamt::{
+    strategies::{node_from_operations, operations},
+    Hamt, Node,
 };
 
 fn node_set(c: &mut Criterion) {

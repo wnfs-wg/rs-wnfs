@@ -2,10 +2,7 @@ use super::{
     encrypted::Encrypted, namefilter::Namefilter, AesKey, PrivateForest, PrivateNodeHeader,
     SnapshotKey, AUTHENTICATION_TAG_SIZE, NONCE_SIZE,
 };
-use crate::{
-    private::hamt::Hasher, utils, utils::get_random_bytes, BlockStore, FsError, Id, Metadata,
-    NodeType, MAX_BLOCK_SIZE,
-};
+use crate::Id;
 use anyhow::Result;
 use async_once_cell::OnceCell;
 use async_stream::try_stream;
@@ -17,6 +14,10 @@ use semver::Version;
 use serde::{de::Error as DeError, Deserialize, Deserializer, Serialize};
 use sha3::Sha3_256;
 use std::{collections::BTreeSet, iter, rc::Rc};
+use wnfs_common::{
+    utils, utils::get_random_bytes, BlockStore, FsError, Metadata, NodeType, MAX_BLOCK_SIZE,
+};
+use wnfs_hamt::Hasher;
 
 //--------------------------------------------------------------------------------------------------
 // Constants
@@ -738,10 +739,11 @@ impl Id for PrivateFile {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{utils::test_setup, MemoryBlockStore};
+    use crate::utils::test_setup;
     use async_std::fs::File;
     use proptest::test_runner::{RngAlgorithm, TestRng};
     use rand::Rng;
+    use wnfs_common::MemoryBlockStore;
 
     #[async_std::test]
     async fn can_create_empty_file() {

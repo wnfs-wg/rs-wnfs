@@ -19,12 +19,23 @@ pub use pathnodes::*;
 // Constants
 //--------------------------------------------------------------------------------------------------
 
-pub const HASH_BYTE_SIZE: usize = 32;
 pub const MAX_BLOCK_SIZE: usize = usize::pow(2, 18);
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
 //--------------------------------------------------------------------------------------------------
 
-/// The general size of digests in WNFS.
-pub type HashOutput = [u8; HASH_BYTE_SIZE];
+// TODO(matheus23) move into its own file `traits.rs`?
+pub mod traits {
+    use anyhow::Result;
+    use async_trait::async_trait;
+
+    use crate::BlockStore;
+
+    /// Implements deep equality check for two types.
+    #[async_trait(?Send)]
+    pub trait IpldEq {
+        /// Checks if the two items are deeply equal.
+        async fn eq<B: BlockStore>(&self, other: &Self, store: &mut B) -> Result<bool>;
+    }
+}

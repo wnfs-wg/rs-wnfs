@@ -10,14 +10,15 @@ use self::sharer::share;
 use super::{RsaKeyPair, SnapshotKey, TemporalKey};
 use crate::{
     private::{PrivateForest, PrivateNode},
-    public::PublicLink,
-    BlockStore, FsError, HashOutput, NodeType, ShareError,
+    public::PublicNode,
 };
 use anyhow::{bail, Result};
 use libipld::Cid;
 use rand_core::RngCore;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::{marker::PhantomData, rc::Rc};
+use wnfs_common::{BlockStore, FsError, Link, NodeType, ShareError};
+use wnfs_hamt::HashOutput;
 
 //--------------------------------------------------------------------------------------------------
 // Constants
@@ -47,7 +48,7 @@ pub struct Sharer<'a, S: BlockStore> {
 
 #[derive(Debug)]
 pub struct Recipient<'a, S: BlockStore> {
-    pub exchange_root: PublicLink,
+    pub exchange_root: Link<PublicNode>,
     pub store: &'a S,
 }
 
@@ -314,16 +315,15 @@ impl<'de> Deserialize<'de> for TemporalSharePointer {
 pub mod sharer {
     use super::{SharePayload, EXCHANGE_KEY_NAME};
     use crate::{
-        dagcbor,
         private::{Namefilter, PrivateForest, PublicKeyModulus, RsaKeyPair},
-        public::{PublicLink, PublicOpResult},
-        BlockStore, FsError,
+        public::{PublicNode, PublicOpResult},
     };
     use anyhow::Result;
     use async_stream::try_stream;
     use futures::{Stream, StreamExt};
     use libipld::IpldCodec;
     use std::rc::Rc;
+    use wnfs_common::{dagcbor, BlockStore, FsError, Link};
 
     /// Encrypts and shares a payload with multiple recipients using their
     /// exchange keys and stores the shares in the sharer's private forest.
@@ -334,7 +334,7 @@ pub mod sharer {
         sharer_root_did: &str,
         sharer_forest: &mut Rc<PrivateForest>,
         sharer_store: &mut impl BlockStore,
-        recipient_exchange_root: PublicLink,
+        recipient_exchange_root: Link<PublicNode>,
         recipient_store: &impl BlockStore,
     ) -> Result<()> {
         let mut exchange_keys = fetch_exchange_keys(recipient_exchange_root, recipient_store).await;
@@ -363,7 +363,7 @@ pub mod sharer {
     /// search for the exchange key, and read the exchange key's cid in the recipient's store and
     /// yield the exchange key's value.
     pub async fn fetch_exchange_keys(
-        recipient_exchange_root: PublicLink,
+        recipient_exchange_root: Link<PublicNode>,
         recipient_store: &impl BlockStore,
     ) -> impl Stream<Item = Result<PublicKeyModulus>> + '_ {
         Box::pin(try_stream! {
@@ -411,14 +411,12 @@ pub mod sharer {
 }
 
 pub mod recipient {
-    use crate::{
-        dagcbor,
-        private::{hamt::Hasher, Namefilter, PrivateForest, PrivateNode, PrivateRef, RsaKeyPair},
-        BlockStore, ShareError,
-    };
+    use crate::private::{Namefilter, PrivateForest, PrivateNode, PrivateRef, RsaKeyPair};
     use anyhow::{bail, Result};
     use sha3::Sha3_256;
     use std::rc::Rc;
+    use wnfs_common::{dagcbor, BlockStore, ShareError};
+    use wnfs_hamt::Hasher;
 
     use super::{SharePayload, TemporalSharePointer};
 
@@ -493,7 +491,7 @@ mod tests {
         //         forest,
         //     })
         //     .to(Recipient {
-        //         exchange_root: PublicLink::from(PublicNode::Dir(exchange_root)),
+        //         exchange_root: Link::from(PublicNode::Dir(exchange_root)),
         //         store: &MemoryBlockStore::default(),
         //     })
         //     .finish()

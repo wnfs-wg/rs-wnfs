@@ -1,5 +1,5 @@
 use super::error::HamtError;
-use crate::{utils, HashOutput, HASH_BYTE_SIZE};
+use crate::{HashOutput, HASH_BYTE_SIZE};
 use anyhow::{bail, Result};
 use sha3::{Digest, Sha3_256};
 use std::fmt::Debug;
@@ -42,7 +42,7 @@ pub trait Hasher {
 
 /// HashNibbles is a wrapper around a byte slice that provides a cursor for traversing the nibbles.
 #[derive(Clone)]
-pub(crate) struct HashNibbles<'a> {
+pub struct HashNibbles<'a> {
     pub digest: &'a HashOutput,
     cursor: usize,
 }
@@ -295,8 +295,29 @@ impl HashPrefix {
     /// assert!(hashprefix.is_prefix_of(&[0xff, 0x22, 0x33]));
     /// ```
     pub fn is_prefix_of(&self, bytes: &[u8]) -> bool {
-        self == &HashPrefix::with_length(utils::make_digest(bytes), self.length)
+        self == &HashPrefix::with_length(truncate(bytes), self.length)
     }
+}
+
+/// Creates a [`HashOutput`][HashOutput] ([u8; 32]) from a possibly incomplete slice.
+///
+/// If the slice is smaller than `HashOutput`, the remaining bytes are filled with zeros.
+///
+/// # Examples
+///
+/// ```
+/// use wnfs_hamt::hash;
+///
+/// let digest = truncate(&[0xff, 0x22]);
+///
+/// assert_eq!(digest.len(), 32);
+/// ```
+///
+/// [HashOutput]: crate::HashOutput
+pub fn truncate(bytes: &[u8]) -> HashOutput {
+    let mut nibbles = [0u8; 32];
+    nibbles[..bytes.len()].copy_from_slice(bytes);
+    nibbles
 }
 
 impl Debug for HashPrefix {

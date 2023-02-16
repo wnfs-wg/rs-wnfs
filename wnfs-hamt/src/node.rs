@@ -3,9 +3,7 @@ use super::{
     hash::{HashNibbles, Hasher},
     HashPrefix, Pair, Pointer, HAMT_BITMASK_BIT_SIZE, HAMT_BITMASK_BYTE_SIZE,
 };
-use crate::{
-    private::hamt::HAMT_VALUES_BUCKET_SIZE, AsyncSerialize, BlockStore, FsError, HashOutput, Link,
-};
+use crate::{constants::HAMT_VALUES_BUCKET_SIZE, HashOutput};
 use anyhow::{bail, Result};
 use async_recursion::async_recursion;
 use async_trait::async_trait;
@@ -27,6 +25,7 @@ use std::{
     marker::PhantomData,
     rc::Rc,
 };
+use wnfs_common::{AsyncSerialize, BlockStore, FsError, Link};
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
@@ -776,23 +775,22 @@ where
 
 #[cfg(test)]
 mod tests {
+    use crate::hash;
+
     use super::*;
-    use crate::{
-        utils::{self, test_setup},
-        MemoryBlockStore,
-    };
     use helper::*;
+    use wnfs_common::MemoryBlockStore;
 
     mod helper {
-        use crate::{private::hamt::Hasher, utils, HashOutput};
+        use crate::{hash, HashOutput, Hasher};
         use once_cell::sync::Lazy;
 
         pub(super) static HASH_KV_PAIRS: Lazy<Vec<(HashOutput, &'static str)>> = Lazy::new(|| {
             vec![
-                (utils::make_digest(&[0xE0]), "first"),
-                (utils::make_digest(&[0xE1]), "second"),
-                (utils::make_digest(&[0xE2]), "third"),
-                (utils::make_digest(&[0xE3]), "fourth"),
+                (hash::truncate(&[0xE0]), "first"),
+                (hash::truncate(&[0xE1]), "second"),
+                (hash::truncate(&[0xE2]), "third"),
+                (hash::truncate(&[0xE3]), "fourth"),
             ]
         });
 
@@ -940,7 +938,7 @@ mod tests {
 
         let working_node = &mut Rc::new(Node::<String, String>::default());
         for (hash, expected_idx) in hash_expected_idx_samples.into_iter() {
-            let bytes = utils::make_digest(&hash[..]);
+            let bytes = hash::truncate(&hash[..]);
             let hashnibbles = &mut HashNibbles::new(&bytes);
 
             working_node
@@ -1019,7 +1017,7 @@ mod tests {
 
     #[async_std::test]
     async fn can_map_over_leaf_nodes() {
-        let store = test_setup::init!(mut store);
+        let store = &mut MemoryBlockStore::new();
 
         let node = &mut Rc::new(Node::<[u8; 4], String>::default());
         for i in 0..99_u32 {
@@ -1038,7 +1036,7 @@ mod tests {
 
     #[async_std::test]
     async fn can_fetch_node_at_hashprefix() {
-        let store = test_setup::init!(mut store);
+        let store = &mut MemoryBlockStore::new();
 
         let node = &mut Rc::new(Node::<String, String, MockHasher>::default());
         for (digest, kv) in HASH_KV_PAIRS.iter() {
@@ -1055,7 +1053,7 @@ mod tests {
             assert_eq!(result, Some(Either::Left(&Pair { key, value })));
         }
 
-        let hashprefix = HashPrefix::with_length(utils::make_digest(&[0xE0]), 1);
+        let hashprefix = HashPrefix::with_length(hash::truncate(&[0xE0]), 1);
         let result = node.get_node_at(&hashprefix, store).await.unwrap();
 
         assert!(matches!(result, Some(Either::Right(_))));
@@ -1063,7 +1061,7 @@ mod tests {
 
     #[async_std::test]
     async fn can_generate_hashmap_from_node() {
-        let store = test_setup::init!(mut store);
+        let store = &mut MemoryBlockStore::new();
 
         let node = &mut Rc::new(Node::<[u8; 4], String>::default());
         const NUM_VALUES: u32 = 1000;
@@ -1084,9 +1082,10 @@ mod tests {
 #[cfg(test)]
 mod proptests {
     use super::*;
-    use crate::{dagcbor, private::hamt::strategies::*, MemoryBlockStore};
+    use crate::strategies::*;
     use proptest::prelude::*;
     use test_strategy::proptest;
+    use wnfs_common::{dagcbor, MemoryBlockStore};
 
     fn small_key() -> impl Strategy<Value = String> {
         (0..1000).prop_map(|i| format!("key {i}"))
@@ -1102,7 +1101,7 @@ mod proptests {
         #[strategy(0..1000u64)] value: u64,
     ) {
         async_std::task::block_on(async move {
-            let store = &mut MemoryBlockStore::default();
+            let store = &mut MemoryBlockStore::new();
             let node = &mut node_from_operations(&operations, store).await.unwrap();
 
             node.set(key.clone(), value, store).await.unwrap();

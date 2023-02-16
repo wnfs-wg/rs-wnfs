@@ -6,8 +6,8 @@ use std::rc::Rc;
 use wnfs::{
     ipld::Cid,
     public::{PublicDirectory, PublicOpResult},
-    MemoryBlockStore,
 };
+use wnfs_common::MemoryBlockStore;
 
 #[async_std::main]
 async fn main() {

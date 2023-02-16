@@ -5,10 +5,8 @@ use chrono::Utc;
 use libipld::Cid;
 use rand::{thread_rng, RngCore};
 use std::rc::Rc;
-use wnfs::{
-    private::{Namefilter, PrivateDirectory, PrivateForest, PrivateOpResult, PrivateRef},
-    BlockStore, MemoryBlockStore,
-};
+use wnfs::private::{Namefilter, PrivateDirectory, PrivateForest, PrivateOpResult, PrivateRef};
+use wnfs_common::{BlockStore, MemoryBlockStore};
 
 #[async_std::main]
 async fn main() {

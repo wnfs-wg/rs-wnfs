@@ -1,9 +1,8 @@
 use super::{
     diff,
     diff::{KeyValueChange, NodeChange},
-    Node, HAMT_VERSION,
+    Hasher, Node, HAMT_VERSION,
 };
-use crate::{private::hamt::Hasher, AsyncSerialize, BlockStore, Link};
 use anyhow::Result;
 use async_trait::async_trait;
 use libipld::{serde as ipld_serde, Ipld};
@@ -15,6 +14,7 @@ use serde::{
 };
 use sha3::Sha3_256;
 use std::{collections::BTreeMap, fmt, hash::Hash, rc::Rc, str::FromStr};
+use wnfs_common::{AsyncSerialize, BlockStore, Link};
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
@@ -281,7 +281,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{dagcbor, MemoryBlockStore};
+    use wnfs_common::{dagcbor, MemoryBlockStore};
 
     #[async_std::test]
     async fn hamt_can_encode_decode_as_cbor() {

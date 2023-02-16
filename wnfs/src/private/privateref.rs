@@ -1,11 +1,13 @@
 use std::fmt::Debug;
 
 use super::{PrivateNodeHeader, SnapshotKey, TemporalKey, KEY_BYTE_SIZE};
-use crate::{private::Namefilter, AesError, FsError, HashOutput};
+use crate::private::Namefilter;
 use aes_kw::KekAes256;
 use anyhow::Result;
 use libipld::Cid;
 use serde::{de::Error as DeError, ser::Error as SerError, Deserialize, Serialize};
+use wnfs_common::{AesError, FsError};
+use wnfs_hamt::HashOutput;
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
@@ -216,14 +218,14 @@ impl RevisionRef {
 
 #[cfg(test)]
 mod tests {
+    use super::RevisionRef;
     use crate::{
         private::{PrivateDirectory, PrivateNode},
-        utils::{self, test_setup},
+        utils::test_setup,
     };
     use chrono::Utc;
     use futures::StreamExt;
-
-    use super::RevisionRef;
+    use wnfs_common::utils;
 
     #[async_std::test]
     async fn can_create_revisionref_deterministically_with_user_provided_seeds() {

@@ -1,4 +1,4 @@
-use crate::{AsyncSerialize, BlockStore, IpldEq};
+use crate::{traits::IpldEq, AsyncSerialize, BlockStore};
 use anyhow::Result;
 use async_once_cell::OnceCell;
 use async_trait::async_trait;

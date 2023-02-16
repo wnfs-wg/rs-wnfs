@@ -1,8 +1,8 @@
-use super::{diff, diff::ChangeType, Node};
-use crate::{private::hamt::Hasher, BlockStore, HamtError, Link};
+use super::{diff, diff::ChangeType, Hasher, Node};
 use anyhow::Result;
 use serde::de::DeserializeOwned;
 use std::{hash::Hash, rc::Rc};
+use wnfs_common::{BlockStore, HamtError, Link};
 
 //--------------------------------------------------------------------------------------------------
 // Functions
@@ -62,14 +62,11 @@ where
 
 #[cfg(test)]
 mod proptests {
-    use crate::{
-        private::hamt::strategies::{self, generate_kvs},
-        utils::test_setup,
-        Link,
-    };
+    use crate::strategies::{self, generate_kvs};
     use async_std::task;
     use std::{cmp, rc::Rc};
     use test_strategy::proptest;
+    use wnfs_common::{Link, MemoryBlockStore};
 
     #[proptest(cases = 100)]
     fn merge_associativity(
@@ -78,7 +75,7 @@ mod proptests {
         #[strategy(generate_kvs("[a-z0-9]{1,3}", 0u64..1000, 0..100))] kvs3: Vec<(String, u64)>,
     ) {
         task::block_on(async {
-            let store = test_setup::init!(mut store);
+            let store = &mut MemoryBlockStore::new();
 
             let node1 = strategies::node_from_kvs(kvs1, store).await.unwrap();
             let node2 = strategies::node_from_kvs(kvs2, store).await.unwrap();
@@ -134,7 +131,7 @@ mod proptests {
         #[strategy(generate_kvs("[a-z0-9]{1,3}", 0u64..1000, 0..100))] kvs2: Vec<(String, u64)>,
     ) {
         task::block_on(async {
-            let store = test_setup::init!(mut store);
+            let store = &mut MemoryBlockStore::new();
 
             let node1 = strategies::node_from_kvs(kvs1, store).await.unwrap();
             let node2 = strategies::node_from_kvs(kvs2, store).await.unwrap();
@@ -167,7 +164,7 @@ mod proptests {
         #[strategy(generate_kvs("[a-z0-9]{1,3}", 0u64..1000, 0..100))] kvs2: Vec<(String, u64)>,
     ) {
         task::block_on(async {
-            let store = test_setup::init!(mut store);
+            let store = &mut MemoryBlockStore::new();
 
             let node1 = strategies::node_from_kvs(kvs1, store).await.unwrap();
             let node2 = strategies::node_from_kvs(kvs2, store).await.unwrap();

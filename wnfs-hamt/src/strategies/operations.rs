@@ -1,8 +1,9 @@
-use crate::{private::hamt::node::*, BlockStore};
+use crate::Node;
 use anyhow::Result;
 use proptest::{collection::*, prelude::*, strategy::Shuffleable};
 use serde::{de::DeserializeOwned, Serialize};
 use std::{collections::HashMap, fmt::Debug, hash::Hash, rc::Rc};
+use wnfs_common::BlockStore;
 
 //--------------------------------------------------------------------------------------------------
 // Types
