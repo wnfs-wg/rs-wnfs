@@ -388,7 +388,7 @@ impl PublicDirectory {
     pub async fn read(
         self: Rc<Self>,
         path_segments: &[String],
-        store: &mut impl BlockStore,
+        store: &impl BlockStore,
     ) -> Result<PublicOpResult<Cid>> {
         let root_dir = Rc::clone(&self);
         let (path, filename) = utils::split_last(path_segments)?;
@@ -1100,7 +1100,7 @@ mod tests {
 
     #[async_std::test]
     async fn read_can_fetch_userland_of_file_added_to_directory() {
-        let mut store = MemoryBlockStore::default();
+        let store = MemoryBlockStore::default();
         let content_cid = Cid::default();
         let time = Utc::now();
 
@@ -1109,10 +1109,8 @@ mod tests {
             .await
             .unwrap();
 
-        let PublicOpResult { result, .. } = root_dir
-            .read(&["text.txt".into()], &mut store)
-            .await
-            .unwrap();
+        let PublicOpResult { result, .. } =
+            root_dir.read(&["text.txt".into()], &store).await.unwrap();
 
         assert_eq!(result, content_cid);
     }
@@ -1323,7 +1321,7 @@ mod tests {
     #[async_std::test]
     async fn mv_can_rename_directories() {
         let time = Utc::now();
-        let mut store = MemoryBlockStore::default();
+        let store = MemoryBlockStore::default();
         let root_dir = Rc::new(PublicDirectory::new(time));
 
         let PublicOpResult { root_dir, .. } = root_dir
@@ -1342,7 +1340,7 @@ mod tests {
             .unwrap();
 
         let PublicOpResult { result, .. } = root_dir
-            .read(&["renamed.txt".into()], &mut store)
+            .read(&["renamed.txt".into()], &store)
             .await
             .unwrap();
 

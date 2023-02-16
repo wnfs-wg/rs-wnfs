@@ -1,4 +1,4 @@
-export { };
+export {};
 
 declare global {
   interface Window {
@@ -7,6 +7,10 @@ declare global {
         sampleCID: typeof import("../mock").sampleCID;
         MemoryBlockStore: typeof import("../mock").MemoryBlockStore;
         Rng: typeof import("../mock").Rng;
+        ExchangeKey: typeof import("../mock").ExchangeKey;
+        PrivateKey: typeof import("../mock").PrivateKey;
+        createSharerDir: typeof import("../mock").createSharerDir;
+        createRecipientExchangeRoot: typeof import("../mock").createRecipientExchangeRoot;
       };
       wnfs: {
         PublicDirectory: typeof import("../../pkg/index").PublicDirectory;
@@ -17,7 +21,13 @@ declare global {
         PrivateFile: typeof import("../../pkg/index").PrivateFile;
         PrivateNode: typeof import("../../pkg/index").PrivateNode;
         Namefilter: typeof import("../../pkg/index").Namefilter;
+        SharePayload: typeof import("../../pkg/index").SharePayload;
+        share: typeof import("../../pkg/index").share;
+        findShare: typeof import("../../pkg/index").findShare;
+        receiveShare: typeof import("../../pkg/index").receiveShare;
+        createShareLabel: typeof import("../../pkg/index").createShareLabel;
       };
+      setPanicHook: typeof import("../../pkg/index").setPanicHook;
     }>;
   }
 }

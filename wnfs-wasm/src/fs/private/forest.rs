@@ -4,7 +4,7 @@ use js_sys::Promise;
 use wasm_bindgen::{prelude::wasm_bindgen, JsValue};
 use wasm_bindgen_futures::future_to_promise;
 use wnfs::{
-    private::{Key, PrivateForest as WnfsPrivateForest, PrivateRef, RevisionKey, KEY_BYTE_SIZE},
+    private::{AesKey, PrivateForest as WnfsPrivateForest, PrivateRef, RevisionKey, KEY_BYTE_SIZE},
     HASH_BYTE_SIZE,
 };
 
@@ -52,7 +52,7 @@ impl PrivateForest {
         let saturated_name_hash = utils::expect_bytes::<HASH_BYTE_SIZE>(saturated_namefilter_hash)?;
 
         let key_bytes = utils::expect_bytes::<KEY_BYTE_SIZE>(revision_key)?;
-        let key = Key::new(key_bytes);
+        let key = AesKey::new(key_bytes);
         let revision_key = RevisionKey(key);
 
         let private_ref = PrivateRef::with_revision_key(saturated_name_hash, revision_key);

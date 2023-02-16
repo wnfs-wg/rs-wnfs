@@ -2,7 +2,7 @@
 
 use std::borrow::Cow;
 
-use anyhow::{Error, Result};
+use anyhow::Result;
 use async_trait::async_trait;
 use js_sys::{Promise, Uint8Array};
 use wasm_bindgen::prelude::wasm_bindgen;
@@ -11,6 +11,8 @@ use wnfs::{
     ipld::{Cid, IpldCodec},
     BlockStore as WnfsBlockStore,
 };
+
+use super::utils::anyhow_error;
 
 //--------------------------------------------------------------------------------------------------
 // Externs
@@ -60,7 +62,7 @@ impl WnfsBlockStore for ForeignBlockStore {
     async fn put_block(&mut self, bytes: Vec<u8>, codec: IpldCodec) -> Result<Cid> {
         let value = JsFuture::from(self.0.put_block(bytes, codec.into()))
             .await
-            .map_err(|e| Error::msg(format!("Cannot get block: {:?}", e)))?;
+            .map_err(anyhow_error("Cannot get block: {:?}"))?;
 
         // Convert the value to a vector of bytes.
         let bytes = Uint8Array::new(&value).to_vec();
@@ -73,7 +75,7 @@ impl WnfsBlockStore for ForeignBlockStore {
     async fn get_block<'a>(&'a self, cid: &Cid) -> Result<Cow<'a, Vec<u8>>> {
         let value = JsFuture::from(self.0.get_block(cid.to_bytes()))
             .await
-            .map_err(|e| Error::msg(format!("Cannot get block: {:?}", e)))?;
+            .map_err(anyhow_error("Cannot get block: {:?}"))?;
 
         // Convert the value to a vector of bytes.
         let bytes = Uint8Array::new(&value).to_vec();

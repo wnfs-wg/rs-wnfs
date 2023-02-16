@@ -62,7 +62,7 @@ impl PrivateForest {
     ///         rng,
     ///     ));
     ///
-    ///     let private_ref = &dir.header.get_private_ref();
+    ///     let private_ref = &dir.header.derive_private_ref();
     ///     let name = dir.header.get_saturated_name();
     ///     let node = PrivateNode::Dir(dir);
     ///
@@ -121,7 +121,7 @@ impl PrivateForest {
     ///         rng,
     ///     ));
     ///
-    ///     let private_ref = &dir.header.get_private_ref();
+    ///     let private_ref = &dir.header.derive_private_ref();
     ///     let name = dir.header.get_saturated_name();
     ///     let node = PrivateNode::Dir(dir);
     ///
@@ -179,7 +179,7 @@ impl PrivateForest {
     ///         rng,
     ///     ));
     ///
-    ///     let private_ref = &dir.header.get_private_ref();
+    ///     let private_ref = &dir.header.derive_private_ref();
     ///     let name = dir.header.get_saturated_name();
     ///     let node = PrivateNode::Dir(dir);
     ///     let forest = forest.put(name.clone(), private_ref, &node, store, rng).await.unwrap();
@@ -264,9 +264,7 @@ impl PrivateForest {
     /// Convenience function builder for `PrivateForest.get`.
     /// The returned function will return the first CID in `set`
     /// that also appears in `one_of`.
-    pub fn resolve_one_of<F>(
-        one_of: &BTreeSet<Cid>,
-    ) -> impl Fn(&BTreeSet<Cid>) -> Option<&Cid> + '_ {
+    pub fn resolve_one_of(one_of: &BTreeSet<Cid>) -> impl Fn(&BTreeSet<Cid>) -> Option<&Cid> + '_ {
         |set: &BTreeSet<Cid>| set.iter().find(|cid| one_of.contains(cid))
     }
 }
@@ -307,7 +305,7 @@ where
     ///     let main_forest = main_forest
     ///         .put(
     ///             root_dir.header.get_saturated_name(),
-    ///             &root_dir.header.get_private_ref(),
+    ///             &root_dir.header.derive_private_ref(),
     ///             &PrivateNode::Dir(Rc::clone(&root_dir)),
     ///             store,
     ///             rng
@@ -325,7 +323,7 @@ where
     ///     let other_forest = other_forest
     ///         .put(
     ///             root_dir.header.get_saturated_name(),
-    ///             &root_dir.header.get_private_ref(),
+    ///             &root_dir.header.derive_private_ref(),
     ///             &PrivateNode::Dir(Rc::clone(&root_dir)),
     ///             store,
     ///             rng
@@ -461,7 +459,7 @@ mod tests {
             rng,
         ));
 
-        let private_ref = dir.header.get_private_ref();
+        let private_ref = dir.header.derive_private_ref();
         let saturated_name = dir.header.get_saturated_name();
         let private_node = PrivateNode::Dir(dir.clone());
 
@@ -497,8 +495,8 @@ mod tests {
             Rc::new(dir)
         };
 
-        let private_ref = dir.header.get_private_ref();
-        let private_ref_conflict = dir_conflict.header.get_private_ref();
+        let private_ref = dir.header.derive_private_ref();
+        let private_ref_conflict = dir_conflict.header.derive_private_ref();
         let saturated_name = dir.header.get_saturated_name();
         let saturated_name_conflict = dir_conflict.header.get_saturated_name();
         let private_node = PrivateNode::Dir(dir.clone());
@@ -538,9 +536,7 @@ mod tests {
         let retrieved = forest
             .get(
                 &private_ref,
-                PrivateForest::resolve_one_of::<fn(&BTreeSet<Cid>) -> Option<&Cid>>(
-                    &BTreeSet::from([*conflict_cid]),
-                ),
+                PrivateForest::resolve_one_of(&BTreeSet::from([*conflict_cid])),
                 store,
             )
             .await

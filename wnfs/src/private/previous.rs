@@ -92,6 +92,7 @@ impl PrivateNodeHistory {
         let forest = Rc::clone(&forest);
         let ratchets = PreviousIterator::new(past_ratchet, &header.ratchet, discrepancy_budget)
             .map_err(FsError::NoIntermediateRatchet)?;
+
         Ok(PrivateNodeHistory {
             forest,
             header,
@@ -120,8 +121,8 @@ impl PrivateNodeHistory {
         let previous_node = self
             .forest
             .get(
-                &self.header.get_private_ref(),
-                PrivateForest::resolve_one_of::<fn(&BTreeSet<Cid>) -> Option<&Cid>>(&previous_cids),
+                &self.header.derive_private_ref(),
+                PrivateForest::resolve_one_of(&previous_cids),
                 store,
             )
             .await?;
@@ -548,7 +549,7 @@ mod tests {
         let forest = forest
             .put(
                 root_dir.header.get_saturated_name(),
-                &root_dir.header.get_private_ref(),
+                &root_dir.header.derive_private_ref(),
                 &PrivateNode::Dir(Rc::clone(&root_dir)),
                 store,
                 rng,
@@ -642,7 +643,7 @@ mod tests {
         let forest = forest
             .put(
                 root_dir.header.get_saturated_name(),
-                &root_dir.header.get_private_ref(),
+                &root_dir.header.derive_private_ref(),
                 &PrivateNode::Dir(Rc::clone(&root_dir)),
                 store,
                 rng,
@@ -751,7 +752,7 @@ mod tests {
         let forest = forest
             .put(
                 root_dir.header.get_saturated_name(),
-                &root_dir.header.get_private_ref(),
+                &root_dir.header.derive_private_ref(),
                 &PrivateNode::Dir(Rc::clone(&root_dir)),
                 store,
                 rng,
@@ -1036,7 +1037,7 @@ mod tests {
         let forest = forest
             .put(
                 root_dir.header.get_saturated_name(),
-                &root_dir.header.get_private_ref(),
+                &root_dir.header.derive_private_ref(),
                 &PrivateNode::Dir(Rc::clone(&root_dir)),
                 store,
                 rng,

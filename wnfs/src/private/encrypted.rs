@@ -8,7 +8,7 @@ use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 use crate::FsError;
 
-use super::Key;
+use super::AesKey;
 
 /// A wrapper for encrypted data.
 ///
@@ -32,14 +32,14 @@ impl<T> Encrypted<T> {
     ///
     /// To ensure confidentiality, the randomness should be cryptographically secure
     /// randomness.
-    pub fn from_value(value: T, key: &Key, rng: &mut impl RngCore) -> Result<Self>
+    pub fn from_value(value: T, key: &AesKey, rng: &mut impl RngCore) -> Result<Self>
     where
         T: Serialize,
     {
         let ipld = value.serialize(libipld::serde::Serializer)?;
         let mut bytes = Vec::new();
         ipld.encode(DagCborCodec, &mut bytes)?;
-        let ciphertext = key.encrypt(&Key::generate_nonce(rng), &bytes)?;
+        let ciphertext = key.encrypt(&AesKey::generate_nonce(rng), &bytes)?;
 
         Ok(Self {
             value_cache: OnceCell::from(value),
@@ -63,7 +63,7 @@ impl<T> Encrypted<T> {
     ///
     /// This operation may fail if given key doesn't decrypt the ciphertext or
     /// deserializing the value from the encrypted plaintext doesn't work.
-    pub fn resolve_value(&self, key: &Key) -> Result<&T>
+    pub fn resolve_value(&self, key: &AesKey) -> Result<&T>
     where
         T: DeserializeOwned,
     {

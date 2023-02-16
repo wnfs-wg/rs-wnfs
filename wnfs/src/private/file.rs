@@ -1,17 +1,17 @@
 use super::{
-    encrypted::Encrypted, namefilter::Namefilter, Key, PrivateForest, PrivateNodeHeader,
+    encrypted::Encrypted, namefilter::Namefilter, AesKey, PrivateForest, PrivateNodeHeader,
     RevisionKey, AUTHENTICATION_TAG_SIZE, NONCE_SIZE,
 };
 use crate::{
     dagcbor, utils, utils::get_random_bytes, BlockStore, FsError, Hasher, Id, Metadata, NodeType,
-    MAX_BLOCK_SIZE,
+    PrivateNode, MAX_BLOCK_SIZE,
 };
 use anyhow::Result;
 use async_once_cell::OnceCell;
 use async_stream::try_stream;
 use chrono::{DateTime, Utc};
-use futures::{Stream, StreamExt};
-use libipld::{cbor::DagCborCodec, prelude::Encode, Cid};
+use futures::{future, Stream, StreamExt};
+use libipld::{cbor::DagCborCodec, prelude::Encode, Cid, IpldCodec};
 use rand_core::RngCore;
 use semver::Version;
 use serde::{de::Error as DeError, ser::Error as SerError, Deserialize, Deserializer, Serialize};
@@ -46,7 +46,7 @@ pub const MAX_BLOCK_CONTENT_SIZE: usize = MAX_BLOCK_SIZE - NONCE_SIZE - AUTHENTI
 /// use wnfs::{
 ///     private::{PrivateForest, PrivateRef},
 ///     MemoryBlockStore, Namefilter, PrivateFile,
-///     utils::get_random_bytes, MAX_BLOCK_SIZE
+///     utils::get_random_bytes,
 /// };
 ///
 /// #[async_std::main]
@@ -87,7 +87,7 @@ pub(crate) enum FileContent {
         data: Vec<u8>,
     },
     External {
-        key: Key,
+        key: AesKey,
         block_count: usize,
         block_content_size: usize,
     },
@@ -207,9 +207,9 @@ impl PrivateFile {
     /// use wnfs::{
     ///     private::{PrivateForest, PrivateRef},
     ///     MemoryBlockStore, Namefilter, PrivateFile,
-    ///     utils::get_random_bytes, MAX_BLOCK_SIZE
+    ///     utils::get_random_bytes,
     /// };
-    /// use futures::{StreamExt};
+    /// use futures::{future, StreamExt};
     ///
     /// #[async_std::main]
     /// async fn main() {
@@ -230,10 +230,12 @@ impl PrivateFile {
     ///     .unwrap();
     ///
     ///     let mut stream_content = vec![];
-    ///     let mut stream = file.stream_content(0, &forest, store);
-    ///     while let Some(block) = stream.next().await {
-    ///         stream_content.extend_from_slice(&block.unwrap());
-    ///     }
+    ///     file.stream_content(0, &forest, store)
+    ///         .for_each(|chunk| {
+    ///             stream_content.extend_from_slice(&chunk.unwrap());
+    ///             future::ready(())
+    ///         })
+    ///         .await;
     ///
     ///     assert_eq!(content, stream_content);
     /// }
@@ -284,7 +286,7 @@ impl PrivateFile {
     /// use wnfs::{
     ///     private::{PrivateForest, PrivateRef},
     ///     MemoryBlockStore, Namefilter, PrivateFile,
-    ///     utils::get_random_bytes, MAX_BLOCK_SIZE
+    ///     utils::get_random_bytes,
     /// };
     ///
     /// #[async_std::main]
@@ -316,10 +318,12 @@ impl PrivateFile {
         store: &impl BlockStore,
     ) -> Result<Vec<u8>> {
         let mut content = Vec::with_capacity(self.get_content_size_upper_bound());
-        let mut stream = self.stream_content(0, forest, store);
-        while let Some(bytes) = stream.next().await {
-            content.extend_from_slice(&bytes?);
-        }
+        self.stream_content(0, forest, store)
+            .for_each(|chunk| {
+                content.extend_from_slice(&chunk.unwrap());
+                future::ready(())
+            })
+            .await;
         Ok(content)
     }
 
@@ -332,7 +336,7 @@ impl PrivateFile {
         rng: &mut impl RngCore,
     ) -> Result<(FileContent, Rc<PrivateForest>)> {
         // TODO(appcypher): Use a better heuristic to determine when to use external storage.
-        let key = Key(get_random_bytes(rng));
+        let key = AesKey::new(get_random_bytes(rng));
         let block_count = (content.len() as f64 / MAX_BLOCK_CONTENT_SIZE as f64).ceil() as usize;
 
         for (index, label) in
@@ -342,8 +346,8 @@ impl PrivateFile {
             let end = content.len().min((index + 1) * MAX_BLOCK_CONTENT_SIZE);
             let slice = &content[start..end];
 
-            let enc_bytes = key.encrypt(&Key::generate_nonce(rng), slice)?;
-            let content_cid = store.put_block(enc_bytes, libipld::IpldCodec::Raw).await?;
+            let enc_bytes = key.encrypt(&AesKey::generate_nonce(rng), slice)?;
+            let content_cid = store.put_block(enc_bytes, IpldCodec::Raw).await?;
 
             forest = forest.put_encrypted(label, content_cid, store).await?;
         }
@@ -372,7 +376,7 @@ impl PrivateFile {
 
     /// Decrypts a block of a file's content.
     async fn decrypt_block(
-        key: &Key,
+        key: &AesKey,
         label: &Namefilter,
         forest: &PrivateForest,
         store: &impl BlockStore,
@@ -397,7 +401,7 @@ impl PrivateFile {
 
     /// Generates the labels for the shards of a file.
     fn generate_shard_labels<'a>(
-        key: &'a Key,
+        key: &'a AesKey,
         mut index: usize,
         block_count: usize,
         bare_name: &'a Namefilter,
@@ -414,7 +418,7 @@ impl PrivateFile {
     }
 
     /// Creates the label for a block of a file.
-    fn create_block_label(key: &Key, index: usize, bare_name: &Namefilter) -> Namefilter {
+    fn create_block_label(key: &AesKey, index: usize, bare_name: &Namefilter) -> Namefilter {
         let key_bytes = key.as_bytes();
         let key_hash = Sha3_256::hash(&[key_bytes, &index.to_le_bytes()[..]].concat());
 
@@ -441,7 +445,7 @@ impl PrivateFile {
 
         let mut cloned = Rc::try_unwrap(self).unwrap_or_else(|rc| (*rc).clone());
         cloned.persisted_as = OnceCell::new(); // Also done in `.clone()`, but need this to work in case try_unwrap optimizes.
-        let key = cloned.header.get_private_ref().revision_key.0;
+        let key = cloned.header.derive_private_ref().revision_key.0;
         let previous = Encrypted::from_value(BTreeSet::from([cid]), &key, rng)?;
 
         cloned.previous = Some(previous);
@@ -489,7 +493,7 @@ impl PrivateFile {
     where
         S: serde::Serializer,
     {
-        let key = self.header.get_private_ref().revision_key;
+        let key = self.header.derive_private_ref().revision_key;
 
         (PrivateFileSerializable {
             r#type: NodeType::PrivateFile,
@@ -497,7 +501,7 @@ impl PrivateFile {
             header: {
                 let cbor_bytes = dagcbor::encode(&self.header).map_err(SerError::custom)?;
                 key.0
-                    .encrypt(&Key::generate_nonce(rng), &cbor_bytes)
+                    .encrypt(&AesKey::generate_nonce(rng), &cbor_bytes)
                     .map_err(SerError::custom)?
             },
             previous: self.previous.clone(),
@@ -547,7 +551,7 @@ impl PrivateFile {
             .persisted_as
             .get_or_try_init::<anyhow::Error>(async {
                 // TODO(matheus23) deduplicate when reworking serialization
-                let private_ref = &self.header.get_private_ref();
+                let private_ref = &self.header.derive_private_ref();
 
                 // Serialize node to cbor.
                 let ipld = self.serialize(libipld::serde::Serializer, rng)?;
@@ -558,7 +562,7 @@ impl PrivateFile {
                 let enc_bytes = private_ref
                     .content_key
                     .0
-                    .encrypt(&Key::generate_nonce(rng), &bytes)?;
+                    .encrypt(&AesKey::generate_nonce(rng), &bytes)?;
 
                 // Store content section in blockstore and get Cid.
                 store.put_block(enc_bytes, libipld::IpldCodec::Raw).await
@@ -566,6 +570,11 @@ impl PrivateFile {
             .await?;
 
         Ok(*cid)
+    }
+
+    /// Wraps the file in a [`PrivateNode`].
+    pub fn as_node(self: &Rc<Self>) -> PrivateNode {
+        PrivateNode::File(Rc::clone(self))
     }
 }
 
@@ -625,16 +634,18 @@ mod tests {
         let (file, (ref forest, ref store, _)) = test_setup::private!(file, content.clone());
 
         let mut collected_content = Vec::new();
-        let mut stream = file.stream_content(2, forest, store);
         let mut block_limit = 2;
-        while let Some(chunk) = stream.next().await {
-            if block_limit == 0 {
-                break;
-            }
+        file.stream_content(2, forest, store)
+            .for_each(|chunk| {
+                if block_limit == 0 {
+                    return future::ready(());
+                }
 
-            collected_content.extend_from_slice(&chunk.unwrap());
-            block_limit -= 1;
-        }
+                collected_content.extend_from_slice(&chunk.unwrap());
+                block_limit -= 1;
+                future::ready(())
+            })
+            .await;
 
         assert_eq!(
             collected_content,
@@ -647,7 +658,7 @@ mod tests {
 mod proptests {
     use super::MAX_BLOCK_CONTENT_SIZE;
     use crate::utils::test_setup;
-    use futures::StreamExt;
+    use futures::{future, StreamExt};
     use test_strategy::proptest;
 
     #[proptest(cases = 100)]
@@ -672,10 +683,13 @@ mod proptests {
             let (file, (ref forest, ref store, _)) = test_setup::private!(file, content.clone());
 
             let mut collected_content = Vec::new();
-            let mut stream = file.stream_content(0, forest, store);
-            while let Some(chunk) = stream.next().await {
-                collected_content.extend_from_slice(&chunk.unwrap());
-            }
+
+            file.stream_content(0, forest, store)
+                .for_each(|chunk| {
+                    collected_content.extend_from_slice(&chunk.unwrap());
+                    future::ready(())
+                })
+                .await;
 
             assert_eq!(collected_content, content);
         })

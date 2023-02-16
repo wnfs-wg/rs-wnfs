@@ -18,6 +18,8 @@ pub enum NodeType {
     PublicDirectory,
     PrivateFile,
     PrivateDirectory,
+    TemporalSharePointer,
+    SnapshotSharePointer,
 }
 
 /// The metadata of a node in the WNFS file system.
@@ -149,6 +151,8 @@ impl TryFrom<&str> for NodeType {
             "wnfs/priv/file" => NodeType::PrivateFile,
             "wnfs/pub/dir" => NodeType::PublicDirectory,
             "wnfs/pub/file" => NodeType::PublicFile,
+            "wnfs/share/temporal" => NodeType::TemporalSharePointer,
+            "wnfs/share/snapshot" => NodeType::SnapshotSharePointer,
             _ => bail!("Unknown UnixFsNodeKind: {}", name),
         })
     }
@@ -161,6 +165,8 @@ impl From<&NodeType> for String {
             NodeType::PrivateFile => "wnfs/priv/file".into(),
             NodeType::PublicDirectory => "wnfs/pub/dir".into(),
             NodeType::PublicFile => "wnfs/pub/file".into(),
+            NodeType::TemporalSharePointer => "wnfs/share/temporal".into(),
+            NodeType::SnapshotSharePointer => "wnfs/share/snapshot".into(),
         }
     }
 }
