@@ -207,30 +207,23 @@ impl PublicDirectory {
     /// Fix up `PathNodes` so that parents refer to the newly updated children.
     fn fix_up_path_nodes(self: &mut Rc<Self>, mut path_nodes: Vec<(String, Rc<Self>)>) {
         match path_nodes.split_last_mut() {
-            Some((last_segment, ancestors)) => {
-                // TODO(matheus23) Hmm Can we do with something that doesn't use Default::default()?
-                // I assume we can't just "split off" an owned (String, Rc<>) from the vector.
-                let (mut working_segment, mut working_dir) = std::mem::replace(
-                    last_segment,
-                    (
-                        Default::default(),
-                        Rc::new(PublicDirectory::new(DateTime::default())),
-                    ),
-                );
+            Some(((last_segment, last_dir), ancestors)) => {
+                let mut working_segment = last_segment.clone();
+                let mut working_dir = last_dir;
 
                 for (segment, dir) in ancestors.iter_mut().rev() {
-                    let entry = Link::from(PublicNode::Dir(working_dir));
+                    let entry = Link::from(PublicNode::Dir(Rc::clone(working_dir)));
                     Rc::make_mut(dir)
                         .userland
                         .insert(working_segment.clone(), entry);
 
                     working_segment = segment.clone();
-                    working_dir = Rc::clone(dir);
+                    working_dir = dir;
                 }
 
                 Rc::make_mut(self).userland.insert(
                     working_segment.clone(),
-                    Link::from(PublicNode::Dir(working_dir)),
+                    Link::from(PublicNode::Dir(Rc::clone(working_dir))),
                 );
             }
             None => {}
@@ -463,7 +456,6 @@ impl PublicDirectory {
             .insert(filename.to_string(), Link::from(PublicNode::File(file)));
 
         // Fix up the file path
-        // TODO(matheus23) This for sure doesn't work. Let's wait for the borrow checker errors later
         self.fix_up_path_nodes(directory_path_nodes);
         Ok(())
     }
@@ -936,6 +928,30 @@ mod tests {
                 content_cid
             ))))
         );
+    }
+
+    #[async_std::test]
+    async fn read_deep_written_dir() {
+        let mut root_dir = Rc::new(PublicDirectory::new(Utc::now()));
+        let store = MemoryBlockStore::default();
+        let content_cid = Cid::default();
+        let time = Utc::now();
+
+        let path = &[
+            "test".into(),
+            "test2".into(),
+            "test3".into(),
+            "text.txt".into(),
+        ];
+
+        root_dir
+            .write(path, content_cid, time, &store)
+            .await
+            .unwrap();
+
+        let result = root_dir.read(path, &store).await.unwrap();
+
+        assert_eq!(result, content_cid);
     }
 
     #[async_std::test]
