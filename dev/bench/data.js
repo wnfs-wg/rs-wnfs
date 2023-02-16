@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1676563780610,
+  "lastUpdate": 1676563814756,
   "repoUrl": "https://github.com/wnfs-wg/rs-wnfs",
   "entries": {
     "Rust Benchmark": [
@@ -5425,6 +5425,96 @@ window.BENCHMARK_DATA = {
             "name": "namefilter encode",
             "value": 137,
             "range": "± 22",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter decode/0",
+            "value": 1,
+            "range": "± 0",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "49699333+dependabot[bot]@users.noreply.github.com",
+            "name": "dependabot[bot]",
+            "username": "dependabot[bot]"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "8ce52744ad168ee28b9dc7b26020e67a01ddea21",
+          "message": "chore(ci)(deps): bump katyo/publish-crates from 1 to 2 (#154)\n\nBumps [katyo/publish-crates](https://github.com/katyo/publish-crates) from 1 to 2.\r\n- [Release notes](https://github.com/katyo/publish-crates/releases)\r\n- [Commits](https://github.com/katyo/publish-crates/compare/v1...v2)\r\n\r\n---\r\nupdated-dependencies:\r\n- dependency-name: katyo/publish-crates\r\n  dependency-type: direct:production\r\n  update-type: version-update:semver-major\r\n...\r\n\r\nSigned-off-by: dependabot[bot] <support@github.com>\r\nCo-authored-by: dependabot[bot] <49699333+dependabot[bot]@users.noreply.github.com>",
+          "timestamp": "2023-02-16T17:03:39+01:00",
+          "tree_id": "307aa53e3fa349afe8d56fb389bf02c90a6337c1",
+          "url": "https://github.com/wnfs-wg/rs-wnfs/commit/8ce52744ad168ee28b9dc7b26020e67a01ddea21"
+        },
+        "date": 1676563813402,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "node set",
+            "value": 9102,
+            "range": "± 440",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node set 1000 consecutive",
+            "value": 5112323,
+            "range": "± 241512",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and get",
+            "value": 185017,
+            "range": "± 9236",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and remove",
+            "value": 206896,
+            "range": "± 7579",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt load and decode/0",
+            "value": 44412,
+            "range": "± 1728",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt set and encode",
+            "value": 210865,
+            "range": "± 10248",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter add",
+            "value": 16305,
+            "range": "± 1107",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter contains",
+            "value": 13902,
+            "range": "± 655",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter saturate",
+            "value": 59402,
+            "range": "± 2313",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter encode",
+            "value": 248,
+            "range": "± 32",
             "unit": "ns/iter"
           },
           {
