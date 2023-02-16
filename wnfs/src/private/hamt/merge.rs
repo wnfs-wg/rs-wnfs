@@ -2,7 +2,7 @@ use super::{diff, ChangeType, Node};
 use crate::{BlockStore, FsError, Hasher, Link};
 use anyhow::Result;
 use serde::de::DeserializeOwned;
-use std::{hash::Hash, rc::Rc};
+use std::{fmt, hash::Hash, rc::Rc};
 
 //--------------------------------------------------------------------------------------------------
 // Functions
@@ -17,9 +17,9 @@ pub async fn merge<K, V, H, F, B: BlockStore>(
 ) -> Result<Rc<Node<K, V, H>>>
 where
     F: Fn(&V, &V) -> Result<V>,
-    K: DeserializeOwned + Eq + Clone + Hash + AsRef<[u8]>,
-    V: DeserializeOwned + Eq + Clone,
-    H: Hasher + Clone + 'static,
+    K: DeserializeOwned + Eq + Clone + Hash + AsRef<[u8]> + fmt::Debug,
+    V: DeserializeOwned + Eq + Clone + fmt::Debug,
+    H: Hasher + Clone + 'static + fmt::Debug,
 {
     let kv_changes = diff::kv_diff(main_link.clone(), other_link.clone(), store).await?;
 
@@ -31,7 +31,7 @@ where
         match change.r#type {
             ChangeType::Remove => {
                 merge_node = merge_node
-                    .set(change.key, change.other_value.unwrap(), store)
+                    .set(change.key, change.value1.unwrap(), store)
                     .await?;
             }
             ChangeType::Modify => {
