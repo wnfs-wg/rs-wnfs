@@ -1,6 +1,6 @@
-use super::ChangeType;
+use super::{create_node_from_pairs, ChangeType};
 use crate::{
-    private::{HashNibbles, HashPrefix, Node, Pointer, HAMT_BITMASK_BIT_SIZE},
+    private::{HashPrefix, Node, Pointer, HAMT_BITMASK_BIT_SIZE},
     BlockStore, Hasher, Link, Pair,
 };
 use anyhow::Result;
@@ -68,33 +68,30 @@ pub struct NodeChange {
 ///    println!("Changes {:#?}", changes);
 /// }
 /// ```
-#[async_recursion(?Send)]
-pub async fn node_diff<K, V, H, B>(
+pub async fn node_diff<K, V, H>(
     main_link: Link<Rc<Node<K, V, H>>>,
     other_link: Link<Rc<Node<K, V, H>>>,
-    store: &mut B,
+    store: &mut impl BlockStore,
 ) -> Result<Vec<NodeChange>>
 where
     K: DeserializeOwned + Clone + Eq + Hash + AsRef<[u8]>,
     V: DeserializeOwned + Clone + Eq,
     H: Hasher + Clone + 'static,
-    B: BlockStore,
 {
     node_diff_helper(main_link, other_link, HashPrefix::default(), store).await
 }
 
 #[async_recursion(?Send)]
-pub async fn node_diff_helper<K, V, H, B>(
+pub async fn node_diff_helper<K, V, H>(
     main_link: Link<Rc<Node<K, V, H>>>,
     other_link: Link<Rc<Node<K, V, H>>>,
     hashprefix: HashPrefix,
-    store: &mut B,
+    store: &mut impl BlockStore,
 ) -> Result<Vec<NodeChange>>
 where
     K: DeserializeOwned + Clone + Eq + Hash + AsRef<[u8]>,
     V: DeserializeOwned + Clone + Eq,
     H: Hasher + Clone + 'static,
-    B: BlockStore,
 {
     // If Cids are available, check to see if they are equal so we can skip further comparisons.
     if let (Some(cid), Some(cid2)) = (main_link.get_cid(), other_link.get_cid()) {
@@ -153,7 +150,7 @@ where
                     generate_modify_changes(main_pointer, other_pointer, hashprefix, store).await?,
                 );
             }
-            (false, false) => { /*No change */ }
+            (false, false) => { /* No change */ }
         }
     }
 
@@ -184,17 +181,16 @@ where
     }
 }
 
-async fn generate_modify_changes<K, V, H, B>(
+async fn generate_modify_changes<K, V, H>(
     main_pointer: Pointer<K, V, H>,
     other_pointer: Pointer<K, V, H>,
     hashprefix: HashPrefix,
-    store: &mut B,
+    store: &mut impl BlockStore,
 ) -> Result<Vec<NodeChange>>
 where
     K: DeserializeOwned + Clone + Eq + Hash + AsRef<[u8]>,
     V: DeserializeOwned + Clone + Eq,
     H: Hasher + Clone + 'static,
-    B: BlockStore,
 {
     match (main_pointer, other_pointer) {
         (Pointer::Link(main_link), Pointer::Link(other_link)) => {
@@ -247,39 +243,18 @@ where
             Ok(changes)
         }
         (Pointer::Values(main_values), Pointer::Link(other_link)) => {
-            let main_link = Link::from(
-                create_node_from_pairs::<_, _, H, _>(main_values, hashprefix.len(), store).await?,
-            );
+            let main_link =
+                Link::from(create_node_from_pairs(main_values, hashprefix.len(), store).await?);
 
             node_diff_helper(main_link, other_link, hashprefix, store).await
         }
         (Pointer::Link(main_link), Pointer::Values(other_values)) => {
-            let other_link = Link::from(
-                create_node_from_pairs::<_, _, H, _>(other_values, hashprefix.len(), store).await?,
-            );
+            let other_link =
+                Link::from(create_node_from_pairs(other_values, hashprefix.len(), store).await?);
 
             node_diff_helper(main_link, other_link, hashprefix, store).await
         }
     }
-}
-
-async fn create_node_from_pairs<K, V, H, B: BlockStore>(
-    values: Vec<Pair<K, V>>,
-    hashprefix_length: usize,
-    store: &B,
-) -> Result<Rc<Node<K, V, H>>>
-where
-    K: DeserializeOwned + Clone + AsRef<[u8]>,
-    V: DeserializeOwned + Clone,
-    H: Hasher + Clone + 'static,
-{
-    let mut node = Rc::new(Node::<_, _, H>::default());
-    for Pair { key, value } in values {
-        let digest = &H::hash(&key);
-        let hashnibbles = &mut HashNibbles::with_cursor(digest, hashprefix_length);
-        node.set_value(hashnibbles, key, value, store).await?;
-    }
-    Ok(node)
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -290,7 +265,7 @@ where
 mod tests {
     use super::{ChangeType::*, *};
     use crate::{
-        private::{Node, MAX_HASH_NIBBLE_LENGTH},
+        private::{HashNibbles, Node, MAX_HASH_NIBBLE_LENGTH},
         utils::{self, test_setup},
     };
     use helper::*;

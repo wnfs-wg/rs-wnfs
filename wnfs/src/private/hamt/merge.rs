@@ -31,7 +31,7 @@ where
         match change.r#type {
             ChangeType::Remove => {
                 merge_node
-                    .set(change.key, change.other_value.unwrap(), store)
+                    .set(change.key, change.value1.unwrap(), store)
                     .await?;
             }
             ChangeType::Modify => {
