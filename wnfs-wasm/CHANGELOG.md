@@ -8,6 +8,20 @@
   * dependencies
     * wnfs bumped from 0.1.12 to 0.1.13
 
+## [0.1.15](https://github.com/wnfs-wg/rs-wnfs/compare/wnfs-wasm-v0.1.14...wnfs-wasm-v0.1.15) (2023-02-16)
+
+
+### Features
+
+* **private:** shared private data ([#148](https://github.com/wnfs-wg/rs-wnfs/issues/148)) ([c210067](https://github.com/wnfs-wg/rs-wnfs/commit/c2100679acb1d16d98cb9a2e6aa6e9abc5a8eff2))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * wnfs bumped from 0.1.14 to 0.1.15
+
 ## [0.1.14](https://github.com/wnfs-wg/rs-wnfs/compare/wnfs-wasm-v0.1.13...wnfs-wasm-v0.1.14) (2023-01-16)
 
 
