@@ -1,5 +1,3 @@
-use std::rc::Rc;
-
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
 //--------------------------------------------------------------------------------------------------
@@ -7,21 +5,21 @@ use std::rc::Rc;
 /// Represents the directory nodes along a path.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PathNodes<T> {
-    pub path: Vec<(Rc<T>, String)>,
-    pub tail: Rc<T>,
+    pub path: Vec<(T, String)>,
+    pub tail: T,
 }
 
 /// The kinds of outcome from getting a `PathNodes`.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum PathNodesResult<T> {
+pub enum PathNodesResult<PN> {
     /// The complete path exists.
-    Complete(PathNodes<T>),
+    Complete(PN),
 
     /// The path does not exist.
-    MissingLink(PathNodes<T>, String),
+    MissingLink(PN, String),
 
     /// Encountered a node that is not a directory.
-    NotADirectory(PathNodes<T>, String),
+    NotADirectory(PN, String),
 }
 
 //--------------------------------------------------------------------------------------------------

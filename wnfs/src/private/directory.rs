@@ -24,8 +24,8 @@ use wnfs_hamt::HashOutput;
 // Type Definitions
 //--------------------------------------------------------------------------------------------------
 
-pub type PrivatePathNodes = PathNodes<PrivateDirectory>;
-pub type PrivatePathNodesResult = PathNodesResult<PrivateDirectory>;
+pub type PrivatePathNodes = PathNodes<Rc<PrivateDirectory>>;
+pub type PrivatePathNodesResult = PathNodesResult<PrivatePathNodes>;
 
 /// Represents a directory in the WNFS private filesystem.
 ///

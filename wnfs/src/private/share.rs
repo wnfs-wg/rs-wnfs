@@ -316,7 +316,7 @@ pub mod sharer {
     use super::{SharePayload, EXCHANGE_KEY_NAME};
     use crate::{
         private::{Namefilter, PrivateForest, PublicKeyModulus, RsaKeyPair},
-        public::{PublicNode, PublicOpResult},
+        public::PublicNode,
     };
     use anyhow::Result;
     use async_stream::try_stream;
@@ -372,10 +372,10 @@ pub mod sharer {
                 .await?
                 .as_dir()?;
 
-            let PublicOpResult { result: devices, mut root_dir  } = root_dir.ls(&[], recipient_store).await?;
+            // TODO(matheus23) hmm this is not amazing
+            let devices = Rc::clone(&root_dir).ls(&[], recipient_store).await?;
             for _ in devices {
-                let PublicOpResult { result: entries, root_dir: root } = root_dir.ls(&[], recipient_store).await?;
-                root_dir = root;
+                let entries = Rc::clone(&root_dir).ls(&[], recipient_store).await?;
                 for (name, _) in entries {
                     if name == EXCHANGE_KEY_NAME {
                         root_dir
@@ -384,8 +384,7 @@ pub mod sharer {
                             .ok_or(FsError::NotFound)?
                             .as_file()?;
 
-                        let PublicOpResult { result: cid, root_dir: root } = root_dir.read(&[name], recipient_store).await?;
-                        root_dir = root;
+                        let cid = Rc::clone(&root_dir).read(&[name], recipient_store).await?;
                         yield recipient_store.get_block(&cid).await?.to_vec();
                         break
                     }
