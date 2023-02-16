@@ -1,7 +1,7 @@
 use std::fmt::Debug;
 
 use super::{PrivateNodeHeader, SnapshotKey, TemporalKey, KEY_BYTE_SIZE};
-use crate::private::Namefilter;
+use crate::private::namefilter::Namefilter;
 use aes_kw::KekAes256;
 use anyhow::Result;
 use libipld::Cid;

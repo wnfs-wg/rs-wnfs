@@ -3,7 +3,7 @@ mod encrypted;
 mod file;
 mod forest;
 mod keys;
-pub mod namefilter;
+mod namefilter;
 mod node;
 mod previous;
 mod privateref;
