@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1676563814756,
+  "lastUpdate": 1676567055928,
   "repoUrl": "https://github.com/wnfs-wg/rs-wnfs",
   "entries": {
     "Rust Benchmark": [
@@ -5515,6 +5515,96 @@ window.BENCHMARK_DATA = {
             "name": "namefilter encode",
             "value": 248,
             "range": "± 32",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter decode/0",
+            "value": 1,
+            "range": "± 0",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "appcypher@outlook.com",
+            "name": "Stephen Akinyemi",
+            "username": "appcypher"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "c2100679acb1d16d98cb9a2e6aa6e9abc5a8eff2",
+          "message": "feat(private): shared private data (#148)\n\n* Add initial structure\r\n\r\n* Implement sharing\r\n\r\n* Fix sharing impl and add tests\r\n\r\n* Push wasm changes\r\n\r\n* Fix code\r\n\r\n* Fix lint error\r\n\r\n* Take u32 share counts from js",
+          "timestamp": "2023-02-16T18:01:15+01:00",
+          "tree_id": "020e5b6d988daebf5a19a17350598f8913f4c450",
+          "url": "https://github.com/wnfs-wg/rs-wnfs/commit/c2100679acb1d16d98cb9a2e6aa6e9abc5a8eff2"
+        },
+        "date": 1676567055212,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "node set",
+            "value": 7268,
+            "range": "± 182",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node set 1000 consecutive",
+            "value": 4367731,
+            "range": "± 17769",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and get",
+            "value": 149509,
+            "range": "± 262",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and remove",
+            "value": 168886,
+            "range": "± 160",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt load and decode/0",
+            "value": 33751,
+            "range": "± 47",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt set and encode",
+            "value": 168650,
+            "range": "± 309",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter add",
+            "value": 7636,
+            "range": "± 42",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter contains",
+            "value": 9664,
+            "range": "± 99",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter saturate",
+            "value": 42235,
+            "range": "± 315",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter encode",
+            "value": 160,
+            "range": "± 7",
             "unit": "ns/iter"
           },
           {
