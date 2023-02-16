@@ -60,7 +60,7 @@ test.describe("Share", () => {
 
       var sharerForest2 = await share(
         sharerPayload,
-        BigInt(0),
+        0,
         sharerRootDid,
         sharerForest2,
         sharerStore,
@@ -69,7 +69,7 @@ test.describe("Share", () => {
       );
 
       const modulus = await recipientKey.getPublicKey().getPublicKeyModulus();
-      const shareLabel = createShareLabel(BigInt(0), sharerRootDid, modulus);
+      const shareLabel = createShareLabel(0, sharerRootDid, modulus);
 
       const recipientPayload = await receiveShare(
         shareLabel,

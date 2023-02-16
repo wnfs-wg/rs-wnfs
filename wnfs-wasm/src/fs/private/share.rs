@@ -66,7 +66,7 @@ impl SharePayload {
 #[wasm_bindgen]
 pub fn share(
     share_payload: SharePayload,
-    share_count: u64,
+    share_count: u32,
     sharer_root_did: String,
     sharer_forest: PrivateForest,
     sharer_store: BlockStore,
@@ -80,7 +80,7 @@ pub fn share(
     Ok(future_to_promise(async move {
         let sharer_forest = sharer::share::<ForeignExchangeKey>(
             &share_payload.0,
-            share_count,
+            share_count.into(),
             &sharer_root_did,
             sharer_forest.0,
             &mut sharer_store,
@@ -96,12 +96,12 @@ pub fn share(
 
 #[wasm_bindgen(js_name = "createShareLabel")]
 pub fn create_share_label(
-    share_count: u64,
+    share_count: u32,
     sharer_root_did: &str,
     recipient_exchange_key: &[u8],
 ) -> Namefilter {
     Namefilter(sharer::create_share_label(
-        share_count,
+        share_count.into(),
         sharer_root_did,
         recipient_exchange_key,
     ))
@@ -109,8 +109,8 @@ pub fn create_share_label(
 
 #[wasm_bindgen(js_name = "findShare")]
 pub fn find_share(
-    share_count: u64,
-    limit: u64,
+    share_count: u32,
+    limit: u32,
     recipient_exchange_key: Vec<u8>,
     sharer_root_did: String,
     sharer_forest: PrivateForest,
@@ -120,8 +120,8 @@ pub fn find_share(
 
     Ok(future_to_promise(async move {
         let count = recipient::find_share(
-            share_count,
-            limit,
+            share_count.into(),
+            limit.into(),
             &recipient_exchange_key,
             &sharer_root_did,
             &sharer_forest.0,
