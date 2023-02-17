@@ -1,12 +1,18 @@
+use super::utils::error;
 use crate::value;
 use js_sys::{Object, Reflect};
-use libipld::Ipld;
 use wasm_bindgen::JsValue;
-use wnfs::Metadata;
+use wnfs::{ipld::Ipld, Metadata};
 
-use super::utils::error;
+//--------------------------------------------------------------------------------------------------
+// Type Definitions
+//--------------------------------------------------------------------------------------------------
 
 pub(crate) struct JsMetadata<'a>(pub(crate) &'a Metadata);
+
+//--------------------------------------------------------------------------------------------------
+// Implementations
+//--------------------------------------------------------------------------------------------------
 
 impl TryFrom<JsMetadata<'_>> for JsValue {
     type Error = js_sys::Error;

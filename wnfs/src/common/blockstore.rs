@@ -1,7 +1,7 @@
 //! Block store traits.
 
-use std::{borrow::Cow, io::Cursor};
-
+use super::FsError;
+use crate::{private::SnapshotKey, AsyncSerialize, BlockStoreError, MAX_BLOCK_SIZE};
 use anyhow::{bail, Result};
 use async_trait::async_trait;
 use libipld::{
@@ -13,11 +13,7 @@ use libipld::{
 };
 use rand_core::RngCore;
 use serde::{de::DeserializeOwned, Serialize};
-use std::collections::HashMap;
-
-use crate::{private::SnapshotKey, AsyncSerialize, BlockStoreError, MAX_BLOCK_SIZE};
-
-use super::FsError;
+use std::{borrow::Cow, collections::HashMap, io::Cursor};
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions

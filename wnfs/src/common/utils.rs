@@ -130,6 +130,30 @@ pub fn make_digest(bytes: &[u8]) -> HashOutput {
     nibbles
 }
 
+/// Deserialize a constant-size slice as a byte array in serde's data model,
+/// instead of serde's default, which is an array of integers.
+///
+/// This function specifically only works for 32-byte slices as they're quite common
+/// and can be used with serde's #[serde(deserialize_with = "...")] field parameter.
+pub(crate) fn deserialize_byte_slice32<'de, D>(deserializer: D) -> Result<[u8; 32], D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    deserializer.deserialize_bytes(ByteArrayVisitor::<32>)
+}
+
+/// Serialize a constant-size slice as a byte array in serde's data model,
+/// instead of serde's default, which is an array of integers.
+///
+/// This function specifically only works for 32-byte slices as they're quite common
+/// and can be used with serde's #[serde(serialize_with = "...")] field parameter.
+pub(crate) fn serialize_byte_slice32<S>(slice: &[u8; 32], serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    serializer.serialize_bytes(slice)
+}
+
 //--------------------------------------------------------------------------------------------------
 // Macros
 //--------------------------------------------------------------------------------------------------

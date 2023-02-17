@@ -227,7 +227,7 @@ mod tests {
 
     #[async_std::test]
     async fn can_create_revisionref_deterministically_with_user_provided_seeds() {
-        let (ref mut forest, store, rng) = test_setup::init!(forest, mut store, mut rng);
+        let (forest, store, rng) = test_setup::init!(mut forest, mut store, mut rng);
         let ratchet_seed = utils::get_random_bytes::<32>(rng);
         let inumber = utils::get_random_bytes::<32>(rng);
 

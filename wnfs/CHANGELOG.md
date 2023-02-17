@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.15](https://github.com/wnfs-wg/rs-wnfs/compare/wnfs-v0.1.14...wnfs-v0.1.15) (2023-02-16)
+
+
+### Features
+
+* **private:** shared private data ([#148](https://github.com/wnfs-wg/rs-wnfs/issues/148)) ([c210067](https://github.com/wnfs-wg/rs-wnfs/commit/c2100679acb1d16d98cb9a2e6aa6e9abc5a8eff2))
+
 ## [0.1.14](https://github.com/wnfs-wg/rs-wnfs/compare/wnfs-v0.1.13...wnfs-v0.1.14) (2023-01-16)
 
 
