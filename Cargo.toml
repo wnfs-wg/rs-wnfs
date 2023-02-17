@@ -9,11 +9,3 @@ members = [
 # See https://blog.rust-lang.org/2021/03/25/Rust-1.51.0.html#splitting-debug-information
 [profile.dev]
 split-debuginfo = "unpacked"
-
-[profile.release]
-codegen-units = 1
-strip = "symbols"
-debug = false
-lto = true
-opt-level = "z"
-panic = 'abort'
