@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1676636218781,
+  "lastUpdate": 1676637970733,
   "repoUrl": "https://github.com/wnfs-wg/rs-wnfs",
   "entries": {
     "Rust Benchmark": [
@@ -5695,6 +5695,96 @@ window.BENCHMARK_DATA = {
             "name": "namefilter encode",
             "value": 159,
             "range": "± 7",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter decode/0",
+            "value": 1,
+            "range": "± 0",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "49699333+dependabot[bot]@users.noreply.github.com",
+            "name": "dependabot[bot]",
+            "username": "dependabot[bot]"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "a3aa25b2a04ed0a0847d5da668ecc6a9c2ff06ba",
+          "message": "chore(rust)(deps): update libipld requirement from 0.15 to 0.16 in /wnfs (#157)\n\n* chore(rust)(deps): update libipld requirement from 0.15 to 0.16 in /wnfs\r\n\r\nUpdates the requirements on [libipld](https://github.com/ipld/libipld) to permit the latest version.\r\n- [Release notes](https://github.com/ipld/libipld/releases)\r\n- [Commits](https://github.com/ipld/libipld/compare/libipld-pb-v0.15.0...libipld-pb-v0.16.0)\r\n\r\n---\r\nupdated-dependencies:\r\n- dependency-name: libipld\r\n  dependency-type: direct:production\r\n...\r\n\r\nSigned-off-by: dependabot[bot] <support@github.com>\r\n\r\n* Fix libipld deps\r\n\r\n* Fix deps\r\n\r\n---------\r\n\r\nSigned-off-by: dependabot[bot] <support@github.com>\r\nCo-authored-by: dependabot[bot] <49699333+dependabot[bot]@users.noreply.github.com>\r\nCo-authored-by: Stephen Akinyemi <appcypher@outlook.com>",
+          "timestamp": "2023-02-17T13:43:02+01:00",
+          "tree_id": "185a0f805524abf845f08fe8a2e582cd59ed253a",
+          "url": "https://github.com/wnfs-wg/rs-wnfs/commit/a3aa25b2a04ed0a0847d5da668ecc6a9c2ff06ba"
+        },
+        "date": 1676637969447,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "node set",
+            "value": 6938,
+            "range": "± 99",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node set 1000 consecutive",
+            "value": 4357399,
+            "range": "± 17249",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and get",
+            "value": 150698,
+            "range": "± 3292",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and remove",
+            "value": 167753,
+            "range": "± 1384",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt load and decode/0",
+            "value": 33990,
+            "range": "± 99",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt set and encode",
+            "value": 168329,
+            "range": "± 495",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter add",
+            "value": 7542,
+            "range": "± 71",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter contains",
+            "value": 9710,
+            "range": "± 86",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter saturate",
+            "value": 41217,
+            "range": "± 91",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter encode",
+            "value": 155,
+            "range": "± 6",
             "unit": "ns/iter"
           },
           {
