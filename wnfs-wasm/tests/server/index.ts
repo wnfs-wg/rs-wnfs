@@ -2,6 +2,7 @@
 
 import {
   sampleCID,
+  CID,
   MemoryBlockStore,
   Rng,
   createSharerDir,
@@ -31,6 +32,7 @@ const setup = async () => {
 
   const mock = {
     sampleCID,
+    CID,
     MemoryBlockStore,
     Rng,
     createSharerDir,

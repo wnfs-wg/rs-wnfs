@@ -5,6 +5,7 @@ declare global {
     setup: () => Promise<{
       mock: {
         sampleCID: typeof import("../mock").sampleCID;
+        CID: typeof import("../mock").CID,
         MemoryBlockStore: typeof import("../mock").MemoryBlockStore;
         Rng: typeof import("../mock").Rng;
         ExchangeKey: typeof import("../mock").ExchangeKey;

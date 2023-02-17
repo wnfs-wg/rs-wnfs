@@ -183,6 +183,7 @@ const createRecipientExchangeRoot = async (
 
 export {
   sampleCID,
+  CID,
   MemoryBlockStore,
   Rng,
   createSharerDir,
