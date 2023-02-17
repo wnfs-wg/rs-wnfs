@@ -14,22 +14,22 @@ declare global {
         createRecipientExchangeRoot: typeof import("../mock").createRecipientExchangeRoot;
       };
       wnfs: {
-        PublicDirectory: typeof import("../../pkg/wnfs_wasm.d").PublicDirectory;
-        PublicFile: typeof import("../../pkg/wnfs_wasm.d").PublicFile;
-        PublicNode: typeof import("../../pkg/wnfs_wasm.d").PublicNode;
-        PrivateDirectory: typeof import("../../pkg/wnfs_wasm.d").PrivateDirectory;
-        PrivateForest: typeof import("../../pkg/wnfs_wasm.d").PrivateForest;
-        PrivateFile: typeof import("../../pkg/wnfs_wasm.d").PrivateFile;
-        PrivateNode: typeof import("../../pkg/wnfs_wasm.d").PrivateNode;
-        PrivateRef: typeof import("../../pkg/wnfs_wasm.d").PrivateRef;
-        Namefilter: typeof import("../../pkg/wnfs_wasm.d").Namefilter;
-        SharePayload: typeof import("../../pkg/wnfs_wasm.d").SharePayload;
-        share: typeof import("../../pkg/wnfs_wasm.d").share;
-        findShare: typeof import("../../pkg/wnfs_wasm.d").findShare;
-        receiveShare: typeof import("../../pkg/wnfs_wasm.d").receiveShare;
-        createShareLabel: typeof import("../../pkg/wnfs_wasm.d").createShareLabel;
+        PublicDirectory: typeof import("../../pkg/index").PublicDirectory;
+        PublicFile: typeof import("../../pkg/index").PublicFile;
+        PublicNode: typeof import("../../pkg/index").PublicNode;
+        PrivateDirectory: typeof import("../../pkg/index").PrivateDirectory;
+        PrivateForest: typeof import("../../pkg/index").PrivateForest;
+        PrivateFile: typeof import("../../pkg/index").PrivateFile;
+        PrivateNode: typeof import("../../pkg/index").PrivateNode;
+        PrivateRef: typeof import("../../pkg/index").PrivateRef;
+        Namefilter: typeof import("../../pkg/index").Namefilter;
+        SharePayload: typeof import("../../pkg/index").SharePayload;
+        share: typeof import("../../pkg/index").share;
+        findShare: typeof import("../../pkg/index").findShare;
+        receiveShare: typeof import("../../pkg/index").receiveShare;
+        createShareLabel: typeof import("../../pkg/index").createShareLabel;
       };
-      setPanicHook: typeof import("../../pkg/wnfs_wasm.d").setPanicHook;
+      setPanicHook: typeof import("../../pkg/index").setPanicHook;
     }>;
   }
 }

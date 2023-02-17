@@ -28,7 +28,7 @@ const setup = async () => {
     createShareLabel,
     receiveShare,
     findShare,
-  } = await import("../../pkg/wnfs_wasm");
+  } = await import("../../pkg/index");
 
   const mock = {
     sampleCID,
