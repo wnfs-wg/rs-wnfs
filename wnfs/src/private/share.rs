@@ -9,8 +9,7 @@ use self::sharer::share;
 
 use super::{ExchangeKey, SnapshotKey, TemporalKey};
 use crate::{
-    private::PrivateForest, public::PublicLink, BlockStore, HashOutput, NodeType, PrivateNode,
-    ShareError,
+    private::PrivateForest, public::PublicLink, BlockStore, HashOutput, PrivateNode, ShareError,
 };
 use anyhow::{bail, Result};
 use libipld::Cid;
@@ -50,8 +49,7 @@ pub struct Recipient<'a, S: BlockStore> {
     pub store: &'a S,
 }
 
-#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
-#[serde(tag = "type")]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum SharePayload {
     #[serde(rename = "wnfs/share/temporal")]
     Temporal(TemporalSharePointer),
@@ -381,122 +379,6 @@ pub mod recipient {
         // Use decrypted payload to get cid to encrypted node in sharer's forest.
         let private_ref = PrivateRef::with_temporal_key(label, temporal_key, content_cid);
         sharer_forest.get(&private_ref, store).await
-    }
-}
-
-impl<'de> Deserialize<'de> for SharePayload {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        #[derive(Deserialize)]
-        #[serde(field_identifier)]
-        enum Field {
-            #[serde(rename = "type")]
-            Type,
-            #[serde(rename = "label")]
-            Label,
-            #[serde(rename = "contentCid")]
-            ContentCid,
-            #[serde(rename = "snapshotKey")]
-            SnapshotKey,
-            #[serde(rename = "temporalKey")]
-            TemporalKey,
-        }
-
-        #[derive(Deserialize)]
-        struct HamtLabel(
-            #[serde(serialize_with = "crate::utils::serialize_byte_slice32")]
-            #[serde(deserialize_with = "crate::utils::deserialize_byte_slice32")]
-            HashOutput,
-        );
-
-        struct SharePayloadVisitor;
-
-        use serde::de::{Error, MapAccess, Visitor};
-        use std::fmt;
-
-        impl<'de> Visitor<'de> for SharePayloadVisitor {
-            type Value = SharePayload;
-
-            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-                formatter.write_str("struct Duration")
-            }
-
-            fn visit_map<V>(self, mut map: V) -> Result<SharePayload, V::Error>
-            where
-                V: MapAccess<'de>,
-            {
-                let mut r#type: Option<NodeType> = None;
-                let mut label: Option<HamtLabel> = None;
-                let mut content_cid = None;
-                let mut snapshot_key = None;
-                let mut temporal_key = None;
-                while let Some(key) = map.next_key::<Field>()? {
-                    match key {
-                        Field::Type => {
-                            if r#type.is_some() {
-                                return Err(Error::duplicate_field("type"));
-                            }
-                            r#type = Some(map.next_value()?);
-                        }
-                        Field::Label => {
-                            if label.is_some() {
-                                return Err(Error::duplicate_field("label"));
-                            }
-                            label = Some(map.next_value()?);
-                        }
-                        Field::ContentCid => {
-                            if content_cid.is_some() {
-                                return Err(Error::duplicate_field("contentCid"));
-                            }
-                            content_cid = Some(map.next_value()?);
-                        }
-                        Field::SnapshotKey => {
-                            if snapshot_key.is_some() {
-                                return Err(Error::duplicate_field("snapshotKey"));
-                            }
-                            snapshot_key = Some(map.next_value()?);
-                        }
-                        Field::TemporalKey => {
-                            if temporal_key.is_some() {
-                                return Err(Error::duplicate_field("temporalKey"));
-                            }
-                            temporal_key = Some(map.next_value()?);
-                        }
-                    }
-                }
-                let r#type = r#type.ok_or_else(|| Error::missing_field("type"))?;
-                let label = label.ok_or_else(|| Error::missing_field("label"))?.0;
-                let content_cid = content_cid.ok_or_else(|| Error::missing_field("contentCid"))?;
-                match r#type {
-                    NodeType::TemporalSharePointer => {
-                        let temporal_key =
-                            temporal_key.ok_or_else(|| Error::missing_field("temporalKey"))?;
-                        Ok(SharePayload::Temporal(TemporalSharePointer {
-                            label,
-                            content_cid,
-                            temporal_key,
-                        }))
-                    }
-                    NodeType::SnapshotSharePointer => {
-                        let snapshot_key =
-                            snapshot_key.ok_or_else(|| Error::missing_field("snapshotKey"))?;
-                        Ok(SharePayload::Snapshot(SnapshotSharePointer {
-                            label,
-                            content_cid,
-                            snapshot_key,
-                        }))
-                    }
-                    other => Err(Error::unknown_variant(
-                        &other.to_string(),
-                        &["wnfs/share/snapshot", "wnfs/share/temporal"],
-                    )),
-                }
-            }
-        }
-
-        deserializer.deserialize_struct("SharePayload", &["type"], SharePayloadVisitor)
     }
 }
 
