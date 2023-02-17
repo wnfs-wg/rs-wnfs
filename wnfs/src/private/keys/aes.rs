@@ -28,8 +28,12 @@ pub const KEY_BYTE_SIZE: usize = 32;
 ///
 /// println!("AesKey: {:?}", key);
 /// ```
-#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct AesKey(pub(super) [u8; KEY_BYTE_SIZE]);
+#[derive(Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct AesKey(
+    #[serde(serialize_with = "crate::utils::serialize_byte_slice32")]
+    #[serde(deserialize_with = "crate::utils::deserialize_byte_slice32")]
+    pub(super) [u8; KEY_BYTE_SIZE],
+);
 
 //--------------------------------------------------------------------------------------------------
 // Implementations

@@ -35,6 +35,7 @@ pub mod dagcbor {
     /// Decodes recieved DagCbor bytes into a deserializable value.
     pub fn decode<D: DeserializeOwned>(bytes: &[u8]) -> Result<D> {
         let ipld = Ipld::decode(DagCborCodec, &mut Cursor::new(bytes))?;
+        println!("{ipld:#?}");
         Ok(ipld_serde::from_ipld::<_>(ipld)?)
     }
 }

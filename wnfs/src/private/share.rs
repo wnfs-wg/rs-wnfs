@@ -9,13 +9,13 @@ use self::sharer::share;
 
 use super::{ExchangeKey, SnapshotKey, TemporalKey};
 use crate::{
-    private::PrivateForest, public::PublicLink, BlockStore, FsError, HashOutput, NodeType,
-    PrivateNode, ShareError,
+    private::PrivateForest, public::PublicLink, BlockStore, HashOutput, NodeType, PrivateNode,
+    ShareError,
 };
 use anyhow::{bail, Result};
 use libipld::Cid;
 use rand_core::RngCore;
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use serde::{Deserialize, Serialize};
 use std::{marker::PhantomData, rc::Rc};
 
 //--------------------------------------------------------------------------------------------------
@@ -40,7 +40,7 @@ pub struct Share<'a, K: ExchangeKey, S: BlockStore> {
 #[derive(Debug)]
 pub struct Sharer<'a, S: BlockStore> {
     pub root_did: String,
-    pub forest: Rc<PrivateForest>,
+    pub forest: &'a mut Rc<PrivateForest>,
     pub store: &'a mut S,
 }
 
@@ -50,40 +50,35 @@ pub struct Recipient<'a, S: BlockStore> {
     pub store: &'a S,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[serde(tag = "type")]
 pub enum SharePayload {
+    #[serde(rename = "wnfs/share/temporal")]
     Temporal(TemporalSharePointer),
+    #[serde(rename = "wnfs/share/snapshot")]
     Snapshot(SnapshotSharePointer),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct TemporalSharePointer {
+    #[serde(serialize_with = "crate::utils::serialize_byte_slice32")]
+    #[serde(deserialize_with = "crate::utils::deserialize_byte_slice32")]
     pub label: HashOutput,
+    #[serde(rename = "contentCid")]
     pub content_cid: Cid,
+    #[serde(rename = "temporalKey")]
     pub temporal_key: TemporalKey,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct SnapshotSharePointer {
+    #[serde(serialize_with = "crate::utils::serialize_byte_slice32")]
+    #[serde(deserialize_with = "crate::utils::deserialize_byte_slice32")]
     pub label: HashOutput,
+    #[serde(rename = "contentCid")]
     pub content_cid: Cid,
+    #[serde(rename = "snapshotKey")]
     pub snapshot_key: SnapshotKey,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct TemporalSharePointerSerializable {
-    r#type: NodeType,
-    label: HashOutput,
-    content_cid: Cid,
-    temporal_key: TemporalKey,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct SnapshotSharePointerSerializable {
-    r#type: NodeType,
-    label: HashOutput,
-    content_cid: Cid,
-    snapshot_key: SnapshotKey,
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -128,7 +123,7 @@ impl<'a, K: ExchangeKey, S: BlockStore> Share<'a, K, S> {
             bail!(ShareError::NoSharerOrRecipients);
         }
 
-        let mut sharer = self.sharer.take().unwrap();
+        let sharer = self.sharer.take().unwrap();
         let recipients = std::mem::take(&mut self.recipients);
 
         for recipient in recipients {
@@ -136,7 +131,7 @@ impl<'a, K: ExchangeKey, S: BlockStore> Share<'a, K, S> {
                 self.payload,
                 self.count,
                 &sharer.root_did,
-                &mut sharer.forest,
+                sharer.forest,
                 sharer.store,
                 recipient.exchange_root,
                 recipient.store,
@@ -216,88 +211,6 @@ impl SnapshotSharePointer {
     }
 }
 
-impl Serialize for TemporalSharePointer {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        TemporalSharePointerSerializable {
-            r#type: NodeType::TemporalSharePointer,
-            label: self.label,
-            content_cid: self.content_cid,
-            temporal_key: self.temporal_key.clone(),
-        }
-        .serialize(serializer)
-    }
-}
-
-impl Serialize for SnapshotSharePointer {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        SnapshotSharePointerSerializable {
-            r#type: NodeType::SnapshotSharePointer,
-            label: self.label,
-            content_cid: self.content_cid,
-            snapshot_key: self.snapshot_key.clone(),
-        }
-        .serialize(serializer)
-    }
-}
-
-impl<'de> Deserialize<'de> for SnapshotSharePointer {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let SnapshotSharePointerSerializable {
-            r#type,
-            label,
-            snapshot_key,
-            content_cid,
-        } = SnapshotSharePointerSerializable::deserialize(deserializer)?;
-
-        if r#type != NodeType::SnapshotSharePointer {
-            return Err(serde::de::Error::custom(FsError::UnexpectedNodeType(
-                r#type,
-            )));
-        }
-
-        Ok(Self {
-            label,
-            content_cid,
-            snapshot_key,
-        })
-    }
-}
-
-impl<'de> Deserialize<'de> for TemporalSharePointer {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let TemporalSharePointerSerializable {
-            r#type,
-            label,
-            temporal_key,
-            content_cid,
-        } = TemporalSharePointerSerializable::deserialize(deserializer)?;
-
-        if r#type != NodeType::TemporalSharePointer {
-            return Err(serde::de::Error::custom(FsError::UnexpectedNodeType(
-                r#type,
-            )));
-        }
-
-        Ok(Self {
-            label,
-            content_cid,
-            temporal_key,
-        })
-    }
-}
-
 //--------------------------------------------------------------------------------------------------
 // Functions
 //--------------------------------------------------------------------------------------------------
@@ -334,7 +247,6 @@ pub mod sharer {
         while let Some(result) = exchange_keys.next().await {
             let public_key_modulus = result?;
             let exchange_key = K::from_modulus(&public_key_modulus).await?;
-            println!("Message: {}", hex::encode(encoded_payload));
             let encrypted_payload = exchange_key.encrypt(encoded_payload).await?;
             let share_label = create_share_label(share_count, sharer_root_did, &public_key_modulus);
 
@@ -472,14 +384,128 @@ pub mod recipient {
     }
 }
 
+impl<'de> Deserialize<'de> for SharePayload {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        #[serde(field_identifier)]
+        enum Field {
+            #[serde(rename = "type")]
+            Type,
+            #[serde(rename = "label")]
+            Label,
+            #[serde(rename = "contentCid")]
+            ContentCid,
+            #[serde(rename = "snapshotKey")]
+            SnapshotKey,
+            #[serde(rename = "temporalKey")]
+            TemporalKey,
+        }
+
+        #[derive(Deserialize)]
+        struct HamtLabel(
+            #[serde(serialize_with = "crate::utils::serialize_byte_slice32")]
+            #[serde(deserialize_with = "crate::utils::deserialize_byte_slice32")]
+            HashOutput,
+        );
+
+        struct SharePayloadVisitor;
+
+        use serde::de::{Error, MapAccess, Visitor};
+        use std::fmt;
+
+        impl<'de> Visitor<'de> for SharePayloadVisitor {
+            type Value = SharePayload;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                formatter.write_str("struct Duration")
+            }
+
+            fn visit_map<V>(self, mut map: V) -> Result<SharePayload, V::Error>
+            where
+                V: MapAccess<'de>,
+            {
+                let mut r#type: Option<NodeType> = None;
+                let mut label: Option<HamtLabel> = None;
+                let mut content_cid = None;
+                let mut snapshot_key = None;
+                let mut temporal_key = None;
+                while let Some(key) = map.next_key::<Field>()? {
+                    match key {
+                        Field::Type => {
+                            if r#type.is_some() {
+                                return Err(Error::duplicate_field("type"));
+                            }
+                            r#type = Some(map.next_value()?);
+                        }
+                        Field::Label => {
+                            if label.is_some() {
+                                return Err(Error::duplicate_field("label"));
+                            }
+                            label = Some(map.next_value()?);
+                        }
+                        Field::ContentCid => {
+                            if content_cid.is_some() {
+                                return Err(Error::duplicate_field("contentCid"));
+                            }
+                            content_cid = Some(map.next_value()?);
+                        }
+                        Field::SnapshotKey => {
+                            if snapshot_key.is_some() {
+                                return Err(Error::duplicate_field("snapshotKey"));
+                            }
+                            snapshot_key = Some(map.next_value()?);
+                        }
+                        Field::TemporalKey => {
+                            if temporal_key.is_some() {
+                                return Err(Error::duplicate_field("temporalKey"));
+                            }
+                            temporal_key = Some(map.next_value()?);
+                        }
+                    }
+                }
+                let r#type = r#type.ok_or_else(|| Error::missing_field("type"))?;
+                let label = label.ok_or_else(|| Error::missing_field("label"))?.0;
+                let content_cid = content_cid.ok_or_else(|| Error::missing_field("contentCid"))?;
+                match r#type {
+                    NodeType::TemporalSharePointer => {
+                        let temporal_key =
+                            temporal_key.ok_or_else(|| Error::missing_field("temporalKey"))?;
+                        Ok(SharePayload::Temporal(TemporalSharePointer {
+                            label,
+                            content_cid,
+                            temporal_key,
+                        }))
+                    }
+                    NodeType::SnapshotSharePointer => {
+                        let snapshot_key =
+                            snapshot_key.ok_or_else(|| Error::missing_field("snapshotKey"))?;
+                        Ok(SharePayload::Snapshot(SnapshotSharePointer {
+                            label,
+                            content_cid,
+                            snapshot_key,
+                        }))
+                    }
+                    other => Err(Error::unknown_variant(
+                        &other.to_string(),
+                        &["wnfs/share/snapshot", "wnfs/share/temporal"],
+                    )),
+                }
+            }
+        }
+
+        deserializer.deserialize_struct("SharePayload", &["type"], SharePayloadVisitor)
+    }
+}
+
 //--------------------------------------------------------------------------------------------------
 // Tests
 //--------------------------------------------------------------------------------------------------
 
 #[cfg(test)]
 mod tests {
-    use std::rc::Rc;
-
     use chrono::Utc;
 
     use super::{recipient, sharer, Recipient, Share, SharePayload, Sharer};
@@ -583,7 +609,7 @@ mod tests {
             .by(Sharer {
                 root_did: sharer_root_did.into(),
                 store: sharer_store,
-                forest: Rc::clone(sharer_forest),
+                forest: sharer_forest,
             })
             .to(Recipient {
                 exchange_root: PublicLink::from(PublicNode::Dir(recipient_exchange_root)),
@@ -627,6 +653,9 @@ mod tests {
             .unwrap();
 
         let serialized = dagcbor::encode(&payload).unwrap();
+
+        assert!(serialized.len() < 190);
+
         let deserialized: SharePayload = dagcbor::decode(&serialized).unwrap();
 
         assert_eq!(payload, deserialized);
