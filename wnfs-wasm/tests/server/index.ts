@@ -1,14 +1,62 @@
 ///<reference path="index.d.ts"/>
 
-import { sampleCID, MemoryBlockStore, Rng, CID } from "../mock";
+import {
+  sampleCID,
+  MemoryBlockStore,
+  Rng,
+  createSharerDir,
+  createRecipientExchangeRoot,
+  PrivateKey,
+  ExchangeKey,
+} from "../mock";
 
 const setup = async () => {
-  const { PublicDirectory, PublicFile, PublicNode, PrivateDirectory, PrivateForest, PrivateFile, PrivateNode, Namefilter, PrivateRef } = await import("../../pkg/index");
+  const {
+    PublicDirectory,
+    PublicFile,
+    PublicNode,
+    PrivateDirectory,
+    PrivateForest,
+    PrivateFile,
+    PrivateNode,
+    PrivateRef,
+    Namefilter,
+    setPanicHook,
+    SharePayload,
+    share,
+    createShareLabel,
+    receiveShare,
+    findShare,
+  } = await import("../../pkg/wnfs_wasm");
 
-  const mock = { sampleCID, MemoryBlockStore, Rng, CID };
-  const wnfs = { PublicDirectory, PublicFile, PublicNode, PrivateDirectory, PrivateForest, PrivateFile, PrivateNode, Namefilter, PrivateRef };
+  const mock = {
+    sampleCID,
+    MemoryBlockStore,
+    Rng,
+    createSharerDir,
+    createRecipientExchangeRoot,
+    PrivateKey,
+    ExchangeKey,
+  };
 
-  return { mock, wnfs };
+  const wnfs = {
+    PublicDirectory,
+    PublicFile,
+    PublicNode,
+    PrivateDirectory,
+    PrivateForest,
+    PrivateFile,
+    PrivateNode,
+    PrivateRef,
+    Namefilter,
+    SharePayload,
+    share,
+    createShareLabel,
+    receiveShare,
+    findShare,
+  };
+
+  return { mock, wnfs, setPanicHook };
 };
 
 window.setup = setup;

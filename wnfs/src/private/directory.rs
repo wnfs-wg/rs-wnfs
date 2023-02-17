@@ -149,6 +149,7 @@ impl PrivateDirectory {
         }
     }
 
+    /// This contstructor creates a new private directory and stores it in a provided `PrivateForest`.
     pub async fn new_and_store<B: BlockStore, R: RngCore>(
         parent_bare_name: Namefilter,
         time: DateTime<Utc>,
@@ -168,6 +169,8 @@ impl PrivateDirectory {
         })
     }
 
+    /// This contstructor creates a new private directory and stores it in a provided `PrivateForest` but
+    /// with user-provided ratchet seed and inumber provided.
     pub async fn new_with_seed_and_store<B: BlockStore, R: RngCore>(
         parent_bare_name: Namefilter,
         time: DateTime<Utc>,
@@ -1318,6 +1321,11 @@ impl PrivateDirectory {
             .await?;
 
         Ok((header_cid, content_cid))
+    }
+
+    /// Wraps the directory in a [`PrivateNode`].
+    pub fn as_node(self: &Rc<Self>) -> PrivateNode {
+        PrivateNode::Dir(Rc::clone(self))
     }
 }
 

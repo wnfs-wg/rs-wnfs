@@ -63,10 +63,9 @@ impl PublicDirectory {
 
     /// Looks up a node by its path name in the current directory.
     #[wasm_bindgen(js_name = "lookupNode")]
-    pub fn lookup_node(&self, path_segment: &str, store: BlockStore) -> JsResult<Promise> {
+    pub fn lookup_node(&self, path_segment: String, store: BlockStore) -> JsResult<Promise> {
         let directory = Rc::clone(&self.0);
         let store = ForeignBlockStore(store);
-        let path_segment = path_segment.to_string();
 
         Ok(future_to_promise(async move {
             let found_node = directory

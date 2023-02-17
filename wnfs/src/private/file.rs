@@ -4,13 +4,13 @@ use super::{
 };
 use crate::{
     utils, utils::get_random_bytes, BlockStore, FsError, Hasher, Id, Metadata, NodeType,
-    MAX_BLOCK_SIZE,
+    PrivateNode, MAX_BLOCK_SIZE,
 };
 use anyhow::Result;
 use async_once_cell::OnceCell;
 use async_stream::try_stream;
 use chrono::{DateTime, Utc};
-use futures::{Stream, StreamExt};
+use futures::{future, Stream, StreamExt};
 use libipld::{cbor::DagCborCodec, prelude::Encode, Cid, IpldCodec};
 use rand_core::RngCore;
 use semver::Version;
@@ -212,7 +212,7 @@ impl PrivateFile {
     ///     MemoryBlockStore, Namefilter, PrivateFile,
     ///     utils::get_random_bytes,
     /// };
-    /// use futures::{StreamExt};
+    /// use futures::{future, StreamExt};
     ///
     /// #[async_std::main]
     /// async fn main() {
@@ -233,10 +233,12 @@ impl PrivateFile {
     ///     .unwrap();
     ///
     ///     let mut stream_content = vec![];
-    ///     let mut stream = file.stream_content(0, &forest, store);
-    ///     while let Some(block) = stream.next().await {
-    ///         stream_content.extend_from_slice(&block.unwrap());
-    ///     }
+    ///     file.stream_content(0, &forest, store)
+    ///         .for_each(|chunk| {
+    ///             stream_content.extend_from_slice(&chunk.unwrap());
+    ///             future::ready(())
+    ///         })
+    ///         .await;
     ///
     ///     assert_eq!(content, stream_content);
     /// }
@@ -319,10 +321,12 @@ impl PrivateFile {
         store: &impl BlockStore,
     ) -> Result<Vec<u8>> {
         let mut content = Vec::with_capacity(self.get_content_size_upper_bound());
-        let mut stream = self.stream_content(0, forest, store);
-        while let Some(bytes) = stream.next().await {
-            content.extend_from_slice(&bytes?);
-        }
+        self.stream_content(0, forest, store)
+            .for_each(|chunk| {
+                content.extend_from_slice(&chunk.unwrap());
+                future::ready(())
+            })
+            .await;
         Ok(content)
     }
 
@@ -507,6 +511,11 @@ impl PrivateFile {
 
         Ok((header_cid, content_cid))
     }
+
+    /// Wraps the file in a [`PrivateNode`].
+    pub fn as_node(self: &Rc<Self>) -> PrivateNode {
+        PrivateNode::File(Rc::clone(self))
+    }
 }
 
 impl PrivateFileContent {
@@ -641,16 +650,18 @@ mod tests {
         let (file, (ref mut forest, ref store, _)) = test_setup::private!(file, content.clone());
 
         let mut collected_content = Vec::new();
-        let mut stream = file.stream_content(2, forest, store);
         let mut block_limit = 2;
-        while let Some(chunk) = stream.next().await {
-            if block_limit == 0 {
-                break;
-            }
+        file.stream_content(2, forest, store)
+            .for_each(|chunk| {
+                if block_limit == 0 {
+                    return future::ready(());
+                }
 
-            collected_content.extend_from_slice(&chunk.unwrap());
-            block_limit -= 1;
-        }
+                collected_content.extend_from_slice(&chunk.unwrap());
+                block_limit -= 1;
+                future::ready(())
+            })
+            .await;
 
         assert_eq!(
             collected_content,
@@ -663,7 +674,7 @@ mod tests {
 mod proptests {
     use super::MAX_BLOCK_CONTENT_SIZE;
     use crate::utils::test_setup;
-    use futures::StreamExt;
+    use futures::{future, StreamExt};
     use test_strategy::proptest;
 
     #[proptest(cases = 100)]
@@ -688,10 +699,13 @@ mod proptests {
             let (file, (ref forest, ref store, _)) = test_setup::private!(file, content.clone());
 
             let mut collected_content = Vec::new();
-            let mut stream = file.stream_content(0, forest, store);
-            while let Some(chunk) = stream.next().await {
-                collected_content.extend_from_slice(&chunk.unwrap());
-            }
+
+            file.stream_content(0, forest, store)
+                .for_each(|chunk| {
+                    collected_content.extend_from_slice(&chunk.unwrap());
+                    future::ready(())
+                })
+                .await;
 
             assert_eq!(collected_content, content);
         })

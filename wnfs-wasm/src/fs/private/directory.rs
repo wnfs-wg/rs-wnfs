@@ -70,6 +70,77 @@ impl PrivateDirectory {
         ))))
     }
 
+    /// This contstructor creates a new private directory and stores it in a provided `PrivateForest`.
+    #[wasm_bindgen(js_name = "newAndStore")]
+    pub async fn new_and_store(
+        parent_bare_name: Namefilter,
+        time: &Date,
+        forest: PrivateForest,
+        store: BlockStore,
+        mut rng: Rng,
+    ) -> JsResult<Promise> {
+        let time = DateTime::<Utc>::from(time);
+        let mut store = ForeignBlockStore(store);
+        let mut forest = Rc::clone(&forest.0);
+
+        Ok(future_to_promise(async move {
+            let WnfsPrivateOpResult { root_dir, .. } = WnfsPrivateDirectory::new_and_store(
+                parent_bare_name.0,
+                time,
+                &mut forest,
+                &mut store,
+                &mut rng,
+            )
+            .await
+            .map_err(error("Cannot create and store new directory"))?;
+
+            Ok(utils::create_private_op_result(
+                root_dir,
+                forest,
+                JsValue::NULL,
+            )?)
+        }))
+    }
+
+    /// This contstructor creates a new private directory and stores it in a provided `PrivateForest`.
+    #[wasm_bindgen(js_name = "newWithSeedAndStore")]
+    pub async fn new_with_seed_and_store(
+        parent_bare_name: Namefilter,
+        time: &Date,
+        ratchet_seed: Vec<u8>,
+        inumber: Vec<u8>,
+        forest: PrivateForest,
+        store: BlockStore,
+        mut rng: Rng,
+    ) -> JsResult<Promise> {
+        let time = DateTime::<Utc>::from(time);
+        let ratchet_seed = utils::expect_bytes::<HASH_BYTE_SIZE>(ratchet_seed)?;
+        let inumber = utils::expect_bytes::<HASH_BYTE_SIZE>(inumber)?;
+        let mut store = ForeignBlockStore(store);
+        let mut forest = Rc::clone(&forest.0);
+
+        Ok(future_to_promise(async move {
+            let WnfsPrivateOpResult { root_dir, .. } =
+                WnfsPrivateDirectory::new_with_seed_and_store(
+                    parent_bare_name.0,
+                    time,
+                    ratchet_seed,
+                    inumber,
+                    &mut forest,
+                    &mut store,
+                    &mut rng,
+                )
+                .await
+                .map_err(error("Cannot create and store new directory"))?;
+
+            Ok(utils::create_private_op_result(
+                root_dir,
+                forest,
+                JsValue::NULL,
+            )?)
+        }))
+    }
+
     /// Follows a path and fetches the node at the end of the path.
     #[wasm_bindgen(js_name = "getNode")]
     pub fn get_node(
