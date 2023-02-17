@@ -4,11 +4,11 @@ use crate::{
     value,
 };
 use js_sys::{Array, Promise, Reflect};
-use libipld::Cid;
 use std::rc::Rc;
 use wasm_bindgen::{prelude::wasm_bindgen, JsValue};
 use wasm_bindgen_futures::future_to_promise;
 use wnfs::{
+    ipld::Cid,
     private::{recipient, sharer, SharePayload as WnfsSharePayload},
     public::PublicLink,
 };
@@ -146,12 +146,13 @@ pub fn receive_share(
 ) -> JsResult<Promise> {
     let sharer_store = ForeignBlockStore(sharer_store);
     let recipient_key = ForeignPrivateKey(recipient_key);
+    let mut sharer_forest = Rc::clone(&sharer_forest.0);
 
     Ok(future_to_promise(async move {
         let node = recipient::receive_share(
             share_label.0,
             &recipient_key,
-            sharer_forest.0,
+            &mut sharer_forest,
             &sharer_store,
         )
         .await

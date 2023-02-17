@@ -1,10 +1,10 @@
 use std::rc::Rc;
 
 use js_sys::Promise;
-use libipld::Cid;
 use wasm_bindgen::{prelude::wasm_bindgen, JsValue};
 use wasm_bindgen_futures::future_to_promise;
 use wnfs::{
+    ipld::Cid,
     private::{
         AesKey, PrivateForest as WnfsPrivateForest, PrivateRef as WnfsPrivateRef, TemporalKey,
         KEY_BYTE_SIZE,
