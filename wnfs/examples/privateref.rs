@@ -5,7 +5,12 @@ use serde::{Deserialize, Serialize};
 use sha3::Sha3_256;
 use std::{io::Cursor, rc::Rc};
 use wnfs::{
-    ipld::{DagCborCodec, Decode, Encode, Ipld, Serializer},
+    libipld::{
+        cbor::DagCborCodec,
+        codec::{Decode, Encode},
+        serde::Serializer,
+        Ipld,
+    },
     private::{AesKey, PrivateForest, RevisionRef},
     utils, Hasher, MemoryBlockStore, Namefilter, PrivateDirectory, PrivateOpResult,
 };
