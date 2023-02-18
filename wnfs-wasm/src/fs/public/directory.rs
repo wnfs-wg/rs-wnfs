@@ -7,7 +7,7 @@ use js_sys::{Array, Date, Promise, Uint8Array};
 use wasm_bindgen::{prelude::wasm_bindgen, JsValue};
 use wasm_bindgen_futures::future_to_promise;
 use wnfs::{
-    ipld::Cid, BlockStore as WnfsBlockStore, Id, PublicDirectory as WnfsPublicDirectory,
+    libipld::Cid, BlockStore as WnfsBlockStore, Id, PublicDirectory as WnfsPublicDirectory,
     PublicNode as WnfsPublicNode, PublicOpResult as WnfsPublicOpResult,
 };
 

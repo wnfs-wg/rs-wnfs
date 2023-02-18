@@ -8,7 +8,7 @@ use std::rc::Rc;
 use wasm_bindgen::{prelude::wasm_bindgen, JsValue};
 use wasm_bindgen_futures::future_to_promise;
 use wnfs::{
-    ipld::Cid,
+    libipld::Cid,
     private::{recipient, sharer, SharePayload as WnfsSharePayload},
     public::PublicLink,
 };
