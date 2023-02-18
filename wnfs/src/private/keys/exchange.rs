@@ -22,12 +22,13 @@ pub const PUBLIC_KEY_EXPONENT: u64 = 65537;
 //--------------------------------------------------------------------------------------------------
 
 /// The `ExchangeKey` trait defines methods for creating an RSA public key from a modulus and encrypting data with the public key.
-/// Implementations of this trait can create an RSA public key using the `from_exchange_key` method, which takes a modulus as input.
+/// Implementations of this trait can create an RSA public key using the `from_modulus` method, which takes a modulus as input.
+///
 /// Data can be encrypted with the public key using the `encrypt` method, which takes a slice of bytes as input and returns the encrypted data as a vector of bytes.
 ///
-/// More on that [here][key].
+/// More on exchange keys [here][key].
 ///
-/// [key]: https://github.com/wnfs-wg/spec/blob/matheus23/file-sharding/spec/private-wnfs.md#314-private-file
+/// [key]: https://github.com/wnfs-wg/spec/blob/main/spec/shared-private-data.md#2-exchange-keys-partition
 #[async_trait(?Send)]
 pub trait ExchangeKey {
     /// Creates an RSA public key from the public key modulus.
@@ -41,6 +42,7 @@ pub trait ExchangeKey {
     async fn encrypt(&self, data: &[u8]) -> Result<Vec<u8>>;
 }
 
+/// The `PrivateKey` trait represents a RSA private key type that can be used to decrypt data encrypted with corresponding public key.
 #[async_trait(?Send)]
 pub trait PrivateKey {
     /// Decrypts ciphertext with the private key.
