@@ -47,13 +47,13 @@ impl PrivateFile {
         parent_bare_name: Namefilter,
         time: &Date,
         content: Vec<u8>,
-        forest: PrivateForest,
+        forest: &PrivateForest,
         store: BlockStore,
         mut rng: Rng,
     ) -> JsResult<Promise> {
         let mut store = ForeignBlockStore(store);
         let time = DateTime::<Utc>::from(time);
-        let mut forest = forest.0;
+        let mut forest = Rc::clone(&forest.0);
 
         Ok(future_to_promise(async move {
             let file = WnfsPrivateFile::with_content(
@@ -76,13 +76,14 @@ impl PrivateFile {
 
     /// Gets the entire content of a file.
     #[wasm_bindgen(js_name = "getContent")]
-    pub fn get_content(self, forest: PrivateForest, store: BlockStore) -> JsResult<Promise> {
-        let file = self.0;
+    pub fn get_content(&self, forest: &PrivateForest, store: BlockStore) -> JsResult<Promise> {
+        let file = Rc::clone(&self.0);
         let store = ForeignBlockStore(store);
+        let forest = Rc::clone(&forest.0);
 
         Ok(future_to_promise(async move {
             let content = file
-                .get_content(&forest.0, &store)
+                .get_content(&forest, &store)
                 .await
                 .map_err(error("Cannot get content of file"))?;
 
@@ -91,19 +92,19 @@ impl PrivateFile {
     }
 
     /// Gets the metadata of this file.
-    pub fn metadata(self) -> JsResult<JsValue> {
+    pub fn metadata(&self) -> JsResult<JsValue> {
         JsMetadata(self.0.get_metadata()).try_into()
     }
 
     /// Gets a unique id for node.
     #[wasm_bindgen(js_name = "getId")]
-    pub fn get_id(self) -> String {
+    pub fn get_id(&self) -> String {
         self.0.get_id()
     }
 
     /// Converts this file to a node.
     #[wasm_bindgen(js_name = "asNode")]
-    pub fn as_node(self) -> PrivateNode {
+    pub fn as_node(&self) -> PrivateNode {
         PrivateNode(WnfsPrivateNode::File(Rc::clone(&self.0)))
     }
 }

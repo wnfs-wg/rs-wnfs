@@ -43,8 +43,8 @@ impl PublicDirectory {
 
     /// Follows a path and fetches the node at the end of the path.
     #[wasm_bindgen(js_name = "getNode")]
-    pub fn get_node(self, path_segments: &Array, store: BlockStore) -> JsResult<Promise> {
-        let directory = self.0;
+    pub fn get_node(&self, path_segments: &Array, store: BlockStore) -> JsResult<Promise> {
+        let directory = Rc::clone(&self.0);
         let store = ForeignBlockStore(store);
         let path_segments = utils::convert_path_segments(path_segments)?;
 
@@ -63,8 +63,8 @@ impl PublicDirectory {
 
     /// Looks up a node by its path name in the current directory.
     #[wasm_bindgen(js_name = "lookupNode")]
-    pub fn lookup_node(self, path_segment: String, store: BlockStore) -> JsResult<Promise> {
-        let directory = self.0;
+    pub fn lookup_node(&self, path_segment: String, store: BlockStore) -> JsResult<Promise> {
+        let directory = Rc::clone(&self.0);
         let store = ForeignBlockStore(store);
 
         Ok(future_to_promise(async move {
@@ -78,8 +78,8 @@ impl PublicDirectory {
     }
 
     /// Stores directory in provided block store.
-    pub fn store(self, store: BlockStore) -> JsResult<Promise> {
-        let directory = self.0;
+    pub fn store(&self, store: BlockStore) -> JsResult<Promise> {
+        let directory = Rc::clone(&self.0);
         let mut store = ForeignBlockStore(store);
 
         Ok(future_to_promise(async move {
@@ -110,8 +110,8 @@ impl PublicDirectory {
     }
 
     /// Reads specified file content from the directory.
-    pub fn read(self, path_segments: &Array, store: BlockStore) -> JsResult<Promise> {
-        let directory = self.0;
+    pub fn read(&self, path_segments: &Array, store: BlockStore) -> JsResult<Promise> {
+        let directory = Rc::clone(&self.0);
         let mut store = ForeignBlockStore(store);
         let path_segments = utils::convert_path_segments(path_segments)?;
 
@@ -128,8 +128,8 @@ impl PublicDirectory {
     }
 
     /// Returns names and metadata of the direct children of a directory.
-    pub fn ls(self, path_segments: &Array, store: BlockStore) -> JsResult<Promise> {
-        let directory = self.0;
+    pub fn ls(&self, path_segments: &Array, store: BlockStore) -> JsResult<Promise> {
+        let directory = Rc::clone(&self.0);
         let store = ForeignBlockStore(store);
         let path_segments = utils::convert_path_segments(path_segments)?;
 
@@ -149,8 +149,8 @@ impl PublicDirectory {
     }
 
     /// Removes a file or directory from the directory.
-    pub fn rm(self, path_segments: &Array, store: BlockStore) -> JsResult<Promise> {
-        let directory = self.0;
+    pub fn rm(&self, path_segments: &Array, store: BlockStore) -> JsResult<Promise> {
+        let directory = Rc::clone(&self.0);
         let store = ForeignBlockStore(store);
         let path_segments = utils::convert_path_segments(path_segments)?;
 
@@ -169,13 +169,13 @@ impl PublicDirectory {
 
     /// Writes a file to the directory.
     pub fn write(
-        self,
+        &self,
         path_segments: &Array,
         content_cid: Vec<u8>,
         time: &Date,
         store: BlockStore,
     ) -> JsResult<Promise> {
-        let directory = self.0;
+        let directory = Rc::clone(&self.0);
         let store = ForeignBlockStore(store);
 
         let cid = Cid::try_from(content_cid).map_err(error("Invalid CID"))?;
@@ -195,13 +195,13 @@ impl PublicDirectory {
     /// Moves a specified path to a new location.
     #[wasm_bindgen(js_name = "basicMv")]
     pub fn basic_mv(
-        self,
+        &self,
         path_segments_from: &Array,
         path_segments_to: &Array,
         time: &Date,
         store: BlockStore,
     ) -> JsResult<Promise> {
-        let directory = self.0;
+        let directory = Rc::clone(&self.0);
         let store = ForeignBlockStore(store);
         let time = DateTime::<Utc>::from(time);
         let path_segments_from = utils::convert_path_segments(path_segments_from)?;
@@ -220,8 +220,13 @@ impl PublicDirectory {
     /// Creates a new directory at the specified path.
     ///
     /// This method acts like `mkdir -p` in Unix because it creates intermediate directories if they do not exist.
-    pub fn mkdir(self, path_segments: &Array, time: &Date, store: BlockStore) -> JsResult<Promise> {
-        let directory = self.0;
+    pub fn mkdir(
+        &self,
+        path_segments: &Array,
+        time: &Date,
+        store: BlockStore,
+    ) -> JsResult<Promise> {
+        let directory = Rc::clone(&self.0);
         let store = ForeignBlockStore(store);
         let time = DateTime::<Utc>::from(time);
         let path_segments = utils::convert_path_segments(path_segments)?;
@@ -237,8 +242,8 @@ impl PublicDirectory {
     }
 
     #[wasm_bindgen(js_name = "baseHistoryOn")]
-    pub fn base_history_on(self, base: &PublicDirectory, store: BlockStore) -> JsResult<Promise> {
-        let directory = self.0;
+    pub fn base_history_on(&self, base: &PublicDirectory, store: BlockStore) -> JsResult<Promise> {
+        let directory = Rc::clone(&self.0);
         let base = base.0.clone();
         let mut store = ForeignBlockStore(store);
 

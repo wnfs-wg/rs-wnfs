@@ -75,13 +75,13 @@ impl PrivateDirectory {
     pub async fn new_and_store(
         parent_bare_name: Namefilter,
         time: &Date,
-        forest: PrivateForest,
+        forest: &PrivateForest,
         store: BlockStore,
         mut rng: Rng,
     ) -> JsResult<Promise> {
         let time = DateTime::<Utc>::from(time);
         let mut store = ForeignBlockStore(store);
-        let mut forest = forest.0;
+        let mut forest = Rc::clone(&forest.0);
 
         Ok(future_to_promise(async move {
             let WnfsPrivateOpResult { root_dir, .. } = WnfsPrivateDirectory::new_and_store(
@@ -109,7 +109,7 @@ impl PrivateDirectory {
         time: &Date,
         ratchet_seed: Vec<u8>,
         inumber: Vec<u8>,
-        forest: PrivateForest,
+        forest: &PrivateForest,
         store: BlockStore,
         mut rng: Rng,
     ) -> JsResult<Promise> {
@@ -117,7 +117,7 @@ impl PrivateDirectory {
         let ratchet_seed = utils::expect_bytes::<HASH_BYTE_SIZE>(ratchet_seed)?;
         let inumber = utils::expect_bytes::<HASH_BYTE_SIZE>(inumber)?;
         let mut store = ForeignBlockStore(store);
-        let mut forest = forest.0;
+        let mut forest = Rc::clone(&forest.0);
 
         Ok(future_to_promise(async move {
             let WnfsPrivateOpResult { root_dir, .. } =
@@ -144,16 +144,16 @@ impl PrivateDirectory {
     /// Follows a path and fetches the node at the end of the path.
     #[wasm_bindgen(js_name = "getNode")]
     pub fn get_node(
-        self,
+        &self,
         path_segments: &Array,
         search_latest: bool,
-        forest: PrivateForest,
+        forest: &PrivateForest,
         store: BlockStore,
     ) -> JsResult<Promise> {
-        let directory = self.0;
+        let directory = Rc::clone(&self.0);
         let store = ForeignBlockStore(store);
         let path_segments = utils::convert_path_segments(path_segments)?;
-        let forest = forest.0;
+        let forest = Rc::clone(&forest.0);
 
         Ok(future_to_promise(async move {
             let WnfsPrivateOpResult { root_dir, result } = directory
@@ -172,16 +172,16 @@ impl PrivateDirectory {
     /// Looks up a node by its path name in the current directory.
     #[wasm_bindgen(js_name = "lookupNode")]
     pub fn lookup_node(
-        self,
+        &self,
         path_segment: &str,
         search_latest: bool,
-        forest: PrivateForest,
+        forest: &PrivateForest,
         store: BlockStore,
     ) -> JsResult<Promise> {
-        let directory = self.0;
+        let directory = Rc::clone(&self.0);
         let store = ForeignBlockStore(store);
         let path_segment = path_segment.to_string();
-        let forest = forest.0;
+        let forest = Rc::clone(&forest.0);
 
         Ok(future_to_promise(async move {
             let found_node = directory
@@ -195,16 +195,16 @@ impl PrivateDirectory {
 
     /// Reads specified file content from the directory.
     pub fn read(
-        self,
+        &self,
         path_segments: &Array,
         search_latest: bool,
-        forest: PrivateForest,
+        forest: &PrivateForest,
         store: BlockStore,
     ) -> JsResult<Promise> {
-        let directory = self.0;
+        let directory = Rc::clone(&self.0);
         let store = ForeignBlockStore(store);
         let path_segments = utils::convert_path_segments(path_segments)?;
-        let mut forest = forest.0;
+        let mut forest = Rc::clone(&forest.0);
 
         Ok(future_to_promise(async move {
             let WnfsPrivateOpResult { root_dir, result } = directory
@@ -222,16 +222,16 @@ impl PrivateDirectory {
 
     /// Returns names and metadata of the direct children of a directory.
     pub fn ls(
-        self,
+        &self,
         path_segments: &Array,
         search_latest: bool,
-        forest: PrivateForest,
+        forest: &PrivateForest,
         store: BlockStore,
     ) -> JsResult<Promise> {
-        let directory = self.0;
+        let directory = Rc::clone(&self.0);
         let store = ForeignBlockStore(store);
         let path_segments = utils::convert_path_segments(path_segments)?;
-        let mut forest = forest.0;
+        let mut forest = Rc::clone(&forest.0);
 
         Ok(future_to_promise(async move {
             let WnfsPrivateOpResult { root_dir, result } = directory
@@ -250,17 +250,17 @@ impl PrivateDirectory {
 
     /// Removes a file or directory from the directory.
     pub fn rm(
-        self,
+        &self,
         path_segments: &Array,
         search_latest: bool,
-        forest: PrivateForest,
+        forest: &PrivateForest,
         store: BlockStore,
         mut rng: Rng,
     ) -> JsResult<Promise> {
-        let directory = self.0;
+        let directory = Rc::clone(&self.0);
         let mut store = ForeignBlockStore(store);
         let path_segments = utils::convert_path_segments(path_segments)?;
-        let mut forest = forest.0;
+        let mut forest = Rc::clone(&forest.0);
 
         Ok(future_to_promise(async move {
             let WnfsPrivateOpResult {
@@ -288,20 +288,20 @@ impl PrivateDirectory {
     /// Writes a file to the directory.
     #[allow(clippy::too_many_arguments)]
     pub fn write(
-        self,
+        &self,
         path_segments: &Array,
         search_latest: bool,
         content: Vec<u8>,
         time: &Date,
-        forest: PrivateForest,
+        forest: &PrivateForest,
         store: BlockStore,
         mut rng: Rng,
     ) -> JsResult<Promise> {
-        let directory = self.0;
+        let directory = Rc::clone(&self.0);
         let mut store = ForeignBlockStore(store);
         let time = DateTime::<Utc>::from(time);
         let path_segments = utils::convert_path_segments(path_segments)?;
-        let mut forest = forest.0;
+        let mut forest = Rc::clone(&forest.0);
 
         Ok(future_to_promise(async move {
             let WnfsPrivateOpResult { root_dir, .. } = directory
@@ -329,21 +329,21 @@ impl PrivateDirectory {
     #[wasm_bindgen(js_name = "basicMv")]
     #[allow(clippy::too_many_arguments)]
     pub fn basic_mv(
-        self,
+        &self,
         path_segments_from: &Array,
         path_segments_to: &Array,
         search_latest: bool,
         time: &Date,
-        forest: PrivateForest,
+        forest: &PrivateForest,
         store: BlockStore,
         mut rng: Rng,
     ) -> JsResult<Promise> {
-        let directory = self.0;
+        let directory = Rc::clone(&self.0);
         let mut store = ForeignBlockStore(store);
         let time = DateTime::<Utc>::from(time);
         let path_segments_from = utils::convert_path_segments(path_segments_from)?;
         let path_segments_to = utils::convert_path_segments(path_segments_to)?;
-        let mut forest = forest.0;
+        let mut forest = Rc::clone(&forest.0);
 
         Ok(future_to_promise(async move {
             let WnfsPrivateOpResult { root_dir, .. } = directory
@@ -370,21 +370,21 @@ impl PrivateDirectory {
     /// Copies a specified path to a new location.
     #[allow(clippy::too_many_arguments)]
     pub fn cp(
-        self,
+        &self,
         path_segments_from: &Array,
         path_segments_to: &Array,
         search_latest: bool,
         time: &Date,
-        forest: PrivateForest,
+        forest: &PrivateForest,
         store: BlockStore,
         mut rng: Rng,
     ) -> JsResult<Promise> {
-        let directory = self.0;
+        let directory = Rc::clone(&self.0);
         let mut store = ForeignBlockStore(store);
         let time = DateTime::<Utc>::from(time);
         let path_segments_from = utils::convert_path_segments(path_segments_from)?;
         let path_segments_to = utils::convert_path_segments(path_segments_to)?;
-        let mut forest = forest.0;
+        let mut forest = Rc::clone(&forest.0);
 
         Ok(future_to_promise(async move {
             let WnfsPrivateOpResult { root_dir, .. } = directory
@@ -412,19 +412,19 @@ impl PrivateDirectory {
     ///
     /// This method acts like `mkdir -p` in Unix because it creates intermediate directories if they do not exist.
     pub fn mkdir(
-        self,
+        &self,
         path_segments: &Array,
         search_latest: bool,
         time: &Date,
-        forest: PrivateForest,
+        forest: &PrivateForest,
         store: BlockStore,
         mut rng: Rng,
     ) -> JsResult<Promise> {
-        let directory = self.0;
+        let directory = Rc::clone(&self.0);
         let mut store = ForeignBlockStore(store);
         let time = DateTime::<Utc>::from(time);
         let path_segments = utils::convert_path_segments(path_segments)?;
-        let mut forest = forest.0;
+        let mut forest = Rc::clone(&forest.0);
 
         Ok(future_to_promise(async move {
             let WnfsPrivateOpResult { root_dir, .. } = directory
@@ -448,14 +448,14 @@ impl PrivateDirectory {
     }
 
     /// Gets the metadata of the directory
-    pub fn metadata(self) -> JsResult<JsValue> {
+    pub fn metadata(&self) -> JsResult<JsValue> {
         JsMetadata(self.0.get_metadata()).try_into()
     }
 
     /// Converts directory to a node.
     #[wasm_bindgen(js_name = "asNode")]
-    pub fn as_node(self) -> PrivateNode {
-        PrivateNode(WnfsPrivateNode::Dir(self.0))
+    pub fn as_node(&self) -> PrivateNode {
+        PrivateNode(WnfsPrivateNode::Dir(Rc::clone(&self.0)))
     }
 
     /// Gets a unique id for node.

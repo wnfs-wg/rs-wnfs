@@ -45,8 +45,8 @@ impl PublicFile {
     }
 
     /// Stores a file in provided block store.
-    pub fn store(self, store: BlockStore) -> JsResult<Promise> {
-        let file = self.0;
+    pub fn store(&self, store: BlockStore) -> JsResult<Promise> {
+        let file = Rc::clone(&self.0);
         let mut store = ForeignBlockStore(store);
 
         Ok(future_to_promise(async move {

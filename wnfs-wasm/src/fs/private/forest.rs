@@ -51,7 +51,7 @@ impl PrivateForest {
     }
 
     #[wasm_bindgen]
-    pub fn get(self, private_ref: PrivateRef, store: BlockStore) -> JsResult<Promise> {
+    pub fn get(&self, private_ref: PrivateRef, store: BlockStore) -> JsResult<Promise> {
         let store = ForeignBlockStore(store);
         let forest = Rc::clone(&self.0);
 
@@ -68,10 +68,10 @@ impl PrivateForest {
     }
 
     #[wasm_bindgen]
-    pub fn put(self, node: PrivateNode, store: BlockStore, mut rng: Rng) -> JsResult<Promise> {
+    pub fn put(&self, node: &PrivateNode, store: BlockStore, mut rng: Rng) -> JsResult<Promise> {
         let mut store = ForeignBlockStore(store);
-        let mut forest = self.0;
-        let node = node.0;
+        let mut forest = Rc::clone(&self.0);
+        let node = node.0.clone(); // cheap clone. Essentially an Rc::clone
 
         Ok(future_to_promise(async move {
             let private_ref = forest
