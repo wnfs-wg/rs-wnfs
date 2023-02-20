@@ -59,7 +59,7 @@ impl WnfsExchangeKey for ForeignExchangeKey {
         Ok(ForeignExchangeKey(v.into()))
     }
 
-    async fn encrypt(self, data: &[u8]) -> Result<Vec<u8>> {
+    async fn encrypt(&self, data: &[u8]) -> Result<Vec<u8>> {
         let v = JsFuture::from(self.0.encrypt(data))
             .await
             .map_err(anyhow_error("Cannot encrypt: {:?}"))?;
@@ -70,7 +70,7 @@ impl WnfsExchangeKey for ForeignExchangeKey {
 
 #[async_trait(?Send)]
 impl WnfsPrivateKey for ForeignPrivateKey {
-    async fn decrypt(self, ciphertext: &[u8]) -> Result<Vec<u8>> {
+    async fn decrypt(&self, ciphertext: &[u8]) -> Result<Vec<u8>> {
         let v = JsFuture::from(self.0.decrypt(ciphertext))
             .await
             .map_err(anyhow_error("Cannot create from modukus: {:?}"))?;
