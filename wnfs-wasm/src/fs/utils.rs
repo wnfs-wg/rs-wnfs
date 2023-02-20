@@ -1,6 +1,6 @@
 use std::{fmt::Debug, rc::Rc};
 
-use super::{metadata::JsMetadata, PrivateDirectory, PrivateFile, PrivateForest, PublicDirectory};
+use super::{metadata::JsMetadata, PrivateDirectory, PrivateForest, PublicDirectory};
 use crate::{fs::JsResult, value};
 use js_sys::{Array, Error, Object, Reflect};
 use wasm_bindgen::JsValue;
@@ -85,14 +85,15 @@ pub(crate) fn create_private_op_result<T: Into<JsValue>>(
     Ok(value!(op_result))
 }
 
-pub(crate) fn create_private_file_result(
-    file: PrivateFile,
-    forest: PrivateForest,
+pub(crate) fn create_private_forest_result(
+    result: JsValue,
+    forest: Rc<WnfsPrivateForest>,
 ) -> JsResult<JsValue> {
     let op_result = Array::new();
 
-    Reflect::set(&op_result, &value!(0), &file.into()).map_err(error("Failed to set file"))?;
-    Reflect::set(&op_result, &value!(1), &forest.into()).map_err(error("Failed to set forest"))?;
+    Reflect::set(&op_result, &value!(0), &result).map_err(error("Failed to set result"))?;
+    Reflect::set(&op_result, &value!(1), &PrivateForest(forest).into())
+        .map_err(error("Failed to set forest"))?;
 
     Ok(value!(op_result))
 }

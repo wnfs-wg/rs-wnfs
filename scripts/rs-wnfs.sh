@@ -146,6 +146,7 @@ test_fs() {
 test_wasm() {
     display_header "🧪 | RUNNING WNFS-WASM TESTS | 🧪"
     cd $script_dir/../wnfs-wasm
+    yarn
     yarn playwright test
 }
 

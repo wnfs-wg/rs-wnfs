@@ -2,6 +2,7 @@
 
 import {
   sampleCID,
+  CID,
   MemoryBlockStore,
   Rng,
   createSharerDir,
@@ -19,6 +20,7 @@ const setup = async () => {
     PrivateForest,
     PrivateFile,
     PrivateNode,
+    PrivateRef,
     Namefilter,
     setPanicHook,
     SharePayload,
@@ -30,6 +32,7 @@ const setup = async () => {
 
   const mock = {
     sampleCID,
+    CID,
     MemoryBlockStore,
     Rng,
     createSharerDir,
@@ -46,6 +49,7 @@ const setup = async () => {
     PrivateForest,
     PrivateFile,
     PrivateNode,
+    PrivateRef,
     Namefilter,
     SharePayload,
     share,

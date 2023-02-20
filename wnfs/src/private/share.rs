@@ -7,15 +7,14 @@
 
 use self::sharer::share;
 
-use super::{ContentKey, ExchangeKey, PrivateRef, RevisionKey};
+use super::{ExchangeKey, SnapshotKey, TemporalKey};
 use crate::{
-    private::PrivateForest, public::PublicLink, BlockStore, HashOutput, Hasher, NodeType,
-    PrivateNode, ShareError,
+    private::PrivateForest, public::PublicLink, BlockStore, HashOutput, PrivateNode, ShareError,
 };
 use anyhow::{bail, Result};
+use libipld::Cid;
 use rand_core::RngCore;
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use sha3::Sha3_256;
+use serde::{Deserialize, Serialize};
 use std::{marker::PhantomData, rc::Rc};
 
 //--------------------------------------------------------------------------------------------------
@@ -40,7 +39,7 @@ pub struct Share<'a, K: ExchangeKey, S: BlockStore> {
 #[derive(Debug)]
 pub struct Sharer<'a, S: BlockStore> {
     pub root_did: String,
-    pub forest: Rc<PrivateForest>,
+    pub forest: &'a mut Rc<PrivateForest>,
     pub store: &'a mut S,
 }
 
@@ -52,34 +51,32 @@ pub struct Recipient<'a, S: BlockStore> {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum SharePayload {
+    #[serde(rename = "wnfs/share/temporal")]
     Temporal(TemporalSharePointer),
+    #[serde(rename = "wnfs/share/snapshot")]
     Snapshot(SnapshotSharePointer),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct TemporalSharePointer {
+    #[serde(serialize_with = "crate::utils::serialize_byte_slice32")]
+    #[serde(deserialize_with = "crate::utils::deserialize_byte_slice32")]
     pub label: HashOutput,
-    pub revision_key: RevisionKey,
+    #[serde(rename = "contentCid")]
+    pub content_cid: Cid,
+    #[serde(rename = "temporalKey")]
+    pub temporal_key: TemporalKey,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct SnapshotSharePointer {
+    #[serde(serialize_with = "crate::utils::serialize_byte_slice32")]
+    #[serde(deserialize_with = "crate::utils::deserialize_byte_slice32")]
     pub label: HashOutput,
-    pub content_key: ContentKey,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct TemporalSharePointerSerializable {
-    r#type: NodeType,
-    label: HashOutput,
-    revision_key: RevisionKey,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct SnapshotSharePointerSerializable {
-    r#type: NodeType,
-    label: HashOutput,
-    content_key: ContentKey,
+    #[serde(rename = "contentCid")]
+    pub content_cid: Cid,
+    #[serde(rename = "snapshotKey")]
+    pub snapshot_key: SnapshotKey,
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -119,7 +116,7 @@ impl<'a, K: ExchangeKey, S: BlockStore> Share<'a, K, S> {
     /// Performs the sharing operation with the previously set sharer and recipients.
     /// It takes the payload, sharer, and recipients, and performs the share operation,
     /// encrypts the payload and stores it in the sharer's private forest.
-    pub async fn finish(&mut self) -> Result<Rc<PrivateForest>> {
+    pub async fn finish(&mut self) -> Result<()> {
         if matches!(&self.sharer, None) || matches!(self.recipients.len(), 0) {
             bail!(ShareError::NoSharerOrRecipients);
         }
@@ -127,13 +124,12 @@ impl<'a, K: ExchangeKey, S: BlockStore> Share<'a, K, S> {
         let sharer = self.sharer.take().unwrap();
         let recipients = std::mem::take(&mut self.recipients);
 
-        let mut forest = sharer.forest;
         for recipient in recipients {
-            forest = share::<K>(
+            share::<K>(
                 self.payload,
                 self.count,
                 &sharer.root_did,
-                forest,
+                sharer.forest,
                 sharer.store,
                 recipient.exchange_root,
                 recipient.store,
@@ -141,7 +137,7 @@ impl<'a, K: ExchangeKey, S: BlockStore> Share<'a, K, S> {
             .await?;
         }
 
-        Ok(forest)
+        Ok(())
     }
 }
 
@@ -150,19 +146,19 @@ impl SharePayload {
     pub async fn from_node(
         node: &PrivateNode,
         temporal: bool,
-        forest: Rc<PrivateForest>,
+        forest: &mut Rc<PrivateForest>,
         store: &mut impl BlockStore,
         rng: &mut impl RngCore,
-    ) -> Result<(Self, Rc<PrivateForest>)> {
-        let (payload, forest) = if temporal {
-            let (ptr, forest) = TemporalSharePointer::from_node(node, forest, store, rng).await?;
-            (Self::Temporal(ptr), forest)
+    ) -> Result<Self> {
+        let payload = if temporal {
+            let ptr = TemporalSharePointer::from_node(node, forest, store, rng).await?;
+            Self::Temporal(ptr)
         } else {
-            let (ptr, forest) = SnapshotSharePointer::from_node(node, forest, store, rng).await?;
-            (Self::Snapshot(ptr), forest)
+            let ptr = SnapshotSharePointer::from_node(node, forest, store, rng).await?;
+            Self::Snapshot(ptr)
         };
 
-        Ok((payload, forest))
+        Ok(payload)
     }
 
     pub fn get_label(&self) -> HashOutput {
@@ -177,26 +173,19 @@ impl TemporalSharePointer {
     /// Create a temporal share pointer from a private fs node.
     pub async fn from_node(
         node: &PrivateNode,
-        forest: Rc<PrivateForest>,
+        forest: &mut Rc<PrivateForest>,
         store: &mut impl BlockStore,
         rng: &mut impl RngCore,
-    ) -> Result<(Self, Rc<PrivateForest>)> {
-        let header = node.get_header();
-        let revision_key = header.derive_revision_key();
-        let saturated_name = header.get_saturated_name_with_key(&revision_key);
-        let private_ref =
-            PrivateRef::with_revision_key(Sha3_256::hash(&saturated_name), revision_key.clone());
-
-        let forest = forest
-            .put(saturated_name.clone(), &private_ref, node, store, rng)
-            .await?;
+    ) -> Result<Self> {
+        let private_ref = forest.put(node, store, rng).await?;
 
         let payload = TemporalSharePointer {
             label: private_ref.saturated_name_hash,
-            revision_key,
+            content_cid: private_ref.content_cid,
+            temporal_key: private_ref.temporal_key,
         };
 
-        Ok((payload, forest))
+        Ok(payload)
     }
 }
 
@@ -204,86 +193,19 @@ impl SnapshotSharePointer {
     /// Create a snapshot share pointer from a private fs node.
     pub async fn from_node(
         node: &PrivateNode,
-        forest: Rc<PrivateForest>,
+        forest: &mut Rc<PrivateForest>,
         store: &mut impl BlockStore,
         rng: &mut impl RngCore,
-    ) -> Result<(Self, Rc<PrivateForest>)> {
-        let header = node.get_header();
-        let revision_key = header.derive_revision_key();
-        let content_key = revision_key.derive_content_key();
-        let saturated_name = header.get_saturated_name_with_key(&revision_key);
-        let private_ref =
-            PrivateRef::with_revision_key(Sha3_256::hash(&saturated_name), revision_key);
+    ) -> Result<Self> {
+        let private_ref = forest.put(node, store, rng).await?;
 
-        let forest = forest
-            .put(saturated_name, &private_ref, node, store, rng)
-            .await?;
-
-        let payload = SnapshotSharePointer {
+        let payload = Self {
             label: private_ref.saturated_name_hash,
-            content_key,
+            content_cid: private_ref.content_cid,
+            snapshot_key: private_ref.temporal_key.derive_snapshot_key(),
         };
 
-        Ok((payload, forest))
-    }
-}
-
-impl Serialize for TemporalSharePointer {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        TemporalSharePointerSerializable {
-            r#type: NodeType::TemporalSharePointer,
-            label: self.label,
-            revision_key: self.revision_key.clone(),
-        }
-        .serialize(serializer)
-    }
-}
-
-impl Serialize for SnapshotSharePointer {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        SnapshotSharePointerSerializable {
-            r#type: NodeType::SnapshotSharePointer,
-            label: self.label,
-            content_key: self.content_key.clone(),
-        }
-        .serialize(serializer)
-    }
-}
-
-impl<'de> Deserialize<'de> for SnapshotSharePointer {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let SnapshotSharePointerSerializable {
-            label, content_key, ..
-        } = SnapshotSharePointerSerializable::deserialize(deserializer)?;
-
-        Ok(Self { label, content_key })
-    }
-}
-
-impl<'de> Deserialize<'de> for TemporalSharePointer {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let TemporalSharePointerSerializable {
-            label,
-            revision_key,
-            ..
-        } = TemporalSharePointerSerializable::deserialize(deserializer)?;
-
-        Ok(Self {
-            label,
-            revision_key,
-        })
+        Ok(payload)
     }
 }
 
@@ -312,11 +234,11 @@ pub mod sharer {
         share_payload: &SharePayload,
         share_count: u64,
         sharer_root_did: &str,
-        mut sharer_forest: Rc<PrivateForest>,
+        sharer_forest: &mut Rc<PrivateForest>,
         sharer_store: &mut impl BlockStore,
         recipient_exchange_root: PublicLink,
         recipient_store: &impl BlockStore,
-    ) -> Result<Rc<PrivateForest>> {
+    ) -> Result<()> {
         let mut exchange_keys = fetch_exchange_keys(recipient_exchange_root, recipient_store).await;
         let encoded_payload = &dagcbor::encode(share_payload)?;
 
@@ -330,12 +252,12 @@ pub mod sharer {
                 .put_block(encrypted_payload, IpldCodec::Raw)
                 .await?;
 
-            sharer_forest = sharer_forest
-                .put_encrypted(share_label, payload_cid, sharer_store)
+            sharer_forest
+                .put_encrypted(share_label, Some(payload_cid), sharer_store)
                 .await?;
         }
 
-        Ok(sharer_forest)
+        Ok(())
     }
 
     /// Fetches the exchange keys of recipients using their exchange root, resolve the root_dir,
@@ -392,7 +314,6 @@ pub mod recipient {
     };
     use anyhow::{bail, Result};
     use sha3::Sha3_256;
-    use std::rc::Rc;
 
     use super::{sharer, SharePayload, TemporalSharePointer};
 
@@ -428,9 +349,9 @@ pub mod recipient {
     pub async fn receive_share(
         share_label: Namefilter,
         recipient_key: &impl PrivateKey,
-        sharer_forest: Rc<PrivateForest>,
+        sharer_forest: &PrivateForest,
         store: &impl BlockStore,
-    ) -> Result<Option<PrivateNode>> {
+    ) -> Result<PrivateNode> {
         // Get cid to encrypted payload from sharer's forest using share_label
         let payload_cid = sharer_forest
             .get_encrypted(&Sha3_256::hash(&share_label), store)
@@ -448,17 +369,16 @@ pub mod recipient {
 
         let SharePayload::Temporal(TemporalSharePointer {
             label,
-            revision_key,
-        }) =  payload else {
-            // TODO(appcypher): We currently need both RevisionKey and ContentKey to decrypt a node.
+            content_cid,
+            temporal_key,
+        }) = payload else {
+            // TODO(appcypher): We currently need both TemporalKey and SnapshotKey to decrypt a node.
             bail!(ShareError::UnsupportedSnapshotShareReceipt);
         };
 
         // Use decrypted payload to get cid to encrypted node in sharer's forest.
-        let private_ref = PrivateRef::with_revision_key(label, revision_key);
-        sharer_forest
-            .get(&private_ref, PrivateForest::resolve_lowest, store)
-            .await
+        let private_ref = PrivateRef::with_temporal_key(label, temporal_key, content_cid);
+        sharer_forest.get(&private_ref, store).await
     }
 }
 
@@ -489,13 +409,11 @@ mod tests {
         use std::rc::Rc;
 
         pub(super) async fn create_sharer_dir(
-            forest: Rc<PrivateForest>,
+            forest: &mut Rc<PrivateForest>,
             store: &mut impl BlockStore,
             rng: &mut impl RngCore,
         ) -> Result<PrivateOpResult<()>> {
-            let PrivateOpResult {
-                root_dir, forest, ..
-            } = PrivateDirectory::new_and_store(
+            let PrivateOpResult { root_dir, .. } = PrivateDirectory::new_and_store(
                 Namefilter::default(),
                 Utc::now(),
                 forest,
@@ -540,13 +458,12 @@ mod tests {
     #[async_std::test]
     async fn can_share_and_recieve_share() {
         let recipient_store = test_setup::init!(mut store);
-        let (sharer_store, sharer_forest, rng) = test_setup::init!(mut store, forest, mut rng);
+        let (sharer_store, sharer_forest, rng) = test_setup::init!(mut store, mut forest, mut rng);
         let sharer_root_did = "did:key:z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK";
 
         // Create directory to share.
         let PrivateOpResult {
             root_dir: sharer_dir,
-            forest: sharer_forest,
             ..
         } = helper::create_sharer_dir(sharer_forest, sharer_store, rng)
             .await
@@ -559,7 +476,7 @@ mod tests {
                 .unwrap();
 
         // Construct share payload from sharer's directory.
-        let (sharer_payload, sharer_forest) = SharePayload::from_node(
+        let sharer_payload = SharePayload::from_node(
             &sharer_dir.as_node(),
             true,
             sharer_forest,
@@ -570,7 +487,7 @@ mod tests {
         .unwrap();
 
         // Share payload with recipient.
-        let sharer_forest = Share::<RsaPublicKey, _>::new(&sharer_payload, 0)
+        Share::<RsaPublicKey, _>::new(&sharer_payload, 0)
             .by(Sharer {
                 root_did: sharer_root_did.into(),
                 store: sharer_store,
@@ -598,7 +515,6 @@ mod tests {
         let node =
             recipient::receive_share(share_label, &recipient_key, sharer_forest, sharer_store)
                 .await
-                .unwrap()
                 .unwrap();
 
         // Assert payload is the same as the original.
@@ -607,19 +523,21 @@ mod tests {
 
     #[async_std::test]
     async fn serialized_share_payload_can_be_deserialized() {
-        let (forest, store, rng) = test_setup::init!(forest, mut store, mut rng);
+        let (forest, store, rng) = test_setup::init!(mut forest, mut store, mut rng);
 
-        let PrivateOpResult {
-            root_dir, forest, ..
-        } = PrivateDirectory::new_and_store(Default::default(), Utc::now(), forest, store, rng)
-            .await
-            .unwrap();
+        let PrivateOpResult { root_dir, .. } =
+            PrivateDirectory::new_and_store(Default::default(), Utc::now(), forest, store, rng)
+                .await
+                .unwrap();
 
-        let (payload, _) = SharePayload::from_node(&root_dir.as_node(), true, forest, store, rng)
+        let payload = SharePayload::from_node(&root_dir.as_node(), true, forest, store, rng)
             .await
             .unwrap();
 
         let serialized = dagcbor::encode(&payload).unwrap();
+
+        assert!(serialized.len() < 190);
+
         let deserialized: SharePayload = dagcbor::decode(&serialized).unwrap();
 
         assert_eq!(payload, deserialized);

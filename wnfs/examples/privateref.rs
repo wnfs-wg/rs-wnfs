@@ -1,12 +1,12 @@
 use chrono::Utc;
+use futures::StreamExt;
 use rand::thread_rng;
+use serde::{Deserialize, Serialize};
 use sha3::Sha3_256;
 use std::{io::Cursor, rc::Rc};
 use wnfs::{
     ipld::{DagCborCodec, Decode, Encode, Ipld, Serializer},
-    private::{AesKey, PrivateForest, PrivateRef, RevisionKey},
-    ratchet::Ratchet,
-    rng::RngCore,
+    private::{AesKey, PrivateForest, RevisionRef},
     utils, Hasher, MemoryBlockStore, Namefilter, PrivateDirectory, PrivateOpResult,
 };
 
@@ -16,9 +16,11 @@ async fn main() -> anyhow::Result<()> {
 
     let store = &mut MemoryBlockStore::default();
     let rng = &mut thread_rng();
-    let forest = Rc::new(PrivateForest::new());
+    let forest = &mut Rc::new(PrivateForest::new());
 
     // ----------- Create a private directory -----------
+
+    // TODO(matheus23) perhaps rework this into something HKDF-based instead & also derive the inumber
 
     // Some existing user key.
     let some_key = AesKey::new(utils::get_random_bytes::<32>(rng));
@@ -28,9 +30,7 @@ async fn main() -> anyhow::Result<()> {
     let inumber = utils::get_random_bytes::<32>(rng); // Needs to be random
 
     // Create a root directory from the ratchet_seed, inumber and namefilter. Directory gets saved in forest.
-    let PrivateOpResult {
-        forest, root_dir, ..
-    } = PrivateDirectory::new_with_seed_and_store(
+    let PrivateOpResult { root_dir, .. } = PrivateDirectory::new_with_seed_and_store(
         Namefilter::default(),
         Utc::now(),
         ratchet_seed,
@@ -45,9 +45,7 @@ async fn main() -> anyhow::Result<()> {
     // ----------- Create a subdirectory -----------
 
     // Add a /movies/anime to the directory.
-    let PrivateOpResult {
-        forest, root_dir, ..
-    } = root_dir
+    let PrivateOpResult { root_dir, .. } = root_dir
         .mkdir(
             &["movies".into(), "anime".into()],
             true,
@@ -58,62 +56,54 @@ async fn main() -> anyhow::Result<()> {
         )
         .await?;
 
-    // --------- Generate a private ref (Method 1) -----------
+    // --------- Method 1: Exchange serialized revision ref -----------
 
-    // We can create a revision_key from our ratchet_seed.
-    let ratchet = Ratchet::zero(ratchet_seed);
-    let revision_key = RevisionKey::from(&ratchet);
+    // serialize the root_dir's revision_ref.
+    let cbor = encode(&root_dir.header.derive_revision_ref())?;
 
-    // Now let's serialize the root_dir's private_ref.
-    let cbor = encode(&root_dir.header.derive_private_ref(), &revision_key, rng)?;
+    // We can deserialize the revision_ref on the other end.
+    let revision_ref = decode(cbor)?;
 
-    // We can deserialize the private_ref using the revision_key at hand.
-    let private_ref = decode(cbor, &revision_key)?;
-
-    // Now we can fetch the directory from the forest using the private_ref.
+    // Now we can fetch the directory from the forest using the revision_ref.
     let fetched_node = forest
-        .get(&private_ref, PrivateForest::resolve_lowest, store)
-        .await?;
+        .get_multivalue(&revision_ref, store)
+        .next()
+        .await
+        .unwrap()?;
 
     println!("{:#?}", fetched_node);
 
-    // --------- Generate a private ref (Method 2) -----------
+    // --------- Method 2: Generate a revision ref from a shared secret -----------
 
-    // We can also create a private_ref from scratch if we remember the parameters.
-    let private_ref = PrivateRef::with_seed(Namefilter::default(), ratchet_seed, inumber);
+    // We can also create a revision ref from scratch if we remember the parameters.
+    let revision_ref = RevisionRef::with_seed(Namefilter::default(), ratchet_seed, inumber);
 
-    // And we can fetch the directory again using the generated private_ref.
+    // And we can fetch the directory again using the generated revision_ref.
     let fetched_node = forest
-        .get(&private_ref, PrivateForest::resolve_lowest, store)
-        .await?;
+        .get_multivalue(&revision_ref, store)
+        .next()
+        .await
+        .unwrap()?;
 
     println!("{:#?}", fetched_node);
 
     // The private_ref might point to some old revision of the root_dir.
     // We can do the following to get the latest revision.
-    let fetched_dir = fetched_node
-        .unwrap()
-        .search_latest(&forest, store)
-        .await?
-        .as_dir()?;
+    let fetched_dir = fetched_node.search_latest(&forest, store).await?.as_dir()?;
 
     println!("{:#?}", fetched_dir);
 
     Ok(())
 }
 
-fn encode(
-    private_ref: &PrivateRef,
-    revision_key: &RevisionKey,
-    rng: &mut impl RngCore,
-) -> anyhow::Result<Vec<u8>> {
+fn encode(revision_ref: &RevisionRef) -> anyhow::Result<Vec<u8>> {
     let mut bytes = Vec::new();
-    let ipld = private_ref.serialize(Serializer, revision_key, rng)?;
+    let ipld = revision_ref.serialize(Serializer)?;
     ipld.encode(DagCborCodec, &mut bytes)?;
     Ok(bytes)
 }
 
-fn decode(bytes: Vec<u8>, revision_key: &RevisionKey) -> anyhow::Result<PrivateRef> {
+fn decode(bytes: Vec<u8>) -> anyhow::Result<RevisionRef> {
     let ipld = Ipld::decode(DagCborCodec, &mut Cursor::new(bytes))?;
-    PrivateRef::deserialize(ipld, revision_key).map_err(Into::into)
+    RevisionRef::deserialize(ipld).map_err(Into::into)
 }

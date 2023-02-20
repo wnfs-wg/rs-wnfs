@@ -28,10 +28,7 @@ async fn main() {
         .unwrap();
 
     // Fetch and decrypt a directory from the private forest using provided private ref.
-    let dir = forest
-        .get(&private_ref, PrivateForest::resolve_lowest, store)
-        .await
-        .unwrap();
+    let dir = forest.get(&private_ref, store).await.unwrap();
 
     // Print the directory.
     println!("{:#?}", dir);
@@ -42,7 +39,7 @@ async fn get_forest_cid_and_private_ref(
     rng: &mut impl RngCore,
 ) -> (Cid, PrivateRef) {
     // Create the private forest (a HAMT), a map-like structure where file and directory ciphertexts are stored.
-    let forest = Rc::new(PrivateForest::new());
+    let forest = &mut Rc::new(PrivateForest::new());
 
     // Create a new directory.
     let dir = Rc::new(PrivateDirectory::new(
@@ -52,9 +49,7 @@ async fn get_forest_cid_and_private_ref(
     ));
 
     // Add a /pictures/cats subdirectory.
-    let PrivateOpResult {
-        forest, root_dir, ..
-    } = dir
+    let PrivateOpResult { root_dir, .. } = dir
         .mkdir(
             &["pictures".into(), "cats".into()],
             true,
@@ -67,10 +62,15 @@ async fn get_forest_cid_and_private_ref(
         .unwrap();
 
     // Persist encoded private forest to the block store.
-    let forest_cid = store.put_async_serializable(&forest).await.unwrap();
+    let forest_cid = store.put_async_serializable(forest).await.unwrap();
+
+    let (_, content_cid) = root_dir.store(store, rng).await.unwrap();
 
     // Private ref contains data and keys for fetching and decrypting the directory node in the private forest.
-    let private_ref = root_dir.header.derive_private_ref();
+    let private_ref = root_dir
+        .header
+        .derive_revision_ref()
+        .as_private_ref(content_cid);
 
     (forest_cid, private_ref)
 }

@@ -4,6 +4,7 @@ use crate::{
     value,
 };
 use js_sys::{Array, Promise, Reflect};
+use std::rc::Rc;
 use wasm_bindgen::{prelude::wasm_bindgen, JsValue};
 use wasm_bindgen_futures::future_to_promise;
 use wnfs::{
@@ -29,15 +30,16 @@ impl SharePayload {
     pub fn from_node(
         node: PrivateNode,
         temporal: bool,
-        forest: PrivateForest,
+        forest: &PrivateForest,
         store: BlockStore,
         mut rng: Rng,
     ) -> JsResult<Promise> {
         let mut store = ForeignBlockStore(store);
+        let mut forest = Rc::clone(&forest.0);
 
         Ok(future_to_promise(async move {
-            let (payload, forest) =
-                WnfsSharePayload::from_node(&node.0, temporal, forest.0, &mut store, &mut rng)
+            let payload =
+                WnfsSharePayload::from_node(&node.0, temporal, &mut forest, &mut store, &mut rng)
                     .await
                     .map_err(error("Cannot create share payload"))?;
 
@@ -68,21 +70,22 @@ pub fn share(
     share_payload: SharePayload,
     share_count: u32,
     sharer_root_did: String,
-    sharer_forest: PrivateForest,
+    sharer_forest: &PrivateForest,
     sharer_store: BlockStore,
     recipient_exchange_root: Vec<u8>,
     recipient_store: BlockStore,
 ) -> JsResult<Promise> {
     let mut sharer_store = ForeignBlockStore(sharer_store);
+    let mut sharer_forest = Rc::clone(&sharer_forest.0);
     let recipient_store = ForeignBlockStore(recipient_store);
     let cid = Cid::try_from(&recipient_exchange_root[..]).map_err(error("Invalid CID"))?;
 
     Ok(future_to_promise(async move {
-        let sharer_forest = sharer::share::<ForeignExchangeKey>(
+        sharer::share::<ForeignExchangeKey>(
             &share_payload.0,
             share_count.into(),
             &sharer_root_did,
-            sharer_forest.0,
+            &mut sharer_forest,
             &mut sharer_store,
             PublicLink::from_cid(cid),
             &recipient_store,
@@ -113,10 +116,11 @@ pub fn find_share(
     limit: u32,
     recipient_exchange_key: Vec<u8>,
     sharer_root_did: String,
-    sharer_forest: PrivateForest,
+    sharer_forest: &PrivateForest,
     sharer_store: BlockStore,
 ) -> JsResult<Promise> {
     let sharer_store = ForeignBlockStore(sharer_store);
+    let sharer_forest = Rc::clone(&sharer_forest.0);
 
     Ok(future_to_promise(async move {
         let count = recipient::find_share(
@@ -124,7 +128,7 @@ pub fn find_share(
             limit.into(),
             &recipient_exchange_key,
             &sharer_root_did,
-            &sharer_forest.0,
+            &sharer_forest,
             &sharer_store,
         )
         .await
@@ -138,22 +142,23 @@ pub fn find_share(
 pub fn receive_share(
     share_label: Namefilter,
     recipient_key: PrivateKey,
-    sharer_forest: PrivateForest,
+    sharer_forest: &PrivateForest,
     sharer_store: BlockStore,
 ) -> JsResult<Promise> {
     let sharer_store = ForeignBlockStore(sharer_store);
     let recipient_key = ForeignPrivateKey(recipient_key);
+    let mut sharer_forest = Rc::clone(&sharer_forest.0);
 
     Ok(future_to_promise(async move {
         let node = recipient::receive_share(
             share_label.0,
             &recipient_key,
-            sharer_forest.0,
+            &mut sharer_forest,
             &sharer_store,
         )
         .await
         .map_err(error("Cannot receive share"))?;
 
-        Ok(value!(node.map(PrivateNode)))
+        Ok(value!(PrivateNode(node)))
     }))
 }

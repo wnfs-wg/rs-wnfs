@@ -7,7 +7,7 @@ use proptest::{
 };
 use rand_core::RngCore;
 use serde::de::Visitor;
-use std::{fmt, rc::Rc};
+use std::fmt;
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
@@ -19,11 +19,6 @@ pub(crate) struct ByteArrayVisitor<const N: usize>;
 pub trait Sampleable {
     type Value;
     fn sample(&self, runner: &mut TestRunner) -> Self::Value;
-}
-
-pub(crate) trait UnwrapOrClone {
-    type Output;
-    fn unwrap_or_clone(self) -> Self::Output;
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -57,20 +52,6 @@ where
         self.new_tree(runner)
             .expect("Couldn't generate test value")
             .current()
-    }
-}
-
-impl<T> UnwrapOrClone for Rc<T>
-where
-    T: Clone,
-{
-    type Output = Result<T>;
-
-    fn unwrap_or_clone(self) -> Self::Output {
-        match Rc::try_unwrap(self) {
-            Ok(value) => Ok(value),
-            Err(rc) => Ok(rc.as_ref().clone()),
-        }
     }
 }
 
@@ -125,6 +106,30 @@ pub fn make_digest(bytes: &[u8]) -> HashOutput {
     nibbles
 }
 
+/// Deserialize a constant-size slice as a byte array in serde's data model,
+/// instead of serde's default, which is an array of integers.
+///
+/// This function specifically only works for 32-byte slices as they're quite common
+/// and can be used with serde's #[serde(deserialize_with = "...")] field parameter.
+pub(crate) fn deserialize_byte_slice32<'de, D>(deserializer: D) -> Result<[u8; 32], D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    deserializer.deserialize_bytes(ByteArrayVisitor::<32>)
+}
+
+/// Serialize a constant-size slice as a byte array in serde's data model,
+/// instead of serde's default, which is an array of integers.
+///
+/// This function specifically only works for 32-byte slices as they're quite common
+/// and can be used with serde's #[serde(serialize_with = "...")] field parameter.
+pub(crate) fn serialize_byte_slice32<S>(slice: &[u8; 32], serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    serializer.serialize_bytes(slice)
+}
+
 //--------------------------------------------------------------------------------------------------
 // Macros
 //--------------------------------------------------------------------------------------------------
@@ -141,7 +146,7 @@ pub(crate) mod test_setup {
     ///
     /// ```
     /// use crate::utils::test_setup;
-    /// let (name, forest, store, rng) = test_setup::init!(name, forest, mut store, mut rng);
+    /// let (name, forest, store, rng) = test_setup::init!(name, mut forest, mut store, mut rng);
     /// ```
     macro_rules! init {
         [ name ] => {
@@ -190,12 +195,12 @@ pub(crate) mod test_setup {
             (dir, rng)
         }};
         [ file, $content:expr ] => {{
-            let (name, forest, mut store, mut rng) = test_setup::init!(name, forest, store, rng);
-            let (file, forest) = $crate::PrivateFile::with_content(
+            let (name, mut forest, mut store, mut rng) = test_setup::init!(name, forest, store, rng);
+            let file = $crate::PrivateFile::with_content(
                 name,
                 chrono::Utc::now(),
                 $content,
-                forest,
+                &mut forest,
                 &mut store,
                 &mut rng,
             )

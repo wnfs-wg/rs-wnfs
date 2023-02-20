@@ -4,8 +4,7 @@ use super::{
     HashPrefix, Pair, Pointer, HAMT_BITMASK_BIT_SIZE, HAMT_BITMASK_BYTE_SIZE,
 };
 use crate::{
-    private::HAMT_VALUES_BUCKET_SIZE, utils::UnwrapOrClone, AsyncSerialize, BlockStore, FsError,
-    HashOutput, Link,
+    private::HAMT_VALUES_BUCKET_SIZE, AsyncSerialize, BlockStore, FsError, HashOutput, Link,
 };
 use anyhow::{bail, Result};
 use async_recursion::async_recursion;
@@ -78,13 +77,13 @@ where
     /// #[async_std::main]
     /// async fn main() {
     ///     let store = &mut MemoryBlockStore::new();
-    ///     let node = Rc::new(Node::<String, usize>::default());
+    ///     let mut node = Rc::new(Node::<String, usize>::default());
     ///
-    ///     let node = node.set("key".into(), 42, store).await.unwrap();
+    ///     node.set("key".into(), 42, store).await.unwrap();
     ///     assert_eq!(node.get(&String::from("key"), store).await.unwrap(), Some(&42));
     /// }
     /// ```
-    pub async fn set(self: Rc<Self>, key: K, value: V, store: &impl BlockStore) -> Result<Rc<Self>>
+    pub async fn set(self: &mut Rc<Self>, key: K, value: V, store: &impl BlockStore) -> Result<()>
     where
         K: DeserializeOwned + Clone + AsRef<[u8]>,
         V: DeserializeOwned + Clone,
@@ -106,9 +105,9 @@ where
     /// #[async_std::main]
     /// async fn main() {
     ///     let store = &mut MemoryBlockStore::new();
-    ///     let node = Rc::new(Node::<String, usize>::default());
+    ///     let mut node = Rc::new(Node::<String, usize>::default());
     ///
-    ///     let node = node.set("key".into(), 42, store).await.unwrap();
+    ///     node.set("key".into(), 42, store).await.unwrap();
     ///     assert_eq!(node.get(&String::from("key"), store).await.unwrap(), Some(&42));
     /// }
     /// ```
@@ -136,21 +135,21 @@ where
     /// #[async_std::main]
     /// async fn main() {
     ///     let store = &mut MemoryBlockStore::new();
-    ///     let node = Rc::new(Node::<String, usize>::default());
+    ///     let mut node = Rc::new(Node::<String, usize>::default());
     ///
-    ///     let node = node.set("key".into(), 42, store).await.unwrap();
+    ///     node.set("key".into(), 42, store).await.unwrap();
     ///     assert_eq!(node.get(&String::from("key"), store).await.unwrap(), Some(&42));
     ///
-    ///     let (node, value) = node.remove(&String::from("key"), store).await.unwrap();
+    ///     let value = node.remove(&String::from("key"), store).await.unwrap();
     ///     assert_eq!(value, Some(Pair::new("key".into(), 42)));
     ///     assert_eq!(node.get(&String::from("key"), store).await.unwrap(), None);
     /// }
     /// ```
     pub async fn remove(
-        self: Rc<Self>,
+        self: &mut Rc<Self>,
         key: &K,
         store: &impl BlockStore,
-    ) -> Result<(Rc<Self>, Option<Pair<K, V>>)>
+    ) -> Result<Option<Pair<K, V>>>
     where
         K: DeserializeOwned + Clone + AsRef<[u8]>,
         V: DeserializeOwned + Clone,
@@ -172,9 +171,9 @@ where
     /// #[async_std::main]
     /// async fn main() {
     ///     let store = &mut MemoryBlockStore::new();
-    ///     let node = Rc::new(Node::<String, usize>::default());
+    ///     let mut node = Rc::new(Node::<String, usize>::default());
     ///
-    ///     let node = node.set("key".into(), 42, store).await.unwrap();
+    ///     node.set("key".into(), 42, store).await.unwrap();
     ///
     ///     let key_hash = &Sha3_256::hash(&String::from("key"));
     ///     assert_eq!(node.get_by_hash(key_hash, store).await.unwrap(), Some(&42));
@@ -208,23 +207,23 @@ where
     /// #[async_std::main]
     /// async fn main() {
     ///     let store = &mut MemoryBlockStore::new();
-    ///     let node = Rc::new(Node::<String, usize>::default());
+    ///     let mut node = Rc::new(Node::<String, usize>::default());
     ///
-    ///     let node = node.set("key".into(), 42, store).await.unwrap();
+    ///     node.set("key".into(), 42, store).await.unwrap();
     ///     assert_eq!(node.get(&String::from("key"), store).await.unwrap(), Some(&42));
     ///
     ///     let key_hash = &Sha3_256::hash(&String::from("key"));
-    ///     let (node, value) = node.remove_by_hash(key_hash, store).await.unwrap();
+    ///     let value = node.remove_by_hash(key_hash, store).await.unwrap();
     ///
     ///     assert_eq!(value, Some(Pair::new("key".into(), 42)));
     ///     assert_eq!(node.get(&String::from("key"), store).await.unwrap(), None);
     /// }
     /// ```
     pub async fn remove_by_hash(
-        self: Rc<Self>,
+        self: &mut Rc<Self>,
         hash: &HashOutput,
         store: &impl BlockStore,
-    ) -> Result<(Rc<Self>, Option<Pair<K, V>>)>
+    ) -> Result<Option<Pair<K, V>>>
     where
         K: DeserializeOwned + Clone + AsRef<[u8]>,
         V: DeserializeOwned + Clone,
@@ -244,10 +243,10 @@ where
     /// async fn main() {
     ///     let store = &mut MemoryBlockStore::new();
     ///
-    ///     let node = Rc::new(Node::<String, usize>::default());
+    ///     let mut node = Rc::new(Node::<String, usize>::default());
     ///     assert!(node.is_empty());
     ///
-    ///     let node = node.set("key".into(), 42, store).await.unwrap();
+    ///     node.set("key".into(), 42, store).await.unwrap();
     ///     assert!(!node.is_empty());
     /// }
     /// ```
@@ -270,12 +269,12 @@ where
     }
 
     pub(crate) fn set_value<'a>(
-        self: Rc<Self>,
+        self: &'a mut Rc<Self>,
         hashnibbles: &'a mut HashNibbles,
         key: K,
         value: V,
         store: &'a impl BlockStore,
-    ) -> LocalBoxFuture<'a, Result<Rc<Self>>>
+    ) -> LocalBoxFuture<'a, Result<()>>
     where
         K: DeserializeOwned + Clone + AsRef<[u8]> + 'a,
         V: DeserializeOwned + Clone + 'a,
@@ -290,7 +289,7 @@ where
                 bit_index, value_index
             );
 
-            let mut node = self.unwrap_or_clone()?;
+            let node = Rc::make_mut(self);
 
             // If the bit is not set yet, insert a new pointer.
             if !node.bitmask[bit_index] {
@@ -299,11 +298,11 @@ where
 
                 node.bitmask.set(bit_index, true);
 
-                return Ok(Rc::new(node));
+                return Ok(());
             }
 
             match &mut node.pointers[value_index] {
-                Pointer::Values(values) => {
+                Pointer::Values(ref mut values) => {
                     if let Some(i) = values
                         .iter()
                         .position(|p| &H::hash(&p.key) == hashnibbles.digest)
@@ -331,21 +330,20 @@ where
                             {
                                 let hash = &H::hash(&key);
                                 let hashnibbles = &mut HashNibbles::with_cursor(hash, cursor);
-                                sub_node =
-                                    sub_node.set_value(hashnibbles, key, value, store).await?;
+                                sub_node.set_value(hashnibbles, key, value, store).await?;
                             }
                             node.pointers[value_index] = Pointer::Link(Link::from(sub_node));
                         }
                     }
                 }
                 Pointer::Link(link) => {
-                    let child = Rc::clone(link.resolve_value(store).await?);
-                    let child = child.set_value(hashnibbles, key, value, store).await?;
+                    let mut child = Rc::clone(link.resolve_value(store).await?);
+                    child.set_value(hashnibbles, key, value, store).await?;
                     node.pointers[value_index] = Pointer::Link(Link::from(child));
                 }
             }
 
-            Ok(Rc::new(node))
+            Ok(())
         })
     }
 
@@ -383,10 +381,10 @@ where
     // It's internal and is only more complex because async_recursion doesn't work here
     #[allow(clippy::type_complexity)]
     pub(crate) fn remove_value<'k, 'v, 'a>(
-        self: Rc<Self>,
+        self: &'a mut Rc<Self>,
         hashnibbles: &'a mut HashNibbles,
         store: &'a impl BlockStore,
-    ) -> LocalBoxFuture<'a, Result<(Rc<Node<K, V, H>>, Option<Pair<K, V>>)>>
+    ) -> LocalBoxFuture<'a, Result<Option<Pair<K, V>>>>
     where
         K: DeserializeOwned + Clone + AsRef<[u8]> + 'k,
         V: DeserializeOwned + Clone + 'v,
@@ -398,14 +396,14 @@ where
 
             // If the bit is not set yet, return None.
             if !self.bitmask[bit_index] {
-                return Ok((self, None));
+                return Ok(None);
             }
 
             let value_index = self.get_value_index(bit_index);
 
-            let mut node = self.unwrap_or_clone()?;
+            let node = Rc::make_mut(self);
 
-            let removed = match &mut node.pointers[value_index] {
+            Ok(match &mut node.pointers[value_index] {
                 // If there is only one value, we can remove the entire pointer.
                 Pointer::Values(values) if values.len() == 1 => {
                     // If the key doesn't match, return without removing.
@@ -420,7 +418,7 @@ where
                     }
                 }
                 // Otherwise, remove just the value.
-                Pointer::Values(values) => {
+                Pointer::Values(ref mut values) => {
                     match values
                         .iter()
                         .position(|p| &H::hash(&p.key) == hashnibbles.digest)
@@ -436,8 +434,8 @@ where
                     }
                 }
                 Pointer::Link(link) => {
-                    let child = Rc::clone(link.resolve_value(store).await?);
-                    let (child, removed) = child.remove_value(hashnibbles, store).await?;
+                    let mut child = Rc::clone(link.resolve_value(store).await?);
+                    let removed = child.remove_value(hashnibbles, store).await?;
                     if removed.is_some() {
                         // If something has been deleted, we attempt to canonicalize the pointer.
                         if let Some(pointer) =
@@ -455,8 +453,7 @@ where
                     };
                     removed
                 }
-            };
-            Ok((Rc::new(node), removed))
+            })
         })
     }
 
@@ -473,7 +470,7 @@ where
     ///     let store = &mut MemoryBlockStore::new();
     ///     let mut node = Rc::new(Node::<[u8; 4], String>::default());
     ///     for i in 0..99_u32 {
-    ///         node = node
+    ///         node
     ///             .set(i.to_le_bytes(), i.to_string(), store)
     ///             .await
     ///             .unwrap();
@@ -532,7 +529,7 @@ where
     ///
     ///     let mut node = Rc::new(Node::<[u8; 4], String>::default());
     ///     for i in 0..100_u32 {
-    ///         node = node
+    ///         node
     ///             .set(i.to_le_bytes(), i.to_string(), store)
     ///             .await
     ///             .unwrap();
@@ -612,7 +609,7 @@ where
     ///
     ///     let mut node = Rc::new(Node::<[u8; 4], String>::default());
     ///     for i in 0..100_u32 {
-    ///         node = node
+    ///         node
     ///             .set(i.to_le_bytes(), i.to_string(), store)
     ///             .await
     ///             .unwrap();
@@ -817,10 +814,10 @@ mod tests {
         let store = &mut MemoryBlockStore::default();
 
         // Insert 4 values to trigger the creation of a linked node.
-        let mut working_node = Rc::new(Node::<String, String, MockHasher>::default());
+        let working_node = &mut Rc::new(Node::<String, String, MockHasher>::default());
         for (digest, kv) in HASH_KV_PAIRS.iter().take(4) {
             let hashnibbles = &mut HashNibbles::new(digest);
-            working_node = working_node
+            working_node
                 .set_value(hashnibbles, kv.to_string(), kv.to_string(), store)
                 .await
                 .unwrap();
@@ -840,10 +837,10 @@ mod tests {
         let store = &mut MemoryBlockStore::default();
 
         // Insert 4 values to trigger the creation of a linked node.
-        let mut working_node = Rc::new(Node::<String, String, MockHasher>::default());
+        let working_node = &mut Rc::new(Node::<String, String, MockHasher>::default());
         for (digest, kv) in HASH_KV_PAIRS.iter().take(4) {
             let hashnibbles = &mut HashNibbles::new(digest);
-            working_node = working_node
+            working_node
                 .set_value(hashnibbles, kv.to_string(), kv.to_string(), store)
                 .await
                 .unwrap();
@@ -853,11 +850,10 @@ mod tests {
 
         // Remove the third value.
         let third_hashnibbles = &mut HashNibbles::new(&HASH_KV_PAIRS[2].0);
-        working_node = working_node
+        working_node
             .remove_value(third_hashnibbles, store)
             .await
-            .unwrap()
-            .0;
+            .unwrap();
 
         // Check that the third value is gone.
         match &working_node.pointers[0] {
@@ -880,11 +876,11 @@ mod tests {
         let store = &mut MemoryBlockStore::default();
 
         // Insert 3 values into the HAMT.
-        let mut working_node = Rc::new(Node::<String, String, MockHasher>::default());
+        let working_node = &mut Rc::new(Node::<String, String, MockHasher>::default());
         for (idx, (digest, kv)) in HASH_KV_PAIRS.iter().take(3).enumerate() {
             let kv = kv.to_string();
             let hashnibbles = &mut HashNibbles::new(digest);
-            working_node = working_node
+            working_node
                 .set_value(hashnibbles, kv.clone(), kv.clone(), store)
                 .await
                 .unwrap();
@@ -900,7 +896,7 @@ mod tests {
         }
 
         // Inserting the fourth value should introduce a link indirection.
-        working_node = working_node
+        working_node
             .set_value(
                 &mut HashNibbles::new(&HASH_KV_PAIRS[3].0),
                 "fourth".to_string(),
@@ -942,12 +938,12 @@ mod tests {
             (&[0xF0], 15),
         ];
 
-        let mut working_node = Rc::new(Node::<String, String>::default());
+        let working_node = &mut Rc::new(Node::<String, String>::default());
         for (hash, expected_idx) in hash_expected_idx_samples.into_iter() {
             let bytes = utils::make_digest(&hash[..]);
             let hashnibbles = &mut HashNibbles::new(&bytes);
 
-            working_node = working_node
+            working_node
                 .set_value(
                     hashnibbles,
                     expected_idx.to_string(),
@@ -970,9 +966,9 @@ mod tests {
     #[async_std::test]
     async fn node_can_insert_pair_and_retrieve() {
         let store = MemoryBlockStore::default();
-        let node = Rc::new(Node::<String, (i32, f64)>::default());
+        let node = &mut Rc::new(Node::<String, (i32, f64)>::default());
 
-        let node = node.set("pill".into(), (10, 0.315), &store).await.unwrap();
+        node.set("pill".into(), (10, 0.315), &store).await.unwrap();
 
         let value = node.get(&"pill".into(), &store).await.unwrap().unwrap();
 
@@ -986,10 +982,10 @@ mod tests {
         let remove_key: String = "hK i3b4V4152EPOdA".into();
 
         let store = &mut MemoryBlockStore::default();
-        let mut node0: Rc<Node<String, u64>> = Rc::new(Node::default());
+        let node0: &mut Rc<Node<String, u64>> = &mut Rc::new(Node::default());
 
-        node0 = node0.set(insert_key.clone(), 0, store).await.unwrap();
-        (node0, _) = node0.remove(&remove_key, store).await.unwrap();
+        node0.set(insert_key.clone(), 0, store).await.unwrap();
+        node0.remove(&remove_key, store).await.unwrap();
 
         assert_eq!(node0.count_values().unwrap(), 1);
     }
@@ -998,25 +994,25 @@ mod tests {
     async fn node_history_independence_regression() {
         let store = &mut MemoryBlockStore::default();
 
-        let mut node1: Rc<Node<String, u64>> = Rc::new(Node::default());
-        let mut node2: Rc<Node<String, u64>> = Rc::new(Node::default());
+        let node1: &mut Rc<Node<String, u64>> = &mut Rc::new(Node::default());
+        let node2: &mut Rc<Node<String, u64>> = &mut Rc::new(Node::default());
 
-        node1 = node1.set("key 17".into(), 508, store).await.unwrap();
-        node1 = node1.set("key 81".into(), 971, store).await.unwrap();
-        node1 = node1.set("key 997".into(), 365, store).await.unwrap();
-        (node1, _) = node1.remove(&"key 17".into(), store).await.unwrap();
-        node1 = node1.set("key 68".into(), 870, store).await.unwrap();
-        node1 = node1.set("key 304".into(), 331, store).await.unwrap();
+        node1.set("key 17".into(), 508, store).await.unwrap();
+        node1.set("key 81".into(), 971, store).await.unwrap();
+        node1.set("key 997".into(), 365, store).await.unwrap();
+        node1.remove(&"key 17".into(), store).await.unwrap();
+        node1.set("key 68".into(), 870, store).await.unwrap();
+        node1.set("key 304".into(), 331, store).await.unwrap();
 
-        node2 = node2.set("key 81".into(), 971, store).await.unwrap();
-        node2 = node2.set("key 17".into(), 508, store).await.unwrap();
-        node2 = node2.set("key 997".into(), 365, store).await.unwrap();
-        node2 = node2.set("key 304".into(), 331, store).await.unwrap();
-        node2 = node2.set("key 68".into(), 870, store).await.unwrap();
-        (node2, _) = node2.remove(&"key 17".into(), store).await.unwrap();
+        node2.set("key 81".into(), 971, store).await.unwrap();
+        node2.set("key 17".into(), 508, store).await.unwrap();
+        node2.set("key 997".into(), 365, store).await.unwrap();
+        node2.set("key 304".into(), 331, store).await.unwrap();
+        node2.set("key 68".into(), 870, store).await.unwrap();
+        node2.remove(&"key 17".into(), store).await.unwrap();
 
-        let cid1 = store.put_async_serializable(&node1).await.unwrap();
-        let cid2 = store.put_async_serializable(&node2).await.unwrap();
+        let cid1 = store.put_async_serializable(node1).await.unwrap();
+        let cid2 = store.put_async_serializable(node2).await.unwrap();
 
         assert_eq!(cid1, cid2);
     }
@@ -1025,10 +1021,9 @@ mod tests {
     async fn can_map_over_leaf_nodes() {
         let store = test_setup::init!(mut store);
 
-        let mut node = Rc::new(Node::<[u8; 4], String>::default());
+        let node = &mut Rc::new(Node::<[u8; 4], String>::default());
         for i in 0..99_u32 {
-            node = node
-                .set(i.to_le_bytes(), i.to_string(), store)
+            node.set(i.to_le_bytes(), i.to_string(), store)
                 .await
                 .unwrap();
         }
@@ -1045,11 +1040,10 @@ mod tests {
     async fn can_fetch_node_at_hashprefix() {
         let store = test_setup::init!(mut store);
 
-        let mut node = Rc::new(Node::<String, String, MockHasher>::default());
+        let node = &mut Rc::new(Node::<String, String, MockHasher>::default());
         for (digest, kv) in HASH_KV_PAIRS.iter() {
             let hashnibbles = &mut HashNibbles::new(digest);
-            node = node
-                .set_value(hashnibbles, kv.to_string(), kv.to_string(), store)
+            node.set_value(hashnibbles, kv.to_string(), kv.to_string(), store)
                 .await
                 .unwrap();
         }
@@ -1071,11 +1065,10 @@ mod tests {
     async fn can_generate_hashmap_from_node() {
         let store = test_setup::init!(mut store);
 
-        let mut node = Rc::new(Node::<[u8; 4], String>::default());
+        let node = &mut Rc::new(Node::<[u8; 4], String>::default());
         const NUM_VALUES: u32 = 1000;
         for i in (u32::MAX - NUM_VALUES..u32::MAX).rev() {
-            node = node
-                .set(i.to_le_bytes(), i.to_string(), store)
+            node.set(i.to_le_bytes(), i.to_string(), store)
                 .await
                 .unwrap();
         }
@@ -1110,13 +1103,13 @@ mod proptests {
     ) {
         async_std::task::block_on(async move {
             let store = &mut MemoryBlockStore::default();
-            let node = node_from_operations(&operations, store).await.unwrap();
+            let node = &mut node_from_operations(&operations, store).await.unwrap();
 
-            let node = node.set(key.clone(), value, store).await.unwrap();
-            let cid1 = store.put_async_serializable(&node).await.unwrap();
+            node.set(key.clone(), value, store).await.unwrap();
+            let cid1 = store.put_async_serializable(node).await.unwrap();
 
-            let node = node.set(key, value, store).await.unwrap();
-            let cid2 = store.put_async_serializable(&node).await.unwrap();
+            node.set(key, value, store).await.unwrap();
+            let cid2 = store.put_async_serializable(node).await.unwrap();
 
             assert_eq!(cid1, cid2);
         })
@@ -1132,13 +1125,13 @@ mod proptests {
     ) {
         async_std::task::block_on(async move {
             let store = &mut MemoryBlockStore::default();
-            let node = node_from_operations(&operations, store).await.unwrap();
+            let node = &mut node_from_operations(&operations, store).await.unwrap();
 
-            let (node, _) = node.remove(&key, store).await.unwrap();
-            let cid1 = store.put_async_serializable(&node).await.unwrap();
+            node.remove(&key, store).await.unwrap();
+            let cid1 = store.put_async_serializable(node).await.unwrap();
 
-            let (node, _) = node.remove(&key, store).await.unwrap();
-            let cid2 = store.put_async_serializable(&node).await.unwrap();
+            node.remove(&key, store).await.unwrap();
+            let cid2 = store.put_async_serializable(node).await.unwrap();
 
             assert_eq!(cid1, cid2);
         })

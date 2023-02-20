@@ -22,6 +22,20 @@ pub enum NodeType {
     SnapshotSharePointer,
 }
 
+impl ToString for NodeType {
+    fn to_string(&self) -> String {
+        match self {
+            NodeType::PublicFile => "wnfs/pub/file",
+            NodeType::PublicDirectory => "wnfs/pub/dir",
+            NodeType::PrivateFile => "wnfs/priv/file",
+            NodeType::PrivateDirectory => "wnfs/priv/dir",
+            NodeType::TemporalSharePointer => "wnfs/share/temporal",
+            NodeType::SnapshotSharePointer => "wnfs/share/snapshot",
+        }
+        .to_string()
+    }
+}
+
 /// The metadata of a node in the WNFS file system.
 ///
 /// # Examples

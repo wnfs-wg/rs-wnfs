@@ -3,14 +3,18 @@ use std::io::Cursor;
 use anyhow::Result;
 use libipld::{cbor::DagCborCodec, codec::Decode, prelude::Encode, Ipld};
 use once_cell::sync::OnceCell;
-use rand_core::RngCore;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 use crate::FsError;
 
-use super::AesKey;
+use super::TemporalKey;
 
-/// A wrapper for encrypted data.
+/// A wrapper for AES-KWP deterministically encrypted (key-wrapped) data.
+///
+/// Any data wrapped like this **must not have low entropy**.
+///
+/// For anything that could potentially have low entropy,
+/// please use AES-GCM instead via `SnapshotKey`.
 ///
 /// When serialized or deserialized this will only
 /// ever emit or consume ciphertexts.
@@ -32,14 +36,14 @@ impl<T> Encrypted<T> {
     ///
     /// To ensure confidentiality, the randomness should be cryptographically secure
     /// randomness.
-    pub fn from_value(value: T, key: &AesKey, rng: &mut impl RngCore) -> Result<Self>
+    pub fn from_value(value: T, temporal_key: &TemporalKey) -> Result<Self>
     where
         T: Serialize,
     {
         let ipld = value.serialize(libipld::serde::Serializer)?;
         let mut bytes = Vec::new();
         ipld.encode(DagCborCodec, &mut bytes)?;
-        let ciphertext = key.encrypt(&AesKey::generate_nonce(rng), &bytes)?;
+        let ciphertext = temporal_key.key_wrap_encrypt(&bytes)?;
 
         Ok(Self {
             value_cache: OnceCell::from(value),
@@ -63,12 +67,12 @@ impl<T> Encrypted<T> {
     ///
     /// This operation may fail if given key doesn't decrypt the ciphertext or
     /// deserializing the value from the encrypted plaintext doesn't work.
-    pub fn resolve_value(&self, key: &AesKey) -> Result<&T>
+    pub fn resolve_value(&self, temporal_key: &TemporalKey) -> Result<&T>
     where
         T: DeserializeOwned,
     {
         self.value_cache.get_or_try_init(|| {
-            let bytes = key.decrypt(&self.ciphertext)?;
+            let bytes = temporal_key.key_wrap_decrypt(&self.ciphertext)?;
             let ipld = Ipld::decode(DagCborCodec, &mut Cursor::new(bytes))?;
             libipld::serde::from_ipld::<T>(ipld)
                 .map_err(|e| FsError::InvalidDeserialization(e.to_string()).into())
@@ -111,8 +115,22 @@ impl<T> Serialize for Encrypted<T> {
     }
 }
 
+// Custom Eq/Ord implementations that bypass the OnceCell:
+
 impl<T: PartialEq> PartialEq for Encrypted<T> {
     fn eq(&self, other: &Self) -> bool {
         self.get_ciphertext() == other.get_ciphertext()
+    }
+}
+
+impl<T: PartialEq + PartialOrd> PartialOrd for Encrypted<T> {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        self.ciphertext.partial_cmp(&other.ciphertext)
+    }
+}
+
+impl<T: Eq + Ord> Ord for Encrypted<T> {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.ciphertext.cmp(&other.ciphertext)
     }
 }

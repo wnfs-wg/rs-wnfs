@@ -5,6 +5,7 @@ declare global {
     setup: () => Promise<{
       mock: {
         sampleCID: typeof import("../mock").sampleCID;
+        CID: typeof import("../mock").CID,
         MemoryBlockStore: typeof import("../mock").MemoryBlockStore;
         Rng: typeof import("../mock").Rng;
         ExchangeKey: typeof import("../mock").ExchangeKey;
@@ -20,6 +21,7 @@ declare global {
         PrivateForest: typeof import("../../pkg/index").PrivateForest;
         PrivateFile: typeof import("../../pkg/index").PrivateFile;
         PrivateNode: typeof import("../../pkg/index").PrivateNode;
+        PrivateRef: typeof import("../../pkg/index").PrivateRef;
         Namefilter: typeof import("../../pkg/index").Namefilter;
         SharePayload: typeof import("../../pkg/index").SharePayload;
         share: typeof import("../../pkg/index").share;

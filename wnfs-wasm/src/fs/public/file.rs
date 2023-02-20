@@ -5,10 +5,13 @@ use js_sys::{Error, Promise, Uint8Array};
 use std::rc::Rc;
 use wasm_bindgen::{prelude::wasm_bindgen, JsValue};
 use wasm_bindgen_futures::future_to_promise;
-use wnfs::{ipld::Cid, BlockStore as WnfsBlockStore, Id, PublicFile as WnfsPublicFile};
+use wnfs::{
+    ipld::Cid, BlockStore as WnfsBlockStore, Id, PublicFile as WnfsPublicFile,
+    PublicNode as WnfsPublicNode,
+};
 
 use crate::{
-    fs::{metadata::JsMetadata, utils::error, BlockStore, ForeignBlockStore, JsResult},
+    fs::{metadata::JsMetadata, utils::error, BlockStore, ForeignBlockStore, JsResult, PublicNode},
     value,
 };
 
@@ -96,5 +99,11 @@ impl PublicFile {
     #[wasm_bindgen(js_name = "contentCid")]
     pub fn content_cid(&self) -> Vec<u8> {
         self.0.get_content_cid().to_bytes()
+    }
+
+    /// Converts this directory to a node.
+    #[wasm_bindgen(js_name = "asNode")]
+    pub fn as_node(&self) -> PublicNode {
+        PublicNode(WnfsPublicNode::File(Rc::clone(&self.0)))
     }
 }
