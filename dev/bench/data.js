@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1676645285281,
+  "lastUpdate": 1676910697194,
   "repoUrl": "https://github.com/wnfs-wg/rs-wnfs",
   "entries": {
     "Rust Benchmark": [
@@ -5874,6 +5874,96 @@ window.BENCHMARK_DATA = {
           {
             "name": "namefilter encode",
             "value": 290,
+            "range": "± 5",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter decode/0",
+            "value": 1,
+            "range": "± 0",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "philipp.krueger1@gmail.com",
+            "name": "Philipp Krüger",
+            "username": "matheus23"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "95cba5340bd85a1a70d8a1934876d555e9f69f54",
+          "message": "Implement non-nested encryption (#159)\n\n* Add initial structure\r\n\r\n* Implement sharing\r\n\r\n* refactor: Remove `content_key` from `PrivateRef`\r\n\r\nIt can always be derived from `revision_key`.\r\nStoring it will only make it possible for `revision_key` and\r\n`content_key` to get out-of-sync.\r\n\r\n* refactor: Extract out `PrivateDirectoryContent`\r\n\r\n* Key-wrap using AES-KWP\r\n\r\n* refactor: use AES-KWP for encrypting previous links\r\n\r\n* refactor: Previous to be a set of encrypted Cids\r\n\r\ninstead of an encrypted set of Cids\r\n\r\n* refactor: Add \"# of revisions back\" to backpointers\r\n\r\n* refactor: Extract private file content into struct\r\n\r\n* refactor: Move AES-KWP logic into `RevisionKey`\r\n\r\n* refactor: Move AES-GCM logic into `ContentKey`\r\n\r\n* chore: Add TODO comments for missing docs\r\n\r\n* fix: doctests due to refactor (whoops)\r\n\r\n* refactor: remove `KeyType` struct\r\n\r\n* refactor: Implement `load` & `store` for PNH\r\n\r\n* refactor: Split header & content, add disambiguation\r\n\r\nSo:\r\n- PrivateNodeHeader gets its own block\r\n- PrivateFile and PrivateDirectory refer back to the header via a CID\r\n- PrivateRef gets its own \"disambiguation pointer\" content_cid\r\n- PrivateForest now resolves PrivateRefs\r\n- PrivateRefs always refer to pre-existing content, never to \"open slots\"\r\n\r\n* refactor: Introduce `RevisionRef` & fix examples\r\n\r\n* refactor: Adjust doctests :white_check_mark:\r\n\r\n* refactor: remove `.derive_private_ref()`\r\n\r\n* refactor: Simplify `SharePointer` creation\r\n\r\n* refactor: Remove `Version` from private dir content\r\n\r\n* refactor: move `persisted_as` into dir content\r\n\r\n* refactor: Move `persisted_as` into private file content\r\n\r\n* refactor: Docs & more\r\n\r\n* clippy: configure to ignore `Encrypted` wrapper\r\n\r\n* refactor: Rename to `TemporalKey` & `SnapshotKey`\r\n\r\ninstead of `RevisionKey` and `ContentKey`, respectively.\r\n\r\n* refactor: Use `&mut Rc<PrivateForest>` and similar (#161)\r\n\r\nAlso, make use of `Rc::make_mut`, accordingly.\r\n\r\n* refactor: Some fixes for wasm\r\n\r\n* feat: Refactor & add stuff to the wasm interface\r\n\r\n* feat: Allow wasm extracting values out of `PrivateRef`\r\n\r\n* fix: Small fix in doctest\r\n\r\n* fix: Serialization and deserialization of share payloads\r\n\r\n* chore: Remove logging :mute:\r\n\r\n* refactor: Just use a different tagging mechanism\r\n\r\n* refactor: Use `test_setup!` more consistently\r\n\r\n* fix: incorrectly resolved merge conflicts\r\n\r\n* fix: wasm tests. Also: Pin newest wasm-bindgen version\r\n\r\n(it had some good bugfixes regarding FinalizationRegistries recently)\r\n\r\n* fix: undo accidentally committed commenting\r\n\r\n* fix: yield back received errors\r\n\r\nThanks clippy!\r\n\r\n* refactor: Always take owned Rc wrappers in bindings\r\n\r\n* fix: Type error in wasm\r\n\r\n* refactor: Primarily take borrowed types in bindings\r\n\r\n---------\r\n\r\nCo-authored-by: Stephen Akinyemi <appcypher@outlook.com>",
+          "timestamp": "2023-02-20T17:26:02+01:00",
+          "tree_id": "100492fc78fb1e773b802caaf1a1fbaf7427dba5",
+          "url": "https://github.com/wnfs-wg/rs-wnfs/commit/95cba5340bd85a1a70d8a1934876d555e9f69f54"
+        },
+        "date": 1676910696577,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "node set",
+            "value": 7209,
+            "range": "± 101",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node set 1000 consecutive",
+            "value": 4206805,
+            "range": "± 15779",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and get",
+            "value": 148521,
+            "range": "± 656",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and remove",
+            "value": 166025,
+            "range": "± 305",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt load and decode/0",
+            "value": 33175,
+            "range": "± 49",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt set and encode",
+            "value": 167326,
+            "range": "± 384",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter add",
+            "value": 7528,
+            "range": "± 15",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter contains",
+            "value": 9775,
+            "range": "± 13",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter saturate",
+            "value": 40380,
+            "range": "± 43",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter encode",
+            "value": 172,
             "range": "± 5",
             "unit": "ns/iter"
           },
