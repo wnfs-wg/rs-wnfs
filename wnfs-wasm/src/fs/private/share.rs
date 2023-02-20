@@ -35,7 +35,7 @@ impl SharePayload {
         mut rng: Rng,
     ) -> JsResult<Promise> {
         let mut store = ForeignBlockStore(store);
-        let mut forest = Rc::clone(&forest.0);
+        let mut forest = forest.0;
 
         Ok(future_to_promise(async move {
             let payload =
