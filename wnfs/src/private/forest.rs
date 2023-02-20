@@ -269,7 +269,8 @@ impl PrivateForest {
                         }
                     }
                 }
-                _ => {},
+                Ok(None) => {},
+                Err(e) => yield Err(e),
             }
         })
     }

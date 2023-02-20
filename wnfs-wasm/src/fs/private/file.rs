@@ -76,13 +76,14 @@ impl PrivateFile {
 
     /// Gets the entire content of a file.
     #[wasm_bindgen(js_name = "getContent")]
-    pub fn get_content(&self, forest: PrivateForest, store: BlockStore) -> JsResult<Promise> {
+    pub fn get_content(&self, forest: &PrivateForest, store: BlockStore) -> JsResult<Promise> {
         let file = Rc::clone(&self.0);
         let store = ForeignBlockStore(store);
+        let forest = Rc::clone(&forest.0);
 
         Ok(future_to_promise(async move {
             let content = file
-                .get_content(&forest.0, &store)
+                .get_content(&forest, &store)
                 .await
                 .map_err(error("Cannot get content of file"))?;
 

@@ -30,7 +30,7 @@ impl SharePayload {
     pub fn from_node(
         node: PrivateNode,
         temporal: bool,
-        forest: PrivateForest,
+        forest: &PrivateForest,
         store: BlockStore,
         mut rng: Rng,
     ) -> JsResult<Promise> {
@@ -70,7 +70,7 @@ pub fn share(
     share_payload: SharePayload,
     share_count: u32,
     sharer_root_did: String,
-    sharer_forest: PrivateForest,
+    sharer_forest: &PrivateForest,
     sharer_store: BlockStore,
     recipient_exchange_root: Vec<u8>,
     recipient_store: BlockStore,
@@ -116,10 +116,11 @@ pub fn find_share(
     limit: u32,
     recipient_exchange_key: Vec<u8>,
     sharer_root_did: String,
-    sharer_forest: PrivateForest,
+    sharer_forest: &PrivateForest,
     sharer_store: BlockStore,
 ) -> JsResult<Promise> {
     let sharer_store = ForeignBlockStore(sharer_store);
+    let sharer_forest = Rc::clone(&sharer_forest.0);
 
     Ok(future_to_promise(async move {
         let count = recipient::find_share(
@@ -127,7 +128,7 @@ pub fn find_share(
             limit.into(),
             &recipient_exchange_key,
             &sharer_root_did,
-            &sharer_forest.0,
+            &sharer_forest,
             &sharer_store,
         )
         .await
@@ -141,7 +142,7 @@ pub fn find_share(
 pub fn receive_share(
     share_label: Namefilter,
     recipient_key: PrivateKey,
-    sharer_forest: PrivateForest,
+    sharer_forest: &PrivateForest,
     sharer_store: BlockStore,
 ) -> JsResult<Promise> {
     let sharer_store = ForeignBlockStore(sharer_store);

@@ -71,7 +71,7 @@ impl PrivateForest {
     pub fn put(&self, node: &PrivateNode, store: BlockStore, mut rng: Rng) -> JsResult<Promise> {
         let mut store = ForeignBlockStore(store);
         let mut forest = Rc::clone(&self.0);
-        let node = node.0.clone(); // cheap clone
+        let node = node.0.clone(); // cheap clone. Essentially an Rc::clone
 
         Ok(future_to_promise(async move {
             let private_ref = forest

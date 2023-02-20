@@ -75,7 +75,7 @@ impl PrivateDirectory {
     pub async fn new_and_store(
         parent_bare_name: Namefilter,
         time: &Date,
-        forest: PrivateForest,
+        forest: &PrivateForest,
         store: BlockStore,
         mut rng: Rng,
     ) -> JsResult<Promise> {
@@ -109,7 +109,7 @@ impl PrivateDirectory {
         time: &Date,
         ratchet_seed: Vec<u8>,
         inumber: Vec<u8>,
-        forest: PrivateForest,
+        forest: &PrivateForest,
         store: BlockStore,
         mut rng: Rng,
     ) -> JsResult<Promise> {
