@@ -1,6 +1,6 @@
 use super::{
-    encrypted::Encrypted, namefilter::Namefilter, PrivateFile, PrivateForest, PrivateNode,
-    PrivateNodeHeader, PrivateRef, PrivateRefSerializable, TemporalKey,
+    encrypted::Encrypted, link::PrivateLink, namefilter::Namefilter, PrivateFile, PrivateForest,
+    PrivateNode, PrivateNodeHeader, PrivateRef, PrivateRefSerializable, TemporalKey,
 };
 use crate::{
     error, utils, BlockStore, FsError, HashOutput, Id, Metadata, NodeType, PathNodes,
@@ -55,7 +55,7 @@ pub struct PrivateDirectoryContent {
     persisted_as: OnceCell<Cid>,
     pub previous: BTreeSet<(usize, Encrypted<Cid>)>,
     pub metadata: Metadata,
-    pub entries: BTreeMap<String, PrivateRef>,
+    pub entries: BTreeMap<String, PrivateLink>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -345,40 +345,6 @@ impl PrivateDirectory {
         }
     }
 
-    /// This should be called to prepare a node for modifications,
-    /// if it's meant to be a successor revision of the current revision.
-    ///
-    /// It will store the current revision in the given `BlockStore` to
-    /// retrieve its CID and put that into the `previous` links,
-    /// as well as advancing the ratchet and resetting the `persisted_as` pointer.
-    pub(crate) async fn prepare_next_revision(
-        self: Rc<Self>,
-        store: &mut impl BlockStore,
-        rng: &mut impl RngCore,
-    ) -> Result<Self> {
-        // key from the *current*, not the next revision
-        let temporal_key = self.header.derive_temporal_key();
-
-        let header_cid = self.header.store(store).await?;
-        let content_cid = self
-            .content
-            .store(header_cid, &temporal_key, store, rng)
-            .await?;
-
-        let mut cloned = Rc::try_unwrap(self).unwrap_or_else(|rc| (*rc).clone());
-
-        cloned.content.persisted_as = OnceCell::new(); // Also done in `.clone()`, but need this to work in case try_unwrap optimizes.
-        cloned.content.previous.clear();
-        cloned
-            .content
-            .previous
-            .insert((1, Encrypted::from_value(content_cid, &temporal_key)?));
-
-        cloned.header.advance_ratchet();
-
-        Ok(cloned)
-    }
-
     /// This prepares this directory for key rotation, usually for moving or
     /// copying the directory to some other place.
     ///
@@ -399,39 +365,17 @@ impl PrivateDirectory {
     }
 
     /// Fix up `PathNodes` so that parents refer to the newly updated children.
-    async fn fix_up_path_nodes(
-        path_nodes: PrivatePathNodes,
-        forest: &mut Rc<PrivateForest>,
-        store: &mut impl BlockStore,
-        rng: &mut impl RngCore,
-    ) -> Result<Rc<Self>> {
-        let mut working_child_dir =
-            Rc::new(path_nodes.tail.prepare_next_revision(store, rng).await?);
+    fn fix_up_path_nodes(path_nodes: PrivatePathNodes) -> Rc<Self> {
+        let mut working_dir = path_nodes.tail;
 
-        for (parent_dir, segment) in path_nodes.path.iter().rev() {
-            let mut parent_dir = Rc::clone(parent_dir)
-                .prepare_next_revision(store, rng)
-                .await?;
-
-            let child_private_ref = forest
-                .put(&PrivateNode::Dir(Rc::clone(&working_child_dir)), store, rng)
-                .await?;
-
-            parent_dir
-                .content
-                .entries
-                .insert(segment.clone(), child_private_ref.clone());
-
-            let parent_dir = Rc::new(parent_dir);
-
-            working_child_dir = parent_dir;
+        for (dir, segment) in path_nodes.path.iter().rev() {
+            let mut dir = (**dir).clone();
+            let link = PrivateLink::new(PrivateNode::Dir(working_dir));
+            dir.content.entries.insert(segment.clone(), link);
+            working_dir = Rc::new(dir);
         }
 
-        forest
-            .put(&PrivateNode::Dir(Rc::clone(&working_child_dir)), store, rng)
-            .await?;
-
-        Ok(working_child_dir)
+        working_dir
     }
 
     /// Follows a path and fetches the node at the end of the path.
@@ -695,19 +639,17 @@ impl PrivateDirectory {
             }
         };
 
-        let child_private_ref = forest
-            .put(&PrivateNode::File(Rc::new(file)), store, rng)
-            .await?;
+        let child_private_link = PrivateLink::new(PrivateNode::File(Rc::new(file)));
 
         // Insert the file into its parent directory
         directory
             .content
             .entries
-            .insert(filename.to_string(), child_private_ref);
+            .insert(filename.to_string(), child_private_link);
 
         directory_path_nodes.tail = Rc::new(directory);
 
-        let root_dir = Self::fix_up_path_nodes(directory_path_nodes, forest, store, rng).await?;
+        let root_dir = Self::fix_up_path_nodes(directory_path_nodes);
 
         // Fix up the file path
         Ok(PrivateOpResult {
@@ -763,12 +705,12 @@ impl PrivateDirectory {
         store: &impl BlockStore,
     ) -> Result<Option<PrivateNode>> {
         Ok(match self.content.entries.get(path_segment) {
-            Some(private_ref) => {
-                let private_node = forest.get(private_ref, store).await?;
+            Some(private_link) => {
+                let private_node = private_link.resolve_node(forest, store).await?;
                 if search_latest {
                     Some(private_node.search_latest(forest, store).await?)
                 } else {
-                    Some(private_node)
+                    Some(private_node.clone())
                 }
             }
             None => None,
@@ -881,7 +823,7 @@ impl PrivateDirectory {
             .get_or_create_path_nodes(path_segments, search_latest, time, forest, store, rng)
             .await?;
 
-        let root_dir = Self::fix_up_path_nodes(path_nodes, forest, store, rng).await?;
+        let root_dir = Self::fix_up_path_nodes(path_nodes);
 
         Ok(PrivateOpResult {
             root_dir,
@@ -960,8 +902,8 @@ impl PrivateDirectory {
         {
             PathNodesResult::Complete(path_nodes) => {
                 let mut result = vec![];
-                for (name, private_ref) in path_nodes.tail.content.entries.iter() {
-                    match forest.get(private_ref, store).await? {
+                for (name, private_link) in path_nodes.tail.content.entries.iter() {
+                    match private_link.resolve_node(forest, store).await? {
                         PrivateNode::File(file) => {
                             result.push((name.clone(), file.content.metadata.clone()));
                         }
@@ -1042,7 +984,6 @@ impl PrivateDirectory {
         search_latest: bool,
         forest: &mut Rc<PrivateForest>,
         store: &mut impl BlockStore,
-        rng: &mut impl RngCore,
     ) -> Result<PrivateOpResult<PrivateNode>> {
         let (directory_path, node_name) = utils::split_last(path_segments)?;
 
@@ -1057,14 +998,16 @@ impl PrivateDirectory {
         let mut directory = (*directory_path_nodes.tail).clone();
 
         // Remove the entry from its parent directory
-        let removed_node = match directory.content.entries.remove(node_name) {
-            Some(ref private_ref) => forest.get(private_ref, store).await?,
-            None => bail!(FsError::NotFound),
+        let Some(removed_link) = directory.content.entries.remove(node_name) else {
+            bail!(FsError::NotFound);
         };
+
+        // TODO(matheus23): Should we just return `PrivateLink` instead?
+        let removed_node = removed_link.resolve_node(forest, store).await?.clone();
 
         directory_path_nodes.tail = Rc::new(directory);
 
-        let root_dir = Self::fix_up_path_nodes(directory_path_nodes, forest, store, rng).await?;
+        let root_dir = Self::fix_up_path_nodes(directory_path_nodes);
 
         Ok(PrivateOpResult {
             root_dir,
@@ -1105,18 +1048,17 @@ impl PrivateDirectory {
 
         let mut node = node.upsert_mtime(time);
 
-        let private_ref = node
-            .update_ancestry(directory.header.bare_name.clone(), forest, store, rng)
+        node.update_ancestry(directory.header.bare_name.clone(), forest, store, rng)
             .await?;
 
         directory
             .content
             .entries
-            .insert(filename.clone(), private_ref);
+            .insert(filename.clone(), PrivateLink::new(node));
 
         path_nodes.tail = Rc::new(directory);
 
-        let root_dir = Self::fix_up_path_nodes(path_nodes, forest, store, rng).await?;
+        let root_dir = Self::fix_up_path_nodes(path_nodes);
 
         Ok(PrivateOpResult {
             root_dir,
@@ -1200,7 +1142,7 @@ impl PrivateDirectory {
             root_dir,
             result: removed_node,
         } = self
-            .rm(path_segments_from, search_latest, forest, store, rng)
+            .rm(path_segments_from, search_latest, forest, store)
             .await?;
 
         root_dir
@@ -1309,6 +1251,7 @@ impl PrivateDirectory {
     /// and the content block's CID.
     pub async fn store(
         &self,
+        forest: &mut Rc<PrivateForest>,
         store: &mut impl BlockStore,
         rng: &mut impl RngCore,
     ) -> Result<(Cid, Cid)> {
@@ -1317,7 +1260,7 @@ impl PrivateDirectory {
 
         let content_cid = self
             .content
-            .store(header_cid, &temporal_key, store, rng)
+            .store(header_cid, &temporal_key, forest, store, rng)
             .await?;
 
         Ok((header_cid, content_cid))
@@ -1331,19 +1274,26 @@ impl PrivateDirectory {
 
 impl PrivateDirectoryContent {
     /// Serializes the directory with provided Serde serialilzer.
-    pub(crate) fn serialize<S>(
+    pub(crate) async fn serialize<S>(
         &self,
         serializer: S,
         temporal_key: &TemporalKey,
         header_cid: Cid,
+        forest: &mut Rc<PrivateForest>,
+        store: &mut impl BlockStore,
+        rng: &mut impl RngCore,
     ) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
     {
         let mut entries = BTreeMap::new();
 
-        for (name, private_ref) in self.entries.iter() {
-            let private_ref_serializable = private_ref
+        for (name, private_link) in self.entries.iter() {
+            let private_ref_serializable = private_link
+                .resolve_ref(forest, store, rng)
+                .await
+                .map_err(SerError::custom)?
+                .clone()
                 .to_serializable(temporal_key)
                 .map_err(SerError::custom)?;
             entries.insert(name.clone(), private_ref_serializable);
@@ -1391,7 +1341,7 @@ impl PrivateDirectoryContent {
         for (name, private_ref_serializable) in entries_encrypted {
             let private_ref = PrivateRef::from_serializable(private_ref_serializable, temporal_key)
                 .map_err(DeError::custom)?;
-            entries.insert(name, private_ref);
+            entries.insert(name, PrivateLink::from_ref(private_ref));
         }
 
         Ok((
@@ -1419,6 +1369,7 @@ impl PrivateDirectoryContent {
         &self,
         header_cid: Cid,
         temporal_key: &TemporalKey,
+        forest: &mut Rc<PrivateForest>,
         store: &mut impl BlockStore,
         rng: &mut impl RngCore,
     ) -> Result<Cid> {
@@ -1429,7 +1380,16 @@ impl PrivateDirectoryContent {
                 let snapshot_key = temporal_key.derive_snapshot_key();
 
                 // Serialize node to cbor.
-                let ipld = self.serialize(libipld::serde::Serializer, temporal_key, header_cid)?;
+                let ipld = self
+                    .serialize(
+                        libipld::serde::Serializer,
+                        temporal_key,
+                        header_cid,
+                        forest,
+                        store,
+                        rng,
+                    )
+                    .await?;
                 let mut bytes = Vec::new();
                 ipld.encode(DagCborCodec, &mut bytes)?;
 
@@ -1694,24 +1654,12 @@ mod tests {
             .unwrap();
 
         let PrivateOpResult { root_dir, .. } = root_dir
-            .rm(
-                &["tamedun".into(), "pictures".into()],
-                true,
-                forest,
-                store,
-                rng,
-            )
+            .rm(&["tamedun".into(), "pictures".into()], true, forest, store)
             .await
             .unwrap();
 
         let result = root_dir
-            .rm(
-                &["tamedun".into(), "pictures".into()],
-                true,
-                forest,
-                store,
-                rng,
-            )
+            .rm(&["tamedun".into(), "pictures".into()], true, forest, store)
             .await;
 
         assert!(result.is_err());
@@ -1762,9 +1710,7 @@ mod tests {
             rng,
         );
 
-        let root_dir = PrivateDirectory::fix_up_path_nodes(path_nodes.clone(), forest, store, rng)
-            .await
-            .unwrap();
+        let root_dir = PrivateDirectory::fix_up_path_nodes(path_nodes.clone());
 
         let result = root_dir
             .get_path_nodes(&["Documents".into(), "Apps".into()], true, forest, store)

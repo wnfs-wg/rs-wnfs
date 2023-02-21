@@ -1,7 +1,7 @@
 use super::{
-    encrypted::Encrypted, hamt::Hasher, namefilter::Namefilter, AesKey, PrivateDirectory,
-    PrivateDirectoryContent, PrivateFile, PrivateFileContent, PrivateForest, PrivateRef,
-    RevisionRef, NONCE_SIZE,
+    encrypted::Encrypted, hamt::Hasher, link::PrivateLink, namefilter::Namefilter, AesKey,
+    PrivateDirectory, PrivateDirectoryContent, PrivateFile, PrivateFileContent, PrivateForest,
+    PrivateRef, RevisionRef, NONCE_SIZE,
 };
 use crate::{
     dagcbor, utils, AesError, BlockStore, FsError, HashOutput, Id, NodeType, HASH_BYTE_SIZE,
@@ -153,36 +153,28 @@ impl PrivateNode {
         forest: &mut Rc<PrivateForest>,
         store: &mut impl BlockStore,
         rng: &mut impl RngCore,
-    ) -> Result<PrivateRef> {
+    ) -> Result<()> {
         match self {
-            Self::File(file) => {
-                let mut file = (**file).clone();
+            Self::File(file_rc) => {
+                let file = Rc::make_mut(file_rc);
 
                 file.prepare_key_rotation(parent_bare_name, forest, store, rng)
                     .await?;
-
-                *self = Self::File(Rc::new(file));
             }
-            Self::Dir(old_dir) => {
-                let mut dir = (**old_dir).clone();
+            PrivateNode::Dir(dir_rc) => {
+                let dir = Rc::make_mut(dir_rc);
 
-                for (name, private_ref) in &old_dir.content.entries {
-                    let mut node = forest.get(private_ref, store).await?;
-
-                    let private_ref = node
-                        .update_ancestry(dir.header.bare_name.clone(), forest, store, rng)
+                for private_link in &mut dir.content.entries.values_mut() {
+                    let mut node = private_link.resolve_node(forest, store).await?.clone();
+                    node.update_ancestry(dir.header.bare_name.clone(), forest, store, rng)
                         .await?;
-
-                    dir.content.entries.insert(name.clone(), private_ref);
+                    *private_link = PrivateLink::new(node);
                 }
 
                 dir.prepare_key_rotation(parent_bare_name, rng);
-
-                *self = Self::Dir(Rc::new(dir));
             }
-        };
-
-        forest.put(self, store, rng).await
+        }
+        Ok(())
     }
 
     /// Gets the header of the node.
@@ -498,12 +490,13 @@ impl PrivateNode {
 
     pub(crate) async fn store(
         &self,
+        forest: &mut Rc<PrivateForest>,
         store: &mut impl BlockStore,
         rng: &mut impl RngCore,
     ) -> Result<(Cid, Cid)> {
         match self {
             PrivateNode::File(file) => file.store(store, rng).await,
-            PrivateNode::Dir(dir) => dir.store(store, rng).await,
+            PrivateNode::Dir(dir) => dir.store(forest, store, rng).await,
         }
     }
 }
@@ -889,7 +882,7 @@ mod tests {
         .unwrap();
 
         let file = PrivateNode::File(Rc::new(file));
-        let (_, content_cid) = file.store(store, rng).await.unwrap();
+        let (_, content_cid) = file.store(forest, store, rng).await.unwrap();
         let private_ref = file
             .get_header()
             .derive_revision_ref()

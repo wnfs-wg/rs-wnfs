@@ -5,6 +5,7 @@ use super::{
 };
 use crate::{AesError, BlockStore, FsError, HashOutput, Hasher, Link};
 use anyhow::Result;
+use async_recursion::async_recursion;
 use async_stream::stream;
 use futures::Stream;
 use libipld::Cid;
@@ -70,13 +71,14 @@ impl PrivateForest {
     ///     assert_eq!(forest.get(&private_ref, store).await.unwrap(), node);
     /// }
     /// ```
+    #[async_recursion(?Send)]
     pub async fn put(
         self: &mut Rc<Self>,
         node: &PrivateNode,
         store: &mut impl BlockStore,
         rng: &mut impl RngCore,
     ) -> Result<PrivateRef> {
-        let (header_cid, content_cid) = node.store(store, rng).await?;
+        let (header_cid, content_cid) = node.store(self, store, rng).await?;
         let saturated_name = node.get_header().get_saturated_name();
 
         debug!("Private Forest Put: Namefilter: {:?}", saturated_name);
