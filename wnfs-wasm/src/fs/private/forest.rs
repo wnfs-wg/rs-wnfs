@@ -4,7 +4,7 @@ use js_sys::Promise;
 use wasm_bindgen::{prelude::wasm_bindgen, JsValue};
 use wasm_bindgen_futures::future_to_promise;
 use wnfs::{
-    ipld::Cid,
+    libipld::Cid,
     private::{
         AesKey, PrivateForest as WnfsPrivateForest, PrivateRef as WnfsPrivateRef, TemporalKey,
         KEY_BYTE_SIZE,
