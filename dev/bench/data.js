@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1676910697194,
+  "lastUpdate": 1676974246453,
   "repoUrl": "https://github.com/wnfs-wg/rs-wnfs",
   "entries": {
     "Rust Benchmark": [
@@ -5965,6 +5965,96 @@ window.BENCHMARK_DATA = {
             "name": "namefilter encode",
             "value": 172,
             "range": "± 5",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter decode/0",
+            "value": 1,
+            "range": "± 0",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "36498018+pinkforest@users.noreply.github.com",
+            "name": "pinkforest(she/her)",
+            "username": "pinkforest"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "600334fbee5be0957f9237bc70ad65e7194a27b8",
+          "message": "chore: Strip flags 2 (#171)\n\n* chore: Release wasm strip synbols\r\n\r\n* chore: Continue on-error for codecov upload\r\n\r\n* Add config.toml\r\n\r\n---------\r\n\r\nCo-authored-by: Stephen Akinyemi <appcypher@outlook.com>",
+          "timestamp": "2023-02-21T11:07:37+01:00",
+          "tree_id": "d9d40362737d2224345a4276c8a06bf37eda26a2",
+          "url": "https://github.com/wnfs-wg/rs-wnfs/commit/600334fbee5be0957f9237bc70ad65e7194a27b8"
+        },
+        "date": 1676974245916,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "node set",
+            "value": 7304,
+            "range": "± 95",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node set 1000 consecutive",
+            "value": 4224884,
+            "range": "± 19382",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and get",
+            "value": 148442,
+            "range": "± 1060",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and remove",
+            "value": 169787,
+            "range": "± 225",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt load and decode/0",
+            "value": 33292,
+            "range": "± 97",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt set and encode",
+            "value": 168442,
+            "range": "± 322",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter add",
+            "value": 7525,
+            "range": "± 21",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter contains",
+            "value": 9776,
+            "range": "± 19",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter saturate",
+            "value": 40467,
+            "range": "± 49",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter encode",
+            "value": 174,
+            "range": "± 4",
             "unit": "ns/iter"
           },
           {
