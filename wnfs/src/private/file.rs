@@ -1,6 +1,6 @@
 use super::{
     encrypted::Encrypted, namefilter::Namefilter, AesKey, PrivateForest, PrivateNodeHeader,
-    SnapshotKey, AUTHENTICATION_TAG_SIZE, NONCE_SIZE,
+    PrivateRef, SnapshotKey, AUTHENTICATION_TAG_SIZE, NONCE_SIZE,
 };
 use crate::{
     utils, utils::get_random_bytes, BlockStore, FsError, Hasher, Id, Metadata, NodeType,
@@ -77,7 +77,7 @@ pub struct PrivateFile {
 
 #[derive(Debug)]
 pub struct PrivateFileContent {
-    persisted_as: OnceCell<Cid>,
+    pub(crate) persisted_as: OnceCell<Cid>,
     pub previous: BTreeSet<(usize, Encrypted<Cid>)>,
     pub metadata: Metadata,
     pub(crate) content: FileContent,
@@ -198,7 +198,6 @@ impl PrivateFile {
             },
         })
     }
-
     /// Streams the content of a file as chunk of blocks.
     ///
     /// # Examples
@@ -432,33 +431,41 @@ impl PrivateFile {
         label
     }
 
+    pub(crate) fn get_ref_if_stored(&self) -> Option<PrivateRef> {
+        self.content.persisted_as.get().map(|content_cid| {
+            self.header
+                .derive_revision_ref()
+                .as_private_ref(*content_cid)
+        })
+    }
+
     /// This should be called to prepare a node for modifications,
     /// if it's meant to be a successor revision of the current revision.
     ///
     /// It will store the current revision in the given `BlockStore` to
     /// retrieve its CID and put that into the `previous` links,
     /// as well as advancing the ratchet and resetting the `persisted_as` pointer.
-    pub(crate) async fn prepare_next_revision(
-        self: Rc<Self>,
-        store: &mut impl BlockStore,
-        rng: &mut impl RngCore,
-    ) -> Result<Self> {
+    pub(crate) fn prepare_next_revision(self: Rc<Self>) -> Result<Self> {
+        let previous_cid = match self.content.persisted_as.get() {
+            Some(cid) => *cid,
+            None => {
+                // The current revision wasn't written yet.
+                // There's no point in advancing the revision even further.
+                return Ok(Rc::try_unwrap(self).unwrap_or_else(|rc| (*rc).clone()));
+            }
+        };
+
         let temporal_key = self.header.derive_temporal_key();
-        let snapshot_key = temporal_key.derive_snapshot_key();
-        let header_cid = self.header.store(store).await?;
-        let content_cid = self
-            .content
-            .store(header_cid, &snapshot_key, store, rng)
-            .await?;
 
         let mut cloned = Rc::try_unwrap(self).unwrap_or_else(|rc| (*rc).clone());
-
-        cloned.content.persisted_as = OnceCell::new(); // Also done in `.clone()`, but need this to work in case try_unwrap optimizes.
         cloned.content.previous.clear();
         cloned
             .content
             .previous
-            .insert((1, Encrypted::from_value(content_cid, &temporal_key)?));
+            .insert((1, Encrypted::from_value(previous_cid, &temporal_key)?));
+
+        // We make sure to clear any cached states.
+        cloned.content.persisted_as = OnceCell::new();
 
         cloned.header.advance_ratchet();
 

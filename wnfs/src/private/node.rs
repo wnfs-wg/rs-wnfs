@@ -495,8 +495,36 @@ impl PrivateNode {
         rng: &mut impl RngCore,
     ) -> Result<(Cid, Cid)> {
         match self {
-            PrivateNode::File(file) => file.store(store, rng).await,
-            PrivateNode::Dir(dir) => dir.store(forest, store, rng).await,
+            Self::File(file) => file.store(store, rng).await,
+            Self::Dir(dir) => dir.store(forest, store, rng).await,
+        }
+    }
+
+    pub(crate) async fn resolve_ref(
+        &self,
+        forest: &mut Rc<PrivateForest>,
+        store: &mut impl BlockStore,
+        rng: &mut impl RngCore,
+    ) -> Result<PrivateRef> {
+        // TODO(matheus23) this is identical to PrivateForest::put
+        let (header_cid, content_cid) = self.store(forest, store, rng).await?;
+        let name = self.get_header().get_saturated_name();
+
+        forest
+            .put_encrypted(name, [header_cid, content_cid], store)
+            .await?;
+
+        Ok(self
+            .get_header()
+            .derive_revision_ref()
+            .as_private_ref(content_cid))
+    }
+
+    // TODO(matheus23) this seems weird. Take another look!
+    pub(crate) fn get_ref_if_stored(&self) -> Option<PrivateRef> {
+        match self {
+            Self::File(file) => file.get_ref_if_stored(),
+            Self::Dir(dir) => dir.get_ref_if_stored(),
         }
     }
 }

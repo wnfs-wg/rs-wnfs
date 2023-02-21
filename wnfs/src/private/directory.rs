@@ -52,7 +52,7 @@ pub struct PrivateDirectory {
 
 #[derive(Debug)]
 pub struct PrivateDirectoryContent {
-    persisted_as: OnceCell<Cid>,
+    pub(crate) persisted_as: OnceCell<Cid>,
     pub previous: BTreeSet<(usize, Encrypted<Cid>)>,
     pub metadata: Metadata,
     pub entries: BTreeMap<String, PrivateLink>,
@@ -194,6 +194,42 @@ impl PrivateDirectory {
         Ok(PrivateOpResult {
             root_dir: dir,
             result: (),
+        })
+    }
+
+    /// TODO(matheus23)
+    pub(crate) fn prepare_next_revision(self: Rc<Self>) -> Result<Self> {
+        let previous_cid = match self.content.persisted_as.get() {
+            Some(cid) => *cid,
+            None => {
+                // The current revision wasn't written yet.
+                // There's no point in advancing the revision even further.
+                return Ok(Rc::try_unwrap(self).unwrap_or_else(|rc| (*rc).clone()));
+            }
+        };
+
+        let temporal_key = self.header.derive_temporal_key();
+
+        let mut cloned = Rc::try_unwrap(self).unwrap_or_else(|rc| (*rc).clone());
+        cloned.content.previous.clear();
+        cloned
+            .content
+            .previous
+            .insert((1, Encrypted::from_value(previous_cid, &temporal_key)?));
+
+        // We make sure to clear any cached states.
+        cloned.content.persisted_as = OnceCell::new();
+
+        cloned.header.advance_ratchet();
+
+        Ok(cloned)
+    }
+
+    pub(crate) fn get_ref_if_stored(&self) -> Option<PrivateRef> {
+        self.content.persisted_as.get().map(|content_cid| {
+            self.header
+                .derive_revision_ref()
+                .as_private_ref(*content_cid)
         })
     }
 
@@ -365,17 +401,17 @@ impl PrivateDirectory {
     }
 
     /// Fix up `PathNodes` so that parents refer to the newly updated children.
-    fn fix_up_path_nodes(path_nodes: PrivatePathNodes) -> Rc<Self> {
+    fn fix_up_path_nodes(path_nodes: PrivatePathNodes) -> Result<Rc<Self>> {
         let mut working_dir = path_nodes.tail;
 
         for (dir, segment) in path_nodes.path.iter().rev() {
-            let mut dir = (**dir).clone();
+            let mut dir = Rc::clone(dir).prepare_next_revision()?;
             let link = PrivateLink::new(PrivateNode::Dir(working_dir));
             dir.content.entries.insert(segment.clone(), link);
             working_dir = Rc::new(dir);
         }
 
-        working_dir
+        Ok(working_dir)
     }
 
     /// Follows a path and fetches the node at the end of the path.
@@ -603,7 +639,7 @@ impl PrivateDirectory {
             .get_or_create_path_nodes(directory_path, search_latest, time, forest, store, rng)
             .await?;
 
-        let mut directory = (*directory_path_nodes.tail).clone();
+        let mut directory = directory_path_nodes.tail.prepare_next_revision()?;
 
         // Modify the file if it already exists, otherwise create a new file with expected content
         let file = match directory
@@ -611,7 +647,7 @@ impl PrivateDirectory {
             .await?
         {
             Some(PrivateNode::File(file_before)) => {
-                let mut file = file_before.prepare_next_revision(store, rng).await?;
+                let mut file = file_before.prepare_next_revision()?;
                 let content = PrivateFile::prepare_content(
                     &file.header.bare_name,
                     content,
@@ -649,7 +685,7 @@ impl PrivateDirectory {
 
         directory_path_nodes.tail = Rc::new(directory);
 
-        let root_dir = Self::fix_up_path_nodes(directory_path_nodes);
+        let root_dir = Self::fix_up_path_nodes(directory_path_nodes)?;
 
         // Fix up the file path
         Ok(PrivateOpResult {
@@ -823,7 +859,7 @@ impl PrivateDirectory {
             .get_or_create_path_nodes(path_segments, search_latest, time, forest, store, rng)
             .await?;
 
-        let root_dir = Self::fix_up_path_nodes(path_nodes);
+        let root_dir = Self::fix_up_path_nodes(path_nodes)?;
 
         Ok(PrivateOpResult {
             root_dir,
@@ -995,7 +1031,7 @@ impl PrivateDirectory {
             _ => bail!(FsError::NotFound),
         };
 
-        let mut directory = (*directory_path_nodes.tail).clone();
+        let mut directory = directory_path_nodes.tail.prepare_next_revision()?;
 
         // Remove the entry from its parent directory
         let Some(removed_link) = directory.content.entries.remove(node_name) else {
@@ -1007,7 +1043,7 @@ impl PrivateDirectory {
 
         directory_path_nodes.tail = Rc::new(directory);
 
-        let root_dir = Self::fix_up_path_nodes(directory_path_nodes);
+        let root_dir = Self::fix_up_path_nodes(directory_path_nodes)?;
 
         Ok(PrivateOpResult {
             root_dir,
@@ -1039,7 +1075,7 @@ impl PrivateDirectory {
             _ => bail!(FsError::NotFound),
         };
 
-        let mut directory = (*path_nodes.tail).clone();
+        let mut directory = path_nodes.tail.prepare_next_revision()?;
 
         ensure!(
             !directory.content.entries.contains_key(filename),
@@ -1058,7 +1094,7 @@ impl PrivateDirectory {
 
         path_nodes.tail = Rc::new(directory);
 
-        let root_dir = Self::fix_up_path_nodes(path_nodes);
+        let root_dir = Self::fix_up_path_nodes(path_nodes)?;
 
         Ok(PrivateOpResult {
             root_dir,
@@ -1710,7 +1746,7 @@ mod tests {
             rng,
         );
 
-        let root_dir = PrivateDirectory::fix_up_path_nodes(path_nodes.clone());
+        let root_dir = PrivateDirectory::fix_up_path_nodes(path_nodes.clone()).unwrap();
 
         let result = root_dir
             .get_path_nodes(&["Documents".into(), "Apps".into()], true, forest, store)
