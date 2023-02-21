@@ -1,7 +1,6 @@
 use super::{create_node_from_pairs, ChangeType};
 use crate::{
     private::{Node, Pointer, HAMT_BITMASK_BIT_SIZE},
-    utils::UnwrapOrClone,
     BlockStore, Hasher, Link, Pair,
 };
 use anyhow::{Ok, Result};
@@ -101,15 +100,9 @@ where
     }
 
     // Otherwise, get nodes from store.
-    let mut main_node = main_link
-        .resolve_owned_value(store)
-        .await?
-        .unwrap_or_clone()?;
+    let mut main_node = main_link.resolve_owned_value(store).await?;
 
-    let mut other_node = other_link
-        .resolve_owned_value(store)
-        .await?
-        .unwrap_or_clone()?;
+    let mut other_node = other_link.resolve_owned_value(store).await?;
 
     let mut changes = vec![];
     for index in 0..HAMT_BITMASK_BIT_SIZE {
@@ -139,10 +132,20 @@ where
             (true, true) => {
                 // Main and other have a value. They may be the same or different so we check.
                 let main_index = main_node.get_value_index(index);
-                let main_pointer = mem::take(main_node.pointers.get_mut(main_index).unwrap());
+                let main_pointer = mem::take(
+                    Rc::make_mut(&mut main_node)
+                        .pointers
+                        .get_mut(main_index)
+                        .unwrap(),
+                );
 
                 let other_index = other_node.get_value_index(index);
-                let other_pointer = mem::take(other_node.pointers.get_mut(other_index).unwrap());
+                let other_pointer = mem::take(
+                    Rc::make_mut(&mut other_node)
+                        .pointers
+                        .get_mut(other_index)
+                        .unwrap(),
+                );
 
                 changes.extend(
                     generate_modify_changes(main_pointer, other_pointer, depth, store).await?,

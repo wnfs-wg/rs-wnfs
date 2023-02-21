@@ -40,7 +40,7 @@ where
     for Pair { key, value } in values {
         let digest = &H::hash(&key);
         let hashnibbles = &mut HashNibbles::with_cursor(digest, depth);
-        node = node.set_value(hashnibbles, key, value, store).await?;
+        node.set_value(hashnibbles, key, value, store).await?;
     }
     Ok(node)
 }
