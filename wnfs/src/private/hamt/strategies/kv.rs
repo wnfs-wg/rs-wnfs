@@ -1,5 +1,3 @@
-#![cfg(test)]
-
 use crate::{private::Node, BlockStore};
 use anyhow::Result;
 use proptest::{collection::vec, sample::SizeRange, strategy::Strategy};
@@ -10,7 +8,7 @@ use std::{collections::HashMap, fmt::Debug, hash::Hash, rc::Rc};
 // Functions
 //--------------------------------------------------------------------------------------------------
 
-pub(crate) fn generate_kvs<K: Debug + Clone, V: Debug + Clone>(
+pub fn generate_kvs<K: Debug + Clone, V: Debug + Clone>(
     key: impl Strategy<Value = K>,
     value: impl Strategy<Value = V>,
     size: impl Into<SizeRange>,
@@ -26,7 +24,7 @@ where
     })
 }
 
-pub(crate) async fn node_from_kvs<K, V>(
+pub async fn node_from_kvs<K, V>(
     pairs: Vec<(K, V)>,
     store: &mut impl BlockStore,
 ) -> Result<Rc<Node<K, V>>>

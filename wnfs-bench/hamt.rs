@@ -1,17 +1,19 @@
+use async_std::task;
 use criterion::{
     async_executor::AsyncStdExecutor, black_box, criterion_group, criterion_main, BatchSize,
     Criterion, Throughput,
 };
 use proptest::{arbitrary::any, collection::vec, test_runner::TestRunner};
-use std::{rc::Rc, sync::Arc};
+use std::{cmp, rc::Rc, sync::Arc};
 use wnfs::{
     dagcbor,
     private::{
-        hamt::{Hamt, Node},
-        strategies::{node_from_operations, operations},
+        diff,
+        hamt::{self, Hamt, Node},
+        strategies::{generate_kvs, node_from_kvs, node_from_operations, operations},
     },
     utils::Sampleable,
-    BlockStore, MemoryBlockStore,
+    BlockStore, Link, MemoryBlockStore,
 };
 
 fn node_set(c: &mut Criterion) {
@@ -183,6 +185,69 @@ fn hamt_set_encode(c: &mut Criterion) {
     });
 }
 
+fn hamt_diff(c: &mut Criterion) {
+    let mut runner = TestRunner::deterministic();
+
+    c.bench_function("hamt diff", |b| {
+        b.to_async(AsyncStdExecutor).iter_batched(
+            || {
+                let mut store = MemoryBlockStore::default();
+                let kvs1 = generate_kvs("[a-z0-9]{1,3}", 0u64..1000, 0..100).sample(&mut runner);
+                let kvs2 = generate_kvs("[a-z0-9]{1,3}", 0u64..1000, 0..100).sample(&mut runner);
+                let (node1, node2) = task::block_on(async {
+                    (
+                        node_from_kvs(kvs1, &mut store).await.unwrap(),
+                        node_from_kvs(kvs2, &mut store).await.unwrap(),
+                    )
+                });
+                (store, (node1, node2))
+            },
+            |(mut store, (node1, node2))| async move {
+                black_box(
+                    diff::kv_diff(Link::from(node1), Link::from(node2), &mut store)
+                        .await
+                        .unwrap(),
+                );
+            },
+            BatchSize::SmallInput,
+        );
+    });
+}
+
+fn hamt_merge(c: &mut Criterion) {
+    let mut runner = TestRunner::deterministic();
+
+    c.bench_function("hamt merge", |b| {
+        b.to_async(AsyncStdExecutor).iter_batched(
+            || {
+                let mut store = MemoryBlockStore::default();
+                let kvs1 = generate_kvs("[a-z0-9]{1,3}", 0u64..1000, 0..100).sample(&mut runner);
+                let kvs2 = generate_kvs("[a-z0-9]{1,3}", 0u64..1000, 0..100).sample(&mut runner);
+                let (node1, node2) = task::block_on(async {
+                    (
+                        node_from_kvs(kvs1, &mut store).await.unwrap(),
+                        node_from_kvs(kvs2, &mut store).await.unwrap(),
+                    )
+                });
+                (store, (node1, node2))
+            },
+            |(mut store, (node1, node2))| async move {
+                black_box(
+                    hamt::merge(
+                        Link::from(node1),
+                        Link::from(node2),
+                        |a, b| Ok(cmp::min(*a, *b)),
+                        &mut store,
+                    )
+                    .await
+                    .unwrap(),
+                );
+            },
+            BatchSize::SmallInput,
+        );
+    });
+}
+
 criterion_group!(
     benches,
     node_set,
@@ -190,7 +255,9 @@ criterion_group!(
     node_load_get,
     node_load_remove,
     hamt_load_decode,
-    hamt_set_encode
+    hamt_set_encode,
+    hamt_diff,
+    hamt_merge
 );
 
 criterion_main!(benches);
