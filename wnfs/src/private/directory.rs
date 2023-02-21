@@ -1783,10 +1783,20 @@ mod tests {
             .await
             .unwrap();
 
+        forest
+            .put(&PrivateNode::Dir(Rc::clone(&root_dir)), store, rng)
+            .await
+            .unwrap();
+
         let old_root = Rc::clone(&root_dir);
 
         let PrivateOpResult { root_dir, .. } = root_dir
             .write(&path, true, Utc::now(), b"Two".to_vec(), forest, store, rng)
+            .await
+            .unwrap();
+
+        forest
+            .put(&PrivateNode::Dir(Rc::clone(&root_dir)), store, rng)
             .await
             .unwrap();
 
@@ -2163,7 +2173,7 @@ mod tests {
     }
 
     #[async_std::test]
-    async fn write_generates_previous_link() {
+    async fn write_doesnt_generate_previous_link() {
         let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
         let store = &mut MemoryBlockStore::new();
         let forest = &mut Rc::new(PrivateForest::new());
@@ -2172,6 +2182,41 @@ mod tests {
             Utc::now(),
             rng,
         ));
+
+        let PrivateOpResult {
+            root_dir: new_dir, ..
+        } = Rc::clone(&old_dir)
+            .write(
+                &["file.txt".into()],
+                false,
+                Utc::now(),
+                b"Hello".to_vec(),
+                forest,
+                store,
+                rng,
+            )
+            .await
+            .unwrap();
+
+        assert!(old_dir.content.previous.is_empty());
+        assert!(new_dir.content.previous.is_empty());
+    }
+
+    #[async_std::test]
+    async fn store_before_write_forces_previous_link() {
+        let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
+        let store = &mut MemoryBlockStore::new();
+        let forest = &mut Rc::new(PrivateForest::new());
+        let old_dir = Rc::new(PrivateDirectory::new(
+            Namefilter::default(),
+            Utc::now(),
+            rng,
+        ));
+
+        forest
+            .put(&PrivateNode::Dir(Rc::clone(&old_dir)), store, rng)
+            .await
+            .unwrap();
 
         let PrivateOpResult {
             root_dir: new_dir, ..

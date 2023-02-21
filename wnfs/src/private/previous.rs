@@ -572,8 +572,18 @@ mod tests {
             .await
             .unwrap();
 
+        forest
+            .put(&PrivateNode::Dir(Rc::clone(&root_dir)), store, rng)
+            .await
+            .unwrap();
+
         let PrivateOpResult { root_dir, .. } = root_dir
             .mkdir(&["docs".into()], true, Utc::now(), forest, store, rng)
+            .await
+            .unwrap();
+
+        forest
+            .put(&PrivateNode::Dir(Rc::clone(&root_dir)), store, rng)
             .await
             .unwrap();
 
@@ -650,6 +660,11 @@ mod tests {
             .await
             .unwrap();
 
+        forest
+            .put(&PrivateNode::Dir(Rc::clone(&root_dir)), store, rng)
+            .await
+            .unwrap();
+
         let PrivateOpResult { root_dir, .. } = root_dir
             .write(
                 &path,
@@ -660,6 +675,11 @@ mod tests {
                 store,
                 rng,
             )
+            .await
+            .unwrap();
+
+        forest
+            .put(&PrivateNode::Dir(Rc::clone(&root_dir)), store, rng)
             .await
             .unwrap();
 
@@ -749,6 +769,11 @@ mod tests {
             .await
             .unwrap();
 
+        forest
+            .put(&PrivateNode::Dir(Rc::clone(&root_dir)), store, rng)
+            .await
+            .unwrap();
+
         let PrivateOpResult {
             root_dir,
             result: docs_dir,
@@ -760,7 +785,9 @@ mod tests {
 
         let docs_dir = docs_dir.unwrap().as_dir().unwrap();
 
-        docs_dir
+        let PrivateOpResult {
+            root_dir: docs_dir, ..
+        } = docs_dir
             .write(
                 &["Notes.md".into()],
                 true,
@@ -770,6 +797,11 @@ mod tests {
                 store,
                 rng,
             )
+            .await
+            .unwrap();
+
+        forest
+            .put(&PrivateNode::Dir(Rc::clone(&docs_dir)), store, rng)
             .await
             .unwrap();
 
@@ -860,6 +892,11 @@ mod tests {
             .await
             .unwrap();
 
+        forest
+            .put(&PrivateNode::Dir(Rc::clone(&root_dir)), store, rng)
+            .await
+            .unwrap();
+
         let past_ratchet = root_dir.header.ratchet.clone();
 
         let PrivateOpResult {
@@ -873,7 +910,9 @@ mod tests {
 
         let docs_dir = docs_dir.unwrap().as_dir().unwrap();
 
-        docs_dir
+        let PrivateOpResult {
+            root_dir: docs_dir, ..
+        } = docs_dir
             .write(
                 &["Notes.md".into()],
                 true,
@@ -883,6 +922,11 @@ mod tests {
                 store,
                 rng,
             )
+            .await
+            .unwrap();
+
+        forest
+            .put(&PrivateNode::Dir(Rc::clone(&docs_dir)), store, rng)
             .await
             .unwrap();
 
@@ -896,6 +940,11 @@ mod tests {
                 store,
                 rng,
             )
+            .await
+            .unwrap();
+
+        forest
+            .put(&PrivateNode::Dir(Rc::clone(&root_dir)), store, rng)
             .await
             .unwrap();
 
@@ -997,6 +1046,11 @@ mod tests {
                 store,
                 rng,
             )
+            .await
+            .unwrap();
+
+        forest
+            .put(&PrivateNode::Dir(Rc::clone(&root_dir)), store, rng)
             .await
             .unwrap();
 
