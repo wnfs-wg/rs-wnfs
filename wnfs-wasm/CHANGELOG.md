@@ -8,6 +8,24 @@
   * dependencies
     * wnfs bumped from 0.1.12 to 0.1.13
 
+## [0.2.0](https://github.com/wnfs-wg/rs-wnfs/compare/wnfs-wasm-v0.1.15...wnfs-wasm-v0.2.0) (2023-02-22)
+
+
+### ⚠ BREAKING CHANGES
+
+* **exports:** make re-exports more flexible ([#167](https://github.com/wnfs-wg/rs-wnfs/issues/167))
+
+### Miscellaneous Chores
+
+* **exports:** make re-exports more flexible ([#167](https://github.com/wnfs-wg/rs-wnfs/issues/167)) ([d7870bc](https://github.com/wnfs-wg/rs-wnfs/commit/d7870bc78660458fe9c5252c551a474dcdd045f2))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * wnfs bumped from 0.1.15 to 0.2.0
+
 ## [0.1.15](https://github.com/wnfs-wg/rs-wnfs/compare/wnfs-wasm-v0.1.14...wnfs-wasm-v0.1.15) (2023-02-16)
 
 
