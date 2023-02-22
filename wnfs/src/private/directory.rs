@@ -52,7 +52,7 @@ pub struct PrivateDirectory {
 
 #[derive(Debug)]
 pub struct PrivateDirectoryContent {
-    pub(crate) persisted_as: OnceCell<Cid>,
+    persisted_as: OnceCell<Cid>,
     pub previous: BTreeSet<(usize, Encrypted<Cid>)>,
     pub metadata: Metadata,
     pub entries: BTreeMap<String, PrivateLink>,
@@ -190,42 +190,6 @@ impl PrivateDirectory {
         Ok(PrivateOpResult {
             root_dir: dir,
             result: (),
-        })
-    }
-
-    /// TODO(matheus23)
-    pub(crate) fn prepare_next_revision(self: Rc<Self>) -> Result<Self> {
-        let previous_cid = match self.content.persisted_as.get() {
-            Some(cid) => *cid,
-            None => {
-                // The current revision wasn't written yet.
-                // There's no point in advancing the revision even further.
-                return Ok(Rc::try_unwrap(self).unwrap_or_else(|rc| (*rc).clone()));
-            }
-        };
-
-        let temporal_key = self.header.derive_temporal_key();
-
-        let mut cloned = Rc::try_unwrap(self).unwrap_or_else(|rc| (*rc).clone());
-        cloned.content.previous.clear();
-        cloned
-            .content
-            .previous
-            .insert((1, Encrypted::from_value(previous_cid, &temporal_key)?));
-
-        // We make sure to clear any cached states.
-        cloned.content.persisted_as = OnceCell::new();
-
-        cloned.header.advance_ratchet();
-
-        Ok(cloned)
-    }
-
-    pub(crate) fn get_ref_if_stored(&self) -> Option<PrivateRef> {
-        self.content.persisted_as.get().map(|content_cid| {
-            self.header
-                .derive_revision_ref()
-                .as_private_ref(*content_cid)
         })
     }
 
@@ -375,6 +339,42 @@ impl PrivateDirectory {
                 })
             }
         }
+    }
+
+    /// TODO(matheus23)
+    pub(crate) fn prepare_next_revision(self: Rc<Self>) -> Result<Self> {
+        let previous_cid = match self.content.persisted_as.get() {
+            Some(cid) => *cid,
+            None => {
+                // The current revision wasn't written yet.
+                // There's no point in advancing the revision even further.
+                return Ok(Rc::try_unwrap(self).unwrap_or_else(|rc| (*rc).clone()));
+            }
+        };
+
+        let temporal_key = self.header.derive_temporal_key();
+
+        let mut cloned = Rc::try_unwrap(self).unwrap_or_else(|rc| (*rc).clone());
+        cloned.content.previous.clear();
+        cloned
+            .content
+            .previous
+            .insert((1, Encrypted::from_value(previous_cid, &temporal_key)?));
+
+        // We make sure to clear any cached states.
+        cloned.content.persisted_as = OnceCell::new();
+
+        cloned.header.advance_ratchet();
+
+        Ok(cloned)
+    }
+
+    pub(crate) fn get_ref_if_stored(&self) -> Option<PrivateRef> {
+        self.content.persisted_as.get().map(|content_cid| {
+            self.header
+                .derive_revision_ref()
+                .as_private_ref(*content_cid)
+        })
     }
 
     /// This prepares this directory for key rotation, usually for moving or
