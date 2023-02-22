@@ -8,9 +8,9 @@ use async_once_cell::OnceCell;
 use chrono::{DateTime, Utc};
 use libipld::Cid;
 use semver::Version;
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use serde::{de::Error as DeError, Deserialize, Deserializer, Serialize, Serializer};
 
-use crate::{BlockStore, Id, Metadata, NodeType, RemembersPersistence};
+use crate::{BlockStore, FsError, Id, Metadata, NodeType, RemembersPersistence};
 
 /// Represents a file in the WNFS public filesystem.
 ///
@@ -28,7 +28,6 @@ use crate::{BlockStore, Id, Metadata, NodeType, RemembersPersistence};
 #[derive(Debug)]
 pub struct PublicFile {
     persisted_as: OnceCell<Cid>,
-    pub version: Version,
     pub metadata: Metadata,
     pub userland: Cid,
     pub previous: BTreeSet<Cid>,
@@ -38,9 +37,9 @@ pub struct PublicFile {
 struct PublicFileSerializable {
     r#type: NodeType,
     version: Version,
-    pub metadata: Metadata,
-    pub userland: Cid,
-    pub previous: Vec<Cid>,
+    metadata: Metadata,
+    userland: Cid,
+    previous: Vec<Cid>,
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -64,7 +63,6 @@ impl PublicFile {
     pub fn new(time: DateTime<Utc>, content_cid: Cid) -> Self {
         Self {
             persisted_as: OnceCell::new(),
-            version: Version::new(0, 2, 0),
             metadata: Metadata::new(time),
             userland: content_cid,
             previous: BTreeSet::new(),
@@ -127,7 +125,7 @@ impl Serialize for PublicFile {
     {
         PublicFileSerializable {
             r#type: NodeType::PublicFile,
-            version: self.version.clone(),
+            version: Version::new(0, 2, 0),
             metadata: self.metadata.clone(),
             userland: self.userland,
             previous: self.previous.iter().cloned().collect(),
@@ -142,16 +140,23 @@ impl<'de> Deserialize<'de> for PublicFile {
         D: Deserializer<'de>,
     {
         let PublicFileSerializable {
+            r#type,
             version,
             metadata,
             userland,
             previous,
-            ..
         } = PublicFileSerializable::deserialize(deserializer)?;
+
+        if version.major != 0 || version.minor != 2 {
+            return Err(DeError::custom(FsError::UnexpectedVersion(version)));
+        }
+
+        if r#type != NodeType::PublicFile {
+            return Err(DeError::custom(FsError::UnexpectedNodeType(r#type)));
+        }
 
         Ok(Self {
             persisted_as: OnceCell::new(),
-            version,
             metadata,
             userland,
             previous: previous.iter().cloned().collect(),
@@ -167,8 +172,7 @@ impl Id for PublicFile {
 
 impl PartialEq for PublicFile {
     fn eq(&self, other: &Self) -> bool {
-        self.version == other.version
-            && self.metadata == other.metadata
+        self.metadata == other.metadata
             && self.userland == other.userland
             && self.previous == other.previous
     }
@@ -178,7 +182,6 @@ impl Clone for PublicFile {
     fn clone(&self) -> Self {
         Self {
             persisted_as: OnceCell::new_with(self.persisted_as.get().cloned()),
-            version: self.version.clone(),
             metadata: self.metadata.clone(),
             userland: self.userland,
             previous: self.previous.clone(),

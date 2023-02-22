@@ -16,7 +16,9 @@ use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use libipld::Cid;
 use semver::Version;
-use serde::{ser::Error as SerError, Deserialize, Deserializer, Serialize, Serializer};
+use serde::{
+    de::Error as DeError, ser::Error as SerError, Deserialize, Deserializer, Serialize, Serializer,
+};
 
 use super::{PublicFile, PublicLink, PublicNode};
 
@@ -42,7 +44,6 @@ pub type PublicPathNodesResult = PathNodesResult<PublicDirectory>;
 #[derive(Debug)]
 pub struct PublicDirectory {
     persisted_as: OnceCell<Cid>,
-    pub version: Version,
     pub metadata: Metadata,
     pub userland: BTreeMap<String, PublicLink>,
     pub previous: BTreeSet<Cid>,
@@ -86,7 +87,6 @@ impl PublicDirectory {
     pub fn new(time: DateTime<Utc>) -> Self {
         Self {
             persisted_as: OnceCell::new(),
-            version: Version::new(0, 2, 0),
             metadata: Metadata::new(time),
             userland: BTreeMap::new(),
             previous: BTreeSet::new(),
@@ -869,8 +869,7 @@ impl Id for PublicDirectory {
 
 impl PartialEq for PublicDirectory {
     fn eq(&self, other: &Self) -> bool {
-        self.version == other.version
-            && self.metadata == other.metadata
+        self.metadata == other.metadata
             && self.userland == other.userland
             && self.previous == other.previous
     }
@@ -880,7 +879,6 @@ impl Clone for PublicDirectory {
     fn clone(&self) -> Self {
         Self {
             persisted_as: OnceCell::new_with(self.persisted_as.get().cloned()),
-            version: self.version.clone(),
             metadata: self.metadata.clone(),
             userland: self.userland.clone(),
             previous: self.previous.clone(),
@@ -915,7 +913,7 @@ impl AsyncSerialize for PublicDirectory {
 
         (PublicDirectorySerializable {
             r#type: NodeType::PublicDirectory,
-            version: self.version.clone(),
+            version: Version::new(0, 2, 0),
             metadata: self.metadata.clone(),
             userland: encoded_userland,
             previous: self.previous.iter().cloned().collect(),
@@ -930,12 +928,20 @@ impl<'de> Deserialize<'de> for PublicDirectory {
         D: Deserializer<'de>,
     {
         let PublicDirectorySerializable {
+            r#type,
             version,
             metadata,
             userland,
             previous,
-            ..
         } = PublicDirectorySerializable::deserialize(deserializer)?;
+
+        if version.major != 0 || version.minor != 2 {
+            return Err(DeError::custom(FsError::UnexpectedVersion(version)));
+        }
+
+        if r#type != NodeType::PrivateDirectory {
+            return Err(DeError::custom(FsError::UnexpectedNodeType(r#type)));
+        }
 
         let userland = userland
             .into_iter()
@@ -944,7 +950,6 @@ impl<'de> Deserialize<'de> for PublicDirectory {
 
         Ok(Self {
             persisted_as: OnceCell::new(),
-            version,
             metadata,
             userland,
             previous: previous.iter().cloned().collect(),
