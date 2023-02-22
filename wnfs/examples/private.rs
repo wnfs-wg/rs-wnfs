@@ -7,7 +7,7 @@ use rand::{thread_rng, RngCore};
 use std::rc::Rc;
 use wnfs::{
     private::{PrivateForest, PrivateRef},
-    BlockStore, MemoryBlockStore, Namefilter, PrivateDirectory, PrivateOpResult,
+    BlockStore, MemoryBlockStore, Namefilter, PrivateDirectory, PrivateNode, PrivateOpResult,
 };
 
 #[async_std::main]
@@ -28,7 +28,9 @@ async fn main() {
         .unwrap();
 
     // Fetch and decrypt a directory from the private forest using provided private ref.
-    let dir = forest.get(&private_ref, store).await.unwrap();
+    let dir = PrivateNode::load(&private_ref, &forest, store)
+        .await
+        .unwrap();
 
     // Print the directory.
     println!("{:#?}", dir);

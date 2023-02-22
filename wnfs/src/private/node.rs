@@ -445,12 +445,63 @@ impl PrivateNode {
             .collect())
     }
 
-    pub(crate) async fn load(
+    /// Tries to deserialize and decrypt a PrivateNode at provided PrivateRef.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use std::rc::Rc;
+    /// use chrono::Utc;
+    /// use rand::thread_rng;
+    /// use wnfs::{
+    ///     private::{PrivateForest, PrivateRef}, PrivateNode,
+    ///     BlockStore, MemoryBlockStore, Namefilter, PrivateDirectory, PrivateOpResult,
+    /// };
+    ///
+    /// #[async_std::main]
+    /// async fn main() {
+    ///     let store = &mut MemoryBlockStore::default();
+    ///     let rng = &mut thread_rng();
+    ///     let forest = &mut Rc::new(PrivateForest::new());
+    ///     let dir = Rc::new(PrivateDirectory::new(
+    ///         Namefilter::default(),
+    ///         Utc::now(),
+    ///         rng,
+    ///     ));
+    ///
+    ///     let node = PrivateNode::Dir(dir);
+    ///
+    ///     let private_ref = node.store(forest, store, rng).await.unwrap();
+    ///
+    ///     assert_eq!(
+    ///         PrivateNode::load(&private_ref, forest, store).await.unwrap(),
+    ///         node
+    ///     );
+    /// }
+    /// ```
+    pub async fn load(
         private_ref: &PrivateRef,
+        forest: &PrivateForest,
         store: &impl BlockStore,
     ) -> Result<PrivateNode> {
-        let encrypted_bytes = store.get_block(&private_ref.content_cid).await?;
-        let snapshot_key = private_ref.temporal_key.derive_snapshot_key();
+        let cid = match forest
+            .get_encrypted(&private_ref.saturated_name_hash, store)
+            .await?
+        {
+            Some(cids) if cids.contains(&private_ref.content_cid) => private_ref.content_cid,
+            _ => return Err(FsError::NotFound.into()),
+        };
+
+        Self::from_cid(cid, &private_ref.temporal_key, store).await
+    }
+
+    pub(crate) async fn from_cid(
+        cid: Cid,
+        temporal_key: &TemporalKey,
+        store: &impl BlockStore,
+    ) -> Result<PrivateNode> {
+        let encrypted_bytes = store.get_block(&cid).await?;
+        let snapshot_key = temporal_key.derive_snapshot_key();
         let bytes = snapshot_key.decrypt(&encrypted_bytes)?;
         let ipld = dagcbor::decode(&bytes)?;
 
@@ -463,24 +514,20 @@ impl PrivateNode {
 
                 Ok(match r#type {
                     NodeType::PrivateFile => {
-                        let (content, header_cid) = PrivateFileContent::deserialize(
-                            Ipld::Map(map),
-                            private_ref.content_cid,
-                        )?;
+                        let (content, header_cid) =
+                            PrivateFileContent::deserialize(Ipld::Map(map), cid)?;
                         let header =
-                            PrivateNodeHeader::load(&header_cid, &private_ref.temporal_key, store)
-                                .await?;
+                            PrivateNodeHeader::load(&header_cid, temporal_key, store).await?;
                         PrivateNode::File(Rc::new(PrivateFile { header, content }))
                     }
                     NodeType::PrivateDirectory => {
                         let (content, header_cid) = PrivateDirectoryContent::deserialize(
                             Ipld::Map(map),
-                            &private_ref.temporal_key,
-                            private_ref.content_cid,
+                            temporal_key,
+                            cid,
                         )?;
                         let header =
-                            PrivateNodeHeader::load(&header_cid, &private_ref.temporal_key, store)
-                                .await?;
+                            PrivateNodeHeader::load(&header_cid, temporal_key, store).await?;
                         PrivateNode::Dir(Rc::new(PrivateDirectory { header, content }))
                     }
                     other => bail!(FsError::UnexpectedNodeType(other)),
@@ -894,7 +941,9 @@ mod tests {
         let file = PrivateNode::File(Rc::new(file));
         let private_ref = file.store(forest, store, rng).await.unwrap();
 
-        let deserialized_node = PrivateNode::load(&private_ref, store).await.unwrap();
+        let deserialized_node = PrivateNode::load(&private_ref, forest, store)
+            .await
+            .unwrap();
 
         assert_eq!(file, deserialized_node);
     }

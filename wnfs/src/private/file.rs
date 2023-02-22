@@ -531,7 +531,10 @@ impl PrivateFile {
     ///
     ///     let node = PrivateNode::File(Rc::clone(&file));
     ///
-    ///     assert_eq!(forest.get(&private_ref, store).await.unwrap(), node);
+    ///     assert_eq!(
+    ///         PrivateNode::load(&private_ref, forest, store).await.unwrap(),
+    ///         node
+    ///     );
     /// }
     /// ```
     pub async fn store(

@@ -49,6 +49,24 @@ impl PrivateNode {
         }))
     }
 
+    pub fn load(
+        private_ref: PrivateRef,
+        forest: &PrivateForest,
+        store: BlockStore,
+    ) -> JsResult<Promise> {
+        let store = ForeignBlockStore(store);
+        let forest = Rc::clone(&forest.0);
+        let private_ref = private_ref.try_into()?;
+
+        Ok(future_to_promise(async move {
+            let node = WnfsPrivateNode::load(&private_ref, &forest, &store)
+                .await
+                .map_err(error("Cannot load node"))?;
+
+            Ok(value!(PrivateNode(node)))
+        }))
+    }
+
     #[wasm_bindgen(js_name = "asDir")]
     pub fn as_dir(&self) -> JsResult<PrivateDirectory> {
         let dir = self

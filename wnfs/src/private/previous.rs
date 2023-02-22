@@ -120,16 +120,15 @@ impl PrivateNodeHistory {
 
         self.header.ratchet = previous_ratchet;
 
-        let previous_node = self
-            .forest
-            .get(
-                &self
-                    .header
-                    .derive_revision_ref()
-                    .as_private_ref(previous_cid),
-                store,
-            )
-            .await?;
+        let previous_node = PrivateNode::load(
+            &self
+                .header
+                .derive_revision_ref()
+                .as_private_ref(previous_cid),
+            &self.forest,
+            store,
+        )
+        .await?;
 
         self.previous = previous_node.get_previous().clone();
         Ok(Some(previous_node))

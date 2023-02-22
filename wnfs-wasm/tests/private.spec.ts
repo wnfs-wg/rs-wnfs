@@ -440,7 +440,7 @@ test.describe("PrivateFile", () => {
 });
 
 test.describe("PrivateForest", () => {
-  test("put returns a PrivateRef", async ({ page }) => {
+  test("store returns a PrivateRef", async ({ page }) => {
     const result = await page.evaluate(async () => {
       const {
         wnfs: { Namefilter, PrivateFile, PrivateForest, PrivateRef },
@@ -467,10 +467,10 @@ test.describe("PrivateForest", () => {
     expect(result.contentCid).toBeDefined();
   });
 
-  test("get returns what was put", async ({ page }) => {
+  test("load returns what was stored", async ({ page }) => {
     const [metadataBefore, metadataAfter] = await page.evaluate(async () => {
       const {
-        wnfs: { Namefilter, PrivateFile, PrivateForest },
+        wnfs: { Namefilter, PrivateFile, PrivateNode, PrivateForest },
         mock: { MemoryBlockStore, Rng }
       } = await window.setup();
 
@@ -481,7 +481,7 @@ test.describe("PrivateForest", () => {
       const node = file.asNode();
       const forest = new PrivateForest();
       const [privateRef, newForest] = await node.store(forest, store, rng);
-      const fetched = await newForest.get(privateRef, store);
+      const fetched = await PrivateNode.load(privateRef, newForest, store);
       const metadataBefore = node.asFile().metadata();
       const metadataAfter = fetched.asFile().metadata();
       return [metadataBefore, metadataAfter];

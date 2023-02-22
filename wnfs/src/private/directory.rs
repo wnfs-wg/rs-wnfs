@@ -1316,7 +1316,10 @@ impl PrivateDirectory {
     ///
     ///     let node = PrivateNode::Dir(Rc::clone(&dir));
     ///
-    ///     assert_eq!(forest.get(&private_ref, store).await.unwrap(), node);
+    ///     assert_eq!(
+    ///         PrivateNode::load(&private_ref, forest, store).await.unwrap(),
+    ///         node
+    ///     );
     /// }
     /// ```
     pub async fn store(

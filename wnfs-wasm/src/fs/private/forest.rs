@@ -1,4 +1,3 @@
-use super::{PrivateNode, PrivateRef};
 use crate::{
     fs::{utils::error, BlockStore, ForeignBlockStore, JsResult},
     value,
@@ -61,22 +60,6 @@ impl PrivateForest {
             let cid_u8array = Uint8Array::from(&cid.to_bytes()[..]);
 
             Ok(value!(cid_u8array))
-        }))
-    }
-
-    pub fn get(&self, private_ref: PrivateRef, store: BlockStore) -> JsResult<Promise> {
-        let store = ForeignBlockStore(store);
-        let forest = Rc::clone(&self.0);
-
-        Ok(future_to_promise(async move {
-            let private_ref = private_ref.try_into()?;
-
-            let node = forest
-                .get(&private_ref, &store)
-                .await
-                .map_err(error("Error in private forest 'get'"))?;
-
-            Ok(value!(PrivateNode(node)))
         }))
     }
 }
