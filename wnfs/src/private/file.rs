@@ -10,7 +10,7 @@ use anyhow::Result;
 use async_once_cell::OnceCell;
 use async_stream::try_stream;
 use chrono::{DateTime, Utc};
-use futures::{future, Stream, StreamExt};
+use futures::{future, AsyncRead, Stream, StreamExt};
 use libipld::{cbor::DagCborCodec, prelude::Encode, Cid, IpldCodec};
 use rand_core::RngCore;
 use semver::Version;
@@ -199,6 +199,71 @@ impl PrivateFile {
         })
     }
 
+    /// Creates a file with provided content as a stream.
+    ///
+    /// Depending on the BlockStore implementation this will
+    /// use essentially O(1) memory (roughly `2 * MAX_BLOCK_CONTENT_SIZE` bytes).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use std::rc::Rc;
+    /// use async_std::fs::File;
+    /// use chrono::Utc;
+    /// use rand::thread_rng;
+    /// use wnfs::{
+    ///     private::{PrivateForest, PrivateRef},
+    ///     MemoryBlockStore, Namefilter, PrivateFile,
+    ///     MAX_BLOCK_SIZE
+    /// };
+    ///
+    /// #[async_std::main]
+    /// async fn main() {
+    ///     let disk_file = File::open("./test/fixtures/Clara Schumann, Scherzo no. 2, Op. 14.mp3")
+    ///         .await
+    ///         .unwrap();
+    ///
+    ///     let store = &mut MemoryBlockStore::default();
+    ///     let rng = &mut thread_rng();
+    ///     let forest = &mut Rc::new(PrivateForest::new());
+    ///
+    ///     let file = PrivateFile::with_content_streaming(
+    ///         Namefilter::default(),
+    ///         Utc::now(),
+    ///         disk_file,
+    ///         forest,
+    ///         store,
+    ///         rng,
+    ///     )
+    ///     .await
+    ///     .unwrap();
+    ///
+    ///     println!("file = {:?}", file);
+    /// }
+    /// ```
+    pub async fn with_content_streaming(
+        parent_bare_name: Namefilter,
+        time: DateTime<Utc>,
+        content: impl AsyncRead + Unpin,
+        forest: &mut Rc<PrivateForest>,
+        store: &mut impl BlockStore,
+        rng: &mut impl RngCore,
+    ) -> Result<Self> {
+        let header = PrivateNodeHeader::new(parent_bare_name, rng);
+        let content =
+            Self::prepare_content_streaming(&header.bare_name, content, forest, store, rng).await?;
+
+        Ok(Self {
+            header,
+            content: PrivateFileContent {
+                persisted_as: OnceCell::new(),
+                metadata: Metadata::new(time),
+                previous: BTreeSet::new(),
+                content,
+            },
+        })
+    }
+
     /// Streams the content of a file as chunk of blocks.
     ///
     /// # Examples
@@ -360,6 +425,60 @@ impl PrivateFile {
         Ok(FileContent::External {
             key,
             block_count,
+            block_content_size: MAX_BLOCK_CONTENT_SIZE,
+        })
+    }
+
+    /// Drains the content streamed-in and puts it into the private forest
+    /// as blocks of encrypted data.
+    /// Returns an external `FileContent` that contains necessary information
+    /// to later retrieve the data.
+    pub(super) async fn prepare_content_streaming(
+        bare_name: &Namefilter,
+        mut content: impl AsyncRead + Unpin,
+        forest: &mut Rc<PrivateForest>,
+        store: &mut impl BlockStore,
+        rng: &mut impl RngCore,
+    ) -> Result<FileContent> {
+        let key = SnapshotKey(AesKey::new(get_random_bytes(rng)));
+
+        let mut block_index = 0;
+
+        loop {
+            let mut current_block = vec![0u8; MAX_BLOCK_SIZE];
+            let nonce = SnapshotKey::generate_nonce(rng);
+            current_block[..NONCE_SIZE].copy_from_slice(&nonce);
+
+            // read up to MAX_BLOCK_CONTENT_SIZE content
+
+            let content_end = NONCE_SIZE + MAX_BLOCK_CONTENT_SIZE;
+            let (bytes_written, done) =
+                utils::read_fully(&mut content, &mut current_block[NONCE_SIZE..content_end])
+                    .await?;
+
+            // truncate the vector to its actual length.
+            current_block.truncate(bytes_written + NONCE_SIZE);
+
+            let tag = key.encrypt_in_place(&nonce, &mut current_block[NONCE_SIZE..])?;
+            current_block.extend_from_slice(&tag);
+
+            let content_cid = store.put_block(current_block, IpldCodec::Raw).await?;
+
+            let label = Self::create_block_label(&key, block_index, bare_name);
+            forest
+                .put_encrypted(label, Some(content_cid), store)
+                .await?;
+
+            block_index += 1;
+
+            if done {
+                break;
+            }
+        }
+
+        Ok(FileContent::External {
+            key,
+            block_count: block_index,
             block_content_size: MAX_BLOCK_CONTENT_SIZE,
         })
     }
@@ -630,7 +749,9 @@ impl Id for PrivateFile {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::utils::test_setup;
+    use crate::{utils::test_setup, MemoryBlockStore};
+    use async_std::fs::File;
+    use proptest::test_runner::{RngAlgorithm, TestRng};
     use rand::Rng;
 
     #[async_std::test]
@@ -666,6 +787,32 @@ mod tests {
         assert_eq!(
             collected_content,
             content[2 * MAX_BLOCK_CONTENT_SIZE..4 * MAX_BLOCK_CONTENT_SIZE]
+        );
+    }
+
+    #[async_std::test]
+    async fn can_construct_file_from_stream() {
+        let disk_file = File::open("./test/fixtures/Clara Schumann, Scherzo no. 2, Op. 14.mp3")
+            .await
+            .unwrap();
+
+        let forest = &mut Rc::new(PrivateForest::new());
+        let store = &mut MemoryBlockStore::new();
+        let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
+
+        let file = PrivateFile::with_content_streaming(
+            Namefilter::default(),
+            Utc::now(),
+            disk_file,
+            forest,
+            store,
+            rng,
+        )
+        .await
+        .unwrap();
+
+        assert!(
+            matches!(file.content.content, FileContent::External { block_count, .. } if block_count > 0)
         );
     }
 }
