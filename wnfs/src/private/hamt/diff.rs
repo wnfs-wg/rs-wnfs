@@ -1,4 +1,3 @@
-use super::{create_node_from_pairs, ChangeType};
 use crate::{
     private::{Node, Pointer, HAMT_BITMASK_BIT_SIZE},
     BlockStore, Hasher, Link, Pair,
@@ -8,9 +7,19 @@ use async_recursion::async_recursion;
 use serde::de::DeserializeOwned;
 use std::{collections::HashMap, hash::Hash, mem, rc::Rc};
 
+use super::HashNibbles;
+
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
 //--------------------------------------------------------------------------------------------------
+
+/// This type represents the different kinds of changes to a node.
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub enum ChangeType {
+    Add,
+    Remove,
+    Modify,
+}
 
 /// Represents a change to some key-value pair of a HAMT node.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -36,7 +45,7 @@ pub struct KeyValueChange<K, V> {
 ///
 /// ```
 /// use std::rc::Rc;
-/// use wnfs::{private::{Node, diff}, Link, Pair, MemoryBlockStore};
+/// use wnfs::{private::{Node, hamt}, Link, Pair, MemoryBlockStore};
 ///
 /// #[async_std::main]
 /// async fn main() {
@@ -55,7 +64,7 @@ pub struct KeyValueChange<K, V> {
 ///         .await
 ///         .unwrap();
 ///
-///     let changes = diff::kv_diff(
+///     let changes = hamt::diff(
 ///         Link::from(Rc::clone(main_node)),
 ///         Link::from(Rc::clone(other_node)),
 ///         store,
@@ -67,7 +76,7 @@ pub struct KeyValueChange<K, V> {
 ///    println!("Changes {:#?}", changes);
 /// }
 /// ```
-pub async fn kv_diff<K, V, H>(
+pub async fn diff<K, V, H>(
     main_link: Link<Rc<Node<K, V, H>>>,
     other_link: Link<Rc<Node<K, V, H>>>,
     store: &mut impl BlockStore,
@@ -77,11 +86,11 @@ where
     V: DeserializeOwned + Clone + Eq,
     H: Hasher + Clone + 'static,
 {
-    kv_diff_helper(main_link, other_link, 1, store).await
+    diff_helper(main_link, other_link, 1, store).await
 }
 
 #[async_recursion(?Send)]
-pub async fn kv_diff_helper<K, V, H>(
+pub async fn diff_helper<K, V, H>(
     main_link: Link<Rc<Node<K, V, H>>>,
     other_link: Link<Rc<Node<K, V, H>>>,
     depth: usize,
@@ -147,9 +156,7 @@ where
                         .unwrap(),
                 );
 
-                changes.extend(
-                    generate_modify_changes(main_pointer, other_pointer, depth, store).await?,
-                );
+                changes.extend(pointers_diff(main_pointer, other_pointer, depth, store).await?);
             }
             (false, false) => { /* No change */ }
         }
@@ -197,7 +204,7 @@ where
     }
 }
 
-async fn generate_modify_changes<K, V, H>(
+async fn pointers_diff<K, V, H>(
     main_pointer: Pointer<K, V, H>,
     other_pointer: Pointer<K, V, H>,
     depth: usize,
@@ -210,7 +217,7 @@ where
 {
     match (main_pointer, other_pointer) {
         (Pointer::Link(main_link), Pointer::Link(other_link)) => {
-            kv_diff_helper(main_link, other_link, depth + 1, store).await
+            diff_helper(main_link, other_link, depth + 1, store).await
         }
         (Pointer::Values(main_values), Pointer::Values(other_values)) => {
             let mut changes = vec![];
@@ -259,13 +266,32 @@ where
         }
         (Pointer::Values(main_values), Pointer::Link(other_link)) => {
             let main_link = Link::from(create_node_from_pairs(main_values, depth, store).await?);
-            kv_diff_helper(main_link, other_link, depth + 1, store).await
+            diff_helper(main_link, other_link, depth + 1, store).await
         }
         (Pointer::Link(main_link), Pointer::Values(other_values)) => {
             let other_link = Link::from(create_node_from_pairs(other_values, depth, store).await?);
-            kv_diff_helper(main_link, other_link, depth + 1, store).await
+            diff_helper(main_link, other_link, depth + 1, store).await
         }
     }
+}
+
+async fn create_node_from_pairs<K, V, H>(
+    values: Vec<Pair<K, V>>,
+    depth: usize,
+    store: &impl BlockStore,
+) -> Result<Rc<Node<K, V, H>>>
+where
+    K: DeserializeOwned + Clone + AsRef<[u8]>,
+    V: DeserializeOwned + Clone,
+    H: Hasher + Clone + 'static,
+{
+    let mut node = Rc::new(Node::<_, _, H>::default());
+    for Pair { key, value } in values {
+        let digest = &H::hash(&key);
+        let hashnibbles = &mut HashNibbles::with_cursor(digest, depth);
+        node.set_value(hashnibbles, key, value, store).await?;
+    }
+    Ok(node)
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -328,7 +354,7 @@ mod tests {
             .await
             .unwrap();
 
-        let changes = kv_diff(
+        let changes = diff(
             Link::from(Rc::clone(main_node)),
             Link::from(Rc::clone(other_node)),
             store,
@@ -354,7 +380,7 @@ mod tests {
             ]
         );
 
-        let changes = kv_diff(
+        let changes = diff(
             Link::from(Rc::clone(other_node)),
             Link::from(Rc::clone(main_node)),
             store,
@@ -401,7 +427,7 @@ mod tests {
                 .unwrap();
         }
 
-        let changes = kv_diff(
+        let changes = diff(
             Link::from(Rc::clone(main_node)),
             Link::from(Rc::clone(other_node)),
             store,
@@ -464,7 +490,7 @@ mod tests {
                 .unwrap();
         }
 
-        let changes = kv_diff(
+        let changes = diff(
             Link::from(Rc::clone(main_node)),
             Link::from(Rc::clone(other_node)),
             store,
@@ -502,7 +528,7 @@ mod tests {
             ]
         );
 
-        let changes = kv_diff(
+        let changes = diff(
             Link::from(Rc::clone(other_node)),
             Link::from(Rc::clone(main_node)),
             store,
@@ -577,7 +603,7 @@ mod proptests {
                 .await
                 .unwrap();
 
-            let changes = super::kv_diff(
+            let changes = super::diff(
                 Link::from(Rc::clone(main_node)),
                 Link::from(Rc::clone(other_node)),
                 store,
@@ -611,7 +637,7 @@ mod proptests {
             let node1 = strategies::node_from_kvs(kvs1, store).await.unwrap();
             let node2 = strategies::node_from_kvs(kvs2, store).await.unwrap();
 
-            let changes = super::kv_diff(Link::from(node1), Link::from(node2), store)
+            let changes = super::diff(Link::from(node1), Link::from(node2), store)
                 .await
                 .unwrap();
 
@@ -635,7 +661,7 @@ mod proptests {
             let node1 = strategies::node_from_kvs(kvs1, store).await.unwrap();
             let node2 = strategies::node_from_kvs(kvs2, store).await.unwrap();
 
-            let changes = super::kv_diff(
+            let changes = super::diff(
                 Link::from(Rc::clone(&node1)),
                 Link::from(Rc::clone(&node2)),
                 store,
@@ -643,7 +669,7 @@ mod proptests {
             .await
             .unwrap();
 
-            let flipped_changes = super::kv_diff(Link::from(node2), Link::from(node1), store)
+            let flipped_changes = super::diff(Link::from(node2), Link::from(node1), store)
                 .await
                 .unwrap();
 
