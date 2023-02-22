@@ -47,15 +47,15 @@ pub type PrivatePathNodesResult = PathNodesResult<PrivateDirectory>;
 #[derive(Debug, Clone, PartialEq)]
 pub struct PrivateDirectory {
     pub header: PrivateNodeHeader,
-    pub content: PrivateDirectoryContent,
+    pub(crate) content: PrivateDirectoryContent,
 }
 
 #[derive(Debug)]
 pub struct PrivateDirectoryContent {
     persisted_as: OnceCell<Cid>,
-    pub previous: BTreeSet<(usize, Encrypted<Cid>)>,
-    pub metadata: Metadata,
-    pub entries: BTreeMap<String, PrivateLink>,
+    pub(crate) previous: BTreeSet<(usize, Encrypted<Cid>)>,
+    pub(crate) metadata: Metadata,
+    pub(crate) entries: BTreeMap<String, PrivateLink>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -341,7 +341,12 @@ impl PrivateDirectory {
         }
     }
 
-    /// TODO(matheus23)
+    /// This should be called to prepare a node for modifications,
+    /// if it's meant to be a successor revision of the current revision.
+    ///
+    /// This doesn't have any effect if the current state hasn't been `.store()`ed yet.
+    /// Otherwise, it clones itself, stores its current CID in the previous links and
+    /// advances its ratchet.
     pub(crate) fn prepare_next_revision(self: Rc<Self>) -> Result<Self> {
         let previous_cid = match self.content.persisted_as.get() {
             Some(cid) => *cid,
@@ -355,21 +360,22 @@ impl PrivateDirectory {
         let temporal_key = self.header.derive_temporal_key();
 
         let mut cloned = Rc::try_unwrap(self).unwrap_or_else(|rc| (*rc).clone());
+        // We make sure to clear any cached states.
+        // `.clone()` does this too, but `try_unwrap` may circumvent clone.
+        cloned.content.persisted_as = OnceCell::new();
         cloned.content.previous.clear();
         cloned
             .content
             .previous
             .insert((1, Encrypted::from_value(previous_cid, &temporal_key)?));
 
-        // We make sure to clear any cached states.
-        cloned.content.persisted_as = OnceCell::new();
-
         cloned.header.advance_ratchet();
 
         Ok(cloned)
     }
 
-    pub(crate) fn get_ref_if_stored(&self) -> Option<PrivateRef> {
+    /// Returns the private ref, if this directory has been `.store()`ed before.
+    pub(crate) fn get_private_ref(&self) -> Option<PrivateRef> {
         self.content.persisted_as.get().map(|content_cid| {
             self.header
                 .derive_revision_ref()
@@ -1036,7 +1042,8 @@ impl PrivateDirectory {
             bail!(FsError::NotFound);
         };
 
-        // TODO(matheus23): Should we just return `PrivateLink` instead?
+        // Resolving the PrivateLink, because if we return it directly,
+        // we would have to expose PublicLink in the public API
         let removed_node = removed_link.resolve_node(forest, store).await?.clone();
 
         directory_path_nodes.tail = Rc::new(directory);
@@ -1281,8 +1288,37 @@ impl PrivateDirectory {
             .await
     }
 
-    /// Store the whole directory and return the header block's CID
-    /// and the content block's CID.
+    /// Stores this PrivateDirectory in the PrivateForest.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use std::rc::Rc;
+    /// use chrono::Utc;
+    /// use rand::thread_rng;
+    /// use wnfs::{
+    ///     private::{PrivateForest, PrivateRef}, PrivateNode,
+    ///     BlockStore, MemoryBlockStore, Namefilter, PrivateDirectory, PrivateOpResult,
+    /// };
+    ///
+    /// #[async_std::main]
+    /// async fn main() {
+    ///     let store = &mut MemoryBlockStore::default();
+    ///     let rng = &mut thread_rng();
+    ///     let forest = &mut Rc::new(PrivateForest::new());
+    ///     let dir = Rc::new(PrivateDirectory::new(
+    ///         Namefilter::default(),
+    ///         Utc::now(),
+    ///         rng,
+    ///     ));
+    ///
+    ///     let private_ref = dir.store(forest, store, rng).await.unwrap();
+    ///
+    ///     let node = PrivateNode::Dir(Rc::clone(&dir));
+    ///
+    ///     assert_eq!(forest.get(&private_ref, store).await.unwrap(), node);
+    /// }
+    /// ```
     pub async fn store(
         &self,
         forest: &mut Rc<PrivateForest>,
@@ -1335,7 +1371,6 @@ impl PrivateDirectoryContent {
                 .resolve_ref(forest, store, rng)
                 .await
                 .map_err(SerError::custom)?
-                .clone()
                 .to_serializable(temporal_key)
                 .map_err(SerError::custom)?;
             entries.insert(name.clone(), private_ref_serializable);
@@ -2202,7 +2237,7 @@ mod tests {
     }
 
     #[async_std::test]
-    async fn store_before_write_forces_previous_link() {
+    async fn store_before_write_generates_previous_link() {
         let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
         let store = &mut MemoryBlockStore::new();
         let forest = &mut Rc::new(PrivateForest::new());

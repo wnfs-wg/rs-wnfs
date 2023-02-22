@@ -72,14 +72,14 @@ pub const MAX_BLOCK_CONTENT_SIZE: usize = MAX_BLOCK_SIZE - NONCE_SIZE - AUTHENTI
 #[derive(Debug, Clone, PartialEq)]
 pub struct PrivateFile {
     pub header: PrivateNodeHeader,
-    pub content: PrivateFileContent,
+    pub(crate) content: PrivateFileContent,
 }
 
 #[derive(Debug)]
 pub struct PrivateFileContent {
     persisted_as: OnceCell<Cid>,
-    pub previous: BTreeSet<(usize, Encrypted<Cid>)>,
-    pub metadata: Metadata,
+    pub(crate) previous: BTreeSet<(usize, Encrypted<Cid>)>,
+    pub(crate) metadata: Metadata,
     pub(crate) content: FileContent,
 }
 
@@ -431,20 +431,12 @@ impl PrivateFile {
         label
     }
 
-    pub(crate) fn get_ref_if_stored(&self) -> Option<PrivateRef> {
-        self.content.persisted_as.get().map(|content_cid| {
-            self.header
-                .derive_revision_ref()
-                .as_private_ref(*content_cid)
-        })
-    }
-
     /// This should be called to prepare a node for modifications,
     /// if it's meant to be a successor revision of the current revision.
     ///
-    /// It will store the current revision in the given `BlockStore` to
-    /// retrieve its CID and put that into the `previous` links,
-    /// as well as advancing the ratchet and resetting the `persisted_as` pointer.
+    /// This doesn't have any effect if the current state hasn't been `.store()`ed yet.
+    /// Otherwise, it clones itself, stores its current CID in the previous links and
+    /// advances its ratchet.
     pub(crate) fn prepare_next_revision(self: Rc<Self>) -> Result<Self> {
         let previous_cid = match self.content.persisted_as.get() {
             Some(cid) => *cid,
@@ -458,18 +450,27 @@ impl PrivateFile {
         let temporal_key = self.header.derive_temporal_key();
 
         let mut cloned = Rc::try_unwrap(self).unwrap_or_else(|rc| (*rc).clone());
+        // We make sure to clear any cached states.
+        // `.clone()` does this too, but `try_unwrap` may circumvent clone.
+        cloned.content.persisted_as = OnceCell::new();
         cloned.content.previous.clear();
         cloned
             .content
             .previous
             .insert((1, Encrypted::from_value(previous_cid, &temporal_key)?));
 
-        // We make sure to clear any cached states.
-        cloned.content.persisted_as = OnceCell::new();
-
         cloned.header.advance_ratchet();
 
         Ok(cloned)
+    }
+
+    /// Returns the private ref, if this file has been `.store()`ed before.
+    pub(crate) fn get_private_ref(&self) -> Option<PrivateRef> {
+        self.content.persisted_as.get().map(|content_cid| {
+            self.header
+                .derive_revision_ref()
+                .as_private_ref(*content_cid)
+        })
     }
 
     /// This prepares this file for key rotation, usually for moving or
@@ -512,7 +513,7 @@ impl PrivateFile {
     /// use rand::thread_rng;
     /// use wnfs::{
     ///     private::{PrivateForest, PrivateRef}, PrivateNode,
-    ///     BlockStore, MemoryBlockStore, Namefilter, PrivateDirectory, PrivateOpResult,
+    ///     BlockStore, MemoryBlockStore, Namefilter, PrivateFile, PrivateOpResult,
     /// };
     ///
     /// #[async_std::main]
@@ -520,15 +521,15 @@ impl PrivateFile {
     ///     let store = &mut MemoryBlockStore::default();
     ///     let rng = &mut thread_rng();
     ///     let forest = &mut Rc::new(PrivateForest::new());
-    ///     let dir = Rc::new(PrivateDirectory::new(
+    ///     let file = Rc::new(PrivateFile::new(
     ///         Namefilter::default(),
     ///         Utc::now(),
     ///         rng,
     ///     ));
     ///
-    ///     let private_ref = dir.store(forest, store, rng).await.unwrap();
+    ///     let private_ref = file.store(forest, store, rng).await.unwrap();
     ///
-    ///     let node = PrivateNode::Dir(Rc::clone(&dir));
+    ///     let node = PrivateNode::File(Rc::clone(&file));
     ///
     ///     assert_eq!(forest.get(&private_ref, store).await.unwrap(), node);
     /// }

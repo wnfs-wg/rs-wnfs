@@ -502,11 +502,11 @@ impl PrivateNode {
         }
     }
 
-    // TODO(matheus23) this seems weird. Take another look!
-    pub(crate) fn get_ref_if_stored(&self) -> Option<PrivateRef> {
+    /// Returns the private ref, if this node has been `.store()`ed before.
+    pub(crate) fn get_private_ref(&self) -> Option<PrivateRef> {
         match self {
-            Self::File(file) => file.get_ref_if_stored(),
-            Self::Dir(dir) => dir.get_ref_if_stored(),
+            Self::File(file) => file.get_private_ref(),
+            Self::Dir(dir) => dir.get_private_ref(),
         }
     }
 }

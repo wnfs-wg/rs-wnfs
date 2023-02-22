@@ -7,30 +7,32 @@ use rand_core::RngCore;
 use std::rc::Rc;
 
 #[derive(Debug)]
-pub enum PrivateLink {
+pub(crate) enum PrivateLink {
     Encrypted {
         private_ref: PrivateRef,
         cache: OnceCell<PrivateNode>,
     },
     Decrypted {
+        // In this case, the `PrivateNode` contains its own `OnceCell<Cid>`
+        // which if full, combined with the `PrivateNode` derives the `PrivateRef`.
         node: PrivateNode,
     },
 }
 
 impl PrivateLink {
-    pub fn from_ref(private_ref: PrivateRef) -> Self {
+    pub(crate) fn from_ref(private_ref: PrivateRef) -> Self {
         Self::Encrypted {
             private_ref,
             cache: OnceCell::new(),
         }
     }
 
-    pub fn new(node: PrivateNode) -> Self {
+    pub(crate) fn new(node: PrivateNode) -> Self {
         Self::Decrypted { node }
     }
 
     #[async_recursion(?Send)]
-    pub async fn resolve_ref(
+    pub(crate) async fn resolve_ref(
         &self,
         forest: &mut Rc<PrivateForest>,
         store: &mut impl BlockStore,
@@ -42,7 +44,7 @@ impl PrivateLink {
         }
     }
 
-    pub async fn resolve_node(
+    pub(crate) async fn resolve_node(
         &self,
         forest: &PrivateForest,
         store: &impl BlockStore,
@@ -57,10 +59,11 @@ impl PrivateLink {
         }
     }
 
-    pub fn get_ref(&self) -> Option<PrivateRef> {
+    #[allow(dead_code)]
+    pub(crate) fn get_ref(&self) -> Option<PrivateRef> {
         match self {
             Self::Encrypted { private_ref, .. } => Some(private_ref.clone()),
-            Self::Decrypted { node } => node.get_ref_if_stored(),
+            Self::Decrypted { node } => node.get_private_ref(),
         }
     }
 }
@@ -82,10 +85,10 @@ impl PartialEq for PrivateLink {
                 l_node == r_node
             }
             (Self::Encrypted { private_ref, cache }, Self::Decrypted { node }) => {
-                Some(private_ref) == node.get_ref_if_stored().as_ref() || Some(node) == cache.get()
+                Some(private_ref) == node.get_private_ref().as_ref() || Some(node) == cache.get()
             }
             (Self::Decrypted { node }, Self::Encrypted { private_ref, cache }) => {
-                Some(private_ref) == node.get_ref_if_stored().as_ref() || Some(node) == cache.get()
+                Some(private_ref) == node.get_private_ref().as_ref() || Some(node) == cache.get()
             }
         }
     }
