@@ -241,22 +241,6 @@ impl PublicDirectory {
         }))
     }
 
-    #[wasm_bindgen(js_name = "baseHistoryOn")]
-    pub fn base_history_on(&self, base: &PublicDirectory, store: BlockStore) -> JsResult<Promise> {
-        let directory = Rc::clone(&self.0);
-        let base = base.0.clone();
-        let mut store = ForeignBlockStore(store);
-
-        Ok(future_to_promise(async move {
-            let WnfsPublicOpResult { root_dir, .. } = directory
-                .base_history_on(base, &mut store)
-                .await
-                .map_err(error("Cannot do history rebase (base_history_on)"))?;
-
-            Ok(utils::create_public_op_result(root_dir, JsValue::NULL)?)
-        }))
-    }
-
     /// Gets the previous CID(s) of the directory.
     /// This will usually be an array of a single CID, but may be
     /// - an empty array, if this is the first revision of a directory
