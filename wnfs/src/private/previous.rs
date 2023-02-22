@@ -552,10 +552,7 @@ mod tests {
         let rng = &mut rng;
         let store = &mut store;
 
-        forest
-            .put(&PrivateNode::Dir(Rc::clone(&root_dir)), store, rng)
-            .await
-            .unwrap();
+        root_dir.store(forest, store, rng).await.unwrap();
 
         let past_ratchet = root_dir.header.ratchet.clone();
 
@@ -572,20 +569,14 @@ mod tests {
             .await
             .unwrap();
 
-        forest
-            .put(&PrivateNode::Dir(Rc::clone(&root_dir)), store, rng)
-            .await
-            .unwrap();
+        root_dir.store(forest, store, rng).await.unwrap();
 
         let PrivateOpResult { root_dir, .. } = root_dir
             .mkdir(&["docs".into()], true, Utc::now(), forest, store, rng)
             .await
             .unwrap();
 
-        forest
-            .put(&PrivateNode::Dir(Rc::clone(&root_dir)), store, rng)
-            .await
-            .unwrap();
+        root_dir.store(forest, store, rng).await.unwrap();
 
         let mut iterator = PrivateNodeOnPathHistory::of(
             root_dir,
@@ -646,10 +637,7 @@ mod tests {
         let rng = &mut rng;
         let store = &mut store;
 
-        forest
-            .put(&PrivateNode::Dir(Rc::clone(&root_dir)), store, rng)
-            .await
-            .unwrap();
+        root_dir.store(forest, store, rng).await.unwrap();
 
         let past_ratchet = root_dir.header.ratchet.clone();
 
@@ -660,10 +648,7 @@ mod tests {
             .await
             .unwrap();
 
-        forest
-            .put(&PrivateNode::Dir(Rc::clone(&root_dir)), store, rng)
-            .await
-            .unwrap();
+        root_dir.store(forest, store, rng).await.unwrap();
 
         let PrivateOpResult { root_dir, .. } = root_dir
             .write(
@@ -678,10 +663,7 @@ mod tests {
             .await
             .unwrap();
 
-        forest
-            .put(&PrivateNode::Dir(Rc::clone(&root_dir)), store, rng)
-            .await
-            .unwrap();
+        root_dir.store(forest, store, rng).await.unwrap();
 
         let mut iterator = PrivateNodeOnPathHistory::of(
             root_dir,
@@ -755,10 +737,7 @@ mod tests {
         let rng = &mut rng;
         let store = &mut store;
 
-        forest
-            .put(&PrivateNode::Dir(Rc::clone(&root_dir)), store, rng)
-            .await
-            .unwrap();
+        root_dir.store(forest, store, rng).await.unwrap();
 
         let past_ratchet = root_dir.header.ratchet.clone();
 
@@ -769,10 +748,7 @@ mod tests {
             .await
             .unwrap();
 
-        forest
-            .put(&PrivateNode::Dir(Rc::clone(&root_dir)), store, rng)
-            .await
-            .unwrap();
+        root_dir.store(forest, store, rng).await.unwrap();
 
         let PrivateOpResult {
             root_dir,
@@ -800,10 +776,7 @@ mod tests {
             .await
             .unwrap();
 
-        forest
-            .put(&PrivateNode::Dir(Rc::clone(&docs_dir)), store, rng)
-            .await
-            .unwrap();
+        docs_dir.store(forest, store, rng).await.unwrap();
 
         let mut iterator = PrivateNodeOnPathHistory::of(
             root_dir,
@@ -892,10 +865,7 @@ mod tests {
             .await
             .unwrap();
 
-        forest
-            .put(&PrivateNode::Dir(Rc::clone(&root_dir)), store, rng)
-            .await
-            .unwrap();
+        root_dir.store(forest, store, rng).await.unwrap();
 
         let past_ratchet = root_dir.header.ratchet.clone();
 
@@ -925,10 +895,7 @@ mod tests {
             .await
             .unwrap();
 
-        forest
-            .put(&PrivateNode::Dir(Rc::clone(&docs_dir)), store, rng)
-            .await
-            .unwrap();
+        docs_dir.store(forest, store, rng).await.unwrap();
 
         let PrivateOpResult { root_dir, .. } = root_dir
             .write(
@@ -943,10 +910,7 @@ mod tests {
             .await
             .unwrap();
 
-        forest
-            .put(&PrivateNode::Dir(Rc::clone(&root_dir)), store, rng)
-            .await
-            .unwrap();
+        root_dir.store(forest, store, rng).await.unwrap();
 
         let mut iterator = PrivateNodeOnPathHistory::of(
             root_dir,
@@ -1049,19 +1013,13 @@ mod tests {
             .await
             .unwrap();
 
-        forest
-            .put(&PrivateNode::Dir(Rc::clone(&root_dir)), store, rng)
-            .await
-            .unwrap();
+        root_dir.store(forest, store, rng).await.unwrap();
 
         let past_ratchet = root_dir.header.ratchet.clone();
 
         let root_dir = Rc::new(root_dir.prepare_next_revision().unwrap());
 
-        forest
-            .put(&PrivateNode::Dir(Rc::clone(&root_dir)), store, rng)
-            .await
-            .unwrap();
+        root_dir.store(forest, store, rng).await.unwrap();
 
         let PrivateOpResult { root_dir, .. } = root_dir
             .write(

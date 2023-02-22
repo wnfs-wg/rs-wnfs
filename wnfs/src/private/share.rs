@@ -177,7 +177,7 @@ impl TemporalSharePointer {
         store: &mut impl BlockStore,
         rng: &mut impl RngCore,
     ) -> Result<Self> {
-        let private_ref = forest.put(node, store, rng).await?;
+        let private_ref = node.store(forest, store, rng).await?;
 
         let payload = TemporalSharePointer {
             label: private_ref.saturated_name_hash,
@@ -197,7 +197,7 @@ impl SnapshotSharePointer {
         store: &mut impl BlockStore,
         rng: &mut impl RngCore,
     ) -> Result<Self> {
-        let private_ref = forest.put(node, store, rng).await?;
+        let private_ref = node.store(forest, store, rng).await?;
 
         let payload = Self {
             label: private_ref.saturated_name_hash,

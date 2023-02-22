@@ -363,10 +363,7 @@ impl PrivateNode {
     ///         .await
     ///         .unwrap();
     ///
-    ///     forest
-    ///         .put(&PrivateNode::Dir(Rc::clone(&root_dir)), store, rng)
-    ///         .await
-    ///         .unwrap();
+    ///     root_dir.store(forest, store, rng).await.unwrap();
     ///
     ///     let latest_node = PrivateNode::Dir(init_dir).search_latest(forest, store).await.unwrap();
     ///
@@ -493,36 +490,16 @@ impl PrivateNode {
         }
     }
 
-    pub(crate) async fn store(
-        &self,
-        forest: &mut Rc<PrivateForest>,
-        store: &mut impl BlockStore,
-        rng: &mut impl RngCore,
-    ) -> Result<(Cid, Cid)> {
-        match self {
-            Self::File(file) => file.store(store, rng).await,
-            Self::Dir(dir) => dir.store(forest, store, rng).await,
-        }
-    }
-
-    pub(crate) async fn resolve_ref(
+    pub async fn store(
         &self,
         forest: &mut Rc<PrivateForest>,
         store: &mut impl BlockStore,
         rng: &mut impl RngCore,
     ) -> Result<PrivateRef> {
-        // TODO(matheus23) this is identical to PrivateForest::put
-        let (header_cid, content_cid) = self.store(forest, store, rng).await?;
-        let name = self.get_header().get_saturated_name();
-
-        forest
-            .put_encrypted(name, [header_cid, content_cid], store)
-            .await?;
-
-        Ok(self
-            .get_header()
-            .derive_revision_ref()
-            .as_private_ref(content_cid))
+        match self {
+            Self::File(file) => file.store(forest, store, rng).await,
+            Self::Dir(dir) => dir.store(forest, store, rng).await,
+        }
     }
 
     // TODO(matheus23) this seems weird. Take another look!
@@ -915,11 +892,7 @@ mod tests {
         .unwrap();
 
         let file = PrivateNode::File(Rc::new(file));
-        let (_, content_cid) = file.store(forest, store, rng).await.unwrap();
-        let private_ref = file
-            .get_header()
-            .derive_revision_ref()
-            .as_private_ref(content_cid);
+        let private_ref = file.store(forest, store, rng).await.unwrap();
 
         let deserialized_node = PrivateNode::load(&private_ref, store).await.unwrap();
 

@@ -3,7 +3,7 @@ use super::{
     PrivateRef, SnapshotKey, AUTHENTICATION_TAG_SIZE, NONCE_SIZE,
 };
 use crate::{
-    utils, utils::get_random_bytes, BlockStore, FsError, Hasher, Id, Metadata, NodeType,
+    dagcbor, utils, utils::get_random_bytes, BlockStore, FsError, Hasher, Id, Metadata, NodeType,
     PrivateNode, MAX_BLOCK_SIZE,
 };
 use anyhow::Result;
@@ -11,7 +11,7 @@ use async_once_cell::OnceCell;
 use async_stream::try_stream;
 use chrono::{DateTime, Utc};
 use futures::{future, Stream, StreamExt};
-use libipld::{cbor::DagCborCodec, prelude::Encode, Cid, IpldCodec};
+use libipld::{Cid, IpldCodec};
 use rand_core::RngCore;
 use semver::Version;
 use serde::{de::Error as DeError, Deserialize, Deserializer, Serialize};
@@ -502,21 +502,60 @@ impl PrivateFile {
         Ok(())
     }
 
-    pub(crate) async fn store(
+    /// Stores this PrivateFile in the PrivateForest.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use std::rc::Rc;
+    /// use chrono::Utc;
+    /// use rand::thread_rng;
+    /// use wnfs::{
+    ///     private::{PrivateForest, PrivateRef}, PrivateNode,
+    ///     BlockStore, MemoryBlockStore, Namefilter, PrivateDirectory, PrivateOpResult,
+    /// };
+    ///
+    /// #[async_std::main]
+    /// async fn main() {
+    ///     let store = &mut MemoryBlockStore::default();
+    ///     let rng = &mut thread_rng();
+    ///     let forest = &mut Rc::new(PrivateForest::new());
+    ///     let dir = Rc::new(PrivateDirectory::new(
+    ///         Namefilter::default(),
+    ///         Utc::now(),
+    ///         rng,
+    ///     ));
+    ///
+    ///     let private_ref = dir.store(forest, store, rng).await.unwrap();
+    ///
+    ///     let node = PrivateNode::Dir(Rc::clone(&dir));
+    ///
+    ///     assert_eq!(forest.get(&private_ref, store).await.unwrap(), node);
+    /// }
+    /// ```
+    pub async fn store(
         &self,
+        forest: &mut Rc<PrivateForest>,
         store: &mut impl BlockStore,
         rng: &mut impl RngCore,
-    ) -> Result<(Cid, Cid)> {
+    ) -> Result<PrivateRef> {
         let header_cid = self.header.store(store).await?;
-
         let snapshot_key = self.header.derive_snapshot_key();
+        let label = self.header.get_saturated_name();
 
         let content_cid = self
             .content
             .store(header_cid, &snapshot_key, store, rng)
             .await?;
 
-        Ok((header_cid, content_cid))
+        forest
+            .put_encrypted(label, [header_cid, content_cid], store)
+            .await?;
+
+        Ok(self
+            .header
+            .derive_revision_ref()
+            .as_private_ref(content_cid))
     }
 
     /// Wraps the file in a [`PrivateNode`].
@@ -592,8 +631,7 @@ impl PrivateFileContent {
 
                 // Serialize node to cbor.
                 let ipld = self.serialize(libipld::serde::Serializer, header_cid)?;
-                let mut bytes = Vec::new();
-                ipld.encode(DagCborCodec, &mut bytes)?;
+                let bytes = dagcbor::encode(&ipld)?;
 
                 // Encrypt bytes with snapshot key.
                 let block = snapshot_key.encrypt(&bytes, rng)?;

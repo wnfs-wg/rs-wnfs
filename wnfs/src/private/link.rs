@@ -38,7 +38,7 @@ impl PrivateLink {
     ) -> Result<PrivateRef> {
         match self {
             Self::Encrypted { private_ref, .. } => Ok(private_ref.clone()),
-            Self::Decrypted { node } => Ok(node.resolve_ref(forest, store, rng).await?),
+            Self::Decrypted { node } => Ok(node.store(forest, store, rng).await?),
         }
     }
 

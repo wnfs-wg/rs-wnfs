@@ -3,13 +3,13 @@ use super::{
     PrivateNode, PrivateNodeHeader, PrivateRef, PrivateRefSerializable, TemporalKey,
 };
 use crate::{
-    error, utils, BlockStore, FsError, HashOutput, Id, Metadata, NodeType, PathNodes,
+    dagcbor, error, utils, BlockStore, FsError, HashOutput, Id, Metadata, NodeType, PathNodes,
     PathNodesResult,
 };
 use anyhow::{bail, ensure, Result};
 use async_once_cell::OnceCell;
 use chrono::{DateTime, Utc};
-use libipld::{cbor::DagCborCodec, prelude::Encode, Cid};
+use libipld::Cid;
 use rand_core::RngCore;
 use semver::Version;
 use serde::{de::Error as DeError, ser::Error as SerError, Deserialize, Deserializer, Serialize};
@@ -159,9 +159,7 @@ impl PrivateDirectory {
     ) -> Result<PrivateOpResult<()>> {
         let dir = Rc::new(Self::new(parent_bare_name, time, rng));
 
-        forest
-            .put(&PrivateNode::Dir(Rc::clone(&dir)), store, rng)
-            .await?;
+        dir.store(forest, store, rng).await?;
 
         Ok(PrivateOpResult {
             root_dir: dir,
@@ -187,9 +185,7 @@ impl PrivateDirectory {
             inumber,
         ));
 
-        forest
-            .put(&PrivateNode::Dir(Rc::clone(&dir)), store, rng)
-            .await?;
+        dir.store(forest, store, rng).await?;
 
         Ok(PrivateOpResult {
             root_dir: dir,
@@ -785,10 +781,7 @@ impl PrivateDirectory {
     ///         .await
     ///         .unwrap();
     ///
-    ///     forest
-    ///         .put(&PrivateNode::Dir(Rc::clone(&root_dir)), store, rng)
-    ///         .await
-    ///         .unwrap();
+    ///     root_dir.store(forest, store, rng).await.unwrap();
     ///
     ///     let latest_dir = init_dir.search_latest(forest, store).await.unwrap();
     ///
@@ -1295,16 +1288,24 @@ impl PrivateDirectory {
         forest: &mut Rc<PrivateForest>,
         store: &mut impl BlockStore,
         rng: &mut impl RngCore,
-    ) -> Result<(Cid, Cid)> {
+    ) -> Result<PrivateRef> {
         let header_cid = self.header.store(store).await?;
         let temporal_key = self.header.derive_temporal_key();
+        let label = self.header.get_saturated_name();
 
         let content_cid = self
             .content
             .store(header_cid, &temporal_key, forest, store, rng)
             .await?;
 
-        Ok((header_cid, content_cid))
+        forest
+            .put_encrypted(label, [header_cid, content_cid], store)
+            .await?;
+
+        Ok(self
+            .header
+            .derive_revision_ref()
+            .as_private_ref(content_cid))
     }
 
     /// Wraps the directory in a [`PrivateNode`].
@@ -1431,8 +1432,7 @@ impl PrivateDirectoryContent {
                         rng,
                     )
                     .await?;
-                let mut bytes = Vec::new();
-                ipld.encode(DagCborCodec, &mut bytes)?;
+                let bytes = dagcbor::encode(&ipld)?;
 
                 // Encrypt bytes with snapshot key.
                 let block = snapshot_key.encrypt(&bytes, rng)?;
@@ -1788,10 +1788,7 @@ mod tests {
             .await
             .unwrap();
 
-        forest
-            .put(&PrivateNode::Dir(Rc::clone(&root_dir)), store, rng)
-            .await
-            .unwrap();
+        root_dir.store(forest, store, rng).await.unwrap();
 
         let old_root = Rc::clone(&root_dir);
 
@@ -1800,10 +1797,7 @@ mod tests {
             .await
             .unwrap();
 
-        forest
-            .put(&PrivateNode::Dir(Rc::clone(&root_dir)), store, rng)
-            .await
-            .unwrap();
+        root_dir.store(forest, store, rng).await.unwrap();
 
         let new_read = Rc::clone(&root_dir)
             .read(&path, false, forest, store)
@@ -2218,10 +2212,7 @@ mod tests {
             rng,
         ));
 
-        forest
-            .put(&PrivateNode::Dir(Rc::clone(&old_dir)), store, rng)
-            .await
-            .unwrap();
+        old_dir.store(forest, store, rng).await.unwrap();
 
         let PrivateOpResult {
             root_dir: new_dir, ..
