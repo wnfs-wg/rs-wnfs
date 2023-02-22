@@ -363,6 +363,11 @@ impl PrivateNode {
     ///         .await
     ///         .unwrap();
     ///
+    ///     forest
+    ///         .put(&PrivateNode::Dir(Rc::clone(&root_dir)), store, rng)
+    ///         .await
+    ///         .unwrap();
+    ///
     ///     let latest_node = PrivateNode::Dir(init_dir).search_latest(forest, store).await.unwrap();
     ///
     ///     let found_node = latest_node
