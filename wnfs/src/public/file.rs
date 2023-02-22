@@ -1,6 +1,6 @@
 //! Public fs file node.
 
-use std::collections::BTreeSet;
+use std::{collections::BTreeSet, rc::Rc};
 
 use anyhow::Result;
 
@@ -95,6 +95,26 @@ impl PublicFile {
         &self.userland
     }
 
+    /// Takes care of creating previous links, in case the current
+    /// directory was previously `.store()`ed.
+    /// In any case it'll try to give you ownership of the Rc if possible,
+    /// otherwise it clones.
+    pub(crate) fn prepare_next_revision(self: Rc<Self>) -> Self {
+        let Some(previous_cid) = self.persisted_as.get().cloned() else {
+            // If this revision was not yet persisted, we can
+            // modify it without forcing it to be flushed to a
+            // BlockStore.
+            return Rc::try_unwrap(self).unwrap_or_else(|rc| (*rc).clone());
+        };
+
+        let mut cloned = Rc::try_unwrap(self).unwrap_or_else(|rc| (*rc).clone());
+        // We need to reset the OnceCell.
+        cloned.persisted_as = OnceCell::new();
+        cloned.previous = [previous_cid].into_iter().collect();
+
+        cloned
+    }
+
     /// Stores file in provided block store.
     ///
     /// # Examples
@@ -112,9 +132,11 @@ impl PublicFile {
     ///     file.store(&mut store).await.unwrap();
     /// }
     /// ```
-    #[inline(always)]
     pub async fn store(&self, store: &mut impl BlockStore) -> Result<Cid> {
-        store.put_serializable(self).await
+        Ok(*self
+            .persisted_as
+            .get_or_try_init(async { store.put_serializable(self).await })
+            .await?)
     }
 }
 

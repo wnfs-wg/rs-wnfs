@@ -33,15 +33,15 @@ pub trait BlockStore {
         self.put_block(bytes, IpldCodec::DagCbor).await
     }
 
-    async fn get_deserializable<'a, V: DeserializeOwned>(&'a self, cid: &Cid) -> Result<V> {
+    async fn get_deserializable<V: DeserializeOwned>(&self, cid: &Cid) -> Result<V> {
         let bytes = self.get_block(cid).await?;
         let ipld = dagcbor::decode(bytes.as_ref())?;
         let value = ipld_serde::from_ipld::<V>(ipld)?;
         Ok(value)
     }
 
-    async fn get_remembering_persistence<'a, V: DeserializeOwned + RemembersPersistence>(
-        &'a self,
+    async fn get_remembering_persistence<V: DeserializeOwned + RemembersPersistence>(
+        &self,
         cid: &Cid,
     ) -> Result<V> {
         let value: V = self.get_deserializable(cid).await?;

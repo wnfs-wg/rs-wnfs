@@ -130,6 +130,26 @@ impl PublicDirectory {
         &self.metadata
     }
 
+    /// Takes care of creating previous links, in case the current
+    /// directory was previously `.store()`ed.
+    /// In any case it'll try to give you ownership of the Rc if possible,
+    /// otherwise it clones.
+    fn prepare_next_revision(self: Rc<Self>) -> Self {
+        let Some(previous_cid) = self.persisted_as.get().cloned() else {
+            // If this revision was not yet persisted, we can
+            // modify it without forcing it to be flushed to a
+            // BlockStore.
+            return Rc::try_unwrap(self).unwrap_or_else(|rc| (*rc).clone());
+        };
+
+        let mut cloned = Rc::try_unwrap(self).unwrap_or_else(|rc| (*rc).clone());
+        // We need to reset the OnceCell.
+        cloned.persisted_as = OnceCell::new();
+        cloned.previous = [previous_cid].into_iter().collect();
+
+        cloned
+    }
+
     /// Creates a new `PublicPathNodes` that is not based on an existing file tree.
     pub(crate) fn create_path_nodes(
         path_segments: &[String],
@@ -224,10 +244,10 @@ impl PublicDirectory {
         }
 
         let mut working_dir = path_nodes.tail;
-        for (dir, segment) in path_nodes.path.iter().rev() {
-            let mut dir = (**dir).clone();
+        for (dir, segment) in path_nodes.path.into_iter().rev() {
+            let mut dir = dir.prepare_next_revision();
             let link = PublicLink::with_dir(working_dir);
-            dir.userland.insert(segment.clone(), link);
+            dir.userland.insert(segment, link);
             working_dir = Rc::new(dir);
         }
 
@@ -349,9 +369,11 @@ impl PublicDirectory {
     ///     );
     /// }
     /// ```
-    #[inline(always)]
     pub async fn store(&self, store: &mut impl BlockStore) -> Result<Cid> {
-        store.put_async_serializable(self).await
+        Ok(*self
+            .persisted_as
+            .get_or_try_init(async { store.put_async_serializable(self).await })
+            .await?)
     }
 
     /// Reads specified file content from the directory.
@@ -451,12 +473,12 @@ impl PublicDirectory {
             .get_or_create_path_nodes(directory_path, time, store)
             .await?;
 
-        let mut directory = (*directory_path_nodes.tail).clone();
+        let mut directory = directory_path_nodes.tail.prepare_next_revision();
 
         // Modify the file if it already exists, otherwise create a new file with expected content
         let file = match directory.lookup_node(filename, store).await? {
             Some(PublicNode::File(file_before)) => {
-                let mut file = (*file_before).clone();
+                let mut file = file_before.prepare_next_revision();
                 file.userland = content_cid;
                 file.metadata.upsert_mtime(time);
                 file
@@ -640,7 +662,7 @@ impl PublicDirectory {
             _ => bail!(FsError::NotFound),
         };
 
-        let mut directory = (*directory_node_path.tail).clone();
+        let mut directory = directory_node_path.tail.prepare_next_revision();
 
         // Remove the entry from its parent directory
         let removed_node = match directory.userland.remove(node_name) {
@@ -721,7 +743,7 @@ impl PublicDirectory {
             _ => bail!(FsError::NotFound),
         };
 
-        let mut directory = (*path_nodes.tail).clone();
+        let mut directory = path_nodes.tail.prepare_next_revision();
 
         ensure!(
             !directory.userland.contains_key(filename),
@@ -740,124 +762,6 @@ impl PublicDirectory {
             root_dir: Self::fix_up_path_nodes(path_nodes),
             result: (),
         })
-    }
-
-    /// Constructs a tree from directory with `base` as the historical ancestor.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use wnfs::{PublicDirectory, PublicOpResult, MemoryBlockStore};
-    /// use libipld::cid::Cid;
-    /// use std::rc::Rc;
-    /// use chrono::Utc;
-    ///
-    /// #[async_std::main]
-    /// async fn main() {
-    ///     let time = Utc::now();
-    ///     let dir = Rc::new(PublicDirectory::new(time));
-    ///     let mut store = MemoryBlockStore::default();
-    ///
-    ///     let PublicOpResult { root_dir: base_root, .. } = Rc::new(PublicDirectory::new(Utc::now()))
-    ///         .write(
-    ///             &["pictures".into(), "cats".into(), "tabby.png".into()],
-    ///             Cid::default(),
-    ///             Utc::now(),
-    ///             &store
-    ///         )
-    ///         .await
-    ///         .unwrap();
-    ///
-    ///     let PublicOpResult { root_dir: recent_root, .. } = Rc::clone(&base_root)
-    ///         .write(
-    ///             &["pictures".into(), "cats".into(), "katherine.png".into()],
-    ///             Cid::default(),
-    ///             Utc::now(),
-    ///             &store
-    ///         )
-    ///         .await
-    ///         .unwrap();
-    ///
-    ///     let PublicOpResult { root_dir: derived_root, .. } = recent_root
-    ///         .base_history_on(base_root, &mut store)
-    ///         .await
-    ///         .unwrap();
-    /// }
-    /// ```
-    pub async fn base_history_on(
-        self: Rc<Self>,
-        base: Rc<Self>,
-        store: &mut impl BlockStore,
-    ) -> Result<PublicOpResult<()>> {
-        if Rc::ptr_eq(&self, &base) {
-            return Ok(PublicOpResult {
-                root_dir: Rc::clone(&self),
-                result: (),
-            });
-        }
-
-        let mut dir = (*self).clone();
-        dir.previous = BTreeSet::from([base.store(store).await?]);
-
-        for (name, entry) in self.userland.iter() {
-            if let Some(base_entry) = base.userland.get(name) {
-                if let Some(new_entry) =
-                    Self::base_history_on_helper(entry, base_entry, store).await?
-                {
-                    dir.userland.insert(name.to_string(), new_entry);
-                }
-            }
-        }
-
-        Ok(PublicOpResult {
-            root_dir: Rc::new(dir),
-            result: (),
-        })
-    }
-
-    /// Constructs a tree from directory with `base` as the historical ancestor.
-    #[async_recursion(?Send)]
-    pub(crate) async fn base_history_on_helper(
-        link: &PublicLink,
-        base_link: &PublicLink,
-        store: &mut impl BlockStore,
-    ) -> Result<Option<PublicLink>> {
-        if link.deep_eq(base_link, store).await? {
-            return Ok(None);
-        }
-
-        let node = link.resolve_value(store).await?;
-        let base_node = base_link.resolve_value(store).await?;
-
-        let (mut dir, dir_rc, base_dir) = match (node, base_node) {
-            (PublicNode::Dir(dir_rc), PublicNode::Dir(base_dir_rc)) => {
-                let mut dir = (**dir_rc).clone();
-                dir.previous = BTreeSet::from([*base_link.resolve_cid(store).await?]);
-                (dir, dir_rc, base_dir_rc)
-            }
-            (PublicNode::File(file_rc), PublicNode::File(_)) => {
-                let mut file = (**file_rc).clone();
-                file.previous = BTreeSet::from([*base_link.resolve_cid(store).await?]);
-                return Ok(Some(PublicLink::with_file(Rc::new(file))));
-            }
-            _ => {
-                // One is a file and the other is a directory
-                // No need to fix up previous links
-                return Ok(None);
-            }
-        };
-
-        for (name, entry) in dir_rc.userland.iter() {
-            if let Some(base_entry) = base_dir.userland.get(name) {
-                if let Some(new_entry) =
-                    Self::base_history_on_helper(entry, base_entry, store).await?
-                {
-                    dir.userland.insert(name.to_string(), new_entry);
-                }
-            }
-        }
-
-        Ok(Some(PublicLink::with_dir(Rc::new(dir))))
     }
 }
 
@@ -939,7 +843,7 @@ impl<'de> Deserialize<'de> for PublicDirectory {
             return Err(DeError::custom(FsError::UnexpectedVersion(version)));
         }
 
-        if r#type != NodeType::PrivateDirectory {
+        if r#type != NodeType::PublicDirectory {
             return Err(DeError::custom(FsError::UnexpectedNodeType(r#type)));
         }
 
@@ -1177,99 +1081,6 @@ mod tests {
     }
 
     #[async_std::test]
-    async fn base_history_on_can_create_a_new_derived_tree_pointing_to_base() {
-        let time = Utc::now();
-        let mut store = MemoryBlockStore::default();
-        let root_dir = Rc::new(PublicDirectory::new(time));
-
-        let PublicOpResult {
-            root_dir: base_root,
-            ..
-        } = root_dir
-            .write(
-                &["pictures".into(), "cats".into(), "tabby.jpg".into()],
-                Cid::default(),
-                time,
-                &store,
-            )
-            .await
-            .unwrap();
-
-        let PublicOpResult {
-            root_dir: updated_root,
-            ..
-        } = Rc::clone(&base_root)
-            .write(
-                &["pictures".into(), "cats".into(), "luna.png".into()],
-                Cid::default(),
-                time,
-                &store,
-            )
-            .await
-            .unwrap();
-
-        let PublicOpResult {
-            root_dir: derived_root,
-            ..
-        } = updated_root
-            .base_history_on(Rc::clone(&base_root), &mut store)
-            .await
-            .unwrap();
-
-        // Assert that the root node points to its old version.
-        let derived_previous_cid = derived_root.get_previous();
-        let base_cid = base_root.store(&mut store).await.unwrap();
-
-        assert_eq!(derived_previous_cid.len(), 1);
-        assert!(derived_previous_cid.get(&base_cid).is_some());
-
-        // Assert that some node that exists between versions points to its old version.
-        let PublicOpResult {
-            result: derived_node,
-            ..
-        } = Rc::clone(&derived_root)
-            .get_node(&["pictures".into(), "cats".into()], &store)
-            .await
-            .unwrap();
-
-        let PublicOpResult {
-            result: base_node, ..
-        } = base_root
-            .get_node(&["pictures".into(), "cats".into()], &store)
-            .await
-            .unwrap();
-
-        assert!(derived_node.is_some());
-        let derived_node = derived_node.unwrap();
-
-        assert!(base_node.is_some());
-        let base_node = base_node.unwrap();
-
-        let derived_previous_cid = derived_node.get_previous();
-        let base_cid = base_node.store(&mut store).await.unwrap();
-
-        assert_eq!(derived_previous_cid.len(), 1);
-        assert!(derived_previous_cid.get(&base_cid).is_some());
-
-        // Assert that some node that doesn't exists between versions does not point to anything.
-        let PublicOpResult {
-            result: derived_node,
-            ..
-        } = Rc::clone(&derived_root)
-            .get_node(
-                &["pictures".into(), "cats".into(), "luna.png".into()],
-                &store,
-            )
-            .await
-            .unwrap();
-
-        assert!(derived_node.is_some());
-        let derived_node = derived_node.unwrap();
-
-        assert_eq!(derived_node.get_previous().len(), 0);
-    }
-
-    #[async_std::test]
     async fn mv_can_move_sub_directory_to_another_valid_location() {
         let time = Utc::now();
         let store = MemoryBlockStore::default();
@@ -1412,38 +1223,28 @@ mod tests {
     }
 
     #[async_std::test]
-    async fn previous_links_is_list() {
+    async fn previous_links_get_set() {
         let time = Utc::now();
-        let mut store = MemoryBlockStore::default();
+        let store = &mut MemoryBlockStore::default();
         let root_dir = Rc::new(PublicDirectory::new(time));
+
+        let previous_cid = root_dir.store(store).await.unwrap();
 
         let PublicOpResult {
             root_dir: root_dir_after,
             ..
-        } = root_dir
-            .clone()
-            .mkdir(&["test".into()], time, &store)
-            .await
-            .unwrap();
+        } = root_dir.mkdir(&["test".into()], time, store).await.unwrap();
 
-        let PublicOpResult {
-            root_dir: root_based,
-            ..
-        } = root_dir_after
-            .base_history_on(root_dir, &mut store)
-            .await
-            .unwrap();
+        root_dir_after.store(store).await.unwrap();
 
-        let ipld = root_based.async_serialize_ipld(&mut store).await.unwrap();
+        let ipld = root_dir_after.async_serialize_ipld(store).await.unwrap();
         match ipld {
-            Ipld::Map(map) => {
-                match map.get("previous") {
-                    Some(Ipld::List(_)) => {
-                        // we're good
-                    }
-                    _ => panic!("Expected 'previous' key to be a list"),
+            Ipld::Map(map) => match map.get("previous") {
+                Some(Ipld::List(previous)) => {
+                    assert_eq!(previous, &vec![Ipld::Link(previous_cid)]);
                 }
-            }
+                _ => panic!("Expected 'previous' key to be a list"),
+            },
             _ => panic!("Expected map!"),
         }
     }

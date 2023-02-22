@@ -348,25 +348,19 @@ impl PrivateDirectory {
     /// Otherwise, it clones itself, stores its current CID in the previous links and
     /// advances its ratchet.
     pub(crate) fn prepare_next_revision(self: Rc<Self>) -> Result<Self> {
-        let previous_cid = match self.content.persisted_as.get() {
-            Some(cid) => *cid,
-            None => {
-                // The current revision wasn't written yet.
-                // There's no point in advancing the revision even further.
-                return Ok(Rc::try_unwrap(self).unwrap_or_else(|rc| (*rc).clone()));
-            }
+        let Some(previous_cid) = self.content.persisted_as.get().cloned() else {
+            // The current revision wasn't written yet.
+            // There's no point in advancing the revision even further.
+            return Ok(Rc::try_unwrap(self).unwrap_or_else(|rc| (*rc).clone()));
         };
 
         let temporal_key = self.header.derive_temporal_key();
+        let previous_link = (1, Encrypted::from_value(previous_cid, &temporal_key)?);
 
         let mut cloned = Rc::try_unwrap(self).unwrap_or_else(|rc| (*rc).clone());
         // We make sure to clear any cached states.
         cloned.content.persisted_as = OnceCell::new();
-        cloned.content.previous.clear();
-        cloned
-            .content
-            .previous
-            .insert((1, Encrypted::from_value(previous_cid, &temporal_key)?));
+        cloned.content.previous = [previous_link].into_iter().collect();
 
         cloned.header.advance_ratchet();
 
