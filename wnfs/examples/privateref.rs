@@ -1,11 +1,10 @@
 use chrono::Utc;
 use futures::StreamExt;
 use rand::thread_rng;
-use serde::{Deserialize, Serialize};
 use sha3::Sha3_256;
-use std::{io::Cursor, rc::Rc};
+use std::rc::Rc;
 use wnfs::{
-    ipld::{DagCborCodec, Decode, Encode, Ipld, Serializer},
+    dagcbor,
     private::{AesKey, PrivateForest, RevisionRef},
     utils, Hasher, MemoryBlockStore, Namefilter, PrivateDirectory, PrivateOpResult,
 };
@@ -59,10 +58,10 @@ async fn main() -> anyhow::Result<()> {
     // --------- Method 1: Exchange serialized revision ref -----------
 
     // serialize the root_dir's revision_ref.
-    let cbor = encode(&root_dir.header.derive_revision_ref())?;
+    let cbor = dagcbor::encode(&root_dir.header.derive_revision_ref())?;
 
     // We can deserialize the revision_ref on the other end.
-    let revision_ref = decode(cbor)?;
+    let revision_ref = dagcbor::decode(&cbor)?;
 
     // Now we can fetch the directory from the forest using the revision_ref.
     let fetched_node = forest
@@ -94,16 +93,4 @@ async fn main() -> anyhow::Result<()> {
     println!("{:#?}", fetched_dir);
 
     Ok(())
-}
-
-fn encode(revision_ref: &RevisionRef) -> anyhow::Result<Vec<u8>> {
-    let mut bytes = Vec::new();
-    let ipld = revision_ref.serialize(Serializer)?;
-    ipld.encode(DagCborCodec, &mut bytes)?;
-    Ok(bytes)
-}
-
-fn decode(bytes: Vec<u8>) -> anyhow::Result<RevisionRef> {
-    let ipld = Ipld::decode(DagCborCodec, &mut Cursor::new(bytes))?;
-    RevisionRef::deserialize(ipld).map_err(Into::into)
 }

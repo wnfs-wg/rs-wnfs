@@ -1,11 +1,8 @@
-use std::io::Cursor;
-
 use anyhow::Result;
-use libipld::{cbor::DagCborCodec, codec::Decode, prelude::Encode, Ipld};
 use once_cell::sync::OnceCell;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
-use crate::FsError;
+use crate::{dagcbor, FsError};
 
 use super::TemporalKey;
 
@@ -41,8 +38,7 @@ impl<T> Encrypted<T> {
         T: Serialize,
     {
         let ipld = value.serialize(libipld::serde::Serializer)?;
-        let mut bytes = Vec::new();
-        ipld.encode(DagCborCodec, &mut bytes)?;
+        let bytes = dagcbor::encode(&ipld)?;
         let ciphertext = temporal_key.key_wrap_encrypt(&bytes)?;
 
         Ok(Self {
@@ -73,7 +69,7 @@ impl<T> Encrypted<T> {
     {
         self.value_cache.get_or_try_init(|| {
             let bytes = temporal_key.key_wrap_decrypt(&self.ciphertext)?;
-            let ipld = Ipld::decode(DagCborCodec, &mut Cursor::new(bytes))?;
+            let ipld = dagcbor::decode(&bytes)?;
             libipld::serde::from_ipld::<T>(ipld)
                 .map_err(|e| FsError::InvalidDeserialization(e.to_string()).into())
         })

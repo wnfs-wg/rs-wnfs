@@ -12,12 +12,12 @@ use anyhow::{bail, Result};
 use async_recursion::async_recursion;
 use chrono::{DateTime, Utc};
 use futures::StreamExt;
-use libipld::{cbor::DagCborCodec, prelude::Decode, Cid, Ipld, IpldCodec};
+use libipld::{Cid, Ipld, IpldCodec};
 use rand_core::RngCore;
 use serde::{Deserialize, Serialize};
 use sha3::Sha3_256;
 use skip_ratchet::{seek::JumpSize, Ratchet, RatchetSeeker};
-use std::{cmp::Ordering, collections::BTreeSet, fmt::Debug, io::Cursor, rc::Rc};
+use std::{cmp::Ordering, collections::BTreeSet, fmt::Debug, rc::Rc};
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
@@ -452,7 +452,7 @@ impl PrivateNode {
         let encrypted_bytes = store.get_block(&private_ref.content_cid).await?;
         let snapshot_key = private_ref.temporal_key.derive_snapshot_key();
         let bytes = snapshot_key.decrypt(&encrypted_bytes)?;
-        let ipld = Ipld::decode(DagCborCodec, &mut Cursor::new(bytes))?;
+        let ipld = dagcbor::decode(&bytes)?;
 
         match ipld {
             Ipld::Map(map) => {
