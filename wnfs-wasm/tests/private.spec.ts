@@ -453,7 +453,7 @@ test.describe("PrivateForest", () => {
       const file = new PrivateFile(new Namefilter(), time, rng);
       const node = file.asNode();
       const forest = new PrivateForest();
-      const [privateRef, _] = await forest.put(node, store, rng);
+      const [privateRef, _] = await node.store(forest, store, rng);
       return {
         // Need to be converted to arrays so they can be passed as JSON
         label: Array.from(privateRef.getLabel()),
@@ -480,7 +480,7 @@ test.describe("PrivateForest", () => {
       const file = new PrivateFile(new Namefilter(), time, rng);
       const node = file.asNode();
       const forest = new PrivateForest();
-      const [privateRef, newForest] = await forest.put(node, store, rng);
+      const [privateRef, newForest] = await node.store(forest, store, rng);
       const fetched = await newForest.get(privateRef, store);
       const metadataBefore = node.asFile().metadata();
       const metadataAfter = fetched.asFile().metadata();

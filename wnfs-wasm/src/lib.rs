@@ -32,7 +32,7 @@ extern "C" {
 #[macro_export]
 macro_rules! value {
     ($value:expr) => {
-        JsValue::from($value)
+        wasm_bindgen::JsValue::from($value)
     };
 }
 

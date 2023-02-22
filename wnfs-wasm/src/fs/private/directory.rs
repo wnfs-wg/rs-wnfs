@@ -15,7 +15,8 @@ use crate::{
     fs::{
         metadata::JsMetadata,
         utils::{self, error},
-        BlockStore, ForeignBlockStore, JsResult, Namefilter, PrivateForest, PrivateNode, Rng,
+        BlockStore, ForeignBlockStore, JsResult, Namefilter, PrivateForest, PrivateNode,
+        PrivateRef, Rng,
     },
     value,
 };
@@ -141,6 +142,29 @@ impl PrivateDirectory {
         }))
     }
 
+    pub fn store(
+        &self,
+        forest: &PrivateForest,
+        store: BlockStore,
+        mut rng: Rng,
+    ) -> JsResult<Promise> {
+        let directory = Rc::clone(&self.0);
+        let mut store = ForeignBlockStore(store);
+        let mut forest = Rc::clone(&forest.0);
+
+        Ok(future_to_promise(async move {
+            let private_ref = directory
+                .store(&mut forest, &mut store, &mut rng)
+                .await
+                .map_err(error("Cannot store directory"))?;
+
+            Ok(utils::create_private_forest_result(
+                value!(PrivateRef::from(private_ref)),
+                forest,
+            )?)
+        }))
+    }
+
     /// Follows a path and fetches the node at the end of the path.
     #[wasm_bindgen(js_name = "getNode")]
     pub fn get_node(
@@ -255,7 +279,6 @@ impl PrivateDirectory {
         search_latest: bool,
         forest: &PrivateForest,
         store: BlockStore,
-        mut rng: Rng,
     ) -> JsResult<Promise> {
         let directory = Rc::clone(&self.0);
         let mut store = ForeignBlockStore(store);
@@ -267,13 +290,7 @@ impl PrivateDirectory {
                 root_dir,
                 result: node,
             } = directory
-                .rm(
-                    &path_segments,
-                    search_latest,
-                    &mut forest,
-                    &mut store,
-                    &mut rng,
-                )
+                .rm(&path_segments, search_latest, &mut forest, &mut store)
                 .await
                 .map_err(error("Cannot remove from directory"))?;
 
