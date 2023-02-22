@@ -8,7 +8,7 @@ edition = "2021"
 [dev-dependencies]
 async-std = { version = "1.11", features = ["attributes"] }
 criterion = { version = "0.4", features = ["async_std"] }
-proptest = "1.0"
+proptest = "1.1"
 wnfs = { path = "../wnfs", features = ["test_strategies"] }
 
 [[bench]]
