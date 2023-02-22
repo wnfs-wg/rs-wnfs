@@ -343,7 +343,7 @@ impl PrivateDirectory {
         search_latest: bool,
         time: DateTime<Utc>,
         forest: &PrivateForest,
-        store: &mut impl BlockStore,
+        store: &impl BlockStore,
         rng: &mut impl RngCore,
     ) -> Result<PrivatePathNodes> {
         use PathNodesResult::*;
@@ -849,8 +849,8 @@ impl PrivateDirectory {
         path_segments: &[String],
         search_latest: bool,
         time: DateTime<Utc>,
-        forest: &mut Rc<PrivateForest>,
-        store: &mut impl BlockStore,
+        forest: &PrivateForest,
+        store: &impl BlockStore,
         rng: &mut impl RngCore,
     ) -> Result<PrivateOpResult<()>> {
         let path_nodes = self
@@ -1016,8 +1016,8 @@ impl PrivateDirectory {
         self: Rc<Self>,
         path_segments: &[String],
         search_latest: bool,
-        forest: &mut Rc<PrivateForest>,
-        store: &mut impl BlockStore,
+        forest: &PrivateForest,
+        store: &impl BlockStore,
     ) -> Result<PrivateOpResult<PrivateNode>> {
         let (directory_path, node_name) = utils::split_last(path_segments)?;
 
