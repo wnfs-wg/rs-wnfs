@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.2.0](https://github.com/wnfs-wg/rs-wnfs/compare/wnfs-v0.1.15...wnfs-v0.2.0) (2023-02-22)
+
+
+### ⚠ BREAKING CHANGES
+
+* **exports:** make re-exports more flexible ([#167](https://github.com/wnfs-wg/rs-wnfs/issues/167))
+
+### Features
+
+* Streaming write for PrivateFile ([#163](https://github.com/wnfs-wg/rs-wnfs/issues/163)) ([1bfe89b](https://github.com/wnfs-wg/rs-wnfs/commit/1bfe89bcaabdf679a5338a2c9aa97b76deb00b03))
+
+
+### Miscellaneous Chores
+
+* **exports:** make re-exports more flexible ([#167](https://github.com/wnfs-wg/rs-wnfs/issues/167)) ([d7870bc](https://github.com/wnfs-wg/rs-wnfs/commit/d7870bc78660458fe9c5252c551a474dcdd045f2))
+
 ## [0.1.15](https://github.com/wnfs-wg/rs-wnfs/compare/wnfs-v0.1.14...wnfs-v0.1.15) (2023-02-16)
 
 
