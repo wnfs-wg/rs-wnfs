@@ -4,7 +4,10 @@ use async_once_cell::OnceCell;
 use async_trait::async_trait;
 use libipld::Cid;
 use serde::de::DeserializeOwned;
-use std::fmt::{self, Debug, Formatter};
+use std::{
+    fmt::{self, Debug, Formatter},
+    rc::Rc,
+};
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
@@ -23,14 +26,15 @@ pub enum Link<T> {
     /// A variant of `Link` that started out as a deserialized value `T`.
     /// If the cid is resolved using `resolve_cid`, then the `cid_cache` gets populated and further calls
     /// to `resolve_cid` will just return from that cache.
-    Decoded { value: T, cid_cache: OnceCell<Cid> },
+    /// TODO(matheus23) adjust docs
+    Decoded { value: T },
 }
 
 //--------------------------------------------------------------------------------------------------
 // Implementations
 //--------------------------------------------------------------------------------------------------
 
-impl<T> Link<T> {
+impl<T: RemembersPersistence> Link<T> {
     /// Creates a new `Link` that starts out as a Cid.
     pub fn from_cid(cid: Cid) -> Self {
         Self::Encoded {
@@ -46,7 +50,8 @@ impl<T> Link<T> {
     {
         match self {
             Self::Encoded { cid, .. } => Ok(cid),
-            Self::Decoded { value, cid_cache } => {
+            Self::Decoded { value } => {
+                let cid_cache = value.persisted_as();
                 cid_cache
                     .get_or_try_init(async { store.put_async_serializable(value).await })
                     .await
@@ -62,7 +67,7 @@ impl<T> Link<T> {
         match self {
             Self::Encoded { cid, value_cache } => {
                 value_cache
-                    .get_or_try_init(async { store.get_deserializable(cid).await })
+                    .get_or_try_init(async { store.get_remembering_persistence(cid).await })
                     .await
             }
             Self::Decoded { value, .. } => Ok(value),
@@ -75,7 +80,7 @@ impl<T> Link<T> {
     pub fn get_cid(&self) -> Option<&Cid> {
         match self {
             Self::Encoded { cid, .. } => Some(cid),
-            Self::Decoded { cid_cache, .. } => cid_cache.get(),
+            Self::Decoded { value } => value.persisted_as().get(),
         }
     }
 
@@ -85,7 +90,7 @@ impl<T> Link<T> {
     pub fn get_value(&self) -> Option<&T> {
         match self {
             Self::Encoded { value_cache, .. } => value_cache.get(),
-            Self::Decoded { value, .. } => Some(value),
+            Self::Decoded { value } => Some(value),
         }
     }
 
@@ -100,7 +105,7 @@ impl<T> Link<T> {
                 value_cache,
             } => match value_cache.into_inner() {
                 Some(cached) => Ok(cached),
-                None => store.get_deserializable(cid).await,
+                None => store.get_remembering_persistence(cid).await,
             },
             Self::Decoded { value, .. } => Ok(value),
         }
@@ -109,7 +114,7 @@ impl<T> Link<T> {
     /// Checks if there is a Cid cached in link.
     pub fn has_cid(&self) -> bool {
         match self {
-            Self::Decoded { cid_cache, .. } => cid_cache.get().is_some(),
+            Self::Decoded { value } => value.persisted_as().get().is_some(),
             _ => true,
         }
     }
@@ -136,7 +141,7 @@ impl<T> Link<T> {
 }
 
 #[async_trait(?Send)]
-impl<T: PartialEq + AsyncSerialize> IpldEq for Link<T> {
+impl<T: PartialEq + AsyncSerialize + RemembersPersistence> IpldEq for Link<T> {
     async fn eq<B: BlockStore + ?Sized>(&self, other: &Link<T>, store: &mut B) -> Result<bool> {
         if self == other {
             return Ok(true);
@@ -146,12 +151,9 @@ impl<T: PartialEq + AsyncSerialize> IpldEq for Link<T> {
     }
 }
 
-impl<T> From<T> for Link<T> {
+impl<T: RemembersPersistence> From<T> for Link<T> {
     fn from(value: T) -> Self {
-        Self::Decoded {
-            value,
-            cid_cache: OnceCell::new(),
-        }
+        Self::Decoded { value }
     }
 }
 
@@ -165,15 +167,14 @@ where
                 cid: *cid,
                 value_cache: OnceCell::new_with(value_cache.get().cloned()),
             },
-            Self::Decoded { value, cid_cache } => Self::Decoded {
+            Self::Decoded { value } => Self::Decoded {
                 value: value.clone(),
-                cid_cache: OnceCell::new_with(cid_cache.get().cloned()),
             },
         }
     }
 }
 
-impl<T> PartialEq for Link<T>
+impl<T: RemembersPersistence> PartialEq for Link<T>
 where
     T: PartialEq,
 {
@@ -215,37 +216,104 @@ where
     }
 }
 
+pub trait RemembersPersistence {
+    fn persisted_as(&self) -> &OnceCell<Cid>;
+}
+
+impl<T: RemembersPersistence> RemembersPersistence for Rc<T> {
+    fn persisted_as(&self) -> &OnceCell<Cid> {
+        self.as_ref().persisted_as()
+    }
+}
+
 //--------------------------------------------------------------------------------------------------
 // Tests
 //--------------------------------------------------------------------------------------------------
 
 #[cfg(test)]
 mod tests {
-    use crate::{BlockStore, Link, MemoryBlockStore};
+    use ::serde::{Deserialize, Serialize};
+    use async_once_cell::OnceCell;
+    use async_trait::async_trait;
+    use libipld::Cid;
+    use serde::Serializer;
+
+    use crate::{AsyncSerialize, BlockStore, Link, MemoryBlockStore, RemembersPersistence};
+
+    #[derive(Debug, Serialize, Deserialize)]
+    struct Example {
+        price: u64,
+        #[serde(skip, default = "OnceCell::new")]
+        persisted_as: OnceCell<Cid>,
+    }
+
+    // TODO(matheus23): Yeah all these traits are not fun :/
+
+    #[async_trait(?Send)]
+    impl AsyncSerialize for Example {
+        async fn async_serialize<S: Serializer, BS: BlockStore + ?Sized>(
+            &self,
+            serializer: S,
+            _: &mut BS,
+        ) -> Result<S::Ok, S::Error> {
+            self.serialize(serializer)
+        }
+    }
+
+    impl Clone for Example {
+        fn clone(&self) -> Self {
+            Self {
+                price: self.price.clone(),
+                persisted_as: OnceCell::new_with(self.persisted_as.get().cloned()),
+            }
+        }
+    }
+
+    impl PartialEq for Example {
+        fn eq(&self, other: &Self) -> bool {
+            self.price == other.price
+        }
+    }
+
+    impl Example {
+        fn new(price: u64) -> Self {
+            Self {
+                price,
+                persisted_as: OnceCell::new(),
+            }
+        }
+    }
+
+    impl RemembersPersistence for Example {
+        fn persisted_as(&self) -> &OnceCell<Cid> {
+            &self.persisted_as
+        }
+    }
 
     #[async_std::test]
     async fn link_value_can_be_resolved() {
         let store = &mut MemoryBlockStore::default();
-        let cid = store.put_serializable(&256).await.unwrap();
-        let link = Link::<u64>::from_cid(cid);
+        let example = Example::new(256);
+        let cid = store.put_serializable(&example).await.unwrap();
+        let link = Link::<Example>::from_cid(cid);
 
         let value = link.resolve_value(store).await.unwrap();
-        assert_eq!(value, &256);
+        assert_eq!(value, &example);
         assert!(link.has_value());
     }
 
     #[async_std::test]
     async fn link_cid_can_be_resolved() {
-        let pair = ("price".into(), 12_000_500);
+        let example = Example::new(12_000_500);
         let store = &mut MemoryBlockStore::default();
-        let link = Link::<(String, u64)>::from(pair.clone());
+        let link = Link::<Example>::from(example.clone());
 
         let cid = link.resolve_cid(store).await.unwrap();
         let value = store
-            .get_deserializable::<(String, u64)>(cid)
+            .get_remembering_persistence::<Example>(cid)
             .await
             .unwrap();
 
-        assert_eq!(value, pair);
+        assert_eq!(value, example);
     }
 }

@@ -3,13 +3,14 @@
 use std::{collections::BTreeSet, rc::Rc};
 
 use anyhow::{bail, Result};
+use async_once_cell::OnceCell;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use libipld::{Cid, Ipld};
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 
 use super::{PublicDirectory, PublicFile};
-use crate::{common::BlockStore, AsyncSerialize, FsError, Id, NodeType};
+use crate::{common::BlockStore, AsyncSerialize, FsError, Id, NodeType, RemembersPersistence};
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
@@ -313,6 +314,15 @@ impl AsyncSerialize for PublicNode {
         match self {
             Self::File(file) => file.serialize(serializer),
             Self::Dir(dir) => dir.async_serialize(serializer, store).await,
+        }
+    }
+}
+
+impl RemembersPersistence for PublicNode {
+    fn persisted_as(&self) -> &OnceCell<Cid> {
+        match self {
+            PublicNode::File(file) => (*file).persisted_as(),
+            PublicNode::Dir(dir) => (*dir).persisted_as(),
         }
     }
 }

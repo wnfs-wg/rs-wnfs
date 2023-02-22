@@ -4,12 +4,13 @@ use std::collections::BTreeSet;
 
 use anyhow::Result;
 
+use async_once_cell::OnceCell;
 use chrono::{DateTime, Utc};
 use libipld::Cid;
 use semver::Version;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-use crate::{BlockStore, Id, Metadata, NodeType};
+use crate::{BlockStore, Id, Metadata, NodeType, RemembersPersistence};
 
 /// Represents a file in the WNFS public filesystem.
 ///
@@ -24,8 +25,9 @@ use crate::{BlockStore, Id, Metadata, NodeType};
 ///
 /// println!("File: {:?}", file);
 /// ```
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug)]
 pub struct PublicFile {
+    persisted_as: OnceCell<Cid>,
     pub version: Version,
     pub metadata: Metadata,
     pub userland: Cid,
@@ -61,6 +63,7 @@ impl PublicFile {
     /// ```
     pub fn new(time: DateTime<Utc>, content_cid: Cid) -> Self {
         Self {
+            persisted_as: OnceCell::new(),
             version: Version::new(0, 2, 0),
             metadata: Metadata::new(time),
             userland: content_cid,
@@ -147,6 +150,7 @@ impl<'de> Deserialize<'de> for PublicFile {
         } = PublicFileSerializable::deserialize(deserializer)?;
 
         Ok(Self {
+            persisted_as: OnceCell::new(),
             version,
             metadata,
             userland,
@@ -158,6 +162,33 @@ impl<'de> Deserialize<'de> for PublicFile {
 impl Id for PublicFile {
     fn get_id(&self) -> String {
         format!("{:p}", &self.metadata)
+    }
+}
+
+impl PartialEq for PublicFile {
+    fn eq(&self, other: &Self) -> bool {
+        self.version == other.version
+            && self.metadata == other.metadata
+            && self.userland == other.userland
+            && self.previous == other.previous
+    }
+}
+
+impl Clone for PublicFile {
+    fn clone(&self) -> Self {
+        Self {
+            persisted_as: OnceCell::new_with(self.persisted_as.get().cloned()),
+            version: self.version.clone(),
+            metadata: self.metadata.clone(),
+            userland: self.userland,
+            previous: self.previous.clone(),
+        }
+    }
+}
+
+impl RemembersPersistence for PublicFile {
+    fn persisted_as(&self) -> &OnceCell<Cid> {
+        &self.persisted_as
     }
 }
 

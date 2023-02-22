@@ -494,7 +494,7 @@ mod tests {
                 forest: sharer_forest,
             })
             .to(Recipient {
-                exchange_root: PublicLink::from(PublicNode::Dir(recipient_exchange_root)),
+                exchange_root: PublicLink::new(PublicNode::Dir(recipient_exchange_root)),
                 store: recipient_store,
             })
             .finish()

@@ -361,7 +361,6 @@ impl PrivateDirectory {
 
         let mut cloned = Rc::try_unwrap(self).unwrap_or_else(|rc| (*rc).clone());
         // We make sure to clear any cached states.
-        // `.clone()` does this too, but `try_unwrap` may circumvent clone.
         cloned.content.persisted_as = OnceCell::new();
         cloned.content.previous.clear();
         cloned

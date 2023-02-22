@@ -7,9 +7,10 @@ use std::{
 
 use crate::{
     error, utils, AsyncSerialize, BlockStore, FsError, Id, Metadata, NodeType, PathNodes,
-    PathNodesResult,
+    PathNodesResult, RemembersPersistence,
 };
 use anyhow::{bail, ensure, Result};
+use async_once_cell::OnceCell;
 use async_recursion::async_recursion;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
@@ -38,8 +39,9 @@ pub type PublicPathNodesResult = PathNodesResult<PublicDirectory>;
 ///
 /// println!("Directory: {:?}", dir);
 /// ```
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug)]
 pub struct PublicDirectory {
+    persisted_as: OnceCell<Cid>,
     pub version: Version,
     pub metadata: Metadata,
     pub userland: BTreeMap<String, PublicLink>,
@@ -83,6 +85,7 @@ impl PublicDirectory {
     /// ```
     pub fn new(time: DateTime<Utc>) -> Self {
         Self {
+            persisted_as: OnceCell::new(),
             version: Version::new(0, 2, 0),
             metadata: Metadata::new(time),
             userland: BTreeMap::new(),
@@ -864,6 +867,33 @@ impl Id for PublicDirectory {
     }
 }
 
+impl PartialEq for PublicDirectory {
+    fn eq(&self, other: &Self) -> bool {
+        self.version == other.version
+            && self.metadata == other.metadata
+            && self.userland == other.userland
+            && self.previous == other.previous
+    }
+}
+
+impl Clone for PublicDirectory {
+    fn clone(&self) -> Self {
+        Self {
+            persisted_as: OnceCell::new_with(self.persisted_as.get().cloned()),
+            version: self.version.clone(),
+            metadata: self.metadata.clone(),
+            userland: self.userland.clone(),
+            previous: self.previous.clone(),
+        }
+    }
+}
+
+impl RemembersPersistence for PublicDirectory {
+    fn persisted_as(&self) -> &OnceCell<Cid> {
+        &self.persisted_as
+    }
+}
+
 /// Implements async deserialization for serde serializable types.
 #[async_trait(?Send)]
 impl AsyncSerialize for PublicDirectory {
@@ -913,6 +943,7 @@ impl<'de> Deserialize<'de> for PublicDirectory {
             .collect();
 
         Ok(Self {
+            persisted_as: OnceCell::new(),
             version,
             metadata,
             userland,

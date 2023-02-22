@@ -5,14 +5,16 @@ use super::{
 };
 use crate::{
     private::HAMT_VALUES_BUCKET_SIZE, AsyncSerialize, BlockStore, FsError, HashOutput, Link,
+    RemembersPersistence,
 };
 use anyhow::{bail, Result};
+use async_once_cell::OnceCell;
 use async_recursion::async_recursion;
 use async_trait::async_trait;
 use bitvec::array::BitArray;
 use either::{Either, Either::*};
 use futures::future::LocalBoxFuture;
-use libipld::{serde as ipld_serde, Ipld};
+use libipld::{serde as ipld_serde, Cid, Ipld};
 use log::debug;
 use serde::{
     de::{Deserialize, DeserializeOwned},
@@ -48,11 +50,11 @@ pub type BitMaskType = [u8; HAMT_BITMASK_BYTE_SIZE];
 ///
 /// assert!(node.is_empty());
 /// ```
-#[derive(Clone)]
 pub struct Node<K, V, H = Sha3_256>
 where
     H: Hasher,
 {
+    persisted_as: OnceCell<Cid>,
     pub(crate) bitmask: BitArray<BitMaskType>,
     pub(crate) pointers: Vec<Pointer<K, V, H>>,
     hasher: PhantomData<H>,
@@ -64,7 +66,7 @@ where
 
 impl<K, V, H> Node<K, V, H>
 where
-    H: Hasher + Clone + 'static,
+    H: Hasher + 'static,
 {
     /// Sets a new value at the given key.
     ///
@@ -676,9 +678,27 @@ impl<K, V, H: Hasher> Node<K, V, H> {
     }
 }
 
+impl<K: Clone, V: Clone, H: Hasher> Clone for Node<K, V, H> {
+    fn clone(&self) -> Self {
+        Self {
+            persisted_as: OnceCell::new_with(self.persisted_as.get().cloned()),
+            bitmask: self.bitmask,
+            pointers: self.pointers.clone(),
+            hasher: PhantomData,
+        }
+    }
+}
+
+impl<K, V, H: Hasher> RemembersPersistence for Node<K, V, H> {
+    fn persisted_as(&self) -> &OnceCell<Cid> {
+        &self.persisted_as
+    }
+}
+
 impl<K, V, H: Hasher> Default for Node<K, V, H> {
     fn default() -> Self {
         Node {
+            persisted_as: OnceCell::new(),
             bitmask: BitArray::ZERO,
             pointers: Vec::with_capacity(HAMT_BITMASK_BIT_SIZE),
             hasher: PhantomData,
@@ -733,6 +753,7 @@ where
             )));
         }
         Ok(Node {
+            persisted_as: OnceCell::new(),
             bitmask,
             pointers,
             hasher: PhantomData,
@@ -755,7 +776,7 @@ impl<K, V, H> Debug for Node<K, V, H>
 where
     K: Debug,
     V: Debug,
-    H: Hasher + Debug,
+    H: Hasher,
 {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         let mut bitmask_str = String::new();
