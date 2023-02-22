@@ -220,6 +220,8 @@ impl PrivateFile {
     /// #[async_std::main]
     /// async fn main() {
     ///     let disk_file = File::open("./test/fixtures/Clara Schumann, Scherzo no. 2, Op. 14.mp3")
+    ///         .await
+    ///         .unwrap();
     ///
     ///     let store = &mut MemoryBlockStore::default();
     ///     let rng = &mut thread_rng();
