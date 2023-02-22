@@ -15,8 +15,7 @@ use crate::{
     fs::{
         metadata::JsMetadata,
         utils::{self, error},
-        BlockStore, ForeignBlockStore, JsResult, Namefilter, PrivateForest, PrivateNode,
-        PrivateRef, Rng,
+        BlockStore, ForeignBlockStore, JsResult, Namefilter, PrivateForest, PrivateNode, Rng,
     },
     value,
 };
@@ -142,27 +141,11 @@ impl PrivateDirectory {
         }))
     }
 
-    pub fn store(
-        &self,
-        forest: &PrivateForest,
-        store: BlockStore,
-        mut rng: Rng,
-    ) -> JsResult<Promise> {
-        let directory = Rc::clone(&self.0);
-        let mut store = ForeignBlockStore(store);
-        let mut forest = Rc::clone(&forest.0);
-
-        Ok(future_to_promise(async move {
-            let private_ref = directory
-                .store(&mut forest, &mut store, &mut rng)
-                .await
-                .map_err(error("Cannot store directory"))?;
-
-            Ok(utils::create_private_forest_result(
-                value!(PrivateRef::from(private_ref)),
-                forest,
-            )?)
-        }))
+    /// Persists the current state of this directory in the BlockStore and PrivateForest.
+    /// This will also force a history entry to be created, if there were changes.
+    pub fn store(&self, forest: &PrivateForest, store: BlockStore, rng: Rng) -> JsResult<Promise> {
+        let node = PrivateNode(WnfsPrivateNode::Dir(Rc::clone(&self.0)));
+        node.store(forest, store, rng)
     }
 
     /// Follows a path and fetches the node at the end of the path.

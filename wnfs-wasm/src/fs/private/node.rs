@@ -26,6 +26,8 @@ pub struct PrivateNode(pub(crate) WnfsPrivateNode);
 
 #[wasm_bindgen]
 impl PrivateNode {
+    /// Persists the current state of this node in the BlockStore and PrivateForest.
+    /// This will also force a history entry to be created, if there were changes.
     pub fn store(
         &self,
         forest: &PrivateForest,
@@ -49,6 +51,7 @@ impl PrivateNode {
         }))
     }
 
+    /// Loads a node from the PrivateForest using the PrivateRef.
     pub fn load(
         private_ref: PrivateRef,
         forest: &PrivateForest,
