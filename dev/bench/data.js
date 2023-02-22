@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1676984527148,
+  "lastUpdate": 1677057854473,
   "repoUrl": "https://github.com/wnfs-wg/rs-wnfs",
   "entries": {
     "Rust Benchmark": [
@@ -6156,6 +6156,108 @@ window.BENCHMARK_DATA = {
           {
             "name": "namefilter encode",
             "value": 162,
+            "range": "± 7",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter decode/0",
+            "value": 1,
+            "range": "± 0",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "appcypher@outlook.com",
+            "name": "Stephen Akinyemi",
+            "username": "appcypher"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "d7870bc78660458fe9c5252c551a474dcdd045f2",
+          "message": "chore(exports)!: make re-exports more flexible (#167)\n\n* Make re-exports more flexible\r\n\r\n* Fix examples\r\n\r\n* Fix unrelated typos\r\n\r\n* Remove skip_ratchet re-export\r\n\r\n* Fix import",
+          "timestamp": "2023-02-22T10:20:49+01:00",
+          "tree_id": "dc47e139768b1226c143a1d3c0aff5dde0185f2a",
+          "url": "https://github.com/wnfs-wg/rs-wnfs/commit/d7870bc78660458fe9c5252c551a474dcdd045f2"
+        },
+        "date": 1677057853405,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "node set",
+            "value": 6582,
+            "range": "± 122",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node set 1000 consecutive",
+            "value": 4349783,
+            "range": "± 16339",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and get",
+            "value": 149661,
+            "range": "± 1105",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and remove",
+            "value": 168199,
+            "range": "± 157",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt load and decode/0",
+            "value": 33535,
+            "range": "± 73",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt set and encode",
+            "value": 166649,
+            "range": "± 304",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt diff",
+            "value": 235510,
+            "range": "± 18618",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt merge",
+            "value": 399596,
+            "range": "± 47191",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter add",
+            "value": 7471,
+            "range": "± 9",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter contains",
+            "value": 9581,
+            "range": "± 70",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter saturate",
+            "value": 43306,
+            "range": "± 305",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter encode",
+            "value": 161,
             "range": "± 7",
             "unit": "ns/iter"
           },
