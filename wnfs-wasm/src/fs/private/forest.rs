@@ -6,7 +6,9 @@ use js_sys::{Promise, Uint8Array};
 use std::rc::Rc;
 use wasm_bindgen::prelude::wasm_bindgen;
 use wasm_bindgen_futures::future_to_promise;
-use wnfs::{ipld::Cid, private::PrivateForest as WnfsPrivateForest, BlockStore as WnfsBlockStore};
+use wnfs::{
+    libipld::Cid, private::PrivateForest as WnfsPrivateForest, BlockStore as WnfsBlockStore,
+};
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions

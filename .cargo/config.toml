@@ -1,0 +1,10 @@
+[target.'cfg(target_arch = "wasm32")']
+rustflags = [
+    "-C", "panic=abort",
+    # "-C", "lto=yes", // https://users.rust-lang.org/t/error-lto-can-only-be-run-for-executables-cdylibs-and-static-library-outputs/73369
+    "-C", "embed-bitcode=yes",
+    "-C", "debuginfo=0",
+    "-C", "opt-level=z",
+    "-C", "codegen-units=1",
+    "-C", "debug-assertions=no",
+]

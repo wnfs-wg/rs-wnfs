@@ -1,7 +1,7 @@
 use crate::fs::utils::{self, error};
 use wasm_bindgen::prelude::wasm_bindgen;
 use wnfs::{
-    ipld::Cid,
+    libipld::Cid,
     private::{AesKey, PrivateRef as WnfsPrivateRef, TemporalKey, KEY_BYTE_SIZE},
     HASH_BYTE_SIZE,
 };

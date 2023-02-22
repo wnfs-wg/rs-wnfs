@@ -26,20 +26,8 @@ pub use traits::*;
 // Re-exports
 //--------------------------------------------------------------------------------------------------
 
-pub mod ipld {
-    pub use libipld::{
-        cbor::DagCborCodec,
-        cid::Version,
-        codec::{Codec, Decode, Encode},
-        serde::Serializer,
-        Cid, Ipld, IpldCodec,
-    };
-}
+pub use libipld;
 
-pub mod rng {
+pub mod rand_core {
     pub use rand_core::RngCore;
-}
-
-pub mod ratchet {
-    pub use skip_ratchet::{Ratchet, RatchetSeeker};
 }

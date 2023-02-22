@@ -6,7 +6,7 @@ use std::rc::Rc;
 use wasm_bindgen::{prelude::wasm_bindgen, JsValue};
 use wasm_bindgen_futures::future_to_promise;
 use wnfs::{
-    ipld::Cid, BlockStore as WnfsBlockStore, Id, PublicFile as WnfsPublicFile,
+    libipld::Cid, BlockStore as WnfsBlockStore, Id, PublicFile as WnfsPublicFile,
     PublicNode as WnfsPublicNode,
 };
 

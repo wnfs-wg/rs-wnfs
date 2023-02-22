@@ -8,7 +8,7 @@ use js_sys::{Promise, Uint8Array};
 use wasm_bindgen::prelude::wasm_bindgen;
 use wasm_bindgen_futures::JsFuture;
 use wnfs::{
-    ipld::{Cid, IpldCodec},
+    libipld::{Cid, IpldCodec},
     BlockStore as WnfsBlockStore,
 };
 
