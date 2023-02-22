@@ -219,7 +219,7 @@ impl PrivateFile {
     ///
     /// #[async_std::main]
     /// async fn main() {
-    ///     let disk_file = File::open("./src/private/directory.rs").await.unwrap();
+    ///     let disk_file = File::open("./test/fixtures/Clara Schumann, Scherzo no. 2, Op. 14.mp3")
     ///
     ///     let store = &mut MemoryBlockStore::default();
     ///     let rng = &mut thread_rng();
@@ -790,7 +790,9 @@ mod tests {
 
     #[async_std::test]
     async fn can_construct_file_from_stream() {
-        let disk_file = File::open("./src/private/directory.rs").await.unwrap();
+        let disk_file = File::open("./test/fixtures/Clara Schumann, Scherzo no. 2, Op. 14.mp3")
+            .await
+            .unwrap();
 
         let forest = &mut Rc::new(PrivateForest::new());
         let store = &mut MemoryBlockStore::new();
