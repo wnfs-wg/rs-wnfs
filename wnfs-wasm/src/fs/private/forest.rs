@@ -1,14 +1,23 @@
-use crate::{
-    fs::{utils::error, BlockStore, ForeignBlockStore, JsResult},
-    value,
-};
-use js_sys::{Promise, Uint8Array};
 use std::rc::Rc;
-use wasm_bindgen::prelude::wasm_bindgen;
+use js_sys::Promise;
+use wasm_bindgen::{prelude::wasm_bindgen, JsValue};
 use wasm_bindgen_futures::future_to_promise;
 use wnfs::{
-    libipld::Cid, private::PrivateForest as WnfsPrivateForest, BlockStore as WnfsBlockStore,
+    libipld::Cid,
+    private::{
+        AesKey, PrivateForest as WnfsPrivateForest, PrivateRef as WnfsPrivateRef, TemporalKey,
+        KEY_BYTE_SIZE,
+    },
+    HASH_BYTE_SIZE,
 };
+use crate::{
+    fs::{
+        utils::{self, error},
+        BlockStore, ForeignBlockStore, JsResult, Rng,
+    },
+    value,
+};
+use super::PrivateNode;
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
@@ -62,6 +71,41 @@ impl PrivateForest {
             let cid_u8array = Uint8Array::from(&cid.to_bytes()[..]);
 
             Ok(value!(cid_u8array))
+        }))
+    }
+
+    #[wasm_bindgen]
+    pub fn merge(&self, other: &PrivateForest, store: BlockStore) -> JsResult<Promise> {
+        let mut store = ForeignBlockStore(store);
+        let main = Rc::clone(&self.0);
+        let other = Rc::clone(&other.0);
+
+        Ok(future_to_promise(async move {
+            let merged = main
+                .merge(&other, &mut store)
+                .await
+                .map_err(error("Error in private forest 'merge'"))?;
+
+            Ok(value!(PrivateForest(merged.into())))
+        }))
+    }
+
+    #[wasm_bindgen]
+    pub fn diff(&self, other: &PrivateForest, store: BlockStore) -> JsResult<Promise> {
+        let mut store = ForeignBlockStore(store);
+        let main = Rc::clone(&self.0);
+        let other = Rc::clone(&other.0);
+
+        Ok(future_to_promise(async move {
+            let diff = main
+                .diff(&other, &mut store)
+                .await
+                .map_err(error("Error in private forest 'merge'"))?;
+
+            Ok(value!(diff
+                .into_iter()
+                .map(|c| value!(ForestChange(c)))
+                .collect::<Array>()))
         }))
     }
 }

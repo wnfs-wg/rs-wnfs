@@ -428,7 +428,7 @@ test.describe("PrivateFile", () => {
     const result = await page.evaluate(async () => {
       const {
         wnfs: { Namefilter, PrivateFile },
-        mock: { Rng }
+        mock: { Rng },
       } = await window.setup();
 
       const time = new Date();
@@ -443,8 +443,8 @@ test.describe("PrivateForest", () => {
   test("store returns a PrivateRef", async ({ page }) => {
     const result = await page.evaluate(async () => {
       const {
-        wnfs: { Namefilter, PrivateFile, PrivateForest, PrivateRef },
-        mock: { MemoryBlockStore, Rng, CID }
+        wnfs: { Namefilter, PrivateFile, PrivateForest },
+        mock: { MemoryBlockStore, Rng, CID },
       } = await window.setup();
 
       const rng = new Rng();
@@ -459,7 +459,7 @@ test.describe("PrivateForest", () => {
         label: Array.from(privateRef.getLabel()),
         temporalKey: Array.from(privateRef.getTemporalKey()),
         contentCid: CID.decode(privateRef.getContentCid()).toString(),
-      }
+      };
     });
 
     expect(result.label.length).toEqual(32);
@@ -491,5 +491,63 @@ test.describe("PrivateForest", () => {
     expect(metadataAfter).toBeDefined();
     expect(metadataBefore.created).toEqual(metadataAfter.created);
     expect(metadataBefore.modified).toEqual(metadataAfter.modified);
+  });
+
+  test("diff gets changes in forests", async ({ page }) => {
+    const changes = await page.evaluate(async () => {
+      const {
+        wnfs: { Namefilter, PrivateFile, PrivateDirectory, PrivateForest },
+        mock: { MemoryBlockStore, Rng },
+      } = await window.setup();
+
+      const rng = new Rng();
+      const store = new MemoryBlockStore();
+      const time = new Date();
+
+      var mainForest: any = new PrivateForest();
+      var otherForest: any = new PrivateForest();
+
+      const file = new PrivateFile(new Namefilter(), time, rng).asNode();
+      const dir = new PrivateDirectory(new Namefilter(), time, rng).asNode();
+
+      var [_, mainForest] = await mainForest.put(file, store, rng);
+      var [_, otherForest] = await otherForest.put(dir, store, rng);
+
+      const diff = await mainForest.diff(otherForest, store);
+
+      return diff.map((change: any) => change.getChangeType());
+    });
+
+    expect(changes.length).toEqual(2);
+    expect(changes).toContain("add");
+    expect(changes).toContain("remove");
+  });
+
+  test("merge combines changes in forests", async ({ page }) => {
+    const result = await page.evaluate(async () => {
+      const {
+        wnfs: { Namefilter, PrivateFile, PrivateDirectory, PrivateForest },
+        mock: { MemoryBlockStore, Rng },
+      } = await window.setup();
+
+      const rng = new Rng();
+      const store = new MemoryBlockStore();
+      const time = new Date();
+
+      var mainForest: any = new PrivateForest();
+      var otherForest: any = new PrivateForest();
+
+      const file = new PrivateFile(new Namefilter(), time, rng).asNode();
+      const dir = new PrivateDirectory(new Namefilter(), time, rng).asNode();
+
+      var [_, mainForest] = await mainForest.put(file, store, rng);
+      var [privateRef, otherForest] = await otherForest.put(dir, store, rng);
+
+      const mergeForest = await mainForest.merge(otherForest, store);
+
+      return mergeForest.get(privateRef, store);
+    });
+
+    expect(result).toBeDefined();
   });
 });

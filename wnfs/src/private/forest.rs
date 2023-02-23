@@ -228,7 +228,7 @@ where
     ///     );
     /// }
     /// ```
-    pub async fn merge<B: BlockStore>(&self, other: &Self, store: &mut B) -> Result<Self> {
+    pub async fn merge(&self, other: &Self, store: &mut impl BlockStore) -> Result<Self> {
         let merge_node = hamt::merge(
             Link::from(Rc::clone(&self.root)),
             Link::from(Rc::clone(&other.root)),
