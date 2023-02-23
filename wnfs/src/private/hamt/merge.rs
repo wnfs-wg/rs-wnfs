@@ -1,4 +1,4 @@
-use super::{diff, ChangeType, Node};
+use super::{ChangeType, Node};
 use crate::{BlockStore, HamtError, Hasher, Link};
 use anyhow::Result;
 use serde::de::DeserializeOwned;
@@ -21,7 +21,7 @@ where
     V: DeserializeOwned + Eq + Clone,
     H: Hasher + Clone + 'static,
 {
-    let kv_changes = diff::kv_diff(main_link.clone(), other_link.clone(), store).await?;
+    let kv_changes = super::diff(main_link.clone(), other_link.clone(), store).await?;
 
     let main_node = main_link.resolve_owned_value(store).await?;
     let other_node = other_link.resolve_owned_value(store).await?;
@@ -31,7 +31,7 @@ where
         match change.r#type {
             ChangeType::Remove => {
                 merge_node
-                    .set(change.key, change.other_value.unwrap(), store)
+                    .set(change.key, change.value1.unwrap(), store)
                     .await?;
             }
             ChangeType::Modify => {

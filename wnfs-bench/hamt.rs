@@ -204,7 +204,7 @@ fn hamt_diff(c: &mut Criterion) {
             },
             |(mut store, (node1, node2))| async move {
                 black_box(
-                    diff::kv_diff(Link::from(node1), Link::from(node2), &mut store)
+                    hamt::diff(Link::from(node1), Link::from(node2), &mut store)
                         .await
                         .unwrap(),
                 );

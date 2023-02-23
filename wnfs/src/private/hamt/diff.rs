@@ -1,43 +1,51 @@
-use super::ChangeType;
 use crate::{
-    private::{HashNibbles, HashPrefix, Node, Pointer, HAMT_BITMASK_BIT_SIZE},
+    private::{Node, Pointer, HAMT_BITMASK_BIT_SIZE},
     BlockStore, Hasher, Link, Pair,
 };
-use anyhow::Result;
+use anyhow::{Ok, Result};
 use async_recursion::async_recursion;
 use serde::de::DeserializeOwned;
 use std::{collections::HashMap, hash::Hash, mem, rc::Rc};
+
+use super::HashNibbles;
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
 //--------------------------------------------------------------------------------------------------
 
-/// Represents a change to some node or key-value pair of a HAMT.
-#[derive(Debug, Clone, PartialEq)]
-pub struct NodeChange {
+/// This type represents the different kinds of changes to a node.
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub enum ChangeType {
+    Add,
+    Remove,
+    Modify,
+}
+
+/// Represents a change to some key-value pair of a HAMT node.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct KeyValueChange<K, V> {
     pub r#type: ChangeType,
-    pub hashprefix: HashPrefix,
+    pub key: K,
+    pub value1: Option<V>,
+    pub value2: Option<V>,
 }
 
 //--------------------------------------------------------------------------------------------------
 // Functions
 //--------------------------------------------------------------------------------------------------
 
-/// Compare two nodes and get differences in keys relative to the main node.
+/// Compare two nodes and get the key-value changes made to the main node.
 ///
-/// This implementation returns early once it detects differences between intermediate nodes of the
-/// HAMT. In such cases, it returns the hash prefix for the set of keys that were added, removed
-/// or modified.
+/// This implementation gets all the changes to main node at the leaf node level.
 ///
-/// When a node has been added or removed, this implementation does not visit the children, instead
-/// it returns the hashprefix representing the node. This leads a more efficient implementation that does
-/// not contain keys and values and stops at node level if the node itself has been added or removed.
+/// This is a more expensive operation because it gathers the key value pairs under a node has
+/// been added or removed even though we can simply return a reference to the node itself.
 ///
 /// # Examples
 ///
 /// ```
 /// use std::rc::Rc;
-/// use wnfs::{private::{Node, diff}, Link, Pair, MemoryBlockStore};
+/// use wnfs::{private::{Node, hamt}, Link, Pair, MemoryBlockStore};
 ///
 /// #[async_std::main]
 /// async fn main() {
@@ -56,7 +64,7 @@ pub struct NodeChange {
 ///         .await
 ///         .unwrap();
 ///
-///     let changes = diff::node_diff(
+///     let changes = hamt::diff(
 ///         Link::from(Rc::clone(main_node)),
 ///         Link::from(Rc::clone(other_node)),
 ///         store,
@@ -68,33 +76,30 @@ pub struct NodeChange {
 ///    println!("Changes {:#?}", changes);
 /// }
 /// ```
-#[async_recursion(?Send)]
-pub async fn node_diff<K, V, H, B>(
+pub async fn diff<K, V, H>(
     main_link: Link<Rc<Node<K, V, H>>>,
     other_link: Link<Rc<Node<K, V, H>>>,
-    store: &mut B,
-) -> Result<Vec<NodeChange>>
+    store: &mut impl BlockStore,
+) -> Result<Vec<KeyValueChange<K, V>>>
 where
     K: DeserializeOwned + Clone + Eq + Hash + AsRef<[u8]>,
     V: DeserializeOwned + Clone + Eq,
     H: Hasher + Clone + 'static,
-    B: BlockStore,
 {
-    node_diff_helper(main_link, other_link, HashPrefix::default(), store).await
+    diff_helper(main_link, other_link, 1, store).await
 }
 
 #[async_recursion(?Send)]
-pub async fn node_diff_helper<K, V, H, B>(
+pub async fn diff_helper<K, V, H>(
     main_link: Link<Rc<Node<K, V, H>>>,
     other_link: Link<Rc<Node<K, V, H>>>,
-    hashprefix: HashPrefix,
-    store: &mut B,
-) -> Result<Vec<NodeChange>>
+    depth: usize,
+    store: &mut impl BlockStore,
+) -> Result<Vec<KeyValueChange<K, V>>>
 where
     K: DeserializeOwned + Clone + Eq + Hash + AsRef<[u8]>,
     V: DeserializeOwned + Clone + Eq,
     H: Hasher + Clone + 'static,
-    B: BlockStore,
 {
     // If Cids are available, check to see if they are equal so we can skip further comparisons.
     if let (Some(cid), Some(cid2)) = (main_link.get_cid(), other_link.get_cid()) {
@@ -110,26 +115,28 @@ where
 
     let mut changes = vec![];
     for index in 0..HAMT_BITMASK_BIT_SIZE {
-        // Create hashprefix for child.
-        let mut hashprefix = hashprefix.clone();
-        hashprefix.push(index as u8);
-
         match (main_node.bitmask[index], other_node.bitmask[index]) {
             (true, false) => {
                 // Main has a value, other doesn't.
-                changes.extend(generate_add_or_remove_changes(
-                    &main_node.pointers[main_node.get_value_index(index)],
-                    ChangeType::Add,
-                    hashprefix,
-                ));
+                changes.extend(
+                    generate_add_or_remove_changes(
+                        &main_node.pointers[main_node.get_value_index(index)],
+                        ChangeType::Add,
+                        store,
+                    )
+                    .await?,
+                );
             }
             (false, true) => {
                 // Main doesn't have a value, other does.
-                changes.extend(generate_add_or_remove_changes(
-                    &other_node.pointers[other_node.get_value_index(index)],
-                    ChangeType::Remove,
-                    hashprefix,
-                ));
+                changes.extend(
+                    generate_add_or_remove_changes(
+                        &other_node.pointers[other_node.get_value_index(index)],
+                        ChangeType::Remove,
+                        store,
+                    )
+                    .await?,
+                );
             }
             (true, true) => {
                 // Main and other have a value. They may be the same or different so we check.
@@ -149,56 +156,68 @@ where
                         .unwrap(),
                 );
 
-                changes.extend(
-                    generate_modify_changes(main_pointer, other_pointer, hashprefix, store).await?,
-                );
+                changes.extend(pointers_diff(main_pointer, other_pointer, depth, store).await?);
             }
-            (false, false) => { /*No change */ }
+            (false, false) => { /* No change */ }
         }
     }
 
     Ok(changes)
 }
 
-fn generate_add_or_remove_changes<K, V, H>(
+async fn generate_add_or_remove_changes<K, V, H>(
     node_pointer: &Pointer<K, V, H>,
     r#type: ChangeType,
-    hashprefix: HashPrefix,
-) -> Vec<NodeChange>
-where
-    K: AsRef<[u8]>,
-    H: Hasher + Clone,
-{
-    match node_pointer {
-        Pointer::Values(values) => values
-            .iter()
-            .map(|Pair { key, .. }| {
-                let digest = H::hash(&key);
-                let hashprefix = HashPrefix::with_length(digest, digest.len() as u8 * 2);
-                NodeChange { r#type, hashprefix }
-            })
-            .collect(),
-        Pointer::Link(_) => {
-            vec![NodeChange { r#type, hashprefix }]
-        }
-    }
-}
-
-async fn generate_modify_changes<K, V, H, B>(
-    main_pointer: Pointer<K, V, H>,
-    other_pointer: Pointer<K, V, H>,
-    hashprefix: HashPrefix,
-    store: &mut B,
-) -> Result<Vec<NodeChange>>
+    store: &mut impl BlockStore,
+) -> Result<Vec<KeyValueChange<K, V>>>
 where
     K: DeserializeOwned + Clone + Eq + Hash + AsRef<[u8]>,
     V: DeserializeOwned + Clone + Eq,
     H: Hasher + Clone + 'static,
-    B: BlockStore,
+{
+    match node_pointer {
+        Pointer::Values(values) => Ok(values
+            .iter()
+            .map(|Pair { key, value }| KeyValueChange {
+                r#type,
+                key: key.clone(),
+                value1: Some(value.clone()),
+                value2: None,
+            })
+            .collect()),
+        Pointer::Link(link) => {
+            let node = link.resolve_value(store).await?;
+            node.as_ref()
+                .flat_map(
+                    &|Pair { key, value }| {
+                        Ok(KeyValueChange {
+                            r#type,
+                            key: key.clone(),
+                            value1: Some(value.clone()),
+                            value2: None,
+                        })
+                    },
+                    store,
+                )
+                .await
+        }
+    }
+}
+
+async fn pointers_diff<K, V, H>(
+    main_pointer: Pointer<K, V, H>,
+    other_pointer: Pointer<K, V, H>,
+    depth: usize,
+    store: &mut impl BlockStore,
+) -> Result<Vec<KeyValueChange<K, V>>>
+where
+    K: DeserializeOwned + Clone + Eq + Hash + AsRef<[u8]>,
+    V: DeserializeOwned + Clone + Eq,
+    H: Hasher + Clone + 'static,
 {
     match (main_pointer, other_pointer) {
         (Pointer::Link(main_link), Pointer::Link(other_link)) => {
-            node_diff_helper(main_link, other_link, hashprefix, store).await
+            diff_helper(main_link, other_link, depth + 1, store).await
         }
         (Pointer::Values(main_values), Pointer::Values(other_values)) => {
             let mut changes = vec![];
@@ -211,62 +230,55 @@ where
                 match other_map.get(&key) {
                     Some(v) => {
                         if *v != value {
-                            let digest = H::hash(&key);
-                            let hashprefix =
-                                HashPrefix::with_length(digest, digest.len() as u8 * 2);
-                            changes.push(NodeChange {
+                            changes.push(KeyValueChange {
                                 r#type: ChangeType::Modify,
-                                hashprefix,
+                                key: key.clone(),
+                                value1: Some(value.clone()),
+                                value2: Some((*v).clone()),
                             });
                         }
                     }
                     None => {
-                        let digest = H::hash(&key);
-                        let hashprefix = HashPrefix::with_length(digest, digest.len() as u8 * 2);
-                        changes.push(NodeChange {
+                        changes.push(KeyValueChange {
                             r#type: ChangeType::Add,
-                            hashprefix,
-                        })
+                            key: key.clone(),
+                            value1: Some(value.clone()),
+                            value2: None,
+                        });
                     }
                 }
 
                 main_map.insert(key, value);
             }
 
-            for Pair { key, .. } in &other_values {
+            for Pair { key, value } in &other_values {
                 if matches!(main_map.get(key), None) {
-                    let digest = H::hash(&key);
-                    let hashprefix = HashPrefix::with_length(digest, digest.len() as u8 * 2);
-                    changes.push(NodeChange {
+                    changes.push(KeyValueChange {
                         r#type: ChangeType::Remove,
-                        hashprefix,
-                    })
+                        key: key.clone(),
+                        value1: Some(value.clone()),
+                        value2: None,
+                    });
                 }
             }
 
             Ok(changes)
         }
         (Pointer::Values(main_values), Pointer::Link(other_link)) => {
-            let main_link = Link::from(
-                create_node_from_pairs::<_, _, H, _>(main_values, hashprefix.len(), store).await?,
-            );
-
-            node_diff_helper(main_link, other_link, hashprefix, store).await
+            let main_link = Link::from(create_node_from_pairs(main_values, depth, store).await?);
+            diff_helper(main_link, other_link, depth + 1, store).await
         }
         (Pointer::Link(main_link), Pointer::Values(other_values)) => {
-            let other_link = Link::from(
-                create_node_from_pairs::<_, _, H, _>(other_values, hashprefix.len(), store).await?,
-            );
-
-            node_diff_helper(main_link, other_link, hashprefix, store).await
+            let other_link = Link::from(create_node_from_pairs(other_values, depth, store).await?);
+            diff_helper(main_link, other_link, depth + 1, store).await
         }
     }
 }
 
-async fn create_node_from_pairs<K, V, H, B: BlockStore>(
+async fn create_node_from_pairs<K, V, H>(
     values: Vec<Pair<K, V>>,
-    hashprefix_length: usize,
-    store: &B,
+    depth: usize,
+    store: &impl BlockStore,
 ) -> Result<Rc<Node<K, V, H>>>
 where
     K: DeserializeOwned + Clone + AsRef<[u8]>,
@@ -276,7 +288,7 @@ where
     let mut node = Rc::new(Node::<_, _, H>::default());
     for Pair { key, value } in values {
         let digest = &H::hash(&key);
-        let hashnibbles = &mut HashNibbles::with_cursor(digest, hashprefix_length);
+        let hashnibbles = &mut HashNibbles::with_cursor(digest, depth);
         node.set_value(hashnibbles, key, value, store).await?;
     }
     Ok(node)
@@ -290,16 +302,16 @@ where
 mod tests {
     use super::{ChangeType::*, *};
     use crate::{
-        private::{Node, MAX_HASH_NIBBLE_LENGTH},
-        utils::{self, test_setup},
+        private::{HashNibbles, Node},
+        utils::test_setup,
     };
     use helper::*;
-    use sha3::Sha3_256;
     use std::rc::Rc;
 
     mod helper {
-        use crate::{utils, HashOutput, Hasher};
         use once_cell::sync::Lazy;
+
+        use crate::{utils, HashOutput, Hasher};
 
         pub(super) static HASH_KV_PAIRS: Lazy<Vec<(HashOutput, &'static str)>> = Lazy::new(|| {
             vec![
@@ -312,7 +324,7 @@ mod tests {
         });
 
         #[derive(Debug, Clone)]
-        pub(super) struct MockHasher;
+        pub(crate) struct MockHasher;
         impl Hasher for MockHasher {
             fn hash<K: AsRef<[u8]>>(key: &K) -> HashOutput {
                 HASH_KV_PAIRS
@@ -342,7 +354,7 @@ mod tests {
             .await
             .unwrap();
 
-        let changes = node_diff(
+        let changes = diff(
             Link::from(Rc::clone(main_node)),
             Link::from(Rc::clone(other_node)),
             store,
@@ -350,31 +362,25 @@ mod tests {
         .await
         .unwrap();
 
-        let hashprefix_of_1 = HashPrefix::with_length(
-            Sha3_256::hash(&1_u32.to_le_bytes()),
-            MAX_HASH_NIBBLE_LENGTH as u8,
-        );
-
-        let hashprefix_of_2 = HashPrefix::with_length(
-            Sha3_256::hash(&2_u32.to_le_bytes()),
-            MAX_HASH_NIBBLE_LENGTH as u8,
-        );
-
         assert_eq!(
             changes,
             vec![
-                NodeChange {
+                KeyValueChange {
                     r#type: Add,
-                    hashprefix: hashprefix_of_2.clone()
+                    key: [2, 0, 0, 0,],
+                    value1: Some(String::from("2")),
+                    value2: None,
                 },
-                NodeChange {
+                KeyValueChange {
                     r#type: Add,
-                    hashprefix: hashprefix_of_1.clone(),
+                    key: [1, 0, 0, 0,],
+                    value1: Some(String::from("1")),
+                    value2: None,
                 },
             ]
         );
 
-        let changes = node_diff(
+        let changes = diff(
             Link::from(Rc::clone(other_node)),
             Link::from(Rc::clone(main_node)),
             store,
@@ -385,13 +391,17 @@ mod tests {
         assert_eq!(
             changes,
             vec![
-                NodeChange {
+                KeyValueChange {
                     r#type: Remove,
-                    hashprefix: hashprefix_of_2
+                    key: [2, 0, 0, 0,],
+                    value1: Some(String::from("2")),
+                    value2: None,
                 },
-                NodeChange {
+                KeyValueChange {
                     r#type: Remove,
-                    hashprefix: hashprefix_of_1,
+                    key: [1, 0, 0, 0,],
+                    value1: Some(String::from("1")),
+                    value2: None,
                 },
             ]
         );
@@ -417,7 +427,7 @@ mod tests {
                 .unwrap();
         }
 
-        let changes = node_diff(
+        let changes = diff(
             Link::from(Rc::clone(main_node)),
             Link::from(Rc::clone(other_node)),
             store,
@@ -480,7 +490,7 @@ mod tests {
                 .unwrap();
         }
 
-        let changes = node_diff(
+        let changes = diff(
             Link::from(Rc::clone(main_node)),
             Link::from(Rc::clone(other_node)),
             store,
@@ -491,38 +501,34 @@ mod tests {
         assert_eq!(
             changes,
             vec![
-                NodeChange {
+                KeyValueChange {
                     r#type: Modify,
-                    hashprefix: HashPrefix::with_length(
-                        utils::make_digest(&[0xA3, 0x00]),
-                        MAX_HASH_NIBBLE_LENGTH as u8
-                    ),
+                    key: "second".to_string(),
+                    value1: Some("second_modified".to_string()),
+                    value2: Some("second".to_string()),
                 },
-                NodeChange {
+                KeyValueChange {
                     r#type: Remove,
-                    hashprefix: HashPrefix::with_length(
-                        utils::make_digest(&[0xA7, 0x00]),
-                        MAX_HASH_NIBBLE_LENGTH as u8
-                    ),
+                    key: "third".to_string(),
+                    value1: Some("third".to_string()),
+                    value2: None,
                 },
-                NodeChange {
+                KeyValueChange {
                     r#type: Add,
-                    hashprefix: HashPrefix::with_length(
-                        utils::make_digest(&[0xAC, 0x00]),
-                        MAX_HASH_NIBBLE_LENGTH as u8
-                    ),
+                    key: "fourth".to_string(),
+                    value1: Some("fourth".to_string()),
+                    value2: None,
                 },
-                NodeChange {
+                KeyValueChange {
                     r#type: Add,
-                    hashprefix: HashPrefix::with_length(
-                        utils::make_digest(&[0xAE, 0x00]),
-                        MAX_HASH_NIBBLE_LENGTH as u8
-                    ),
+                    key: "fifth".to_string(),
+                    value1: Some("fifth".to_string()),
+                    value2: None,
                 },
             ]
         );
 
-        let changes = node_diff(
+        let changes = diff(
             Link::from(Rc::clone(other_node)),
             Link::from(Rc::clone(main_node)),
             store,
@@ -533,33 +539,29 @@ mod tests {
         assert_eq!(
             changes,
             vec![
-                NodeChange {
+                KeyValueChange {
                     r#type: Modify,
-                    hashprefix: HashPrefix::with_length(
-                        utils::make_digest(&[0xA3, 0x00]),
-                        MAX_HASH_NIBBLE_LENGTH as u8
-                    ),
+                    key: "second".to_string(),
+                    value1: Some("second".to_string()),
+                    value2: Some("second_modified".to_string()),
                 },
-                NodeChange {
+                KeyValueChange {
                     r#type: Add,
-                    hashprefix: HashPrefix::with_length(
-                        utils::make_digest(&[0xA7, 0x00]),
-                        MAX_HASH_NIBBLE_LENGTH as u8
-                    ),
+                    key: "third".to_string(),
+                    value1: Some("third".to_string()),
+                    value2: None,
                 },
-                NodeChange {
+                KeyValueChange {
                     r#type: Remove,
-                    hashprefix: HashPrefix::with_length(
-                        utils::make_digest(&[0xAC, 0x00]),
-                        MAX_HASH_NIBBLE_LENGTH as u8
-                    ),
+                    key: "fourth".to_string(),
+                    value1: Some("fourth".to_string()),
+                    value2: None,
                 },
-                NodeChange {
+                KeyValueChange {
                     r#type: Remove,
-                    hashprefix: HashPrefix::with_length(
-                        utils::make_digest(&[0xAE, 0x00]),
-                        MAX_HASH_NIBBLE_LENGTH as u8
-                    ),
+                    key: "fifth".to_string(),
+                    value1: Some("fifth".to_string()),
+                    value2: None,
                 },
             ]
         );
@@ -568,15 +570,87 @@ mod tests {
 
 #[cfg(test)]
 mod proptests {
-    use super::*;
     use crate::{
-        private::strategies::{self, generate_kvs},
+        private::{
+            strategies::{self, generate_kvs, generate_ops_and_changes, Change, Operations},
+            ChangeType,
+        },
         utils::test_setup,
+        Link,
     };
     use async_std::task;
+    use std::{collections::HashSet, rc::Rc};
     use test_strategy::proptest;
 
-    #[proptest]
+    #[proptest(cases = 100, max_shrink_iters = 4000)]
+    fn diff_correspondence(
+        #[strategy(generate_ops_and_changes())] ops_changes: (
+            Operations<String, u64>,
+            Vec<Change<String, u64>>,
+        ),
+    ) {
+        task::block_on(async {
+            let store = test_setup::init!(mut store);
+            let (ops, strategy_changes) = ops_changes;
+
+            let other_node = &mut strategies::node_from_operations(&ops, store).await.unwrap();
+            strategies::prepare_node(other_node, &strategy_changes, store)
+                .await
+                .unwrap();
+
+            let main_node = &mut Rc::clone(other_node);
+            strategies::apply_changes(main_node, &strategy_changes, store)
+                .await
+                .unwrap();
+
+            let changes = super::diff(
+                Link::from(Rc::clone(main_node)),
+                Link::from(Rc::clone(other_node)),
+                store,
+            )
+            .await
+            .unwrap();
+
+            assert_eq!(strategy_changes.len(), changes.len());
+            for strategy_change in strategy_changes {
+                assert!(changes.iter().any(|c| match &strategy_change {
+                    Change::Add(k, _) => c.r#type == ChangeType::Add && &c.key == k,
+                    Change::Modify(k, _) => {
+                        c.r#type == ChangeType::Modify && &c.key == k
+                    }
+                    Change::Remove(k) => {
+                        c.r#type == ChangeType::Remove && &c.key == k
+                    }
+                }));
+            }
+        });
+    }
+
+    #[proptest(cases = 1000, max_shrink_iters = 40000)]
+    fn diff_unique_keys(
+        #[strategy(generate_kvs("[a-z0-9]{1,3}", 0u64..1000, 0..100))] kvs1: Vec<(String, u64)>,
+        #[strategy(generate_kvs("[a-z0-9]{1,3}", 0u64..1000, 0..100))] kvs2: Vec<(String, u64)>,
+    ) {
+        task::block_on(async {
+            let store = test_setup::init!(mut store);
+
+            let node1 = strategies::node_from_kvs(kvs1, store).await.unwrap();
+            let node2 = strategies::node_from_kvs(kvs2, store).await.unwrap();
+
+            let changes = super::diff(Link::from(node1), Link::from(node2), store)
+                .await
+                .unwrap();
+
+            let change_set = changes
+                .iter()
+                .map(|c| c.key.clone())
+                .collect::<HashSet<_>>();
+
+            assert_eq!(change_set.len(), changes.len());
+        });
+    }
+
+    #[proptest(cases = 100)]
     fn add_remove_flip(
         #[strategy(generate_kvs("[a-z0-9]{1,3}", 0u64..1000, 0..100))] kvs1: Vec<(String, u64)>,
         #[strategy(generate_kvs("[a-z0-9]{1,3}", 0u64..1000, 0..100))] kvs2: Vec<(String, u64)>,
@@ -587,7 +661,7 @@ mod proptests {
             let node1 = strategies::node_from_kvs(kvs1, store).await.unwrap();
             let node2 = strategies::node_from_kvs(kvs2, store).await.unwrap();
 
-            let changes = node_diff(
+            let changes = super::diff(
                 Link::from(Rc::clone(&node1)),
                 Link::from(Rc::clone(&node2)),
                 store,
@@ -595,19 +669,16 @@ mod proptests {
             .await
             .unwrap();
 
-            let flipped_changes = node_diff(Link::from(node2), Link::from(node1), store)
+            let flipped_changes = super::diff(Link::from(node2), Link::from(node1), store)
                 .await
                 .unwrap();
 
             assert_eq!(changes.len(), flipped_changes.len());
             for change in changes {
                 assert!(flipped_changes.iter().any(|c| match change.r#type {
-                    ChangeType::Add =>
-                        c.r#type == ChangeType::Remove && c.hashprefix == change.hashprefix,
-                    ChangeType::Remove =>
-                        c.r#type == ChangeType::Add && c.hashprefix == change.hashprefix,
-                    ChangeType::Modify =>
-                        c.r#type == ChangeType::Modify && c.hashprefix == change.hashprefix,
+                    ChangeType::Add => c.r#type == ChangeType::Remove && c.key == change.key,
+                    ChangeType::Remove => c.r#type == ChangeType::Add && c.key == change.key,
+                    ChangeType::Modify => c.r#type == ChangeType::Modify && c.key == change.key,
                 }));
             }
         });
