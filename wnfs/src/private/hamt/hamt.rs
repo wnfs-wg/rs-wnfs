@@ -1,4 +1,4 @@
-use super::{diff, KeyValueChange, Node, NodeChange, HAMT_VERSION};
+use super::{KeyValueChange, Node, HAMT_VERSION};
 use crate::{AsyncSerialize, BlockStore, Hasher, Link};
 use anyhow::Result;
 use async_trait::async_trait;
@@ -79,58 +79,6 @@ impl<K, V, H: Hasher> Hamt<K, V, H> {
         }
     }
 
-    /// Gets the difference between two HAMTs at the node level.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use std::rc::Rc;
-    /// use wnfs::{
-    ///     private::{Hamt, Node},
-    ///     MemoryBlockStore
-    /// };
-    ///
-    /// #[async_std::main]
-    /// async fn main() {
-    ///     let store = &mut MemoryBlockStore::default();
-    ///
-    ///     let main_hamt = Hamt::<String, usize>::with_root({
-    ///         let mut node = Rc::new(Node::default());
-    ///         node.set("foo".into(), 400, store).await.unwrap();
-    ///         node.set("bar".into(), 500, store).await.unwrap();
-    ///         node
-    ///     });
-    ///
-    ///     let other_hamt = Hamt::<String, usize>::with_root({
-    ///         let mut node = Rc::new(Node::default());
-    ///         node.set("foo".into(), 200, store).await.unwrap();
-    ///         node.set("qux".into(), 600, store).await.unwrap();
-    ///         node
-    ///     });
-    ///
-    ///     let node_diff = main_hamt.node_diff(&other_hamt, store).await.unwrap();
-    ///
-    ///     println!("node_diff: {:#?}", node_diff);
-    /// }
-    /// ```
-    pub async fn node_diff<B: BlockStore>(
-        &self,
-        other: &Self,
-        store: &mut B,
-    ) -> Result<Vec<NodeChange>>
-    where
-        K: DeserializeOwned + Clone + fmt::Debug + Eq + Hash + AsRef<[u8]>,
-        V: DeserializeOwned + Clone + fmt::Debug + Eq,
-        H: Clone + fmt::Debug + 'static,
-    {
-        diff::node_diff(
-            Link::from(Rc::clone(&self.root)),
-            Link::from(Rc::clone(&other.root)),
-            store,
-        )
-        .await
-    }
-
     /// Gets the difference between two HAMTs at the key-value level.
     ///
     /// # Examples
@@ -160,11 +108,11 @@ impl<K, V, H: Hasher> Hamt<K, V, H> {
     ///         node
     ///     });
     ///
-    ///     let kv_diff = main_hamt.kv_diff(&other_hamt, store).await.unwrap();
+    ///     let diff = main_hamt.diff(&other_hamt, store).await.unwrap();
     ///
-    ///     println!("kv_diff: {:#?}", kv_diff);
+    ///     println!("diff: {:#?}", diff);
     /// }
-    pub async fn kv_diff<B: BlockStore>(
+    pub async fn diff<B: BlockStore>(
         &self,
         other: &Self,
         store: &mut B,
@@ -174,7 +122,7 @@ impl<K, V, H: Hasher> Hamt<K, V, H> {
         V: DeserializeOwned + Clone + fmt::Debug + Eq,
         H: Clone + fmt::Debug + 'static,
     {
-        diff::kv_diff(
+        super::diff(
             Link::from(Rc::clone(&self.root)),
             Link::from(Rc::clone(&other.root)),
             store,

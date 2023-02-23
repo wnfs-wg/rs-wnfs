@@ -225,6 +225,7 @@ impl PrivateNode {
     /// The previous links is `None`, it doesn't have previous Cids.
     /// The node is malformed if the previous links are `Some`, but
     /// the `BTreeSet` inside is empty.
+    #[allow(clippy::mutable_key_type)]
     pub fn get_previous(&self) -> &BTreeSet<(usize, Encrypted<Cid>)> {
         match self {
             Self::File(file) => &file.content.previous,
