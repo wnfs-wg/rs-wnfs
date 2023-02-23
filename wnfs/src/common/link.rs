@@ -24,9 +24,9 @@ pub enum Link<T> {
     /// further calls to `resolve_value` will just return from that cache.
     Encoded { cid: Cid, value_cache: OnceCell<T> },
     /// A variant of `Link` that started out as a deserialized value `T`.
-    /// If the cid is resolved using `resolve_cid`, then the `cid_cache` gets populated and further calls
-    /// to `resolve_cid` will just return from that cache.
-    /// TODO(matheus23) adjust docs
+    /// If the cid is resolved using `resolve_cid`, then `T`'s `.persisted_as` from the
+    /// `RemembersPersistence` trait is called and that `OnceCell<Cid>` is populated, preventing
+    /// further calls to `resolve_cid` from duplicating work.
     Decoded { value: T },
 }
 
@@ -67,7 +67,11 @@ impl<T: RemembersPersistence> Link<T> {
         match self {
             Self::Encoded { cid, value_cache } => {
                 value_cache
-                    .get_or_try_init(async { store.get_remembering_persistence(cid).await })
+                    .get_or_try_init(async {
+                        let value: T = store.get_deserializable(cid).await?;
+                        value.persisted_as().get_or_init(async { *cid }).await;
+                        Ok(value)
+                    })
                     .await
             }
             Self::Decoded { value, .. } => Ok(value),
@@ -105,7 +109,11 @@ impl<T: RemembersPersistence> Link<T> {
                 value_cache,
             } => match value_cache.into_inner() {
                 Some(cached) => Ok(cached),
-                None => store.get_remembering_persistence(cid).await,
+                None => {
+                    let value: T = store.get_deserializable(cid).await?;
+                    value.persisted_as().get_or_init(async { *cid }).await;
+                    Ok(value)
+                }
             },
             Self::Decoded { value, .. } => Ok(value),
         }
@@ -247,8 +255,6 @@ mod tests {
         persisted_as: OnceCell<Cid>,
     }
 
-    // TODO(matheus23): Yeah all these traits are not fun :/
-
     #[async_trait(?Send)]
     impl AsyncSerialize for Example {
         async fn async_serialize<S: Serializer, BS: BlockStore + ?Sized>(
@@ -309,10 +315,7 @@ mod tests {
         let link = Link::<Example>::from(example.clone());
 
         let cid = link.resolve_cid(store).await.unwrap();
-        let value = store
-            .get_remembering_persistence::<Example>(cid)
-            .await
-            .unwrap();
+        let value = store.get_deserializable::<Example>(cid).await.unwrap();
 
         assert_eq!(value, example);
     }

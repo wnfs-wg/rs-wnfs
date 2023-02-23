@@ -96,8 +96,8 @@ impl PublicFile {
     }
 
     /// Takes care of creating previous links, in case the current
-    /// directory was previously `.store()`ed.
-    /// In any case it'll try to give you ownership of the Rc if possible,
+    /// file was previously `.store()`ed.
+    /// In any case it'll try to give you ownership of the file if possible,
     /// otherwise it clones.
     pub(crate) fn prepare_next_revision(self: Rc<Self>) -> Self {
         let Some(previous_cid) = self.persisted_as.get().cloned() else {

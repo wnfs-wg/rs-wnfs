@@ -1,7 +1,7 @@
 //! Block store traits.
 
 use super::FsError;
-use crate::{dagcbor, AsyncSerialize, BlockStoreError, RemembersPersistence, MAX_BLOCK_SIZE};
+use crate::{dagcbor, AsyncSerialize, BlockStoreError, MAX_BLOCK_SIZE};
 use anyhow::{bail, Result};
 use async_trait::async_trait;
 use libipld::{
@@ -37,15 +37,6 @@ pub trait BlockStore {
         let bytes = self.get_block(cid).await?;
         let ipld = dagcbor::decode(bytes.as_ref())?;
         Ok(ipld_serde::from_ipld::<V>(ipld)?)
-    }
-
-    async fn get_remembering_persistence<V: DeserializeOwned + RemembersPersistence>(
-        &self,
-        cid: &Cid,
-    ) -> Result<V> {
-        let value: V = self.get_deserializable(cid).await?;
-        value.persisted_as().get_or_init(async { *cid }).await;
-        Ok(value)
     }
 }
 

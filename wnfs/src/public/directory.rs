@@ -132,7 +132,7 @@ impl PublicDirectory {
 
     /// Takes care of creating previous links, in case the current
     /// directory was previously `.store()`ed.
-    /// In any case it'll try to give you ownership of the Rc if possible,
+    /// In any case it'll try to give you ownership of the directory if possible,
     /// otherwise it clones.
     fn prepare_next_revision(self: Rc<Self>) -> Self {
         let Some(previous_cid) = self.persisted_as.get().cloned() else {
@@ -239,11 +239,8 @@ impl PublicDirectory {
 
     /// Fix up `PathNodes` so that parents refer to the newly updated children.
     fn fix_up_path_nodes(path_nodes: PublicPathNodes) -> Rc<Self> {
-        if path_nodes.path.is_empty() {
-            return path_nodes.tail;
-        }
-
         let mut working_dir = path_nodes.tail;
+
         for (dir, segment) in path_nodes.path.into_iter().rev() {
             let mut dir = dir.prepare_next_revision();
             let link = PublicLink::with_dir(working_dir);
