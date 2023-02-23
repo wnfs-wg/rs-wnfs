@@ -876,7 +876,7 @@ impl SnapshotKey {
     pub fn encrypt(&self, data: &[u8], rng: &mut impl RngCore) -> Result<Vec<u8>> {
         let nonce = Self::generate_nonce(rng);
 
-        let cipher_text = Aes256Gcm::new_from_slice(self.0.as_bytes())?
+        let cipher_text = Aes256Gcm::new(&self.0.clone().bytes().into())
             .encrypt(&nonce, data)
             .map_err(|e| AesError::UnableToEncrypt(format!("{e}")))?;
 
@@ -896,7 +896,7 @@ impl SnapshotKey {
     ///
     /// The authentication tag is required for decryption and usually appended to the ciphertext.
     pub(crate) fn encrypt_in_place(&self, nonce: &Nonce<U12>, buffer: &mut [u8]) -> Result<Tag> {
-        let tag = Aes256Gcm::new_from_slice(self.0.as_bytes())?
+        let tag = Aes256Gcm::new(&self.0.clone().bytes().into())
             .encrypt_in_place_detached(nonce, &[], buffer)
             .map_err(|e| AesError::UnableToEncrypt(format!("{e}")))?;
         Ok(tag)
@@ -923,7 +923,7 @@ impl SnapshotKey {
     pub fn decrypt(&self, cipher_text: &[u8]) -> Result<Vec<u8>> {
         let (nonce_bytes, data) = cipher_text.split_at(NONCE_SIZE);
 
-        Ok(Aes256Gcm::new_from_slice(self.0.as_bytes())?
+        Ok(Aes256Gcm::new(&self.0.clone().bytes().into())
             .decrypt(Nonce::from_slice(nonce_bytes), data)
             .map_err(|e| AesError::UnableToDecrypt(format!("{e}")))?)
     }
@@ -939,7 +939,7 @@ impl SnapshotKey {
         tag: &Tag,
         buffer: &mut [u8],
     ) -> Result<()> {
-        Aes256Gcm::new_from_slice(self.0.as_bytes())?
+        Aes256Gcm::new(&self.0.clone().bytes().into())
             .decrypt_in_place_detached(nonce, &[], buffer, tag)
             .map_err(|e| AesError::UnableToDecrypt(format!("{e}")))?;
         Ok(())
