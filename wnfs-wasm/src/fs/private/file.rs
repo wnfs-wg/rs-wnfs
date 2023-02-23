@@ -1,5 +1,4 @@
 //! The bindgen API for PrivateFile.
-
 use crate::{
     fs::{
         metadata::JsMetadata,
@@ -72,6 +71,13 @@ impl PrivateFile {
                 forest,
             )?)
         }))
+    }
+
+    /// Persists the current state of this file in the BlockStore and PrivateForest.
+    /// This will also force a history entry to be created, if there were changes.
+    pub fn store(&self, forest: &PrivateForest, store: BlockStore, rng: Rng) -> JsResult<Promise> {
+        let node = PrivateNode(WnfsPrivateNode::File(Rc::clone(&self.0)));
+        node.store(forest, store, rng)
     }
 
     /// Gets the entire content of a file.

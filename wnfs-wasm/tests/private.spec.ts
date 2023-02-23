@@ -440,7 +440,7 @@ test.describe("PrivateFile", () => {
 });
 
 test.describe("PrivateForest", () => {
-  test("put returns a PrivateRef", async ({ page }) => {
+  test("store returns a PrivateRef", async ({ page }) => {
     const result = await page.evaluate(async () => {
       const {
         wnfs: { Namefilter, PrivateFile, PrivateForest, PrivateRef },
@@ -453,7 +453,7 @@ test.describe("PrivateForest", () => {
       const file = new PrivateFile(new Namefilter(), time, rng);
       const node = file.asNode();
       const forest = new PrivateForest();
-      const [privateRef, _] = await forest.put(node, store, rng);
+      const [privateRef, _] = await node.store(forest, store, rng);
       return {
         // Need to be converted to arrays so they can be passed as JSON
         label: Array.from(privateRef.getLabel()),
@@ -467,10 +467,10 @@ test.describe("PrivateForest", () => {
     expect(result.contentCid).toBeDefined();
   });
 
-  test("get returns what was put", async ({ page }) => {
+  test("load returns what was stored", async ({ page }) => {
     const [metadataBefore, metadataAfter] = await page.evaluate(async () => {
       const {
-        wnfs: { Namefilter, PrivateFile, PrivateForest },
+        wnfs: { Namefilter, PrivateFile, PrivateNode, PrivateForest },
         mock: { MemoryBlockStore, Rng }
       } = await window.setup();
 
@@ -480,8 +480,8 @@ test.describe("PrivateForest", () => {
       const file = new PrivateFile(new Namefilter(), time, rng);
       const node = file.asNode();
       const forest = new PrivateForest();
-      const [privateRef, newForest] = await forest.put(node, store, rng);
-      const fetched = await newForest.get(privateRef, store);
+      const [privateRef, newForest] = await node.store(forest, store, rng);
+      const fetched = await PrivateNode.load(privateRef, newForest, store);
       const metadataBefore = node.asFile().metadata();
       const metadataAfter = fetched.asFile().metadata();
       return [metadataBefore, metadataAfter];

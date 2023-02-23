@@ -1,8 +1,16 @@
-use js_sys::Error;
+use super::{PrivateForest, PrivateRef, Rng};
+use crate::{
+    fs::{
+        utils::{self, error},
+        BlockStore, ForeignBlockStore, JsResult, PrivateDirectory, PrivateFile,
+    },
+    value,
+};
+use js_sys::{Error, Promise};
+use std::rc::Rc;
 use wasm_bindgen::prelude::wasm_bindgen;
+use wasm_bindgen_futures::future_to_promise;
 use wnfs::{private::PrivateNode as WnfsPrivateNode, Id};
-
-use crate::fs::{JsResult, PrivateDirectory, PrivateFile};
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
@@ -18,6 +26,50 @@ pub struct PrivateNode(pub(crate) WnfsPrivateNode);
 
 #[wasm_bindgen]
 impl PrivateNode {
+    /// Persists the current state of this node in the BlockStore and PrivateForest.
+    /// This will also force a history entry to be created, if there were changes.
+    pub fn store(
+        &self,
+        forest: &PrivateForest,
+        store: BlockStore,
+        mut rng: Rng,
+    ) -> JsResult<Promise> {
+        let node = self.0.clone(); // cheap clone
+        let mut store = ForeignBlockStore(store);
+        let mut forest = Rc::clone(&forest.0);
+
+        Ok(future_to_promise(async move {
+            let private_ref = node
+                .store(&mut forest, &mut store, &mut rng)
+                .await
+                .map_err(error("Cannot store node"))?;
+
+            Ok(utils::create_private_forest_result(
+                value!(PrivateRef::from(private_ref)),
+                forest,
+            )?)
+        }))
+    }
+
+    /// Loads a node from the PrivateForest using the PrivateRef.
+    pub fn load(
+        private_ref: PrivateRef,
+        forest: &PrivateForest,
+        store: BlockStore,
+    ) -> JsResult<Promise> {
+        let store = ForeignBlockStore(store);
+        let forest = Rc::clone(&forest.0);
+        let private_ref = private_ref.try_into()?;
+
+        Ok(future_to_promise(async move {
+            let node = WnfsPrivateNode::load(&private_ref, &forest, &store)
+                .await
+                .map_err(error("Cannot load node"))?;
+
+            Ok(value!(PrivateNode(node)))
+        }))
+    }
+
     #[wasm_bindgen(js_name = "asDir")]
     pub fn as_dir(&self) -> JsResult<PrivateDirectory> {
         let dir = self

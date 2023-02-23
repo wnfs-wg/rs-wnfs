@@ -4,6 +4,7 @@ mod file;
 mod forest;
 pub mod hamt;
 mod keys;
+mod link;
 pub mod namefilter;
 pub mod node;
 mod previous;

@@ -7,7 +7,7 @@ use rand::{thread_rng, RngCore};
 use std::rc::Rc;
 use wnfs::{
     private::{PrivateForest, PrivateRef},
-    BlockStore, MemoryBlockStore, Namefilter, PrivateDirectory, PrivateOpResult,
+    BlockStore, MemoryBlockStore, Namefilter, PrivateDirectory, PrivateNode, PrivateOpResult,
 };
 
 #[async_std::main]
@@ -28,7 +28,9 @@ async fn main() {
         .unwrap();
 
     // Fetch and decrypt a directory from the private forest using provided private ref.
-    let dir = forest.get(&private_ref, store).await.unwrap();
+    let dir = PrivateNode::load(&private_ref, &forest, store)
+        .await
+        .unwrap();
 
     // Print the directory.
     println!("{:#?}", dir);
@@ -61,16 +63,11 @@ async fn get_forest_cid_and_private_ref(
         .await
         .unwrap();
 
+    // Private ref contains data and keys for fetching and decrypting the directory node in the private forest.
+    let private_ref = root_dir.store(forest, store, rng).await.unwrap();
+
     // Persist encoded private forest to the block store.
     let forest_cid = store.put_async_serializable(forest).await.unwrap();
-
-    let (_, content_cid) = root_dir.store(store, rng).await.unwrap();
-
-    // Private ref contains data and keys for fetching and decrypting the directory node in the private forest.
-    let private_ref = root_dir
-        .header
-        .derive_revision_ref()
-        .as_private_ref(content_cid);
 
     (forest_cid, private_ref)
 }

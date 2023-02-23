@@ -239,7 +239,7 @@ mod tests {
         ));
 
         // Throwing away the private ref
-        forest.put(&dir, store, rng).await.unwrap();
+        dir.store(forest, store, rng).await.unwrap();
 
         // Creating deterministic revision ref and retrieve the content.
         let revision_ref = RevisionRef::with_seed(Default::default(), ratchet_seed, inumber);

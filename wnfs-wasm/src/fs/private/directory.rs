@@ -141,6 +141,13 @@ impl PrivateDirectory {
         }))
     }
 
+    /// Persists the current state of this directory in the BlockStore and PrivateForest.
+    /// This will also force a history entry to be created, if there were changes.
+    pub fn store(&self, forest: &PrivateForest, store: BlockStore, rng: Rng) -> JsResult<Promise> {
+        let node = PrivateNode(WnfsPrivateNode::Dir(Rc::clone(&self.0)));
+        node.store(forest, store, rng)
+    }
+
     /// Follows a path and fetches the node at the end of the path.
     #[wasm_bindgen(js_name = "getNode")]
     pub fn get_node(
@@ -255,7 +262,6 @@ impl PrivateDirectory {
         search_latest: bool,
         forest: &PrivateForest,
         store: BlockStore,
-        mut rng: Rng,
     ) -> JsResult<Promise> {
         let directory = Rc::clone(&self.0);
         let mut store = ForeignBlockStore(store);
@@ -267,13 +273,7 @@ impl PrivateDirectory {
                 root_dir,
                 result: node,
             } = directory
-                .rm(
-                    &path_segments,
-                    search_latest,
-                    &mut forest,
-                    &mut store,
-                    &mut rng,
-                )
+                .rm(&path_segments, search_latest, &mut forest, &mut store)
                 .await
                 .map_err(error("Cannot remove from directory"))?;
 

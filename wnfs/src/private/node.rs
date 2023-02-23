@@ -1,7 +1,7 @@
 use super::{
-    encrypted::Encrypted, hamt::Hasher, namefilter::Namefilter, AesKey, PrivateDirectory,
-    PrivateDirectoryContent, PrivateFile, PrivateFileContent, PrivateForest, PrivateRef,
-    RevisionRef, NONCE_SIZE,
+    encrypted::Encrypted, hamt::Hasher, link::PrivateLink, namefilter::Namefilter, AesKey,
+    PrivateDirectory, PrivateDirectoryContent, PrivateFile, PrivateFileContent, PrivateForest,
+    PrivateRef, RevisionRef, NONCE_SIZE,
 };
 use crate::{
     dagcbor, utils, AesError, BlockStore, FsError, HashOutput, Id, NodeType, HASH_BYTE_SIZE,
@@ -15,12 +15,12 @@ use anyhow::{bail, Result};
 use async_recursion::async_recursion;
 use chrono::{DateTime, Utc};
 use futures::StreamExt;
-use libipld::{cbor::DagCborCodec, prelude::Decode, Cid, Ipld, IpldCodec};
+use libipld::{Cid, Ipld, IpldCodec};
 use rand_core::RngCore;
 use serde::{Deserialize, Serialize};
 use sha3::Sha3_256;
 use skip_ratchet::{seek::JumpSize, Ratchet, RatchetSeeker};
-use std::{cmp::Ordering, collections::BTreeSet, fmt::Debug, io::Cursor, rc::Rc};
+use std::{cmp::Ordering, collections::BTreeSet, fmt::Debug, rc::Rc};
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
@@ -156,36 +156,28 @@ impl PrivateNode {
         forest: &mut Rc<PrivateForest>,
         store: &mut impl BlockStore,
         rng: &mut impl RngCore,
-    ) -> Result<PrivateRef> {
+    ) -> Result<()> {
         match self {
-            Self::File(file) => {
-                let mut file = (**file).clone();
+            Self::File(file_rc) => {
+                let file = Rc::make_mut(file_rc);
 
                 file.prepare_key_rotation(parent_bare_name, forest, store, rng)
                     .await?;
-
-                *self = Self::File(Rc::new(file));
             }
-            Self::Dir(old_dir) => {
-                let mut dir = (**old_dir).clone();
+            PrivateNode::Dir(dir_rc) => {
+                let dir = Rc::make_mut(dir_rc);
 
-                for (name, private_ref) in &old_dir.content.entries {
-                    let mut node = forest.get(private_ref, store).await?;
-
-                    let private_ref = node
-                        .update_ancestry(dir.header.bare_name.clone(), forest, store, rng)
+                for private_link in &mut dir.content.entries.values_mut() {
+                    let mut node = private_link.resolve_node(forest, store).await?.clone();
+                    node.update_ancestry(dir.header.bare_name.clone(), forest, store, rng)
                         .await?;
-
-                    dir.content.entries.insert(name.clone(), private_ref);
+                    *private_link = PrivateLink::new(node);
                 }
 
                 dir.prepare_key_rotation(parent_bare_name, rng);
-
-                *self = Self::Dir(Rc::new(dir));
             }
-        };
-
-        forest.put(self, store, rng).await
+        }
+        Ok(())
     }
 
     /// Gets the header of the node.
@@ -375,6 +367,8 @@ impl PrivateNode {
     ///         .await
     ///         .unwrap();
     ///
+    ///     root_dir.store(forest, store, rng).await.unwrap();
+    ///
     ///     let latest_node = PrivateNode::Dir(init_dir).search_latest(forest, store).await.unwrap();
     ///
     ///     let found_node = latest_node
@@ -455,14 +449,65 @@ impl PrivateNode {
             .collect())
     }
 
-    pub(crate) async fn load(
+    /// Tries to deserialize and decrypt a PrivateNode at provided PrivateRef.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use std::rc::Rc;
+    /// use chrono::Utc;
+    /// use rand::thread_rng;
+    /// use wnfs::{
+    ///     private::{PrivateForest, PrivateRef}, PrivateNode,
+    ///     BlockStore, MemoryBlockStore, Namefilter, PrivateDirectory, PrivateOpResult,
+    /// };
+    ///
+    /// #[async_std::main]
+    /// async fn main() {
+    ///     let store = &mut MemoryBlockStore::default();
+    ///     let rng = &mut thread_rng();
+    ///     let forest = &mut Rc::new(PrivateForest::new());
+    ///     let dir = Rc::new(PrivateDirectory::new(
+    ///         Namefilter::default(),
+    ///         Utc::now(),
+    ///         rng,
+    ///     ));
+    ///
+    ///     let node = PrivateNode::Dir(dir);
+    ///
+    ///     let private_ref = node.store(forest, store, rng).await.unwrap();
+    ///
+    ///     assert_eq!(
+    ///         PrivateNode::load(&private_ref, forest, store).await.unwrap(),
+    ///         node
+    ///     );
+    /// }
+    /// ```
+    pub async fn load(
         private_ref: &PrivateRef,
+        forest: &PrivateForest,
         store: &impl BlockStore,
     ) -> Result<PrivateNode> {
-        let encrypted_bytes = store.get_block(&private_ref.content_cid).await?;
-        let snapshot_key = private_ref.temporal_key.derive_snapshot_key();
+        let cid = match forest
+            .get_encrypted(&private_ref.saturated_name_hash, store)
+            .await?
+        {
+            Some(cids) if cids.contains(&private_ref.content_cid) => private_ref.content_cid,
+            _ => return Err(FsError::NotFound.into()),
+        };
+
+        Self::from_cid(cid, &private_ref.temporal_key, store).await
+    }
+
+    pub(crate) async fn from_cid(
+        cid: Cid,
+        temporal_key: &TemporalKey,
+        store: &impl BlockStore,
+    ) -> Result<PrivateNode> {
+        let encrypted_bytes = store.get_block(&cid).await?;
+        let snapshot_key = temporal_key.derive_snapshot_key();
         let bytes = snapshot_key.decrypt(&encrypted_bytes)?;
-        let ipld = Ipld::decode(DagCborCodec, &mut Cursor::new(bytes))?;
+        let ipld = dagcbor::decode(&bytes)?;
 
         match ipld {
             Ipld::Map(map) => {
@@ -473,24 +518,20 @@ impl PrivateNode {
 
                 Ok(match r#type {
                     NodeType::PrivateFile => {
-                        let (content, header_cid) = PrivateFileContent::deserialize(
-                            Ipld::Map(map),
-                            private_ref.content_cid,
-                        )?;
+                        let (content, header_cid) =
+                            PrivateFileContent::deserialize(Ipld::Map(map), cid)?;
                         let header =
-                            PrivateNodeHeader::load(&header_cid, &private_ref.temporal_key, store)
-                                .await?;
+                            PrivateNodeHeader::load(&header_cid, temporal_key, store).await?;
                         PrivateNode::File(Rc::new(PrivateFile { header, content }))
                     }
                     NodeType::PrivateDirectory => {
                         let (content, header_cid) = PrivateDirectoryContent::deserialize(
                             Ipld::Map(map),
-                            &private_ref.temporal_key,
-                            private_ref.content_cid,
+                            temporal_key,
+                            cid,
                         )?;
                         let header =
-                            PrivateNodeHeader::load(&header_cid, &private_ref.temporal_key, store)
-                                .await?;
+                            PrivateNodeHeader::load(&header_cid, temporal_key, store).await?;
                         PrivateNode::Dir(Rc::new(PrivateDirectory { header, content }))
                     }
                     other => bail!(FsError::UnexpectedNodeType(other)),
@@ -500,14 +541,23 @@ impl PrivateNode {
         }
     }
 
-    pub(crate) async fn store(
+    pub async fn store(
         &self,
+        forest: &mut Rc<PrivateForest>,
         store: &mut impl BlockStore,
         rng: &mut impl RngCore,
-    ) -> Result<(Cid, Cid)> {
+    ) -> Result<PrivateRef> {
         match self {
-            PrivateNode::File(file) => file.store(store, rng).await,
-            PrivateNode::Dir(dir) => dir.store(store, rng).await,
+            Self::File(file) => file.store(forest, store, rng).await,
+            Self::Dir(dir) => dir.store(forest, store, rng).await,
+        }
+    }
+
+    /// Returns the private ref, if this node has been `.store()`ed before.
+    pub(crate) fn get_private_ref(&self) -> Option<PrivateRef> {
+        match self {
+            Self::File(file) => file.get_private_ref(),
+            Self::Dir(dir) => dir.get_private_ref(),
         }
     }
 }
@@ -827,7 +877,7 @@ impl SnapshotKey {
     pub fn encrypt(&self, data: &[u8], rng: &mut impl RngCore) -> Result<Vec<u8>> {
         let nonce = Self::generate_nonce(rng);
 
-        let cipher_text = Aes256Gcm::new_from_slice(self.0.as_bytes())?
+        let cipher_text = Aes256Gcm::new(&self.0.clone().bytes().into())
             .encrypt(&nonce, data)
             .map_err(|e| AesError::UnableToEncrypt(format!("{e}")))?;
 
@@ -847,7 +897,7 @@ impl SnapshotKey {
     ///
     /// The authentication tag is required for decryption and usually appended to the ciphertext.
     pub(crate) fn encrypt_in_place(&self, nonce: &Nonce<U12>, buffer: &mut [u8]) -> Result<Tag> {
-        let tag = Aes256Gcm::new_from_slice(self.0.as_bytes())?
+        let tag = Aes256Gcm::new(&self.0.clone().bytes().into())
             .encrypt_in_place_detached(nonce, &[], buffer)
             .map_err(|e| AesError::UnableToEncrypt(format!("{e}")))?;
         Ok(tag)
@@ -874,7 +924,7 @@ impl SnapshotKey {
     pub fn decrypt(&self, cipher_text: &[u8]) -> Result<Vec<u8>> {
         let (nonce_bytes, data) = cipher_text.split_at(NONCE_SIZE);
 
-        Ok(Aes256Gcm::new_from_slice(self.0.as_bytes())?
+        Ok(Aes256Gcm::new(&self.0.clone().bytes().into())
             .decrypt(Nonce::from_slice(nonce_bytes), data)
             .map_err(|e| AesError::UnableToDecrypt(format!("{e}")))?)
     }
@@ -890,7 +940,7 @@ impl SnapshotKey {
         tag: &Tag,
         buffer: &mut [u8],
     ) -> Result<()> {
-        Aes256Gcm::new_from_slice(self.0.as_bytes())?
+        Aes256Gcm::new(&self.0.clone().bytes().into())
             .decrypt_in_place_detached(nonce, &[], buffer, tag)
             .map_err(|e| AesError::UnableToDecrypt(format!("{e}")))?;
         Ok(())
@@ -928,13 +978,11 @@ mod tests {
         .unwrap();
 
         let file = PrivateNode::File(Rc::new(file));
-        let (_, content_cid) = file.store(store, rng).await.unwrap();
-        let private_ref = file
-            .get_header()
-            .derive_revision_ref()
-            .as_private_ref(content_cid);
+        let private_ref = file.store(forest, store, rng).await.unwrap();
 
-        let deserialized_node = PrivateNode::load(&private_ref, store).await.unwrap();
+        let deserialized_node = PrivateNode::load(&private_ref, forest, store)
+            .await
+            .unwrap();
 
         assert_eq!(file, deserialized_node);
     }

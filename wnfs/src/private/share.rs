@@ -177,7 +177,7 @@ impl TemporalSharePointer {
         store: &mut impl BlockStore,
         rng: &mut impl RngCore,
     ) -> Result<Self> {
-        let private_ref = forest.put(node, store, rng).await?;
+        let private_ref = node.store(forest, store, rng).await?;
 
         let payload = TemporalSharePointer {
             label: private_ref.saturated_name_hash,
@@ -197,7 +197,7 @@ impl SnapshotSharePointer {
         store: &mut impl BlockStore,
         rng: &mut impl RngCore,
     ) -> Result<Self> {
-        let private_ref = forest.put(node, store, rng).await?;
+        let private_ref = node.store(forest, store, rng).await?;
 
         let payload = Self {
             label: private_ref.saturated_name_hash,
@@ -378,7 +378,7 @@ pub mod recipient {
 
         // Use decrypted payload to get cid to encrypted node in sharer's forest.
         let private_ref = PrivateRef::with_temporal_key(label, temporal_key, content_cid);
-        sharer_forest.get(&private_ref, store).await
+        PrivateNode::load(&private_ref, sharer_forest, store).await
     }
 }
 

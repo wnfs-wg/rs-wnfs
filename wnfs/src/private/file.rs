@@ -1,9 +1,9 @@
 use super::{
     encrypted::Encrypted, namefilter::Namefilter, AesKey, PrivateForest, PrivateNodeHeader,
-    SnapshotKey, AUTHENTICATION_TAG_SIZE, NONCE_SIZE,
+    PrivateRef, SnapshotKey, AUTHENTICATION_TAG_SIZE, NONCE_SIZE,
 };
 use crate::{
-    utils, utils::get_random_bytes, BlockStore, FsError, Hasher, Id, Metadata, NodeType,
+    dagcbor, utils, utils::get_random_bytes, BlockStore, FsError, Hasher, Id, Metadata, NodeType,
     PrivateNode, MAX_BLOCK_SIZE,
 };
 use anyhow::Result;
@@ -11,7 +11,7 @@ use async_once_cell::OnceCell;
 use async_stream::try_stream;
 use chrono::{DateTime, Utc};
 use futures::{future, AsyncRead, Stream, StreamExt};
-use libipld::{cbor::DagCborCodec, prelude::Encode, Cid, IpldCodec};
+use libipld::{Cid, IpldCodec};
 use rand_core::RngCore;
 use semver::Version;
 use serde::{de::Error as DeError, Deserialize, Deserializer, Serialize};
@@ -72,14 +72,14 @@ pub const MAX_BLOCK_CONTENT_SIZE: usize = MAX_BLOCK_SIZE - NONCE_SIZE - AUTHENTI
 #[derive(Debug, Clone, PartialEq)]
 pub struct PrivateFile {
     pub header: PrivateNodeHeader,
-    pub content: PrivateFileContent,
+    pub(crate) content: PrivateFileContent,
 }
 
 #[derive(Debug)]
 pub struct PrivateFileContent {
     persisted_as: OnceCell<Cid>,
-    pub previous: BTreeSet<(usize, Encrypted<Cid>)>,
-    pub metadata: Metadata,
+    pub(crate) previous: BTreeSet<(usize, Encrypted<Cid>)>,
+    pub(crate) metadata: Metadata,
     pub(crate) content: FileContent,
 }
 
@@ -554,34 +554,43 @@ impl PrivateFile {
     /// This should be called to prepare a node for modifications,
     /// if it's meant to be a successor revision of the current revision.
     ///
-    /// It will store the current revision in the given `BlockStore` to
-    /// retrieve its CID and put that into the `previous` links,
-    /// as well as advancing the ratchet and resetting the `persisted_as` pointer.
-    pub(crate) async fn prepare_next_revision(
-        self: Rc<Self>,
-        store: &mut impl BlockStore,
-        rng: &mut impl RngCore,
-    ) -> Result<Self> {
+    /// This doesn't have any effect if the current state hasn't been `.store()`ed yet.
+    /// Otherwise, it clones itself, stores its current CID in the previous links and
+    /// advances its ratchet.
+    pub(crate) fn prepare_next_revision(self: Rc<Self>) -> Result<Self> {
+        let previous_cid = match self.content.persisted_as.get() {
+            Some(cid) => *cid,
+            None => {
+                // The current revision wasn't written yet.
+                // There's no point in advancing the revision even further.
+                return Ok(Rc::try_unwrap(self).unwrap_or_else(|rc| (*rc).clone()));
+            }
+        };
+
         let temporal_key = self.header.derive_temporal_key();
-        let snapshot_key = temporal_key.derive_snapshot_key();
-        let header_cid = self.header.store(store).await?;
-        let content_cid = self
-            .content
-            .store(header_cid, &snapshot_key, store, rng)
-            .await?;
 
         let mut cloned = Rc::try_unwrap(self).unwrap_or_else(|rc| (*rc).clone());
-
-        cloned.content.persisted_as = OnceCell::new(); // Also done in `.clone()`, but need this to work in case try_unwrap optimizes.
+        // We make sure to clear any cached states.
+        // `.clone()` does this too, but `try_unwrap` may circumvent clone.
+        cloned.content.persisted_as = OnceCell::new();
         cloned.content.previous.clear();
         cloned
             .content
             .previous
-            .insert((1, Encrypted::from_value(content_cid, &temporal_key)?));
+            .insert((1, Encrypted::from_value(previous_cid, &temporal_key)?));
 
         cloned.header.advance_ratchet();
 
         Ok(cloned)
+    }
+
+    /// Returns the private ref, if this file has been `.store()`ed before.
+    pub(crate) fn get_private_ref(&self) -> Option<PrivateRef> {
+        self.content.persisted_as.get().map(|content_cid| {
+            self.header
+                .derive_revision_ref()
+                .as_private_ref(*content_cid)
+        })
     }
 
     /// This prepares this file for key rotation, usually for moving or
@@ -614,21 +623,63 @@ impl PrivateFile {
         Ok(())
     }
 
-    pub(crate) async fn store(
+    /// Stores this PrivateFile in the PrivateForest.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use std::rc::Rc;
+    /// use chrono::Utc;
+    /// use rand::thread_rng;
+    /// use wnfs::{
+    ///     private::{PrivateForest, PrivateRef}, PrivateNode,
+    ///     BlockStore, MemoryBlockStore, Namefilter, PrivateFile, PrivateOpResult,
+    /// };
+    ///
+    /// #[async_std::main]
+    /// async fn main() {
+    ///     let store = &mut MemoryBlockStore::default();
+    ///     let rng = &mut thread_rng();
+    ///     let forest = &mut Rc::new(PrivateForest::new());
+    ///     let file = Rc::new(PrivateFile::new(
+    ///         Namefilter::default(),
+    ///         Utc::now(),
+    ///         rng,
+    ///     ));
+    ///
+    ///     let private_ref = file.store(forest, store, rng).await.unwrap();
+    ///
+    ///     let node = PrivateNode::File(Rc::clone(&file));
+    ///
+    ///     assert_eq!(
+    ///         PrivateNode::load(&private_ref, forest, store).await.unwrap(),
+    ///         node
+    ///     );
+    /// }
+    /// ```
+    pub async fn store(
         &self,
+        forest: &mut Rc<PrivateForest>,
         store: &mut impl BlockStore,
         rng: &mut impl RngCore,
-    ) -> Result<(Cid, Cid)> {
+    ) -> Result<PrivateRef> {
         let header_cid = self.header.store(store).await?;
-
         let snapshot_key = self.header.derive_snapshot_key();
+        let label = self.header.get_saturated_name();
 
         let content_cid = self
             .content
             .store(header_cid, &snapshot_key, store, rng)
             .await?;
 
-        Ok((header_cid, content_cid))
+        forest
+            .put_encrypted(label, [header_cid, content_cid], store)
+            .await?;
+
+        Ok(self
+            .header
+            .derive_revision_ref()
+            .as_private_ref(content_cid))
     }
 
     /// Wraps the file in a [`PrivateNode`].
@@ -704,8 +755,7 @@ impl PrivateFileContent {
 
                 // Serialize node to cbor.
                 let ipld = self.serialize(libipld::serde::Serializer, header_cid)?;
-                let mut bytes = Vec::new();
-                ipld.encode(DagCborCodec, &mut bytes)?;
+                let bytes = dagcbor::encode(&ipld)?;
 
                 // Encrypt bytes with snapshot key.
                 let block = snapshot_key.encrypt(&bytes, rng)?;
