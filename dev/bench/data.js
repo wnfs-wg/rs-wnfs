@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1677142695428,
+  "lastUpdate": 1677150533186,
   "repoUrl": "https://github.com/wnfs-wg/rs-wnfs",
   "entries": {
     "Rust Benchmark": [
@@ -6871,6 +6871,108 @@ window.BENCHMARK_DATA = {
             "name": "namefilter encode",
             "value": 223,
             "range": "± 544",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter decode/0",
+            "value": 1,
+            "range": "± 0",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "philipp.krueger1@gmail.com",
+            "name": "Philipp Krüger",
+            "username": "matheus23"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "f04fa89738e19a095d177e18b35d7e153c380833",
+          "message": "feat: PrivateLink abstraction (#172)\n\n* refactor: Implement `PrivateLink`\r\n\r\n* feature: Implement `PrivateLink`\r\n\r\n* fix: :white_check_mark: on all non-doctests\r\n\r\n* fix: One doc test type error\r\n\r\n* fix: :white_check_mark: Fix all doctests\r\n\r\n* refactor: Expose `dir.store` instead of `forest.put`\r\n\r\n* refactor: Update wasm APIs accordingly\r\n\r\n* refactor: Relax parameter requirements\r\n\r\n* chore: de-noise diff\r\n\r\n* refactor: generally make use of `dagcbor` util module\r\n\r\n* chore: Polish\r\n\r\n* refactor: `forest.get` -> `PrivateNode::load`\r\n\r\n* refactor: Re-use `PrivateNode::store()` in wasm\r\n\r\n* refactor: Better `Aes256Gcm` initialization",
+          "timestamp": "2023-02-23T12:04:38+01:00",
+          "tree_id": "af5b909bca6c04176536e5f6120a963cdc4c10f5",
+          "url": "https://github.com/wnfs-wg/rs-wnfs/commit/f04fa89738e19a095d177e18b35d7e153c380833"
+        },
+        "date": 1677150532569,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "node set",
+            "value": 6579,
+            "range": "± 106",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node set 1000 consecutive",
+            "value": 4349483,
+            "range": "± 16984",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and get",
+            "value": 175998,
+            "range": "± 1053",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and remove",
+            "value": 192287,
+            "range": "± 562",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt load and decode/0",
+            "value": 51733,
+            "range": "± 126",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt set and encode",
+            "value": 172820,
+            "range": "± 285",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt diff",
+            "value": 58463,
+            "range": "± 4595",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt merge",
+            "value": 231141,
+            "range": "± 18504",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter add",
+            "value": 7475,
+            "range": "± 11",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter contains",
+            "value": 9834,
+            "range": "± 68",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter saturate",
+            "value": 41209,
+            "range": "± 350",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter encode",
+            "value": 167,
+            "range": "± 8",
             "unit": "ns/iter"
           },
           {
