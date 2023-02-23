@@ -1232,8 +1232,6 @@ mod tests {
             ..
         } = root_dir.mkdir(&["test".into()], time, store).await.unwrap();
 
-        root_dir_after.store(store).await.unwrap();
-
         let ipld = root_dir_after.async_serialize_ipld(store).await.unwrap();
         match ipld {
             Ipld::Map(map) => match map.get("previous") {
