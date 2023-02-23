@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.17](https://github.com/wnfs-wg/rs-wnfs/compare/wnfs-v0.1.16...wnfs-v0.1.17) (2023-02-23)
+
+
+### Features
+
+* PrivateLink abstraction ([#172](https://github.com/wnfs-wg/rs-wnfs/issues/172)) ([f04fa89](https://github.com/wnfs-wg/rs-wnfs/commit/f04fa89738e19a095d177e18b35d7e153c380833))
+
 ## [0.1.16](https://github.com/wnfs-wg/rs-wnfs/compare/wnfs-v0.1.15...wnfs-v0.1.16) (2023-02-22)
 
 

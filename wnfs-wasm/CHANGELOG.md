@@ -8,6 +8,20 @@
   * dependencies
     * wnfs bumped from 0.1.12 to 0.1.13
 
+## [0.1.17](https://github.com/wnfs-wg/rs-wnfs/compare/wnfs-wasm-v0.1.16...wnfs-wasm-v0.1.17) (2023-02-23)
+
+
+### Features
+
+* PrivateLink abstraction ([#172](https://github.com/wnfs-wg/rs-wnfs/issues/172)) ([f04fa89](https://github.com/wnfs-wg/rs-wnfs/commit/f04fa89738e19a095d177e18b35d7e153c380833))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * wnfs bumped from 0.1.16 to 0.1.17
+
 ## [0.1.16](https://github.com/wnfs-wg/rs-wnfs/compare/wnfs-wasm-v0.1.15...wnfs-wasm-v0.1.16) (2023-02-22)
 
 
