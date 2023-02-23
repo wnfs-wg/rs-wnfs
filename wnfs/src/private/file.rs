@@ -1,11 +1,8 @@
 use super::{
-    encrypted::Encrypted, namefilter::Namefilter, AesKey, PrivateForest, PrivateNodeHeader,
-    PrivateRef, SnapshotKey, AUTHENTICATION_TAG_SIZE, NONCE_SIZE,
+    encrypted::Encrypted, AesKey, PrivateForest, PrivateNode, PrivateNodeHeader, SnapshotKey,
+    AUTHENTICATION_TAG_SIZE, NONCE_SIZE,
 };
-use crate::{
-    dagcbor, utils, utils::get_random_bytes, BlockStore, FsError, Hasher, Id, Metadata, NodeType,
-    PrivateNode, MAX_BLOCK_SIZE,
-};
+use crate::{error::FsError, Id};
 use anyhow::Result;
 use async_once_cell::OnceCell;
 use async_stream::try_stream;
@@ -17,6 +14,9 @@ use semver::Version;
 use serde::{de::Error as DeError, Deserialize, Deserializer, Serialize};
 use sha3::Sha3_256;
 use std::{collections::BTreeSet, iter, rc::Rc};
+use wnfs_common::{utils, BlockStore, Metadata, NodeType, MAX_BLOCK_SIZE};
+use wnfs_hamt::Hasher;
+use wnfs_namefilter::Namefilter;
 
 //--------------------------------------------------------------------------------------------------
 // Constants
@@ -404,7 +404,7 @@ impl PrivateFile {
         rng: &mut impl RngCore,
     ) -> Result<FileContent> {
         // TODO(appcypher): Use a better heuristic to determine when to use external storage.
-        let key = SnapshotKey(AesKey::new(get_random_bytes(rng)));
+        let key = SnapshotKey(AesKey::new(utils::get_random_bytes(rng)));
         let block_count = (content.len() as f64 / MAX_BLOCK_CONTENT_SIZE as f64).ceil() as usize;
 
         for (index, label) in
@@ -440,7 +440,7 @@ impl PrivateFile {
         store: &mut impl BlockStore,
         rng: &mut impl RngCore,
     ) -> Result<FileContent> {
-        let key = SnapshotKey(AesKey::new(get_random_bytes(rng)));
+        let key = SnapshotKey(AesKey::new(utils::get_random_bytes(rng)));
 
         let mut block_index = 0;
 
@@ -799,15 +799,18 @@ impl Id for PrivateFile {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{utils::test_setup, MemoryBlockStore};
     use async_std::fs::File;
     use proptest::test_runner::{RngAlgorithm, TestRng};
     use rand::Rng;
+    use wnfs_common::MemoryBlockStore;
 
     #[async_std::test]
     async fn can_create_empty_file() {
-        let (file, _) = test_setup::private!(file);
-        let (ref forest, ref store) = test_setup::init!(forest, store);
+        let store = &mut MemoryBlockStore::default();
+        let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
+        let forest = &Rc::new(PrivateForest::new());
+
+        let file = PrivateFile::new(Namefilter::new(), Utc::now(), rng);
         let file_content = file.get_content(forest, store).await.unwrap();
 
         assert!(file_content.is_empty());
@@ -818,7 +821,20 @@ mod tests {
         let mut content = vec![0u8; MAX_BLOCK_CONTENT_SIZE * 5];
         rand::thread_rng().fill(&mut content[..]);
 
-        let (file, (ref mut forest, ref store, _)) = test_setup::private!(file, content.clone());
+        let store = &mut MemoryBlockStore::default();
+        let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
+        let forest = &mut Rc::new(PrivateForest::new());
+
+        let file = PrivateFile::with_content(
+            Namefilter::default(),
+            Utc::now(),
+            content.clone(),
+            forest,
+            store,
+            rng,
+        )
+        .await
+        .unwrap();
 
         let mut collected_content = Vec::new();
         let mut block_limit = 2;
@@ -870,9 +886,14 @@ mod tests {
 #[cfg(test)]
 mod proptests {
     use super::MAX_BLOCK_CONTENT_SIZE;
-    use crate::utils::test_setup;
+    use crate::private::{PrivateFile, PrivateForest};
+    use chrono::Utc;
     use futures::{future, StreamExt};
+    use proptest::test_runner::{RngAlgorithm, TestRng};
+    use std::rc::Rc;
     use test_strategy::proptest;
+    use wnfs_common::MemoryBlockStore;
+    use wnfs_namefilter::Namefilter;
 
     #[proptest(cases = 100)]
     fn can_include_and_get_content_from_file(
@@ -880,7 +901,21 @@ mod proptests {
     ) {
         async_std::task::block_on(async {
             let content = vec![0u8; length];
-            let (file, (ref forest, ref store, _)) = test_setup::private!(file, content.clone());
+            let store = &mut MemoryBlockStore::default();
+            let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
+            let forest = &mut Rc::new(PrivateForest::new());
+
+            let file = PrivateFile::with_content(
+                Namefilter::new(),
+                Utc::now(),
+                content.clone(),
+                forest,
+                store,
+                rng,
+            )
+            .await
+            .unwrap();
+
             let collected_content = file.get_content(forest, store).await.unwrap();
 
             assert_eq!(collected_content, content);
@@ -893,10 +928,22 @@ mod proptests {
     ) {
         async_std::task::block_on(async {
             let content = vec![0u8; length];
-            let (file, (ref forest, ref store, _)) = test_setup::private!(file, content.clone());
+            let store = &mut MemoryBlockStore::default();
+            let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
+            let forest = &mut Rc::new(PrivateForest::new());
+
+            let file = PrivateFile::with_content(
+                Namefilter::new(),
+                Utc::now(),
+                content.clone(),
+                forest,
+                store,
+                rng,
+            )
+            .await
+            .unwrap();
 
             let mut collected_content = Vec::new();
-
             file.stream_content(0, forest, store)
                 .for_each(|chunk| {
                     collected_content.extend_from_slice(&chunk.unwrap());

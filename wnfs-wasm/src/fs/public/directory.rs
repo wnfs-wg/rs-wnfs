@@ -1,16 +1,5 @@
 //! The bindgen API for PublicDirectory.
 
-use std::rc::Rc;
-
-use chrono::{DateTime, Utc};
-use js_sys::{Array, Date, Promise, Uint8Array};
-use wasm_bindgen::{prelude::wasm_bindgen, JsValue};
-use wasm_bindgen_futures::future_to_promise;
-use wnfs::{
-    libipld::Cid, BlockStore as WnfsBlockStore, Id, PublicDirectory as WnfsPublicDirectory,
-    PublicNode as WnfsPublicNode, PublicOpResult as WnfsPublicOpResult,
-};
-
 use crate::{
     fs::{
         metadata::JsMetadata,
@@ -18,6 +7,15 @@ use crate::{
         BlockStore, ForeignBlockStore, JsResult, PublicNode,
     },
     value,
+};
+use chrono::{DateTime, Utc};
+use js_sys::{Array, Date, Promise, Uint8Array};
+use std::rc::Rc;
+use wasm_bindgen::{prelude::wasm_bindgen, JsValue};
+use wasm_bindgen_futures::future_to_promise;
+use wnfs::{
+    libipld::Cid, BlockStore as WnfsBlockStore, Id, PublicDirectory as WnfsPublicDirectory,
+    PublicNode as WnfsPublicNode, PublicOpResult as WnfsPublicOpResult,
 };
 
 //--------------------------------------------------------------------------------------------------

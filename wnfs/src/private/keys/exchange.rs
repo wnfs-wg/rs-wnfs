@@ -1,10 +1,9 @@
-use anyhow::Result;
-use async_trait::async_trait;
-
 #[cfg(test)]
-use crate::RsaError;
+use crate::error::RsaError;
 #[cfg(test)]
 use anyhow::anyhow;
+use anyhow::Result;
+use async_trait::async_trait;
 #[cfg(test)]
 use rsa::{BigUint, PaddingScheme, PublicKey as PublicKeyTrait, PublicKeyParts};
 #[cfg(test)]

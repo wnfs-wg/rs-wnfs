@@ -1,14 +1,18 @@
-use super::{
-    hamt::{self, Hamt},
-    namefilter::Namefilter,
-    PrivateNode, RevisionRef,
-};
-use crate::{AesError, BlockStore, HashOutput, Hasher, Link};
+use super::{PrivateNode, PrivateRef, RevisionRef};
+use crate::error::{AesError, FsError};
 use anyhow::Result;
 use async_stream::stream;
+use async_trait::async_trait;
 use futures::Stream;
 use libipld::Cid;
+use log::debug;
+use rand_core::RngCore;
+use serde::{Deserialize, Deserializer, Serializer};
+use sha3::Sha3_256;
 use std::{collections::BTreeSet, fmt, rc::Rc};
+use wnfs_common::{AsyncSerialize, BlockStore, HashOutput, Link};
+use wnfs_hamt::{merge, Hamt, Hasher};
+use wnfs_namefilter::Namefilter;
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
@@ -31,13 +35,19 @@ use std::{collections::BTreeSet, fmt, rc::Rc};
 ///
 /// println!("{:?}", forest);
 /// ```
-pub type PrivateForest = Hamt<Namefilter, BTreeSet<Cid>>;
+#[derive(Debug, Clone)]
+pub struct PrivateForest<H: Hasher = Sha3_256>(Hamt<Namefilter, BTreeSet<Cid>, H>);
 
 //--------------------------------------------------------------------------------------------------
 // Implementations
 //--------------------------------------------------------------------------------------------------
 
 impl PrivateForest {
+    /// Creates a new empty PrivateForest.
+    pub fn new() -> Self {
+        Self(Hamt::new())
+    }
+
     /// Checks that a value with the given saturated name hash key exists.
     ///
     /// # Examples
@@ -75,6 +85,7 @@ impl PrivateForest {
         store: &impl BlockStore,
     ) -> Result<bool> {
         Ok(self
+            .0
             .root
             .get_by_hash(saturated_name_hash, store)
             .await?
@@ -92,6 +103,7 @@ impl PrivateForest {
         // We could consider implementing something like upsert instead.
         // Or some kind of "cursor".
         let mut cids = self
+            .0
             .root
             .get(&name, store)
             .await?
@@ -100,7 +112,7 @@ impl PrivateForest {
 
         cids.extend(values);
 
-        Rc::make_mut(self).root.set(name, cids, store).await?;
+        Rc::make_mut(self).0.root.set(name, cids, store).await?;
         Ok(())
     }
 
@@ -111,7 +123,7 @@ impl PrivateForest {
         name_hash: &HashOutput,
         store: &impl BlockStore,
     ) -> Result<Option<&'b BTreeSet<Cid>>> {
-        self.root.get_by_hash(name_hash, store).await
+        self.0.root.get_by_hash(name_hash, store).await
     }
 
     /// Removes the encrypted value at the given key.
@@ -121,6 +133,7 @@ impl PrivateForest {
         store: &mut impl BlockStore,
     ) -> Result<Option<BTreeSet<Cid>>> {
         let pair = Rc::make_mut(self)
+            .0
             .root
             .remove_by_hash(name_hash, store)
             .await?;
@@ -162,7 +175,7 @@ impl PrivateForest {
     }
 }
 
-impl<H> Hamt<Namefilter, BTreeSet<Cid>, H>
+impl<H> PrivateForest<H>
 where
     H: Hasher + fmt::Debug + Clone + 'static,
 {
@@ -229,18 +242,44 @@ where
     /// }
     /// ```
     pub async fn merge(&self, other: &Self, store: &mut impl BlockStore) -> Result<Self> {
-        let merge_node = hamt::merge(
-            Link::from(Rc::clone(&self.root)),
-            Link::from(Rc::clone(&other.root)),
+        let merge_node = merge(
+            Link::from(Rc::clone(&self.0.root)),
+            Link::from(Rc::clone(&other.0.root)),
             |a, b| Ok(a.union(b).cloned().collect()),
             store,
         )
         .await?;
 
-        Ok(Self {
-            version: self.version.clone(),
+        Ok(Self(Hamt {
+            version: self.0.version.clone(),
             root: merge_node,
-        })
+        }))
+    }
+}
+
+impl Default for PrivateForest {
+    fn default() -> Self {
+        Self(Hamt::new())
+    }
+}
+
+#[async_trait(?Send)]
+impl AsyncSerialize for PrivateForest {
+    async fn async_serialize<S, B>(&self, serializer: S, store: &mut B) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+        B: BlockStore + ?Sized,
+    {
+        self.0.async_serialize(serializer, store).await
+    }
+}
+
+impl<'de> Deserialize<'de> for PrivateForest {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        Hamt::deserialize(deserializer).map(Self)
     }
 }
 
@@ -251,21 +290,21 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        private::{HashNibbles, Node, PrivateDirectory},
-        utils::test_setup,
-        MemoryBlockStore,
-    };
+    use crate::private::PrivateDirectory;
     use chrono::Utc;
     use helper::*;
     use proptest::test_runner::{RngAlgorithm, TestRng};
     use std::rc::Rc;
+    use wnfs_common::MemoryBlockStore;
+    use wnfs_hamt::{HashNibbles, Node};
 
     mod helper {
-        use crate::{utils, HashOutput, Hasher, Namefilter};
         use libipld::{Cid, Multihash};
         use once_cell::sync::Lazy;
         use rand::{thread_rng, RngCore};
+        use wnfs_common::{utils, HashOutput};
+        use wnfs_hamt::Hasher;
+        use wnfs_namefilter::Namefilter;
 
         pub(super) static HASH_KV_PAIRS: Lazy<Vec<(HashOutput, Namefilter, Cid)>> =
             Lazy::new(|| {
@@ -409,7 +448,8 @@ mod tests {
 
     #[async_std::test]
     async fn can_merge_nodes_with_different_structure_and_modified_changes() {
-        let (store, rng) = test_setup::init!(mut store, mut rng);
+        let store = &mut MemoryBlockStore::new();
+        let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
 
         // A node that adds the first 3 pairs of HASH_KV_PAIRS.
         let other_node = &mut Rc::new(Node::<_, _, MockHasher>::default());
@@ -460,13 +500,23 @@ mod tests {
                 .unwrap();
         }
 
-        let main_forest = Hamt::<Namefilter, BTreeSet<Cid>, _>::with_root(Rc::clone(main_node));
-        let other_forest = Hamt::<Namefilter, BTreeSet<Cid>, _>::with_root(Rc::clone(other_node));
+        let main_forest = PrivateForest(Hamt::<Namefilter, BTreeSet<Cid>, _>::with_root(
+            Rc::clone(main_node),
+        ));
+
+        let other_forest = PrivateForest(Hamt::<Namefilter, BTreeSet<Cid>, _>::with_root(
+            Rc::clone(other_node),
+        ));
 
         let merge_forest = main_forest.merge(&other_forest, store).await.unwrap();
 
         for (i, (digest, _, v)) in HASH_KV_PAIRS.iter().take(5).enumerate() {
-            let retrieved = merge_forest.root.get_by_hash(digest, store).await.unwrap();
+            let retrieved = merge_forest
+                .0
+                .root
+                .get_by_hash(digest, store)
+                .await
+                .unwrap();
             if i != 1 {
                 assert_eq!(retrieved.unwrap(), &BTreeSet::from([*v]));
             } else {

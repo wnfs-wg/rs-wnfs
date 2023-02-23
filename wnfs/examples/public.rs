@@ -3,7 +3,8 @@
 
 use chrono::Utc;
 use std::rc::Rc;
-use wnfs::{libipld::Cid, MemoryBlockStore, PublicDirectory, PublicOpResult};
+use wnfs::{libipld::Cid, PublicDirectory, PublicOpResult};
+use wnfs_common::MemoryBlockStore;
 
 #[async_std::main]
 async fn main() {

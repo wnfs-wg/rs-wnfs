@@ -1,5 +1,9 @@
 //! The bindgen API for PublicFile.
 
+use crate::{
+    fs::{metadata::JsMetadata, utils::error, BlockStore, ForeignBlockStore, JsResult, PublicNode},
+    value,
+};
 use chrono::{DateTime, Utc};
 use js_sys::{Error, Promise, Uint8Array};
 use std::rc::Rc;
@@ -8,11 +12,6 @@ use wasm_bindgen_futures::future_to_promise;
 use wnfs::{
     libipld::Cid, BlockStore as WnfsBlockStore, Id, PublicFile as WnfsPublicFile,
     PublicNode as WnfsPublicNode,
-};
-
-use crate::{
-    fs::{metadata::JsMetadata, utils::error, BlockStore, ForeignBlockStore, JsResult, PublicNode},
-    value,
 };
 
 //--------------------------------------------------------------------------------------------------

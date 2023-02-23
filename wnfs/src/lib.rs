@@ -8,25 +8,19 @@
 //! It exposes an immutable API, extending WNFS immutable nature to the in-memory representation of the file system.
 #![deny(unsafe_code)]
 
-mod common;
+mod error;
 pub mod private;
 pub mod public;
 mod traits;
-
-pub use common::*;
-pub use private::{
-    hamt::{Hasher, Pair},
-    namefilter::Namefilter,
-    PrivateDirectory, PrivateFile, PrivateNode, PrivateOpResult,
-};
-pub use public::{PublicDirectory, PublicFile, PublicNode, PublicOpResult};
-pub use traits::*;
+mod utils;
 
 //--------------------------------------------------------------------------------------------------
 // Re-exports
 //--------------------------------------------------------------------------------------------------
-
 pub use libipld;
+pub use private::{PrivateDirectory, PrivateFile, PrivateNode, PrivateOpResult};
+pub use public::{PublicDirectory, PublicFile, PublicNode, PublicOpResult};
+pub use traits::*;
 
 pub mod rand_core {
     pub use rand_core::RngCore;

@@ -1,20 +1,7 @@
-use crate::{
-    fs::{
-        utils::{self, error},
-        BlockStore, ForeignBlockStore, JsResult, Namefilter, PrivateDirectory, PrivateFile,
-        PrivateForest, PrivateRef, Rng,
-    },
-    value,
-};
-use js_sys::{Error, Promise, Uint8Array};
-use std::{collections::BTreeSet, rc::Rc};
+use crate::fs::{JsResult, PrivateDirectory, PrivateFile};
+use js_sys::Error;
 use wasm_bindgen::prelude::wasm_bindgen;
-use wasm_bindgen_futures::future_to_promise;
-use wnfs::{
-    libipld::Cid,
-    private::{ChangeType, KeyValueChange, PrivateNode as WnfsPrivateNode},
-    Id, Namefilter as WnfsNamefilter,
-};
+use wnfs::{private::PrivateNode as WnfsPrivateNode, Id};
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions

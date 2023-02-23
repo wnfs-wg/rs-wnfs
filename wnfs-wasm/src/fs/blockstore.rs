@@ -1,18 +1,16 @@
 //! The bindgen API for WNFS block store.
 
-use std::borrow::Cow;
-
+use super::utils::anyhow_error;
 use anyhow::Result;
 use async_trait::async_trait;
 use js_sys::{Promise, Uint8Array};
+use std::borrow::Cow;
 use wasm_bindgen::prelude::wasm_bindgen;
 use wasm_bindgen_futures::JsFuture;
 use wnfs::{
     libipld::{Cid, IpldCodec},
     BlockStore as WnfsBlockStore,
 };
-
-use super::utils::anyhow_error;
 
 //--------------------------------------------------------------------------------------------------
 // Externs

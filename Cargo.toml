@@ -2,7 +2,10 @@
 members = [
 	"wnfs",
 	"wnfs-bench",
-	"wnfs-wasm"
+	"wnfs-common",
+	"wnfs-hamt",
+	"wnfs-namefilter",
+	"wnfs-wasm",
 ]
 
 # Speedup build on macOS

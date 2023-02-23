@@ -1,14 +1,7 @@
 //! Public fs directory node.
 
-use std::{
-    collections::{BTreeMap, BTreeSet},
-    rc::Rc,
-};
-
-use crate::{
-    error, utils, AsyncSerialize, BlockStore, FsError, Id, Metadata, NodeType, PathNodes,
-    PathNodesResult, RemembersCid,
-};
+use super::{PublicFile, PublicLink, PublicNode};
+use crate::{error::FsError, utils, Id, RemembersCid};
 use anyhow::{bail, ensure, Result};
 use async_once_cell::OnceCell;
 use async_recursion::async_recursion;
@@ -16,11 +9,14 @@ use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use libipld::Cid;
 use semver::Version;
-use serde::{
-    de::Error as DeError, ser::Error as SerError, Deserialize, Deserializer, Serialize, Serializer,
+use serde::{ser::Error as SerError, Deserialize, Deserializer, Serialize, Serializer};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    rc::Rc,
 };
-
-use super::{PublicFile, PublicLink, PublicNode};
+use wnfs_common::{
+    utils::error, AsyncSerialize, BlockStore, Metadata, NodeType, PathNodes, PathNodesResult,
+};
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
@@ -865,9 +861,9 @@ impl<'de> Deserialize<'de> for PublicDirectory {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{dagcbor, public::PublicFile, MemoryBlockStore};
     use chrono::Utc;
     use libipld::Ipld;
+    use wnfs_common::{dagcbor, MemoryBlockStore};
 
     #[async_std::test]
     async fn look_up_can_fetch_file_added_to_directory() {
