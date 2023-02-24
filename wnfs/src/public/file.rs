@@ -1,15 +1,16 @@
 //! Public fs file node.
 
-use std::collections::BTreeSet;
+use std::{collections::BTreeSet, rc::Rc};
 
 use anyhow::Result;
 
+use async_once_cell::OnceCell;
 use chrono::{DateTime, Utc};
 use libipld::Cid;
 use semver::Version;
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use serde::{de::Error as DeError, Deserialize, Deserializer, Serialize, Serializer};
 
-use crate::{BlockStore, Id, Metadata, NodeType};
+use crate::{BlockStore, FsError, Id, Metadata, NodeType, RemembersCid};
 
 /// Represents a file in the WNFS public filesystem.
 ///
@@ -24,9 +25,9 @@ use crate::{BlockStore, Id, Metadata, NodeType};
 ///
 /// println!("File: {:?}", file);
 /// ```
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug)]
 pub struct PublicFile {
-    pub version: Version,
+    persisted_as: OnceCell<Cid>,
     pub metadata: Metadata,
     pub userland: Cid,
     pub previous: BTreeSet<Cid>,
@@ -36,9 +37,9 @@ pub struct PublicFile {
 struct PublicFileSerializable {
     r#type: NodeType,
     version: Version,
-    pub metadata: Metadata,
-    pub userland: Cid,
-    pub previous: Vec<Cid>,
+    metadata: Metadata,
+    userland: Cid,
+    previous: Vec<Cid>,
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -61,7 +62,7 @@ impl PublicFile {
     /// ```
     pub fn new(time: DateTime<Utc>, content_cid: Cid) -> Self {
         Self {
-            version: Version::new(0, 2, 0),
+            persisted_as: OnceCell::new(),
             metadata: Metadata::new(time),
             userland: content_cid,
             previous: BTreeSet::new(),
@@ -94,6 +95,26 @@ impl PublicFile {
         &self.userland
     }
 
+    /// Takes care of creating previous links, in case the current
+    /// file was previously `.store()`ed.
+    /// In any case it'll try to give you ownership of the file if possible,
+    /// otherwise it clones.
+    pub(crate) fn prepare_next_revision(self: Rc<Self>) -> Self {
+        let Some(previous_cid) = self.persisted_as.get().cloned() else {
+            // If this revision was not yet persisted, we can
+            // modify it without forcing it to be flushed to a
+            // BlockStore.
+            return Rc::try_unwrap(self).unwrap_or_else(|rc| (*rc).clone());
+        };
+
+        let mut cloned = Rc::try_unwrap(self).unwrap_or_else(|rc| (*rc).clone());
+        // We need to reset the OnceCell.
+        cloned.persisted_as = OnceCell::new();
+        cloned.previous = [previous_cid].into_iter().collect();
+
+        cloned
+    }
+
     /// Stores file in provided block store.
     ///
     /// # Examples
@@ -111,9 +132,11 @@ impl PublicFile {
     ///     file.store(&mut store).await.unwrap();
     /// }
     /// ```
-    #[inline(always)]
     pub async fn store(&self, store: &mut impl BlockStore) -> Result<Cid> {
-        store.put_serializable(self).await
+        Ok(*self
+            .persisted_as
+            .get_or_try_init(async { store.put_serializable(self).await })
+            .await?)
     }
 }
 
@@ -124,7 +147,7 @@ impl Serialize for PublicFile {
     {
         PublicFileSerializable {
             r#type: NodeType::PublicFile,
-            version: self.version.clone(),
+            version: Version::new(0, 2, 0),
             metadata: self.metadata.clone(),
             userland: self.userland,
             previous: self.previous.iter().cloned().collect(),
@@ -139,15 +162,23 @@ impl<'de> Deserialize<'de> for PublicFile {
         D: Deserializer<'de>,
     {
         let PublicFileSerializable {
+            r#type,
             version,
             metadata,
             userland,
             previous,
-            ..
         } = PublicFileSerializable::deserialize(deserializer)?;
 
+        if version.major != 0 || version.minor != 2 {
+            return Err(DeError::custom(FsError::UnexpectedVersion(version)));
+        }
+
+        if r#type != NodeType::PublicFile {
+            return Err(DeError::custom(FsError::UnexpectedNodeType(r#type)));
+        }
+
         Ok(Self {
-            version,
+            persisted_as: OnceCell::new(),
             metadata,
             userland,
             previous: previous.iter().cloned().collect(),
@@ -161,16 +192,41 @@ impl Id for PublicFile {
     }
 }
 
+impl PartialEq for PublicFile {
+    fn eq(&self, other: &Self) -> bool {
+        self.metadata == other.metadata
+            && self.userland == other.userland
+            && self.previous == other.previous
+    }
+}
+
+impl Clone for PublicFile {
+    fn clone(&self) -> Self {
+        Self {
+            persisted_as: OnceCell::new_with(self.persisted_as.get().cloned()),
+            metadata: self.metadata.clone(),
+            userland: self.userland,
+            previous: self.previous.clone(),
+        }
+    }
+}
+
+impl RemembersCid for PublicFile {
+    fn persisted_as(&self) -> &OnceCell<Cid> {
+        &self.persisted_as
+    }
+}
+
 //--------------------------------------------------------------------------------------------------
 // Tests
 //--------------------------------------------------------------------------------------------------
 
 #[cfg(test)]
 mod tests {
+    use crate::{dagcbor, public::PublicFile, BlockStore, MemoryBlockStore};
     use chrono::Utc;
-    use libipld::Cid;
-
-    use crate::{dagcbor, public::PublicFile};
+    use libipld::{Cid, IpldCodec};
+    use std::rc::Rc;
 
     #[async_std::test]
     async fn serialized_public_file_can_be_deserialized() {
@@ -180,5 +236,51 @@ mod tests {
         let deserialized_file: PublicFile = dagcbor::decode(serialized_file.as_ref()).unwrap();
 
         assert_eq!(deserialized_file, original_file);
+    }
+
+    #[async_std::test]
+    async fn previous_links_get_set() {
+        let time = Utc::now();
+        let store = &mut MemoryBlockStore::default();
+
+        let content_cid = store
+            .put_block(b"Hello World".to_vec(), IpldCodec::Raw)
+            .await
+            .unwrap();
+
+        let file = Rc::new(PublicFile::new(time, content_cid));
+
+        let previous_cid = file.store(store).await.unwrap();
+
+        let next_file = file.prepare_next_revision();
+
+        assert_eq!(
+            next_file.previous.into_iter().collect::<Vec<_>>(),
+            vec![previous_cid]
+        );
+    }
+
+    #[async_std::test]
+    async fn prepare_next_revision_shortcuts_if_possible() {
+        let time = Utc::now();
+        let store = &mut MemoryBlockStore::default();
+
+        let content_cid = store
+            .put_block(b"Hello World".to_vec(), IpldCodec::Raw)
+            .await
+            .unwrap();
+
+        let file = Rc::new(PublicFile::new(time, content_cid));
+
+        let previous_cid = file.store(store).await.unwrap();
+
+        let next_file = file.prepare_next_revision();
+
+        let yet_another_file = Rc::new(next_file).prepare_next_revision();
+
+        assert_eq!(
+            yet_another_file.previous.into_iter().collect::<Vec<_>>(),
+            vec![previous_cid]
+        );
     }
 }
