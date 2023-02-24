@@ -7,7 +7,7 @@ use std::{
 
 use crate::{
     error, utils, AsyncSerialize, BlockStore, FsError, Id, Metadata, NodeType, PathNodes,
-    PathNodesResult, RemembersPersistence,
+    PathNodesResult, RemembersCid,
 };
 use anyhow::{bail, ensure, Result};
 use async_once_cell::OnceCell;
@@ -787,7 +787,7 @@ impl Clone for PublicDirectory {
     }
 }
 
-impl RemembersPersistence for PublicDirectory {
+impl RemembersCid for PublicDirectory {
     fn persisted_as(&self) -> &OnceCell<Cid> {
         &self.persisted_as
     }

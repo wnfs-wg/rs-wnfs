@@ -5,7 +5,7 @@ use super::{
 };
 use crate::{
     private::HAMT_VALUES_BUCKET_SIZE, AsyncSerialize, BlockStore, FsError, HashOutput, Link,
-    RemembersPersistence,
+    RemembersCid,
 };
 use anyhow::{bail, Result};
 use async_once_cell::OnceCell;
@@ -689,7 +689,7 @@ impl<K: Clone, V: Clone, H: Hasher> Clone for Node<K, V, H> {
     }
 }
 
-impl<K, V, H: Hasher> RemembersPersistence for Node<K, V, H> {
+impl<K, V, H: Hasher> RemembersCid for Node<K, V, H> {
     fn persisted_as(&self) -> &OnceCell<Cid> {
         &self.persisted_as
     }

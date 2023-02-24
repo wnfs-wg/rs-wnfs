@@ -8,7 +8,6 @@ use std::{cmp, rc::Rc, sync::Arc};
 use wnfs::{
     dagcbor,
     private::{
-        diff,
         hamt::{self, Hamt, Node},
         strategies::{generate_kvs, node_from_kvs, node_from_operations, operations},
     },

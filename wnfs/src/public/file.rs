@@ -10,7 +10,7 @@ use libipld::Cid;
 use semver::Version;
 use serde::{de::Error as DeError, Deserialize, Deserializer, Serialize, Serializer};
 
-use crate::{BlockStore, FsError, Id, Metadata, NodeType, RemembersPersistence};
+use crate::{BlockStore, FsError, Id, Metadata, NodeType, RemembersCid};
 
 /// Represents a file in the WNFS public filesystem.
 ///
@@ -211,7 +211,7 @@ impl Clone for PublicFile {
     }
 }
 
-impl RemembersPersistence for PublicFile {
+impl RemembersCid for PublicFile {
     fn persisted_as(&self) -> &OnceCell<Cid> {
         &self.persisted_as
     }

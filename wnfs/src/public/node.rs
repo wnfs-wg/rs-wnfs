@@ -10,7 +10,7 @@ use libipld::{Cid, Ipld};
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 
 use super::{PublicDirectory, PublicFile};
-use crate::{common::BlockStore, AsyncSerialize, FsError, Id, NodeType, RemembersPersistence};
+use crate::{common::BlockStore, AsyncSerialize, FsError, Id, NodeType, RemembersCid};
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
@@ -318,7 +318,7 @@ impl AsyncSerialize for PublicNode {
     }
 }
 
-impl RemembersPersistence for PublicNode {
+impl RemembersCid for PublicNode {
     fn persisted_as(&self) -> &OnceCell<Cid> {
         match self {
             PublicNode::File(file) => (*file).persisted_as(),

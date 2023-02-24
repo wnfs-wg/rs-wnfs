@@ -34,7 +34,7 @@ pub enum Link<T> {
 // Implementations
 //--------------------------------------------------------------------------------------------------
 
-impl<T: RemembersPersistence> Link<T> {
+impl<T: RemembersCid> Link<T> {
     /// Creates a new `Link` that starts out as a Cid.
     pub fn from_cid(cid: Cid) -> Self {
         Self::Encoded {
@@ -149,7 +149,7 @@ impl<T: RemembersPersistence> Link<T> {
 }
 
 #[async_trait(?Send)]
-impl<T: PartialEq + AsyncSerialize + RemembersPersistence> IpldEq for Link<T> {
+impl<T: PartialEq + AsyncSerialize + RemembersCid> IpldEq for Link<T> {
     async fn eq<B: BlockStore + ?Sized>(&self, other: &Link<T>, store: &mut B) -> Result<bool> {
         if self == other {
             return Ok(true);
@@ -159,7 +159,7 @@ impl<T: PartialEq + AsyncSerialize + RemembersPersistence> IpldEq for Link<T> {
     }
 }
 
-impl<T: RemembersPersistence> From<T> for Link<T> {
+impl<T: RemembersCid> From<T> for Link<T> {
     fn from(value: T) -> Self {
         Self::Decoded { value }
     }
@@ -182,7 +182,7 @@ where
     }
 }
 
-impl<T: RemembersPersistence> PartialEq for Link<T>
+impl<T: RemembersCid> PartialEq for Link<T>
 where
     T: PartialEq,
 {
@@ -224,11 +224,11 @@ where
     }
 }
 
-pub trait RemembersPersistence {
+pub trait RemembersCid {
     fn persisted_as(&self) -> &OnceCell<Cid>;
 }
 
-impl<T: RemembersPersistence> RemembersPersistence for Rc<T> {
+impl<T: RemembersCid> RemembersCid for Rc<T> {
     fn persisted_as(&self) -> &OnceCell<Cid> {
         self.as_ref().persisted_as()
     }
@@ -246,7 +246,7 @@ mod tests {
     use libipld::Cid;
     use serde::Serializer;
 
-    use crate::{AsyncSerialize, BlockStore, Link, MemoryBlockStore, RemembersPersistence};
+    use crate::{AsyncSerialize, BlockStore, Link, MemoryBlockStore, RemembersCid};
 
     #[derive(Debug, Serialize, Deserialize)]
     struct Example {
@@ -290,7 +290,7 @@ mod tests {
         }
     }
 
-    impl RemembersPersistence for Example {
+    impl RemembersCid for Example {
         fn persisted_as(&self) -> &OnceCell<Cid> {
             &self.persisted_as
         }
