@@ -259,4 +259,28 @@ mod tests {
             vec![previous_cid]
         );
     }
+
+    #[async_std::test]
+    async fn prepare_next_revision_shortcuts_if_possible() {
+        let time = Utc::now();
+        let store = &mut MemoryBlockStore::default();
+
+        let content_cid = store
+            .put_block(b"Hello World".to_vec(), IpldCodec::Raw)
+            .await
+            .unwrap();
+
+        let file = Rc::new(PublicFile::new(time, content_cid));
+
+        let previous_cid = file.store(store).await.unwrap();
+
+        let next_file = file.prepare_next_revision();
+
+        let yet_another_file = Rc::new(next_file).prepare_next_revision();
+
+        assert_eq!(
+            yet_another_file.previous.into_iter().collect::<Vec<_>>(),
+            vec![previous_cid]
+        );
+    }
 }

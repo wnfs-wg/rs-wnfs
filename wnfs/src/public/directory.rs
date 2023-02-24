@@ -1243,4 +1243,22 @@ mod tests {
             _ => panic!("Expected map!"),
         }
     }
+
+    #[async_std::test]
+    async fn prepare_next_revision_shortcuts_if_possible() {
+        let time = Utc::now();
+        let store = &mut MemoryBlockStore::default();
+        let root_dir = Rc::new(PublicDirectory::new(time));
+
+        let previous_cid = root_dir.store(store).await.unwrap();
+
+        let next_dir = root_dir.prepare_next_revision();
+
+        let yet_another_dir = Rc::new(next_dir).prepare_next_revision();
+
+        assert_eq!(
+            yet_another_dir.previous.into_iter().collect::<Vec<_>>(),
+            vec![previous_cid]
+        );
+    }
 }
