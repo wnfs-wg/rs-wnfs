@@ -8,6 +8,22 @@
   * dependencies
     * wnfs bumped from 0.1.12 to 0.1.13
 
+## [0.1.17](https://github.com/wnfs-wg/rs-wnfs/compare/wnfs-wasm-v0.1.16...wnfs-wasm-v0.1.17) (2023-02-24)
+
+
+### Features
+
+* **api:** add privateforest merge and diff bindings ([#181](https://github.com/wnfs-wg/rs-wnfs/issues/181)) ([231ece4](https://github.com/wnfs-wg/rs-wnfs/commit/231ece4309cab86d4682693e8e31f8ed99478a1f))
+* PrivateLink abstraction ([#172](https://github.com/wnfs-wg/rs-wnfs/issues/172)) ([f04fa89](https://github.com/wnfs-wg/rs-wnfs/commit/f04fa89738e19a095d177e18b35d7e153c380833))
+* Remove `base_history_on` and auto-track history instead ([#174](https://github.com/wnfs-wg/rs-wnfs/issues/174)) ([806bbb9](https://github.com/wnfs-wg/rs-wnfs/commit/806bbb93b1f03983165375005e14a9b63ebe67c2))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * wnfs bumped from 0.1.16 to 0.1.17
+
 ## [0.1.16](https://github.com/wnfs-wg/rs-wnfs/compare/wnfs-wasm-v0.1.15...wnfs-wasm-v0.1.16) (2023-02-22)
 
 
