@@ -1,8 +1,8 @@
 use crate::{
-    fs::{utils::error, BlockStore, ForeignBlockStore, JsResult},
+    fs::{utils::error, BlockStore, ForeignBlockStore, ForestChange, JsResult},
     value,
 };
-use js_sys::{Promise, Uint8Array};
+use js_sys::{Array, Promise, Uint8Array};
 use std::rc::Rc;
 use wasm_bindgen::prelude::wasm_bindgen;
 use wasm_bindgen_futures::future_to_promise;
@@ -62,6 +62,41 @@ impl PrivateForest {
             let cid_u8array = Uint8Array::from(&cid.to_bytes()[..]);
 
             Ok(value!(cid_u8array))
+        }))
+    }
+
+    #[wasm_bindgen]
+    pub fn merge(&self, other: &PrivateForest, store: BlockStore) -> JsResult<Promise> {
+        let mut store = ForeignBlockStore(store);
+        let main = Rc::clone(&self.0);
+        let other = Rc::clone(&other.0);
+
+        Ok(future_to_promise(async move {
+            let merged = main
+                .merge(&other, &mut store)
+                .await
+                .map_err(error("Error in private forest 'merge'"))?;
+
+            Ok(value!(PrivateForest(merged.into())))
+        }))
+    }
+
+    #[wasm_bindgen]
+    pub fn diff(&self, other: &PrivateForest, store: BlockStore) -> JsResult<Promise> {
+        let mut store = ForeignBlockStore(store);
+        let main = Rc::clone(&self.0);
+        let other = Rc::clone(&other.0);
+
+        Ok(future_to_promise(async move {
+            let diff = main
+                .diff(&other, &mut store)
+                .await
+                .map_err(error("Error in private forest 'merge'"))?;
+
+            Ok(value!(diff
+                .into_iter()
+                .map(|c| value!(ForestChange(c)))
+                .collect::<Array>()))
         }))
     }
 }
