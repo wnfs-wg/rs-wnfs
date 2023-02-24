@@ -471,7 +471,7 @@ test.describe("PrivateForest", () => {
     const [metadataBefore, metadataAfter] = await page.evaluate(async () => {
       const {
         wnfs: { Namefilter, PrivateFile, PrivateNode, PrivateForest },
-        mock: { MemoryBlockStore, Rng }
+        mock: { MemoryBlockStore, Rng },
       } = await window.setup();
 
       const rng = new Rng();
@@ -510,8 +510,8 @@ test.describe("PrivateForest", () => {
       const file = new PrivateFile(new Namefilter(), time, rng).asNode();
       const dir = new PrivateDirectory(new Namefilter(), time, rng).asNode();
 
-      var [_, mainForest] = await mainForest.put(file, store, rng);
-      var [_, otherForest] = await otherForest.put(dir, store, rng);
+      var [_, mainForest] = await file.store(mainForest, store, rng);
+      var [_, otherForest] = await dir.store(otherForest, store, rng);
 
       const diff = await mainForest.diff(otherForest, store);
 
@@ -526,7 +526,7 @@ test.describe("PrivateForest", () => {
   test("merge combines changes in forests", async ({ page }) => {
     const result = await page.evaluate(async () => {
       const {
-        wnfs: { Namefilter, PrivateFile, PrivateDirectory, PrivateForest },
+        wnfs: { Namefilter, PrivateFile, PrivateDirectory, PrivateForest, PrivateNode },
         mock: { MemoryBlockStore, Rng },
       } = await window.setup();
 
@@ -540,12 +540,12 @@ test.describe("PrivateForest", () => {
       const file = new PrivateFile(new Namefilter(), time, rng).asNode();
       const dir = new PrivateDirectory(new Namefilter(), time, rng).asNode();
 
-      var [_, mainForest] = await mainForest.put(file, store, rng);
-      var [privateRef, otherForest] = await otherForest.put(dir, store, rng);
+      var [_, mainForest] = await file.store(mainForest, store, rng);
+      var [privateRef, otherForest] = await dir.store(otherForest, store, rng);
 
       const mergeForest = await mainForest.merge(otherForest, store);
 
-      return mergeForest.get(privateRef, store);
+      return await PrivateNode.load(privateRef, mergeForest, store);
     });
 
     expect(result).toBeDefined();

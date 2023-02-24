@@ -1,23 +1,14 @@
-use std::rc::Rc;
-use js_sys::Promise;
-use wasm_bindgen::{prelude::wasm_bindgen, JsValue};
-use wasm_bindgen_futures::future_to_promise;
-use wnfs::{
-    libipld::Cid,
-    private::{
-        AesKey, PrivateForest as WnfsPrivateForest, PrivateRef as WnfsPrivateRef, TemporalKey,
-        KEY_BYTE_SIZE,
-    },
-    HASH_BYTE_SIZE,
-};
 use crate::{
-    fs::{
-        utils::{self, error},
-        BlockStore, ForeignBlockStore, JsResult, Rng,
-    },
+    fs::{utils::error, BlockStore, ForeignBlockStore, ForestChange, JsResult},
     value,
 };
-use super::PrivateNode;
+use js_sys::{Array, Promise, Uint8Array};
+use std::rc::Rc;
+use wasm_bindgen::prelude::wasm_bindgen;
+use wasm_bindgen_futures::future_to_promise;
+use wnfs::{
+    libipld::Cid, private::PrivateForest as WnfsPrivateForest, BlockStore as WnfsBlockStore,
+};
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions

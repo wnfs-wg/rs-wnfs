@@ -1,16 +1,20 @@
-use super::{PrivateForest, PrivateRef, Rng};
 use crate::{
     fs::{
         utils::{self, error},
-        BlockStore, ForeignBlockStore, JsResult, PrivateDirectory, PrivateFile,
+        BlockStore, ForeignBlockStore, JsResult, Namefilter, PrivateDirectory, PrivateFile,
+        PrivateForest, PrivateRef, Rng,
     },
     value,
 };
-use js_sys::{Error, Promise};
-use std::rc::Rc;
+use js_sys::{Error, Promise, Uint8Array};
+use std::{collections::BTreeSet, rc::Rc};
 use wasm_bindgen::prelude::wasm_bindgen;
 use wasm_bindgen_futures::future_to_promise;
-use wnfs::{private::PrivateNode as WnfsPrivateNode, Id};
+use wnfs::{
+    libipld::Cid,
+    private::{ChangeType, KeyValueChange, PrivateNode as WnfsPrivateNode},
+    Id, Namefilter as WnfsNamefilter,
+};
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
@@ -19,6 +23,9 @@ use wnfs::{private::PrivateNode as WnfsPrivateNode, Id};
 /// Wraps `wnfs::PrivateNode`.
 #[wasm_bindgen]
 pub struct PrivateNode(pub(crate) WnfsPrivateNode);
+
+#[wasm_bindgen]
+pub struct ForestChange(pub(crate) KeyValueChange<WnfsNamefilter, BTreeSet<Cid>>);
 
 //--------------------------------------------------------------------------------------------------
 // Implementations
@@ -103,5 +110,47 @@ impl PrivateNode {
     #[wasm_bindgen(js_name = "getId")]
     pub fn get_id(&self) -> String {
         self.0.get_id()
+    }
+}
+
+#[wasm_bindgen]
+impl ForestChange {
+    #[wasm_bindgen(js_name = "getChangeType")]
+    pub fn get_change_type(&self) -> String {
+        match self.0.r#type {
+            ChangeType::Add => "add",
+            ChangeType::Remove => "remove",
+            ChangeType::Modify => "modify",
+        }
+        .into()
+    }
+
+    #[wasm_bindgen(js_name = "getKey")]
+    pub fn get_key(&self) -> Namefilter {
+        Namefilter(self.0.key.clone())
+    }
+
+    #[wasm_bindgen(js_name = "getValue1")]
+    pub fn get_value1(&self) -> Vec<Uint8Array> {
+        self.0
+            .value1
+            .as_ref()
+            .map_or_else(Vec::<Uint8Array>::new, |b| {
+                b.iter()
+                    .map(|cid| Uint8Array::from(&cid.to_bytes()[..]))
+                    .collect()
+            })
+    }
+
+    #[wasm_bindgen(js_name = "getValue2")]
+    pub fn get_value2(&self) -> Vec<Uint8Array> {
+        self.0
+            .value2
+            .as_ref()
+            .map_or_else(Vec::<Uint8Array>::new, |b| {
+                b.iter()
+                    .map(|cid| Uint8Array::from(&cid.to_bytes()[..]))
+                    .collect()
+            })
     }
 }
