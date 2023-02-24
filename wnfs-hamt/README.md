@@ -31,11 +31,11 @@
 
 ##
 
-<!-- Todo: Summary here -->
+<!-- TODO(appcypher): Needs documentation -->
 
 ## Usage
 
-<!-- Todo: Usage description here -->
+<!-- TODO(appcypher): Needs documentation -->
 
 ```rust
 todo!()

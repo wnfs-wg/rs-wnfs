@@ -1,4 +1,4 @@
-//! todo
+//! TODO(appcypher): Needs documentation.
 
 mod async_serialize;
 pub mod blockstore;
