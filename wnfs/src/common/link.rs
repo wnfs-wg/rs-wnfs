@@ -25,7 +25,7 @@ pub enum Link<T> {
     Encoded { cid: Cid, value_cache: OnceCell<T> },
     /// A variant of `Link` that started out as a deserialized value `T`.
     /// If the cid is resolved using `resolve_cid`, then `T`'s `.persisted_as` from the
-    /// `RemembersPersistence` trait is called and that `OnceCell<Cid>` is populated, preventing
+    /// `RemembersCid` trait is called and that `OnceCell<Cid>` is populated, preventing
     /// further calls to `resolve_cid` from duplicating work.
     Decoded { value: T },
 }
