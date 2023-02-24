@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1677150533186,
+  "lastUpdate": 1677248320246,
   "repoUrl": "https://github.com/wnfs-wg/rs-wnfs",
   "entries": {
     "Rust Benchmark": [
@@ -6973,6 +6973,108 @@ window.BENCHMARK_DATA = {
             "name": "namefilter encode",
             "value": 167,
             "range": "± 8",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter decode/0",
+            "value": 1,
+            "range": "± 0",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "philipp.krueger1@gmail.com",
+            "name": "Philipp Krüger",
+            "username": "matheus23"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "806bbb93b1f03983165375005e14a9b63ebe67c2",
+          "message": "feat: Remove `base_history_on` and auto-track history instead (#174)\n\n* refactor: Implement `PrivateLink`\r\n\r\n* feature: Implement `PrivateLink`\r\n\r\n* fix: :white_check_mark: on all non-doctests\r\n\r\n* fix: One doc test type error\r\n\r\n* fix: :white_check_mark: Fix all doctests\r\n\r\n* refactor: Expose `dir.store` instead of `forest.put`\r\n\r\n* refactor: Update wasm APIs accordingly\r\n\r\n* refactor: Relax parameter requirements\r\n\r\n* chore: de-noise diff\r\n\r\n* refactor: generally make use of `dagcbor` util module\r\n\r\n* chore: Polish\r\n\r\n* refactor: `forest.get` -> `PrivateNode::load`\r\n\r\n* refactor: Re-use `PrivateNode::store()` in wasm\r\n\r\n* refactor: Move out `OnceCell<Cid>` from `Link`\r\n\r\n* refactor: Remove `version` from in-memory struct\r\n\r\n* feat: Remove `base_history_on` and auto-track history\r\n\r\n* refactor: Remove `baseHistoryOn` from Wasm API\r\n\r\n* refactor: Some polish. Remove `get_remembering_persistence`\r\n\r\n* refactor: Simplify previous link test\r\n\r\n* test: Test public file's previous links.\r\n\r\n* refactor: Rename into `RemembersCid`\r\n\r\n* refactor: Rename to `RemembersCid` in docs\r\n\r\nCo-authored-by: Stephen Akinyemi <appcypher@outlook.com>\r\nSigned-off-by: Philipp Krüger <philipp.krueger1@gmail.com>\r\n\r\n* test: More tests covering `prepare_next_revision`\r\n\r\n---------\r\n\r\nSigned-off-by: Philipp Krüger <philipp.krueger1@gmail.com>\r\nCo-authored-by: Stephen Akinyemi <appcypher@outlook.com>",
+          "timestamp": "2023-02-24T15:14:36+01:00",
+          "tree_id": "bdfe61f0847ea657f3e586e5dd970d5954733c37",
+          "url": "https://github.com/wnfs-wg/rs-wnfs/commit/806bbb93b1f03983165375005e14a9b63ebe67c2"
+        },
+        "date": 1677248319623,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "node set",
+            "value": 7447,
+            "range": "± 91",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node set 1000 consecutive",
+            "value": 4409858,
+            "range": "± 17139",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and get",
+            "value": 177053,
+            "range": "± 1205",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and remove",
+            "value": 199783,
+            "range": "± 285",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt load and decode/0",
+            "value": 48709,
+            "range": "± 171",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt set and encode",
+            "value": 176969,
+            "range": "± 293",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt diff",
+            "value": 56531,
+            "range": "± 4542",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt merge",
+            "value": 236373,
+            "range": "± 18934",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter add",
+            "value": 8542,
+            "range": "± 23",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter contains",
+            "value": 11752,
+            "range": "± 17",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter saturate",
+            "value": 40722,
+            "range": "± 49",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter encode",
+            "value": 177,
+            "range": "± 5",
             "unit": "ns/iter"
           },
           {
