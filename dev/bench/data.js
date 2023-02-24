@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1677248320246,
+  "lastUpdate": 1677253435626,
   "repoUrl": "https://github.com/wnfs-wg/rs-wnfs",
   "entries": {
     "Rust Benchmark": [
@@ -7075,6 +7075,108 @@ window.BENCHMARK_DATA = {
             "name": "namefilter encode",
             "value": 177,
             "range": "± 5",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter decode/0",
+            "value": 1,
+            "range": "± 0",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "appcypher@outlook.com",
+            "name": "Stephen Akinyemi",
+            "username": "appcypher"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "231ece4309cab86d4682693e8e31f8ed99478a1f",
+          "message": "feat(api): add privateforest merge and diff bindings (#181)\n\n* Add privateforest merge and diff bindings\r\n\r\n* Fix imports",
+          "timestamp": "2023-02-24T16:39:20+01:00",
+          "tree_id": "cafaee67dd15f457b1eae6708ccb6e9ac82251c8",
+          "url": "https://github.com/wnfs-wg/rs-wnfs/commit/231ece4309cab86d4682693e8e31f8ed99478a1f"
+        },
+        "date": 1677253434375,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "node set",
+            "value": 8581,
+            "range": "± 93",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node set 1000 consecutive",
+            "value": 5272303,
+            "range": "± 26620",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and get",
+            "value": 212828,
+            "range": "± 695",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and remove",
+            "value": 235451,
+            "range": "± 3168",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt load and decode/0",
+            "value": 58281,
+            "range": "± 1379",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt set and encode",
+            "value": 213812,
+            "range": "± 1117",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt diff",
+            "value": 66305,
+            "range": "± 5510",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt merge",
+            "value": 281335,
+            "range": "± 22972",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter add",
+            "value": 10225,
+            "range": "± 90",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter contains",
+            "value": 14063,
+            "range": "± 104",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter saturate",
+            "value": 48438,
+            "range": "± 239",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter encode",
+            "value": 211,
+            "range": "± 8",
             "unit": "ns/iter"
           },
           {
