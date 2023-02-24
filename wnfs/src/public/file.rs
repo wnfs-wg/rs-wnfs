@@ -223,10 +223,10 @@ impl RemembersPersistence for PublicFile {
 
 #[cfg(test)]
 mod tests {
+    use crate::{dagcbor, public::PublicFile, BlockStore, MemoryBlockStore};
     use chrono::Utc;
-    use libipld::Cid;
-
-    use crate::{dagcbor, public::PublicFile};
+    use libipld::{Cid, IpldCodec};
+    use std::rc::Rc;
 
     #[async_std::test]
     async fn serialized_public_file_can_be_deserialized() {
@@ -236,5 +236,27 @@ mod tests {
         let deserialized_file: PublicFile = dagcbor::decode(serialized_file.as_ref()).unwrap();
 
         assert_eq!(deserialized_file, original_file);
+    }
+
+    #[async_std::test]
+    async fn previous_links_get_set() {
+        let time = Utc::now();
+        let store = &mut MemoryBlockStore::default();
+
+        let content_cid = store
+            .put_block(b"Hello World".to_vec(), IpldCodec::Raw)
+            .await
+            .unwrap();
+
+        let file = Rc::new(PublicFile::new(time, content_cid));
+
+        let previous_cid = file.store(store).await.unwrap();
+
+        let next_file = file.prepare_next_revision();
+
+        assert_eq!(
+            next_file.previous.into_iter().collect::<Vec<_>>(),
+            vec![previous_cid]
+        );
     }
 }
