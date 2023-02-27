@@ -1,0 +1,43 @@
+[package]
+name = "wnfs-common"
+version = "0.1.17"
+description = "Common types for the Webnative Filesystem"
+keywords = ["wnfs", "webnative", "ipfs", "decentralisation"]
+categories = [
+  "filesystem",
+  "cryptography",
+  "web-programming",
+  "wasm",
+]
+license = "Apache-2.0"
+readme = "README.md"
+edition = "2021"
+repository = "https://github.com/wnfs-wg/rs-wnfs/tree/main/wnfs-common"
+homepage = "https://fission.codes"
+authors = ["The Fission Authors"]
+
+[dependencies]
+anyhow = "1.0"
+async-once-cell = "0.4"
+async-trait = "0.1"
+chrono = { version = "0.4.23", default-features = false, features = ["clock", "std"] }
+futures = "0.3"
+futures-util = "0.3"
+libipld = { version = "0.16", features = ["dag-cbor", "derive", "serde-codec"] }
+log = "0.4"
+multihash = "0.18"
+once_cell = "1.16"
+proptest = { version = "1.1", optional = true }
+rand_core = "0.6"
+serde = { version = "1.0", features = ["rc"] }
+sha2 = "0.10"
+sha3 = "0.10"
+thiserror = "1.0"
+
+[dev-dependencies]
+async-std = { version = "1.11", features = ["attributes"] }
+proptest = "1.1"
+rand = "0.8"
+
+[features]
+test_utils = ["proptest"]

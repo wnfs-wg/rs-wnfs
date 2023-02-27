@@ -6,9 +6,11 @@ use libipld::Cid;
 use rand::{thread_rng, RngCore};
 use std::rc::Rc;
 use wnfs::{
-    private::{PrivateForest, PrivateRef},
-    BlockStore, MemoryBlockStore, Namefilter, PrivateDirectory, PrivateNode, PrivateOpResult,
+    private::{PrivateDirectory, PrivateForest, PrivateOpResult, PrivateRef},
+    PrivateNode,
 };
+use wnfs_common::{BlockStore, MemoryBlockStore};
+use wnfs_namefilter::Namefilter;
 
 #[async_std::main]
 async fn main() {

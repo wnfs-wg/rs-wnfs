@@ -1,14 +1,7 @@
 //! Public fs directory node.
 
-use std::{
-    collections::{BTreeMap, BTreeSet},
-    rc::Rc,
-};
-
-use crate::{
-    error, utils, AsyncSerialize, BlockStore, FsError, Id, Metadata, NodeType, PathNodes,
-    PathNodesResult, RemembersCid,
-};
+use super::{PublicFile, PublicLink, PublicNode};
+use crate::{error::FsError, utils, Id};
 use anyhow::{bail, ensure, Result};
 use async_once_cell::OnceCell;
 use async_recursion::async_recursion;
@@ -19,8 +12,14 @@ use semver::Version;
 use serde::{
     de::Error as DeError, ser::Error as SerError, Deserialize, Deserializer, Serialize, Serializer,
 };
-
-use super::{PublicFile, PublicLink, PublicNode};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    rc::Rc,
+};
+use wnfs_common::{
+    utils::error, AsyncSerialize, BlockStore, Metadata, NodeType, PathNodes, PathNodesResult,
+    RemembersCid,
+};
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
@@ -116,7 +115,7 @@ impl PublicDirectory {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::{PublicDirectory, Metadata};
+    /// use wnfs::{PublicDirectory, common::Metadata};
     /// use std::rc::Rc;
     /// use chrono::Utc;
     ///
@@ -256,7 +255,7 @@ impl PublicDirectory {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::{PublicDirectory, PublicOpResult, MemoryBlockStore};
+    /// use wnfs::{PublicDirectory, PublicOpResult, common::MemoryBlockStore};
     /// use std::rc::Rc;
     /// use chrono::Utc;
     ///
@@ -312,7 +311,7 @@ impl PublicDirectory {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::{PublicDirectory, PublicOpResult, Id, MemoryBlockStore};
+    /// use wnfs::{PublicDirectory, PublicOpResult, Id, common::MemoryBlockStore};
     /// use std::rc::Rc;
     /// use chrono::Utc;
     ///
@@ -350,7 +349,10 @@ impl PublicDirectory {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::{PublicDirectory, Id, MemoryBlockStore, BlockStore};
+    /// use wnfs::{
+    ///     PublicDirectory, Id,
+    ///     common::{BlockStore, MemoryBlockStore}
+    /// };
     /// use chrono::Utc;
     ///
     /// #[async_std::main]
@@ -378,7 +380,7 @@ impl PublicDirectory {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::{PublicDirectory, PublicOpResult, MemoryBlockStore};
+    /// use wnfs::{PublicDirectory, PublicOpResult, common::MemoryBlockStore};
     /// use libipld::cid::Cid;
     /// use std::rc::Rc;
     /// use chrono::Utc;
@@ -435,7 +437,7 @@ impl PublicDirectory {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::{PublicDirectory, PublicOpResult, MemoryBlockStore};
+    /// use wnfs::{PublicDirectory, PublicOpResult, common::MemoryBlockStore};
     /// use libipld::cid::Cid;
     /// use std::rc::Rc;
     /// use chrono::Utc;
@@ -502,7 +504,7 @@ impl PublicDirectory {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::{PublicDirectory, PublicOpResult, Id, MemoryBlockStore};
+    /// use wnfs::{PublicDirectory, PublicOpResult, Id, common::MemoryBlockStore};
     /// use std::rc::Rc;
     /// use chrono::Utc;
     ///
@@ -548,7 +550,7 @@ impl PublicDirectory {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::{PublicDirectory, PublicOpResult, MemoryBlockStore};
+    /// use wnfs::{PublicDirectory, PublicOpResult, common::MemoryBlockStore};
     /// use libipld::cid::Cid;
     /// use std::rc::Rc;
     /// use chrono::Utc;
@@ -607,7 +609,7 @@ impl PublicDirectory {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::{PublicDirectory, PublicOpResult, MemoryBlockStore};
+    /// use wnfs::{PublicDirectory, PublicOpResult, common::MemoryBlockStore};
     /// use libipld::cid::Cid;
     /// use std::rc::Rc;
     /// use chrono::Utc;
@@ -682,7 +684,7 @@ impl PublicDirectory {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::{PublicDirectory, PublicOpResult, MemoryBlockStore};
+    /// use wnfs::{PublicDirectory, PublicOpResult, common::MemoryBlockStore};
     /// use libipld::cid::Cid;
     /// use std::rc::Rc;
     /// use chrono::Utc;
@@ -865,9 +867,9 @@ impl<'de> Deserialize<'de> for PublicDirectory {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{dagcbor, public::PublicFile, MemoryBlockStore};
     use chrono::Utc;
     use libipld::Ipld;
+    use wnfs_common::{dagcbor, MemoryBlockStore};
 
     #[async_std::test]
     async fn look_up_can_fetch_file_added_to_directory() {

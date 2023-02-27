@@ -1,5 +1,5 @@
 use wasm_bindgen::prelude::wasm_bindgen;
-use wnfs::private::Namefilter as WnfsNamefilter;
+use wnfs::namefilter::Namefilter as WnfsNamefilter;
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions

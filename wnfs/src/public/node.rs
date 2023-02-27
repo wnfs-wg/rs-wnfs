@@ -1,16 +1,15 @@
 //! Public node system in-memory representation.
 
-use std::{collections::BTreeSet, rc::Rc};
-
+use super::{PublicDirectory, PublicFile};
+use crate::{error::FsError, Id};
 use anyhow::{bail, Result};
 use async_once_cell::OnceCell;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use libipld::{Cid, Ipld};
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
-
-use super::{PublicDirectory, PublicFile};
-use crate::{common::BlockStore, AsyncSerialize, FsError, Id, NodeType, RemembersCid};
+use std::{collections::BTreeSet, rc::Rc};
+use wnfs_common::{AsyncSerialize, BlockStore, NodeType, RemembersCid};
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
@@ -333,16 +332,11 @@ impl RemembersCid for PublicNode {
 
 #[cfg(test)]
 mod tests {
-    use std::rc::Rc;
-
+    use crate::{PublicDirectory, PublicFile, PublicNode};
     use chrono::Utc;
     use libipld::Cid;
-
-    use crate::{
-        dagcbor,
-        public::{PublicDirectory, PublicFile, PublicNode},
-        MemoryBlockStore,
-    };
+    use std::rc::Rc;
+    use wnfs_common::{dagcbor, MemoryBlockStore};
 
     #[async_std::test]
     async fn serialized_public_file_can_be_deserialized() {

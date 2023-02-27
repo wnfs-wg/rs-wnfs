@@ -1,10 +1,9 @@
+use super::TemporalKey;
+use crate::error::FsError;
 use anyhow::Result;
 use once_cell::sync::OnceCell;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
-
-use crate::{dagcbor, FsError};
-
-use super::TemporalKey;
+use wnfs_common::dagcbor;
 
 /// A wrapper for AES-KWP deterministically encrypted (key-wrapped) data.
 ///

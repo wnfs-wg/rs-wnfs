@@ -42,6 +42,9 @@ sha2 = "0.10"
 sha3 = "0.10"
 skip_ratchet = { version = "0.1", features = ["serde"] }
 thiserror = "1.0"
+wnfs-common = { path = "../wnfs-common" }
+wnfs-hamt = { path = "../wnfs-hamt" }
+wnfs-namefilter = { path = "../wnfs-namefilter" }
 xxhash-rust = { version = "0.8", features = ["xxh3"] }
 
 [dev-dependencies]
@@ -61,4 +64,3 @@ path = "src/lib.rs"
 [features]
 default = []
 wasm = []
-test_strategies = ["proptest"]

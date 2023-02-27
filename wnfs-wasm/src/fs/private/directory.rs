@@ -1,16 +1,5 @@
 //! The bindgen API for PrivateDirectory.
 
-use std::rc::Rc;
-
-use chrono::{DateTime, Utc};
-use js_sys::{Array, Date, Promise, Uint8Array};
-use wasm_bindgen::{prelude::wasm_bindgen, JsValue};
-use wasm_bindgen_futures::future_to_promise;
-use wnfs::{
-    Id, PrivateDirectory as WnfsPrivateDirectory, PrivateNode as WnfsPrivateNode,
-    PrivateOpResult as WnfsPrivateOpResult, HASH_BYTE_SIZE,
-};
-
 use crate::{
     fs::{
         metadata::JsMetadata,
@@ -18,6 +7,15 @@ use crate::{
         BlockStore, ForeignBlockStore, JsResult, Namefilter, PrivateForest, PrivateNode, Rng,
     },
     value,
+};
+use chrono::{DateTime, Utc};
+use js_sys::{Array, Date, Promise, Uint8Array};
+use std::rc::Rc;
+use wasm_bindgen::{prelude::wasm_bindgen, JsValue};
+use wasm_bindgen_futures::future_to_promise;
+use wnfs::{
+    common::HASH_BYTE_SIZE, Id, PrivateDirectory as WnfsPrivateDirectory,
+    PrivateNode as WnfsPrivateNode, PrivateOpResult as WnfsPrivateOpResult,
 };
 
 //--------------------------------------------------------------------------------------------------

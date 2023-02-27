@@ -1,11 +1,10 @@
+use crate::fs::utils::anyhow_error;
 use anyhow::Result;
 use async_trait::async_trait;
 use js_sys::{Promise, Uint8Array};
 use wasm_bindgen::prelude::wasm_bindgen;
 use wasm_bindgen_futures::JsFuture;
 use wnfs::private::{ExchangeKey as WnfsExchangeKey, PrivateKey as WnfsPrivateKey};
-
-use crate::fs::utils::anyhow_error;
 
 //--------------------------------------------------------------------------------------------------
 // Externs

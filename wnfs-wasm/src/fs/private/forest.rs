@@ -7,7 +7,7 @@ use std::rc::Rc;
 use wasm_bindgen::prelude::wasm_bindgen;
 use wasm_bindgen_futures::future_to_promise;
 use wnfs::{
-    libipld::Cid, private::PrivateForest as WnfsPrivateForest, BlockStore as WnfsBlockStore,
+    common::BlockStore as WnfsBlockStore, libipld::Cid, private::PrivateForest as WnfsPrivateForest,
 };
 
 //--------------------------------------------------------------------------------------------------

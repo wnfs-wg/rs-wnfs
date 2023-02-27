@@ -11,9 +11,11 @@ use std::{collections::BTreeSet, rc::Rc};
 use wasm_bindgen::prelude::wasm_bindgen;
 use wasm_bindgen_futures::future_to_promise;
 use wnfs::{
+    hamt::{ChangeType, KeyValueChange},
     libipld::Cid,
-    private::{ChangeType, KeyValueChange, PrivateNode as WnfsPrivateNode},
-    Id, Namefilter as WnfsNamefilter,
+    namefilter::Namefilter as WnfsNamefilter,
+    private::PrivateNode as WnfsPrivateNode,
+    Id,
 };
 
 //--------------------------------------------------------------------------------------------------

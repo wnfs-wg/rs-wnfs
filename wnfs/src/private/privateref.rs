@@ -1,11 +1,12 @@
-use std::fmt::Debug;
-
 use super::{PrivateNodeHeader, SnapshotKey, TemporalKey, KEY_BYTE_SIZE};
-use crate::{AesError, FsError, HashOutput, Namefilter};
+use crate::error::{AesError, FsError};
 use aes_kw::KekAes256;
 use anyhow::Result;
 use libipld::Cid;
 use serde::{de::Error as DeError, ser::Error as SerError, Deserialize, Serialize};
+use std::fmt::Debug;
+use wnfs_common::HashOutput;
+use wnfs_namefilter::Namefilter;
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
@@ -179,7 +180,7 @@ impl RevisionRef {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::{private::RevisionRef, Namefilter};
+    /// use wnfs::{private::RevisionRef, namefilter::Namefilter};
     /// use rand::{thread_rng, Rng};
     ///
     /// let rng = &mut thread_rng();
@@ -216,18 +217,19 @@ impl RevisionRef {
 
 #[cfg(test)]
 mod tests {
-    use crate::{
-        utils::{self, test_setup},
-        PrivateDirectory, PrivateNode,
-    };
+    use super::RevisionRef;
+    use crate::private::{PrivateDirectory, PrivateForest, PrivateNode};
     use chrono::Utc;
     use futures::StreamExt;
-
-    use super::RevisionRef;
+    use proptest::test_runner::{RngAlgorithm, TestRng};
+    use std::rc::Rc;
+    use wnfs_common::{utils, MemoryBlockStore};
 
     #[async_std::test]
     async fn can_create_revisionref_deterministically_with_user_provided_seeds() {
-        let (forest, store, rng) = test_setup::init!(mut forest, mut store, mut rng);
+        let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
+        let store = &mut MemoryBlockStore::default();
+        let forest = &mut Rc::new(PrivateForest::new());
         let ratchet_seed = utils::get_random_bytes::<32>(rng);
         let inumber = utils::get_random_bytes::<32>(rng);
 

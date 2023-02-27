@@ -1,11 +1,8 @@
 use super::{
-    encrypted::Encrypted, link::PrivateLink, namefilter::Namefilter, PrivateFile, PrivateForest,
-    PrivateNode, PrivateNodeHeader, PrivateRef, PrivateRefSerializable, TemporalKey,
+    encrypted::Encrypted, link::PrivateLink, PrivateFile, PrivateForest, PrivateNode,
+    PrivateNodeHeader, PrivateRef, PrivateRefSerializable, TemporalKey,
 };
-use crate::{
-    dagcbor, error, utils, BlockStore, FsError, HashOutput, Id, Metadata, NodeType, PathNodes,
-    PathNodesResult,
-};
+use crate::{error::FsError, utils::split_last, Id};
 use anyhow::{bail, ensure, Result};
 use async_once_cell::OnceCell;
 use chrono::{DateTime, Utc};
@@ -18,6 +15,12 @@ use std::{
     fmt::Debug,
     rc::Rc,
 };
+use wnfs_common::{
+    dagcbor,
+    utils::{self, error},
+    BlockStore, HashOutput, Metadata, NodeType, PathNodes, PathNodesResult,
+};
+use wnfs_namefilter::Namefilter;
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
@@ -31,7 +34,7 @@ pub type PrivatePathNodesResult = PathNodesResult<PrivateDirectory>;
 /// # Examples
 ///
 /// ```
-/// use wnfs::{PrivateDirectory, Namefilter};
+/// use wnfs::{PrivateDirectory, namefilter::Namefilter};
 /// use chrono::Utc;
 /// use rand::thread_rng;
 ///
@@ -88,7 +91,7 @@ impl PrivateDirectory {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::{PrivateDirectory, Namefilter};
+    /// use wnfs::{PrivateDirectory, namefilter::Namefilter};
     /// use chrono::Utc;
     /// use rand::thread_rng;
     ///
@@ -118,7 +121,7 @@ impl PrivateDirectory {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::{PrivateDirectory, Namefilter};
+    /// use wnfs::{PrivateDirectory, namefilter::Namefilter};
     /// use chrono::Utc;
     /// use rand::{thread_rng, Rng};
     ///
@@ -150,12 +153,12 @@ impl PrivateDirectory {
     }
 
     /// This contstructor creates a new private directory and stores it in a provided `PrivateForest`.
-    pub async fn new_and_store<B: BlockStore, R: RngCore>(
+    pub async fn new_and_store(
         parent_bare_name: Namefilter,
         time: DateTime<Utc>,
         forest: &mut Rc<PrivateForest>,
-        store: &mut B,
-        rng: &mut R,
+        store: &mut impl BlockStore,
+        rng: &mut impl RngCore,
     ) -> Result<PrivateOpResult<()>> {
         let dir = Rc::new(Self::new(parent_bare_name, time, rng));
 
@@ -198,7 +201,7 @@ impl PrivateDirectory {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::{PrivateDirectory, Namefilter, Metadata};
+    /// use wnfs::{PrivateDirectory, namefilter::Namefilter, common::Metadata};
     /// use chrono::Utc;
     /// use rand::thread_rng;
     /// use std::rc::Rc;
@@ -421,7 +424,8 @@ impl PrivateDirectory {
     ///
     /// use wnfs::{
     ///     private::{PrivateForest, PrivateRef},
-    ///     BlockStore, MemoryBlockStore, Namefilter, PrivateDirectory, PrivateOpResult,
+    ///     common::{BlockStore, MemoryBlockStore},
+    ///     namefilter::Namefilter, PrivateDirectory, PrivateOpResult,
     /// };
     ///
     /// #[async_std::main]
@@ -496,7 +500,8 @@ impl PrivateDirectory {
     ///
     /// use wnfs::{
     ///     private::{PrivateForest, PrivateRef},
-    ///     BlockStore, MemoryBlockStore, Namefilter, PrivateDirectory, PrivateOpResult,
+    ///     common::{BlockStore, MemoryBlockStore},
+    ///     namefilter::Namefilter, PrivateDirectory, PrivateOpResult,
     /// };
     ///
     /// #[async_std::main]
@@ -542,7 +547,7 @@ impl PrivateDirectory {
         store: &impl BlockStore,
     ) -> Result<PrivateOpResult<Vec<u8>>> {
         let root_dir = Rc::clone(&self);
-        let (path, filename) = utils::split_last(path_segments)?;
+        let (path, filename) = split_last(path_segments)?;
 
         match self
             .get_path_nodes(path, search_latest, forest, store)
@@ -572,13 +577,12 @@ impl PrivateDirectory {
     ///
     /// ```
     /// use std::rc::Rc;
-    ///
     /// use chrono::Utc;
     /// use rand::thread_rng;
-    ///
     /// use wnfs::{
     ///     private::{PrivateForest, PrivateRef},
-    ///     BlockStore, MemoryBlockStore, Namefilter, PrivateDirectory, PrivateOpResult,
+    ///     common::{BlockStore, MemoryBlockStore},
+    ///     namefilter::Namefilter, PrivateDirectory, PrivateOpResult,
     /// };
     ///
     /// #[async_std::main]
@@ -627,7 +631,7 @@ impl PrivateDirectory {
         store: &mut impl BlockStore,
         rng: &mut impl RngCore,
     ) -> Result<PrivateOpResult<()>> {
-        let (directory_path, filename) = utils::split_last(path_segments)?;
+        let (directory_path, filename) = split_last(path_segments)?;
 
         // This will create directories if they don't exist yet
         let mut directory_path_nodes = self
@@ -701,7 +705,8 @@ impl PrivateDirectory {
     ///
     /// use wnfs::{
     ///     private::{PrivateForest, PrivateRef},
-    ///     BlockStore, MemoryBlockStore, Namefilter, PrivateDirectory, PrivateOpResult,
+    ///     common::{BlockStore, MemoryBlockStore},
+    ///     namefilter::Namefilter, PrivateDirectory, PrivateOpResult,
     /// };
     ///
     /// #[async_std::main]
@@ -758,7 +763,8 @@ impl PrivateDirectory {
     /// use rand::thread_rng;
     /// use wnfs::{
     ///     private::{PrivateForest, PrivateRef, PrivateNode},
-    ///     BlockStore, MemoryBlockStore, Namefilter, PrivateDirectory, PrivateOpResult,
+    ///     common::{BlockStore, MemoryBlockStore},
+    ///     namefilter::Namefilter, PrivateDirectory, PrivateOpResult,
     /// };
     ///
     /// #[async_std::main]
@@ -816,7 +822,8 @@ impl PrivateDirectory {
     ///
     /// use wnfs::{
     ///     private::{PrivateForest, PrivateRef},
-    ///     BlockStore, MemoryBlockStore, Namefilter, PrivateDirectory, PrivateOpResult,
+    ///     common::{BlockStore, MemoryBlockStore},
+    ///     namefilter::Namefilter, PrivateDirectory, PrivateOpResult,
     /// };
     ///
     /// #[async_std::main]
@@ -876,7 +883,8 @@ impl PrivateDirectory {
     ///
     /// use wnfs::{
     ///     private::{PrivateForest, PrivateRef},
-    ///     BlockStore, MemoryBlockStore, Namefilter, PrivateDirectory, PrivateOpResult,
+    ///     common::{BlockStore, MemoryBlockStore},
+    ///     namefilter::Namefilter, PrivateDirectory, PrivateOpResult,
     /// };
     ///
     /// #[async_std::main]
@@ -957,13 +965,12 @@ impl PrivateDirectory {
     ///
     /// ```
     /// use std::rc::Rc;
-    ///
     /// use chrono::Utc;
     /// use rand::thread_rng;
-    ///
     /// use wnfs::{
     ///     private::{PrivateForest, PrivateRef},
-    ///     BlockStore, MemoryBlockStore, Namefilter, PrivateDirectory, PrivateOpResult,
+    ///     common::{BlockStore, MemoryBlockStore},
+    ///     namefilter::Namefilter, PrivateDirectory, PrivateOpResult,
     /// };
     ///
     /// #[async_std::main]
@@ -1018,7 +1025,7 @@ impl PrivateDirectory {
         forest: &PrivateForest,
         store: &impl BlockStore,
     ) -> Result<PrivateOpResult<PrivateNode>> {
-        let (directory_path, node_name) = utils::split_last(path_segments)?;
+        let (directory_path, node_name) = split_last(path_segments)?;
 
         let mut directory_path_nodes = match self
             .get_path_nodes(directory_path, search_latest, forest, store)
@@ -1063,7 +1070,7 @@ impl PrivateDirectory {
         store: &mut impl BlockStore,
         rng: &mut impl RngCore,
     ) -> Result<PrivateOpResult<()>> {
-        let (directory_path, filename) = utils::split_last(path_segments)?;
+        let (directory_path, filename) = split_last(path_segments)?;
 
         let mut path_nodes = match self
             .get_path_nodes(directory_path, search_latest, forest, store)
@@ -1112,7 +1119,8 @@ impl PrivateDirectory {
     ///
     /// use wnfs::{
     ///     private::{PrivateForest, PrivateRef},
-    ///     BlockStore, MemoryBlockStore, Namefilter, PrivateDirectory, PrivateOpResult,
+    ///     common::{BlockStore, MemoryBlockStore},
+    ///     namefilter::Namefilter, PrivateDirectory, PrivateOpResult,
     /// };
     ///
     /// #[async_std::main]
@@ -1204,7 +1212,8 @@ impl PrivateDirectory {
     ///
     /// use wnfs::{
     ///     private::{PrivateForest, PrivateRef},
-    ///     BlockStore, MemoryBlockStore, Namefilter, PrivateDirectory, PrivateOpResult,
+    ///     common::{BlockStore, MemoryBlockStore},
+    ///     namefilter::Namefilter, PrivateDirectory, PrivateOpResult,
     /// };
     ///
     /// #[async_std::main]
@@ -1291,7 +1300,8 @@ impl PrivateDirectory {
     /// use rand::thread_rng;
     /// use wnfs::{
     ///     private::{PrivateForest, PrivateRef}, PrivateNode,
-    ///     BlockStore, MemoryBlockStore, Namefilter, PrivateDirectory, PrivateOpResult,
+    ///     common::{BlockStore, MemoryBlockStore},
+    ///     namefilter::Namefilter, PrivateDirectory, PrivateOpResult,
     /// };
     ///
     /// #[async_std::main]
@@ -1507,10 +1517,9 @@ impl Id for PrivateDirectory {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::MemoryBlockStore;
     use proptest::test_runner::{RngAlgorithm, TestRng};
-
     use test_log::test;
+    use wnfs_common::MemoryBlockStore;
 
     #[test(async_std::test)]
     async fn can_create_directories_deterministically_with_user_provided_seeds() {
@@ -2103,6 +2112,7 @@ mod tests {
         let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
         let store = &mut MemoryBlockStore::default();
         let forest = &mut Rc::new(PrivateForest::new());
+
         let root_dir = Rc::new(PrivateDirectory::new(
             Namefilter::default(),
             Utc::now(),

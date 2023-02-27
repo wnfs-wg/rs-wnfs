@@ -1,6 +1,7 @@
 use criterion::{black_box, criterion_group, criterion_main, BatchSize, Criterion, Throughput};
 use proptest::{arbitrary::any, collection::vec, test_runner::TestRunner};
-use wnfs::{dagcbor, private::namefilter::Namefilter, utils::Sampleable};
+use wnfs_common::{dagcbor, utils::Sampleable};
+use wnfs_namefilter::Namefilter;
 
 const FILTER_CAPACITY: usize = 47;
 

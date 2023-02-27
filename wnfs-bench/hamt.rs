@@ -5,14 +5,11 @@ use criterion::{
 };
 use proptest::{arbitrary::any, collection::vec, test_runner::TestRunner};
 use std::{cmp, rc::Rc, sync::Arc};
-use wnfs::{
-    dagcbor,
-    private::{
-        hamt::{self, Hamt, Node},
-        strategies::{generate_kvs, node_from_kvs, node_from_operations, operations},
-    },
-    utils::Sampleable,
-    BlockStore, Link, MemoryBlockStore,
+use wnfs_common::{dagcbor, utils::Sampleable, BlockStore, Link, MemoryBlockStore};
+use wnfs_hamt::{
+    diff, merge,
+    strategies::{generate_kvs, node_from_kvs, node_from_operations, operations},
+    Hamt, Node,
 };
 
 fn node_set(c: &mut Criterion) {
@@ -203,7 +200,7 @@ fn hamt_diff(c: &mut Criterion) {
             },
             |(mut store, (node1, node2))| async move {
                 black_box(
-                    hamt::diff(Link::from(node1), Link::from(node2), &mut store)
+                    diff(Link::from(node1), Link::from(node2), &mut store)
                         .await
                         .unwrap(),
                 );
@@ -232,7 +229,7 @@ fn hamt_merge(c: &mut Criterion) {
             },
             |(mut store, (node1, node2))| async move {
                 black_box(
-                    hamt::merge(
+                    merge(
                         Link::from(node1),
                         Link::from(node2),
                         |a, b| Ok(cmp::min(*a, *b)),

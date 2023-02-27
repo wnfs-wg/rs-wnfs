@@ -6,16 +6,14 @@
 //! as well as a counter.
 
 use self::sharer::share;
-
-use super::{ExchangeKey, SnapshotKey, TemporalKey};
-use crate::{
-    private::PrivateForest, public::PublicLink, BlockStore, HashOutput, PrivateNode, ShareError,
-};
+use super::{ExchangeKey, PrivateNode, SnapshotKey, TemporalKey};
+use crate::{error::ShareError, private::PrivateForest, public::PublicLink};
 use anyhow::{bail, Result};
 use libipld::Cid;
 use rand_core::RngCore;
 use serde::{Deserialize, Serialize};
 use std::{marker::PhantomData, rc::Rc};
+use wnfs_common::{BlockStore, HashOutput};
 
 //--------------------------------------------------------------------------------------------------
 // Constants
@@ -216,16 +214,17 @@ impl SnapshotSharePointer {
 pub mod sharer {
     use super::{SharePayload, EXCHANGE_KEY_NAME};
     use crate::{
-        dagcbor,
         private::{ExchangeKey, PrivateForest, PublicKeyModulus},
         public::PublicLink,
-        BlockStore, Namefilter, PublicOpResult,
+        PublicOpResult,
     };
     use anyhow::Result;
     use async_stream::try_stream;
     use futures::{Stream, StreamExt};
     use libipld::IpldCodec;
     use std::rc::Rc;
+    use wnfs_common::{dagcbor, BlockStore};
+    use wnfs_namefilter::Namefilter;
 
     /// Encrypts and shares a payload with multiple recipients using their
     /// exchange keys and stores the shares in the sharer's private forest.
@@ -307,15 +306,16 @@ pub mod sharer {
 }
 
 pub mod recipient {
+    use super::{sharer, SharePayload, TemporalSharePointer};
     use crate::{
-        dagcbor,
-        private::{PrivateForest, PrivateKey, PrivateRef},
-        BlockStore, Hasher, Namefilter, PrivateNode, ShareError,
+        error::ShareError,
+        private::{PrivateForest, PrivateKey, PrivateNode, PrivateRef},
     };
     use anyhow::{bail, Result};
     use sha3::Sha3_256;
-
-    use super::{sharer, SharePayload, TemporalSharePointer};
+    use wnfs_common::{dagcbor, BlockStore};
+    use wnfs_hamt::Hasher;
+    use wnfs_namefilter::Namefilter;
 
     /// Checks if a share count is available.
     pub async fn find_share(
@@ -372,7 +372,7 @@ pub mod recipient {
             content_cid,
             temporal_key,
         }) = payload else {
-            // TODO(appcypher): We currently need both TemporalKey and SnapshotKey to decrypt a node.
+            // TODO(appcypher): We currently need both TemporalKey to decrypt a node.
             bail!(ShareError::UnsupportedSnapshotShareReceipt);
         };
 
@@ -388,25 +388,32 @@ pub mod recipient {
 
 #[cfg(test)]
 mod tests {
-    use chrono::Utc;
-
     use super::{recipient, sharer, Recipient, Share, SharePayload, Sharer};
     use crate::{
-        dagcbor, private::RsaPublicKey, public::PublicLink, utils::test_setup, PrivateDirectory,
-        PrivateOpResult, PublicNode,
+        private::{PrivateDirectory, PrivateForest, PrivateOpResult, RsaPublicKey},
+        public::PublicLink,
+        PublicNode,
     };
+    use chrono::Utc;
+    use proptest::test_runner::{RngAlgorithm, TestRng};
+    use std::rc::Rc;
+    use wnfs_common::{dagcbor, MemoryBlockStore};
 
     mod helper {
         use crate::{
-            private::{share::EXCHANGE_KEY_NAME, PrivateForest, RsaPrivateKey},
-            BlockStore, Namefilter, PrivateDirectory, PrivateOpResult, PublicDirectory,
-            PublicOpResult,
+            private::{
+                share::EXCHANGE_KEY_NAME, PrivateDirectory, PrivateForest, PrivateOpResult,
+                RsaPrivateKey,
+            },
+            PublicDirectory, PublicOpResult,
         };
         use anyhow::Result;
         use chrono::Utc;
         use libipld::IpldCodec;
         use rand_core::RngCore;
         use std::rc::Rc;
+        use wnfs_common::BlockStore;
+        use wnfs_namefilter::Namefilter;
 
         pub(super) async fn create_sharer_dir(
             forest: &mut Rc<PrivateForest>,
@@ -457,11 +464,14 @@ mod tests {
 
     #[async_std::test]
     async fn can_share_and_recieve_share() {
-        let recipient_store = test_setup::init!(mut store);
-        let (sharer_store, sharer_forest, rng) = test_setup::init!(mut store, mut forest, mut rng);
-        let sharer_root_did = "did:key:z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK";
+        let recipient_store = &mut MemoryBlockStore::default();
+        let sharer_store = &mut MemoryBlockStore::default();
+        let sharer_forest = &mut Rc::new(PrivateForest::new());
+        let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
 
+        let sharer_root_did = "did:key:z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK";
         // Create directory to share.
+
         let PrivateOpResult {
             root_dir: sharer_dir,
             ..
@@ -523,7 +533,9 @@ mod tests {
 
     #[async_std::test]
     async fn serialized_share_payload_can_be_deserialized() {
-        let (forest, store, rng) = test_setup::init!(mut forest, mut store, mut rng);
+        let store = &mut MemoryBlockStore::default();
+        let forest = &mut Rc::new(PrivateForest::new());
+        let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
 
         let PrivateOpResult { root_dir, .. } =
             PrivateDirectory::new_and_store(Default::default(), Utc::now(), forest, store, rng)

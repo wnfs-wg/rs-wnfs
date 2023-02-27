@@ -3,11 +3,10 @@ use futures::StreamExt;
 use rand::thread_rng;
 use sha3::Sha3_256;
 use std::rc::Rc;
-use wnfs::{
-    dagcbor,
-    private::{AesKey, PrivateForest, RevisionRef},
-    utils, Hasher, MemoryBlockStore, Namefilter, PrivateDirectory, PrivateOpResult,
-};
+use wnfs::private::{AesKey, PrivateDirectory, PrivateForest, PrivateOpResult, RevisionRef};
+use wnfs_common::{dagcbor, utils, MemoryBlockStore};
+use wnfs_hamt::Hasher;
+use wnfs_namefilter::Namefilter;
 
 #[tokio::main(flavor = "multi_thread")]
 async fn main() -> anyhow::Result<()> {
@@ -88,7 +87,7 @@ async fn main() -> anyhow::Result<()> {
 
     // The private_ref might point to some old revision of the root_dir.
     // We can do the following to get the latest revision.
-    let fetched_dir = fetched_node.search_latest(&forest, store).await?.as_dir()?;
+    let fetched_dir = fetched_node.search_latest(forest, store).await?.as_dir()?;
 
     println!("{:#?}", fetched_dir);
 
