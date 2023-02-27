@@ -6,8 +6,8 @@
   <h1 align="center">wnfs-namefilter</h1>
 
   <p>
-    <a href="https://crates.io/crates/wnfs">
-      <img src="https://img.shields.io/crates/v/wnfs?label=crates" alt="Docs">
+    <a href="https://crates.io/crates/wnfs-namefilter">
+      <img src="https://img.shields.io/crates/v/wnfs-namefilter?label=crates" alt="Docs">
     </a>
     <a href="https://codecov.io/gh/wnfs-wg/rs-wnfs">
       <img src="https://codecov.io/gh/wnfs-wg/rs-wnfs/branch/main/graph/badge.svg?token=95YHXFMFF4" alt="Code Coverage"/>

@@ -6,8 +6,8 @@
   <h1 align="center">wnfs-hamt</h1>
 
   <p>
-    <a href="https://crates.io/crates/wnfs">
-      <img src="https://img.shields.io/crates/v/wnfs?label=crates" alt="Docs">
+    <a href="https://crates.io/crates/wnfs-hamt">
+      <img src="https://img.shields.io/crates/v/wnfs-hamt?label=crates" alt="Docs">
     </a>
     <a href="https://codecov.io/gh/wnfs-wg/rs-wnfs">
       <img src="https://codecov.io/gh/wnfs-wg/rs-wnfs/branch/main/graph/badge.svg?token=95YHXFMFF4" alt="Code Coverage"/>
