@@ -42,7 +42,8 @@ pub struct KeyValueChange<K, V> {
 ///
 /// ```
 /// use std::rc::Rc;
-/// use wnfs::{private::{Node, hamt}, Link, Pair, MemoryBlockStore};
+/// use wnfs_hamt::{Node, Pair, diff};
+/// use wnfs_common::{Link, MemoryBlockStore};
 ///
 /// #[async_std::main]
 /// async fn main() {
@@ -61,7 +62,7 @@ pub struct KeyValueChange<K, V> {
 ///         .await
 ///         .unwrap();
 ///
-///     let changes = hamt::diff(
+///     let changes = diff(
 ///         Link::from(Rc::clone(main_node)),
 ///         Link::from(Rc::clone(other_node)),
 ///         store,

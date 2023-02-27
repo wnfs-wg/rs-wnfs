@@ -19,7 +19,7 @@ pub const KEY_BYTE_SIZE: usize = 32;
 /// # Examples
 ///
 /// ```
-/// use wnfs::{private::AesKey, utils};
+/// use wnfs::{private::AesKey, common::utils};
 /// use rand::thread_rng;
 ///
 /// let rng = &mut thread_rng();
@@ -44,7 +44,7 @@ impl AesKey {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::{private::AesKey, utils};
+    /// use wnfs::{private::AesKey, common::utils};
     /// use rand::thread_rng;
     ///
     /// let rng = &mut thread_rng();

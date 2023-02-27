@@ -3,7 +3,7 @@ use crate::error::FsError;
 use anyhow::Result;
 use once_cell::sync::OnceCell;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
-use std::io::Cursor;
+use wnfs_common::dagcbor;
 
 /// A wrapper for AES-KWP deterministically encrypted (key-wrapped) data.
 ///

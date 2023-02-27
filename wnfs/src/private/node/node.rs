@@ -1,9 +1,9 @@
-use super::PrivateNodeHeader;
+use super::{PrivateNodeHeader, TemporalKey};
 use crate::{
     error::FsError,
     private::{
         encrypted::Encrypted, PrivateDirectory, PrivateDirectoryContent, PrivateFile,
-        PrivateFileContent, PrivateForest, PrivateRef,
+        PrivateFileContent, PrivateForest, PrivateRef, link::PrivateLink,
     },
     Id,
 };
@@ -11,11 +11,11 @@ use anyhow::{bail, Result};
 use async_recursion::async_recursion;
 use chrono::{DateTime, Utc};
 use futures::StreamExt;
-use libipld::{cbor::DagCborCodec, prelude::Decode, Cid, Ipld};
+use libipld::{ Cid, Ipld};
 use rand_core::RngCore;
 use skip_ratchet::{seek::JumpSize, RatchetSeeker};
-use std::{cmp::Ordering, collections::BTreeSet, fmt::Debug, io::Cursor, rc::Rc};
-use wnfs_common::{BlockStore, NodeType};
+use std::{cmp::Ordering, collections::BTreeSet, fmt::Debug, rc::Rc};
+use wnfs_common::{BlockStore, NodeType, dagcbor};
 use wnfs_namefilter::Namefilter;
 
 //--------------------------------------------------------------------------------------------------
@@ -27,7 +27,7 @@ use wnfs_namefilter::Namefilter;
 /// # Examples
 ///
 /// ```
-/// use wnfs::{PrivateDirectory, PrivateNode, Namefilter};
+/// use wnfs::{PrivateDirectory, PrivateNode, namefilter::Namefilter};
 /// use chrono::Utc;
 /// use std::rc::Rc;
 /// use rand::thread_rng;
@@ -65,7 +65,7 @@ impl PrivateNode {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::{PrivateDirectory, PrivateNode, Namefilter};
+    /// use wnfs::{PrivateDirectory, PrivateNode, namefilter::Namefilter};
     /// use chrono::{Utc, Duration, TimeZone};
     /// use std::rc::Rc;
     /// use rand::thread_rng;
@@ -113,36 +113,28 @@ impl PrivateNode {
         forest: &mut Rc<PrivateForest>,
         store: &mut impl BlockStore,
         rng: &mut impl RngCore,
-    ) -> Result<PrivateRef> {
+    ) -> Result<()> {
         match self {
-            Self::File(file) => {
-                let mut file = (**file).clone();
+            Self::File(file_rc) => {
+                let file = Rc::make_mut(file_rc);
 
                 file.prepare_key_rotation(parent_bare_name, forest, store, rng)
                     .await?;
-
-                *self = Self::File(Rc::new(file));
             }
-            Self::Dir(old_dir) => {
-                let mut dir = (**old_dir).clone();
+            PrivateNode::Dir(dir_rc) => {
+                let dir = Rc::make_mut(dir_rc);
 
-                for (name, private_ref) in &old_dir.content.entries {
-                    let mut node = forest.get(private_ref, store).await?;
-
-                    let private_ref = node
-                        .update_ancestry(dir.header.bare_name.clone(), forest, store, rng)
+                for private_link in &mut dir.content.entries.values_mut() {
+                    let mut node = private_link.resolve_node(forest, store).await?.clone();
+                    node.update_ancestry(dir.header.bare_name.clone(), forest, store, rng)
                         .await?;
-
-                    dir.content.entries.insert(name.clone(), private_ref);
+                    *private_link = PrivateLink::new(node);
                 }
 
                 dir.prepare_key_rotation(parent_bare_name, rng);
-
-                *self = Self::Dir(Rc::new(dir));
             }
-        };
-
-        forest.put(self, store, rng).await
+        }
+        Ok(())
     }
 
     /// Gets the header of the node.
@@ -150,7 +142,7 @@ impl PrivateNode {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::{PrivateDirectory, PrivateNode, Namefilter};
+    /// use wnfs::{PrivateDirectory, PrivateNode, namefilter::Namefilter};
     /// use chrono::Utc;
     /// use std::rc::Rc;
     /// use rand::thread_rng;
@@ -202,7 +194,7 @@ impl PrivateNode {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::{PrivateDirectory, PrivateNode, Namefilter};
+    /// use wnfs::{PrivateDirectory, PrivateNode, namefilter::Namefilter};
     /// use chrono::Utc;
     /// use std::rc::Rc;
     /// use rand::thread_rng;
@@ -229,7 +221,7 @@ impl PrivateNode {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::{PrivateFile, PrivateNode, Namefilter};
+    /// use wnfs::{PrivateFile, PrivateNode, namefilter::Namefilter};
     /// use chrono::Utc;
     /// use std::rc::Rc;
     /// use rand::thread_rng;
@@ -256,7 +248,7 @@ impl PrivateNode {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::{PrivateDirectory, PrivateNode, Namefilter};
+    /// use wnfs::{PrivateDirectory, PrivateNode, namefilter::Namefilter};
     /// use chrono::Utc;
     /// use std::rc::Rc;
     /// use rand::thread_rng;
@@ -280,7 +272,7 @@ impl PrivateNode {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::{PrivateFile, PrivateNode, Namefilter};
+    /// use wnfs::{PrivateFile, PrivateNode, namefilter::Namefilter};
     /// use chrono::Utc;
     /// use std::rc::Rc;
     /// use rand::thread_rng;
@@ -309,7 +301,8 @@ impl PrivateNode {
     /// use rand::thread_rng;
     /// use wnfs::{
     ///     private::{PrivateForest, PrivateRef, PrivateNode},
-    ///     BlockStore, MemoryBlockStore, Namefilter, PrivateDirectory, PrivateOpResult,
+    ///     common::{BlockStore, MemoryBlockStore},
+    ///     namefilter::Namefilter, PrivateDirectory, PrivateOpResult,
     /// };
     ///
     /// #[async_std::main]
@@ -330,6 +323,8 @@ impl PrivateNode {
     ///         .mkdir(&["pictures".into(), "cats".into()], true, Utc::now(), forest, store, rng)
     ///         .await
     ///         .unwrap();
+    ///
+    ///     root_dir.store(forest, store, rng).await.unwrap();
     ///
     ///     let latest_node = PrivateNode::Dir(init_dir).search_latest(forest, store).await.unwrap();
     ///
@@ -411,14 +406,66 @@ impl PrivateNode {
             .collect())
     }
 
-    pub(crate) async fn load(
+    /// Tries to deserialize and decrypt a PrivateNode at provided PrivateRef.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use std::rc::Rc;
+    /// use chrono::Utc;
+    /// use rand::thread_rng;
+    /// use wnfs::{
+    ///     private::{PrivateForest, PrivateRef}, PrivateNode,
+    ///     common::{BlockStore, MemoryBlockStore},
+    ///     namefilter::Namefilter, PrivateDirectory, PrivateOpResult,
+    /// };
+    ///
+    /// #[async_std::main]
+    /// async fn main() {
+    ///     let store = &mut MemoryBlockStore::default();
+    ///     let rng = &mut thread_rng();
+    ///     let forest = &mut Rc::new(PrivateForest::new());
+    ///     let dir = Rc::new(PrivateDirectory::new(
+    ///         Namefilter::default(),
+    ///         Utc::now(),
+    ///         rng,
+    ///     ));
+    ///
+    ///     let node = PrivateNode::Dir(dir);
+    ///
+    ///     let private_ref = node.store(forest, store, rng).await.unwrap();
+    ///
+    ///     assert_eq!(
+    ///         PrivateNode::load(&private_ref, forest, store).await.unwrap(),
+    ///         node
+    ///     );
+    /// }
+    /// ```
+    pub async fn load(
         private_ref: &PrivateRef,
+        forest: &PrivateForest,
         store: &impl BlockStore,
     ) -> Result<PrivateNode> {
-        let encrypted_bytes = store.get_block(&private_ref.content_cid).await?;
-        let snapshot_key = private_ref.temporal_key.derive_snapshot_key();
+        let cid = match forest
+            .get_encrypted(&private_ref.saturated_name_hash, store)
+            .await?
+        {
+            Some(cids) if cids.contains(&private_ref.content_cid) => private_ref.content_cid,
+            _ => return Err(FsError::NotFound.into()),
+        };
+
+        Self::from_cid(cid, &private_ref.temporal_key, store).await
+    }
+
+    pub(crate) async fn from_cid(
+        cid: Cid,
+        temporal_key: &TemporalKey,
+        store: &impl BlockStore,
+    ) -> Result<PrivateNode> {
+        let encrypted_bytes = store.get_block(&cid).await?;
+        let snapshot_key = temporal_key.derive_snapshot_key();
         let bytes = snapshot_key.decrypt(&encrypted_bytes)?;
-        let ipld = Ipld::decode(DagCborCodec, &mut Cursor::new(bytes))?;
+        let ipld = dagcbor::decode(&bytes)?;
 
         match ipld {
             Ipld::Map(map) => {
@@ -429,24 +476,20 @@ impl PrivateNode {
 
                 Ok(match r#type {
                     NodeType::PrivateFile => {
-                        let (content, header_cid) = PrivateFileContent::deserialize(
-                            Ipld::Map(map),
-                            private_ref.content_cid,
-                        )?;
+                        let (content, header_cid) =
+                            PrivateFileContent::deserialize(Ipld::Map(map), cid)?;
                         let header =
-                            PrivateNodeHeader::load(&header_cid, &private_ref.temporal_key, store)
-                                .await?;
+                            PrivateNodeHeader::load(&header_cid, temporal_key, store).await?;
                         PrivateNode::File(Rc::new(PrivateFile { header, content }))
                     }
                     NodeType::PrivateDirectory => {
                         let (content, header_cid) = PrivateDirectoryContent::deserialize(
                             Ipld::Map(map),
-                            &private_ref.temporal_key,
-                            private_ref.content_cid,
+                            temporal_key,
+                            cid,
                         )?;
                         let header =
-                            PrivateNodeHeader::load(&header_cid, &private_ref.temporal_key, store)
-                                .await?;
+                            PrivateNodeHeader::load(&header_cid, temporal_key, store).await?;
                         PrivateNode::Dir(Rc::new(PrivateDirectory { header, content }))
                     }
                     other => bail!(FsError::UnexpectedNodeType(other)),
@@ -456,14 +499,23 @@ impl PrivateNode {
         }
     }
 
-    pub(crate) async fn store(
+    pub async fn store(
         &self,
+        forest: &mut Rc<PrivateForest>,
         store: &mut impl BlockStore,
         rng: &mut impl RngCore,
-    ) -> Result<(Cid, Cid)> {
+    ) -> Result<PrivateRef> {
         match self {
-            PrivateNode::File(file) => file.store(store, rng).await,
-            PrivateNode::Dir(dir) => dir.store(store, rng).await,
+            Self::File(file) => file.store(forest, store, rng).await,
+            Self::Dir(dir) => dir.store(forest, store, rng).await,
+        }
+    }
+
+    /// Returns the private ref, if this node has been `.store()`ed before.
+    pub(crate) fn get_private_ref(&self) -> Option<PrivateRef> {
+        match self {
+            Self::File(file) => file.get_private_ref(),
+            Self::Dir(dir) => dir.get_private_ref(),
         }
     }
 }
@@ -518,13 +570,11 @@ mod tests {
         .unwrap();
 
         let file = PrivateNode::File(Rc::new(file));
-        let (_, content_cid) = file.store(store, rng).await.unwrap();
-        let private_ref = file
-            .get_header()
-            .derive_revision_ref()
-            .as_private_ref(content_cid);
+        let private_ref = file.store(forest, store, rng).await.unwrap();
 
-        let deserialized_node = PrivateNode::load(&private_ref, store).await.unwrap();
+        let deserialized_node = PrivateNode::load(&private_ref, forest, store)
+            .await
+            .unwrap();
 
         assert_eq!(file, deserialized_node);
     }

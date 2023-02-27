@@ -26,7 +26,7 @@ use std::{
     marker::PhantomData,
     rc::Rc,
 };
-use wnfs_common::{AsyncSerialize, BlockStore, HashOutput, Link};
+use wnfs_common::{AsyncSerialize, BlockStore, HashOutput, Link, RemembersCid};
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
@@ -41,7 +41,8 @@ pub type BitMaskType = [u8; HAMT_BITMASK_BYTE_SIZE];
 ///
 /// ```
 /// use std::rc::Rc;
-/// use wnfs::{private::Node, MemoryBlockStore};
+/// use wnfs_hamt::Node;
+/// use wnfs_common::MemoryBlockStore;
 ///
 /// let store = &mut MemoryBlockStore::new();
 /// let node = Rc::new(Node::<String, usize>::default());
@@ -72,7 +73,8 @@ where
     ///
     /// ```
     /// use std::rc::Rc;
-    /// use wnfs::{private::Node, MemoryBlockStore};
+    /// use wnfs_hamt::Node;
+    /// use wnfs_common::MemoryBlockStore;
     ///
     /// #[async_std::main]
     /// async fn main() {
@@ -100,7 +102,8 @@ where
     ///
     /// ```
     /// use std::rc::Rc;
-    /// use wnfs::{private::Node, MemoryBlockStore};
+    /// use wnfs_hamt::Node;
+    /// use wnfs_common::MemoryBlockStore;
     ///
     /// #[async_std::main]
     /// async fn main() {
@@ -130,7 +133,8 @@ where
     ///
     /// ```
     /// use std::rc::Rc;
-    /// use wnfs::{private::Node, Pair, MemoryBlockStore};
+    /// use wnfs_hamt::{Node, Pair};
+    /// use wnfs_common::MemoryBlockStore;
     ///
     /// #[async_std::main]
     /// async fn main() {
@@ -166,7 +170,8 @@ where
     /// ```
     /// use std::rc::Rc;
     /// use sha3::Sha3_256;
-    /// use wnfs::{private::Node, Hasher, MemoryBlockStore};
+    /// use wnfs_hamt::{Node, Hasher};
+    /// use wnfs_common::MemoryBlockStore;
     ///
     /// #[async_std::main]
     /// async fn main() {
@@ -202,7 +207,8 @@ where
     /// ```
     /// use std::rc::Rc;
     /// use sha3::Sha3_256;
-    /// use wnfs::{private::Node, Hasher, Pair, MemoryBlockStore};
+    /// use wnfs_hamt::{Node, Hasher, Pair};
+    /// use wnfs_common::MemoryBlockStore;
     ///
     /// #[async_std::main]
     /// async fn main() {
@@ -237,7 +243,8 @@ where
     ///
     /// ```
     /// use std::rc::Rc;
-    /// use wnfs::{private::Node, MemoryBlockStore};
+    /// use wnfs_hamt::Node;
+    /// use wnfs_common::MemoryBlockStore;
     ///
     /// #[async_std::main]
     /// async fn main() {
@@ -463,7 +470,8 @@ where
     ///
     /// ```
     /// use std::rc::Rc;
-    /// use wnfs::{private::{Node, Pair}, utils, Hasher, MemoryBlockStore};
+    /// use wnfs_hamt::{Node, Pair, Hasher};
+    /// use wnfs_common::{utils, MemoryBlockStore};
     ///
     /// #[async_std::main]
     /// async fn main() {
@@ -518,10 +526,8 @@ where
     /// ```
     /// use std::rc::Rc;
     /// use sha3::Sha3_256;
-    /// use wnfs::{
-    ///     private::{Node, HashPrefix},
-    ///     utils, Hasher, MemoryBlockStore
-    /// };
+    /// use wnfs_hamt::{Node, HashPrefix, Hasher};
+    /// use wnfs_common::{MemoryBlockStore, utils};
     ///
     /// #[async_std::main]
     /// async fn main() {
@@ -601,7 +607,8 @@ where
     /// ```
     /// use std::rc::Rc;
     /// use sha3::Sha3_256;
-    /// use wnfs::{private::Node, Hasher, MemoryBlockStore};
+    /// use wnfs_hamt::{Node, Hasher};
+    /// use wnfs_common::MemoryBlockStore;
     ///
     /// #[async_std::main]
     /// async fn main() {

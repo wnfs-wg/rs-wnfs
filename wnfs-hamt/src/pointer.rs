@@ -7,6 +7,7 @@ use serde::{
     ser::Error as SerError,
     Deserialize, Deserializer, Serialize, Serializer,
 };
+use std::fmt::Debug;
 use std::rc::Rc;
 use wnfs_common::{utils::error, AsyncSerialize, BlockStore, Link};
 
@@ -19,7 +20,7 @@ use wnfs_common::{utils::error, AsyncSerialize, BlockStore, Link};
 /// # Examples
 ///
 /// ```
-/// use wnfs::Pair;
+/// use wnfs_hamt::Pair;
 ///
 /// let pair = Pair::new("key", "value");
 ///
@@ -34,11 +35,7 @@ pub struct Pair<K, V> {
 
 /// Each bit in the bitmask of a node maps a `Pointer` in the HAMT structure.
 /// A `Pointer` can be either a link to a child node or a collection of key-value pairs.
-#[derive(Debug, Clone)]
-pub(crate) enum Pointer<K, V, H>
-where
-    H: Hasher,
-{
+pub(crate) enum Pointer<K, V, H: Hasher> {
     Values(Vec<Pair<K, V>>),
     Link(Link<Rc<Node<K, V, H>>>),
 }
@@ -53,7 +50,7 @@ impl<K, V> Pair<K, V> {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::Pair;
+    /// use wnfs_hamt::Pair;
     ///
     /// let pair = Pair::new("key", "value");
     ///
@@ -71,7 +68,6 @@ impl<K, V, H: Hasher> Pointer<K, V, H> {
     where
         K: DeserializeOwned + Clone + AsRef<[u8]>,
         V: DeserializeOwned + Clone,
-        H: Clone,
     {
         match self {
             Pointer::Link(link) => {
@@ -177,6 +173,24 @@ where
             other => Err(format!(
                 "Expected `Ipld::List` or `Ipld::Link`, got {other:?}",
             )),
+        }
+    }
+}
+
+impl<K: Clone, V: Clone, H: Hasher> Clone for Pointer<K, V, H> {
+    fn clone(&self) -> Self {
+        match self {
+            Self::Values(arg0) => Self::Values(arg0.clone()),
+            Self::Link(arg0) => Self::Link(arg0.clone()),
+        }
+    }
+}
+
+impl<K: Debug, V: Debug, H: Hasher> std::fmt::Debug for Pointer<K, V, H> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Values(arg0) => f.debug_tuple("Values").field(arg0).finish(),
+            Self::Link(arg0) => f.debug_tuple("Link").field(arg0).finish(),
         }
     }
 }

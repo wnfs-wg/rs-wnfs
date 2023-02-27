@@ -10,7 +10,7 @@ use serde::{
     Deserialize, Deserializer, Serialize, Serializer,
 };
 use sha3::Sha3_256;
-use std::{collections::BTreeMap, fmt, hash::Hash, rc::Rc, str::FromStr};
+use std::{collections::BTreeMap, hash::Hash, rc::Rc, str::FromStr};
 use wnfs_common::{AsyncSerialize, BlockStore, Link};
 
 //--------------------------------------------------------------------------------------------------
@@ -25,7 +25,7 @@ use wnfs_common::{AsyncSerialize, BlockStore, Link};
 /// # Examples
 ///
 /// ```
-/// use wnfs::private::Hamt;
+/// use wnfs_hamt::Hamt;
 ///
 /// let hamt = Hamt::<String, usize>::new();
 /// println!("HAMT: {:?}", hamt);
@@ -49,7 +49,7 @@ impl<K, V, H: Hasher> Hamt<K, V, H> {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::private::Hamt;
+    /// use wnfs_hamt::Hamt;
     ///
     /// let hamt = Hamt::<String, usize>::new();
     /// println!("HAMT: {:?}", hamt);
@@ -67,7 +67,7 @@ impl<K, V, H: Hasher> Hamt<K, V, H> {
     ///
     /// ```
     /// use std::rc::Rc;
-    /// use wnfs::private::{Hamt, Node};
+    /// use wnfs_hamt::{Hamt, Node};
     ///
     /// let hamt = Hamt::<String, usize>::with_root(Rc::new(Node::default()));
     ///
@@ -86,10 +86,8 @@ impl<K, V, H: Hasher> Hamt<K, V, H> {
     ///
     /// ```
     /// use std::rc::Rc;
-    /// use wnfs::{
-    ///     private::{Hamt, Node},
-    ///     MemoryBlockStore
-    /// };
+    /// use wnfs_hamt::{Hamt, Node};
+    /// use wnfs_common::MemoryBlockStore;
     ///
     /// #[async_std::main]
     /// async fn main() {
@@ -113,15 +111,15 @@ impl<K, V, H: Hasher> Hamt<K, V, H> {
     ///
     ///     println!("diff: {:#?}", diff);
     /// }
-    pub async fn diff<B: BlockStore>(
+    pub async fn diff(
         &self,
         other: &Self,
-        store: &mut B,
+        store: &mut impl BlockStore,
     ) -> Result<Vec<KeyValueChange<K, V>>>
     where
-        K: DeserializeOwned + Clone + fmt::Debug + Eq + Hash + AsRef<[u8]>,
-        V: DeserializeOwned + Clone + fmt::Debug + Eq,
-        H: Clone + fmt::Debug + 'static,
+        K: DeserializeOwned + Clone + Eq + Hash + AsRef<[u8]>,
+        V: DeserializeOwned + Clone + Eq,
+        H: Clone + 'static,
     {
         super::diff(
             Link::from(Rc::clone(&self.root)),

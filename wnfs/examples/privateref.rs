@@ -3,16 +3,8 @@ use futures::StreamExt;
 use rand::thread_rng;
 use sha3::Sha3_256;
 use std::rc::Rc;
-use wnfs::{
-    libipld::{
-        cbor::DagCborCodec,
-        codec::{Decode, Encode},
-        serde::Serializer,
-        Ipld,
-    },
-    private::{AesKey, PrivateDirectory, PrivateForest, PrivateOpResult, RevisionRef},
-};
-use wnfs_common::{utils, MemoryBlockStore};
+use wnfs::private::{AesKey, PrivateDirectory, PrivateForest, PrivateOpResult, RevisionRef};
+use wnfs_common::{dagcbor, utils, MemoryBlockStore};
 use wnfs_hamt::Hasher;
 use wnfs_namefilter::Namefilter;
 

@@ -18,7 +18,7 @@ use xxhash_rust::xxh3;
 /// # Examples
 ///
 /// ```
-/// use wnfs::private::BloomFilter;
+/// use wnfs_namefilter::BloomFilter;
 ///
 /// let mut filter = BloomFilter::<256, 30>::default();
 /// filter.add(&[0xF5u8; 32]);
@@ -38,7 +38,7 @@ pub struct BloomFilter<const N: usize, const K: usize> {
 /// # Examples
 ///
 /// ```
-/// use wnfs::private::BloomFilter;
+/// use wnfs_namefilter::BloomFilter;
 ///
 /// let filter = BloomFilter::<256, 30>::default();
 /// let indices = filter.hash_indices(&[0xF5u8; 32]);
@@ -85,7 +85,7 @@ impl<const N: usize, const K: usize> BloomFilter<N, K> {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::private::BloomFilter;
+    /// use wnfs_namefilter::BloomFilter;
     ///
     /// let mut filter = BloomFilter::<256, 30>::new();
     /// filter.add(&[0xF5u8; 32]);
@@ -103,7 +103,7 @@ impl<const N: usize, const K: usize> BloomFilter<N, K> {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::private::BloomFilter;
+    /// use wnfs_namefilter::BloomFilter;
     ///
     /// let mut filter = BloomFilter::<256, 30>::default();
     /// filter.add(&[0xF5u8; 32]);
@@ -124,7 +124,7 @@ impl<const N: usize, const K: usize> BloomFilter<N, K> {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::private::BloomFilter;
+    /// use wnfs_namefilter::BloomFilter;
     ///
     /// let mut filter = BloomFilter::<256, 30>::default();
     ///
@@ -139,7 +139,7 @@ impl<const N: usize, const K: usize> BloomFilter<N, K> {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::private::BloomFilter;
+    /// use wnfs_namefilter::BloomFilter;
     ///
     /// let mut filter = BloomFilter::<256, 30>::default();
     /// filter.add(&[0xF5u8; 32]);
@@ -158,7 +158,7 @@ impl<const N: usize, const K: usize> BloomFilter<N, K> {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::private::BloomFilter;
+    /// use wnfs_namefilter::BloomFilter;
     ///
     /// let mut filter = BloomFilter::<256, 30>::default();
     /// filter.add(&[0xF5u8; 32]);
@@ -174,7 +174,7 @@ impl<const N: usize, const K: usize> BloomFilter<N, K> {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::private::BloomFilter;
+    /// use wnfs_namefilter::BloomFilter;
     ///
     /// let filter = BloomFilter::<256, 30>::default();
     /// let indices = filter.hash_indices(&[0xF5u8; 32]);
@@ -195,7 +195,7 @@ impl<const N: usize, const K: usize> BloomFilter<N, K> {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::private::BloomFilter;
+    /// use wnfs_namefilter::BloomFilter;
     ///
     /// let mut filter = BloomFilter::<256, 30>::default();
     /// filter.add(&[0xF5u8; 32]);

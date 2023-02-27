@@ -1,17 +1,15 @@
-use super::{PrivateNode, PrivateRef, RevisionRef};
-use crate::error::{AesError, FsError};
+use super::{PrivateNode, RevisionRef};
+use crate::error::AesError;
 use anyhow::Result;
 use async_stream::stream;
 use async_trait::async_trait;
 use futures::Stream;
 use libipld::Cid;
-use log::debug;
-use rand_core::RngCore;
 use serde::{Deserialize, Deserializer, Serializer};
 use sha3::Sha3_256;
-use std::{collections::BTreeSet, fmt, rc::Rc};
+use std::{collections::BTreeSet, rc::Rc};
 use wnfs_common::{AsyncSerialize, BlockStore, HashOutput, Link};
-use wnfs_hamt::{merge, Hamt, Hasher};
+use wnfs_hamt::{merge, Hamt, Hasher, KeyValueChange};
 use wnfs_namefilter::Namefilter;
 
 //--------------------------------------------------------------------------------------------------
@@ -59,7 +57,9 @@ impl PrivateForest {
     /// use sha3::Sha3_256;
     /// use wnfs::{
     ///     private::{PrivateForest, PrivateRef}, PrivateNode,
-    ///     BlockStore, MemoryBlockStore, Namefilter, PrivateDirectory, PrivateOpResult, Hasher
+    ///     common::{BlockStore, MemoryBlockStore},
+    ///     hamt::Hasher,
+    ///     namefilter::Namefilter, PrivateDirectory, PrivateOpResult,
     /// };
     ///
     /// #[async_std::main]
@@ -173,11 +173,21 @@ impl PrivateForest {
             }
         })
     }
+
+    /// Gets the difference in changes between two forests.
+    #[inline]
+    pub async fn diff(
+        &self,
+        other: &Self,
+        store: &mut impl BlockStore,
+    ) -> Result<Vec<KeyValueChange<Namefilter, BTreeSet<Cid>>>> {
+        self.0.diff(&other.0, store).await
+    }
 }
 
 impl<H> PrivateForest<H>
 where
-    H: Hasher + fmt::Debug + Clone + 'static,
+    H: Hasher + Clone + 'static,
 {
     /// Merges a private forest with another. If there is a conflict with the values,they are union
     /// combined into a single value in the final merge node
@@ -191,7 +201,8 @@ where
     /// use futures::StreamExt;
     /// use wnfs::{
     ///     private::{PrivateForest, RevisionRef}, PrivateNode,
-    ///     BlockStore, MemoryBlockStore, Namefilter, PrivateDirectory, PrivateOpResult,
+    ///     common::{BlockStore, MemoryBlockStore},
+    ///     namefilter::Namefilter, PrivateDirectory, PrivateOpResult,
     /// };
     ///
     /// #[async_std::main]

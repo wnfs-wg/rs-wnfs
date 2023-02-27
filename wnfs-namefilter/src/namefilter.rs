@@ -22,7 +22,7 @@ pub const SATURATION_THRESHOLD: usize = 1019;
 /// # Examples
 ///
 /// ```
-/// use wnfs::Namefilter;
+/// use wnfs_namefilter::Namefilter;
 ///
 /// let mut filter = Namefilter::default();
 /// filter.add(&[0xF5u8; 32]);
@@ -41,7 +41,7 @@ impl Namefilter {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::{private::SATURATION_THRESHOLD, Namefilter};
+    /// use wnfs_namefilter::{SATURATION_THRESHOLD, Namefilter};
     ///
     /// let mut filter = Namefilter::default();
     /// filter.add(&[0xF5u8; 32]);

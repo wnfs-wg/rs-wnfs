@@ -1,6 +1,6 @@
 use super::{
-    encrypted::Encrypted, AesKey, PrivateForest, PrivateNode, PrivateNodeHeader, SnapshotKey,
-    AUTHENTICATION_TAG_SIZE, NONCE_SIZE,
+    encrypted::Encrypted, AesKey, PrivateForest, PrivateNode, PrivateNodeHeader, PrivateRef,
+    SnapshotKey, AUTHENTICATION_TAG_SIZE, NONCE_SIZE,
 };
 use crate::{error::FsError, Id};
 use anyhow::Result;
@@ -14,7 +14,7 @@ use semver::Version;
 use serde::{de::Error as DeError, Deserialize, Deserializer, Serialize};
 use sha3::Sha3_256;
 use std::{collections::BTreeSet, iter, rc::Rc};
-use wnfs_common::{utils, BlockStore, Metadata, NodeType, MAX_BLOCK_SIZE};
+use wnfs_common::{dagcbor, utils, BlockStore, Metadata, NodeType, MAX_BLOCK_SIZE};
 use wnfs_hamt::Hasher;
 use wnfs_namefilter::Namefilter;
 
@@ -45,8 +45,8 @@ pub const MAX_BLOCK_CONTENT_SIZE: usize = MAX_BLOCK_SIZE - NONCE_SIZE - AUTHENTI
 /// use rand::thread_rng;
 /// use wnfs::{
 ///     private::{PrivateForest, PrivateRef},
-///     MemoryBlockStore, Namefilter, PrivateFile,
-///     utils::get_random_bytes,
+///     common::{MemoryBlockStore, utils::get_random_bytes},
+///     namefilter::Namefilter, PrivateFile,
 /// };
 ///
 /// #[async_std::main]
@@ -118,7 +118,7 @@ impl PrivateFile {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::{PrivateFile, Namefilter, Id};
+    /// use wnfs::{PrivateFile, namefilter::Namefilter, Id};
     /// use chrono::Utc;
     /// use rand::thread_rng;
     ///
@@ -153,8 +153,8 @@ impl PrivateFile {
     /// use rand::thread_rng;
     /// use wnfs::{
     ///     private::{PrivateForest, PrivateRef},
-    ///     MemoryBlockStore, Namefilter, PrivateFile,
-    ///     utils::get_random_bytes, MAX_BLOCK_SIZE
+    ///     common::{MemoryBlockStore, utils::get_random_bytes, MAX_BLOCK_SIZE},
+    ///     namefilter::Namefilter, PrivateFile,
     /// };
     ///
     /// #[async_std::main]
@@ -213,8 +213,8 @@ impl PrivateFile {
     /// use rand::thread_rng;
     /// use wnfs::{
     ///     private::{PrivateForest, PrivateRef},
-    ///     MemoryBlockStore, Namefilter, PrivateFile,
-    ///     MAX_BLOCK_SIZE
+    ///     common::{MemoryBlockStore, MAX_BLOCK_SIZE},
+    ///     namefilter::Namefilter, PrivateFile,
     /// };
     ///
     /// #[async_std::main]
@@ -274,8 +274,8 @@ impl PrivateFile {
     /// use rand::thread_rng;
     /// use wnfs::{
     ///     private::{PrivateForest, PrivateRef},
-    ///     MemoryBlockStore, Namefilter, PrivateFile,
-    ///     utils::get_random_bytes,
+    ///     common::{MemoryBlockStore, utils::get_random_bytes},
+    ///     namefilter::Namefilter, PrivateFile,
     /// };
     /// use futures::{future, StreamExt};
     ///
@@ -353,8 +353,8 @@ impl PrivateFile {
     /// use rand::thread_rng;
     /// use wnfs::{
     ///     private::{PrivateForest, PrivateRef},
-    ///     MemoryBlockStore, Namefilter, PrivateFile,
-    ///     utils::get_random_bytes,
+    ///     common::{MemoryBlockStore, utils::get_random_bytes},
+    ///     namefilter::Namefilter, PrivateFile,
     /// };
     ///
     /// #[async_std::main]
@@ -633,7 +633,8 @@ impl PrivateFile {
     /// use rand::thread_rng;
     /// use wnfs::{
     ///     private::{PrivateForest, PrivateRef}, PrivateNode,
-    ///     BlockStore, MemoryBlockStore, Namefilter, PrivateFile, PrivateOpResult,
+    ///     common::{BlockStore, MemoryBlockStore},
+    ///     namefilter::Namefilter, PrivateFile, PrivateOpResult,
     /// };
     ///
     /// #[async_std::main]

@@ -14,8 +14,8 @@ use wnfs_common::BlockStore;
 /// # Examples
 ///
 /// ```
-/// use wnfs::private::hamt::strategies::{self, Operation, Operations};
-/// use wnfs::utils::Sampleable;
+/// use wnfs_hamt::strategies::{self, Operation, Operations};
+/// use wnfs_common::utils::Sampleable;
 /// use proptest::{arbitrary::any, test_runner::TestRunner};
 ///
 /// let mut runner = &mut TestRunner::deterministic();
@@ -34,8 +34,8 @@ pub enum Operation<K, V> {
 /// # Examples
 ///
 /// ```
-/// use wnfs::private::hamt::strategies::{self, Operation, Operations};
-/// use wnfs::utils::Sampleable;
+/// use wnfs_hamt::strategies::{self, Operation, Operations};
+/// use wnfs_common::utils::Sampleable;
 /// use proptest::{arbitrary::any, test_runner::TestRunner};
 ///
 /// let mut runner = &mut TestRunner::deterministic();
@@ -161,9 +161,8 @@ where
 /// # Examples
 ///
 /// ```
-/// use wnfs::private::hamt::strategies::{self, Operation, Operations};
-/// use wnfs::utils::Sampleable;
-/// use wnfs::MemoryBlockStore;
+/// use wnfs_hamt::strategies::{self, Operation, Operations};
+/// use wnfs_common::{MemoryBlockStore, utils::Sampleable};
 /// use proptest::{arbitrary::any, test_runner::TestRunner};
 ///
 /// #[async_std::main]
@@ -205,8 +204,8 @@ where
 /// # Examples
 ///
 /// ```
-/// use wnfs::private::hamt::strategies::{self, Operation, Operations};
-/// use wnfs::utils::Sampleable;
+/// use wnfs_hamt::strategies::{self, Operation, Operations};
+/// use wnfs_common::utils::Sampleable;
 /// use proptest::{arbitrary::any, test_runner::TestRunner};
 ///
 /// let mut runner = &mut TestRunner::deterministic();
@@ -232,8 +231,8 @@ pub fn operation<K: Debug, V: Debug>(
 /// # Examples
 ///
 /// ```
-/// use wnfs::private::hamt::strategies::{self, Operation, Operations};
-/// use wnfs::utils::Sampleable;
+/// use wnfs_hamt::strategies::{self, Operation, Operations};
+/// use wnfs_common::utils::Sampleable;
 /// use proptest::{arbitrary::any, test_runner::TestRunner};
 ///
 /// let mut runner = &mut TestRunner::deterministic();
@@ -254,8 +253,8 @@ pub fn operations<K: Debug, V: Debug>(
 /// # Examples
 ///
 /// ```
-/// use wnfs::private::hamt::strategies::{self, Operation, Operations};
-/// use wnfs::utils::Sampleable;
+/// use wnfs_hamt::strategies::{self, Operation, Operations};
+/// use wnfs_common::utils::Sampleable;
 /// use proptest::{arbitrary::any, test_runner::TestRunner};
 ///
 /// let mut runner = &mut TestRunner::deterministic();

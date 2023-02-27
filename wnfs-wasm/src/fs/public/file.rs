@@ -10,7 +10,7 @@ use std::rc::Rc;
 use wasm_bindgen::{prelude::wasm_bindgen, JsValue};
 use wasm_bindgen_futures::future_to_promise;
 use wnfs::{
-    libipld::Cid, BlockStore as WnfsBlockStore, Id, PublicFile as WnfsPublicFile,
+    common::BlockStore as WnfsBlockStore, libipld::Cid, Id, PublicFile as WnfsPublicFile,
     PublicNode as WnfsPublicNode,
 };
 

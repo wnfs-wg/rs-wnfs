@@ -23,7 +23,8 @@ pub const MAX_HASH_NIBBLE_LENGTH: usize = HASH_BYTE_SIZE * 2;
 ///
 /// ```
 /// use sha3::{Digest, Sha3_256};
-/// use wnfs::{Hasher, HashOutput};
+/// use wnfs_hamt::Hasher;
+/// use wnfs_common::HashOutput;
 ///
 /// struct MyHasher;
 ///
@@ -55,7 +56,8 @@ pub struct HashNibbles<'a> {
 /// # Examples
 ///
 /// ```
-/// use wnfs::{private::HashPrefix, utils};
+/// use wnfs_hamt::HashPrefix;
+/// use wnfs_common::utils;
 ///
 /// let hashprefix = HashPrefix::with_length(utils::make_digest(&[0xff, 0x22]), 4);
 ///
@@ -72,7 +74,8 @@ pub struct HashPrefix {
 /// # Examples
 ///
 /// ```
-/// use wnfs::{private::HashPrefix, utils};
+/// use wnfs_hamt::HashPrefix;
+/// use wnfs_common::utils;
 ///
 /// let hashprefix = HashPrefix::with_length(utils::make_digest(&[0xff, 0x22]), 4);
 /// for i in hashprefix.iter() {
@@ -163,7 +166,8 @@ impl HashPrefix {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::{private::HashPrefix, utils};
+    /// use wnfs_hamt::HashPrefix;
+    /// use wnfs_common::utils;
     ///
     /// let hashprefix = HashPrefix::with_length(utils::make_digest(&[0xff, 0x22]), 4);
     ///
@@ -178,7 +182,8 @@ impl HashPrefix {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::{private::HashPrefix, utils};
+    /// use wnfs_hamt::HashPrefix;
+    /// use wnfs_common::utils;
     ///
     /// let mut hashprefix = HashPrefix::default();
     /// for i in 0..16_u8 {
@@ -209,7 +214,8 @@ impl HashPrefix {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::{private::HashPrefix, utils};
+    /// use wnfs_hamt::HashPrefix;
+    /// use wnfs_common::utils;
     ///
     /// let mut hashprefix = HashPrefix::default();
     /// for i in 0..16_u8 {
@@ -228,7 +234,8 @@ impl HashPrefix {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::{private::HashPrefix, utils};
+    /// use wnfs_hamt::HashPrefix;
+    /// use wnfs_common::utils;
     ///
     /// let hashprefix = HashPrefix::default();
     /// assert!(hashprefix.is_empty());
@@ -242,7 +249,8 @@ impl HashPrefix {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::{private::HashPrefix, utils};
+    /// use wnfs_hamt::HashPrefix;
+    /// use wnfs_common::utils;
     ///
     /// let mut hashprefix = HashPrefix::default();
     /// for i in 0..16_u8 {
@@ -269,7 +277,8 @@ impl HashPrefix {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::{private::HashPrefix, utils};
+    /// use wnfs_hamt::HashPrefix;
+    /// use wnfs_common::utils;
     ///
     /// let hashprefix = HashPrefix::with_length(utils::make_digest(&[0xff, 0x22]), 4);
     /// for i in hashprefix.iter() {
@@ -288,7 +297,8 @@ impl HashPrefix {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::{private::HashPrefix, utils};
+    /// use wnfs_hamt::HashPrefix;
+    /// use wnfs_common::utils;
     ///
     /// let hashprefix = HashPrefix::with_length(utils::make_digest(&[0xff, 0x22]), 4);
     ///

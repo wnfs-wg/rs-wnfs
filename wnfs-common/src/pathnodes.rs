@@ -34,16 +34,14 @@ impl<T> PathNodes<T> {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::{PathNodes, public::PublicDirectory};
-    /// use std::rc::Rc;
-    /// use chrono::Utc;
+    /// use wnfs_common::PathNodes;
     ///
-    /// let nodes = PathNodes::<PublicDirectory> {
+    /// let nodes = PathNodes::<usize> {
     ///     path: vec![
-    ///         (Rc::new(PublicDirectory::new(Utc::now())), "music".to_string()),
-    ///         (Rc::new(PublicDirectory::new(Utc::now())), "rock".to_string()),
+    ///         (1.into(), "music".to_string()),
+    ///         (2.into(), "rock".to_string()),
     ///     ],
-    ///     tail: Rc::new(PublicDirectory::new(Utc::now())),
+    ///     tail: 3.into(),
     /// };
     ///
     /// assert_eq!(nodes.len(), 2);
@@ -57,16 +55,14 @@ impl<T> PathNodes<T> {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::{PathNodes, public::PublicDirectory};
-    /// use std::rc::Rc;
-    /// use chrono::Utc;
+    /// use wnfs_common::PathNodes;
     ///
-    /// let nodes = PathNodes::<PublicDirectory> {
+    /// let nodes = PathNodes::<usize> {
     ///     path: vec![
-    ///         (Rc::new(PublicDirectory::new(Utc::now())), "music".to_string()),
-    ///         (Rc::new(PublicDirectory::new(Utc::now())), "rock".to_string()),
+    ///         (1.into(), "music".to_string()),
+    ///         (2.into(), "rock".to_string()),
     ///     ],
-    ///     tail: Rc::new(PublicDirectory::new(Utc::now())),
+    ///     tail: 3.into(),
     /// };
     ///
     /// assert!(!nodes.is_empty());

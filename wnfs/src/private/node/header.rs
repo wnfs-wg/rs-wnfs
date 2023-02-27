@@ -23,7 +23,7 @@ pub type INumber = HashOutput;
 /// # Examples
 ///
 /// ```
-/// use wnfs::{PrivateFile, Namefilter, Id};
+/// use wnfs::{PrivateFile, namefilter::Namefilter, Id};
 /// use chrono::Utc;
 /// use rand::thread_rng;
 ///
@@ -109,7 +109,7 @@ impl PrivateNodeHeader {
     ///
     /// ```
     /// use std::rc::Rc;
-    /// use wnfs::{PrivateFile, Namefilter, Id};
+    /// use wnfs::{PrivateFile, namefilter::Namefilter, Id};
     /// use chrono::Utc;
     /// use rand::thread_rng;
     ///
@@ -144,7 +144,7 @@ impl PrivateNodeHeader {
     ///
     /// ```
     /// use std::rc::Rc;
-    /// use wnfs::{PrivateFile, Namefilter, Id};
+    /// use wnfs::{PrivateFile, namefilter::Namefilter, Id};
     /// use chrono::Utc;
     /// use rand::thread_rng;
     ///
@@ -169,7 +169,7 @@ impl PrivateNodeHeader {
     ///
     /// ```
     /// use std::rc::Rc;
-    /// use wnfs::{PrivateFile, Namefilter, Id};
+    /// use wnfs::{PrivateFile, namefilter::Namefilter, Id};
     /// use chrono::Utc;
     /// use rand::thread_rng;
     ///
@@ -202,7 +202,7 @@ impl PrivateNodeHeader {
     ///
     /// ```
     /// use std::rc::Rc;
-    /// use wnfs::{PrivateFile, Namefilter, private::AesKey};
+    /// use wnfs::{PrivateFile, namefilter::Namefilter, private::AesKey};
     /// use chrono::Utc;
     /// use rand::thread_rng;
     ///

@@ -5,8 +5,7 @@ use std::{fmt::Debug, rc::Rc};
 use wasm_bindgen::JsValue;
 use wnfs::{
     private::{PrivateDirectory as WnfsPrivateDirectory, PrivateForest as WnfsPrivateForest},
-    public::PublicDirectory as WnfsPublicDirectory,
-    Metadata,
+    public::PublicDirectory as WnfsPublicDirectory, common::Metadata,
 };
 
 //--------------------------------------------------------------------------------------------------

@@ -180,7 +180,7 @@ impl RevisionRef {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::{private::RevisionRef, Namefilter};
+    /// use wnfs::{private::RevisionRef, namefilter::Namefilter};
     /// use rand::{thread_rng, Rng};
     ///
     /// let rng = &mut thread_rng();

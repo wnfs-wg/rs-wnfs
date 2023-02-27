@@ -3,6 +3,7 @@ mod encrypted;
 mod file;
 mod forest;
 mod keys;
+mod link;
 pub mod node;
 mod previous;
 mod privateref;

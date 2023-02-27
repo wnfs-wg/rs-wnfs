@@ -93,7 +93,7 @@ pub async fn read_fully(
 ///
 /// ```
 /// use rand::thread_rng;
-/// use wnfs::utils;
+/// use wnfs_common::utils;
 ///
 /// let rng = &mut thread_rng();
 /// let bytes = utils::get_random_bytes::<32>(rng);
@@ -113,7 +113,7 @@ pub fn get_random_bytes<const N: usize>(rng: &mut impl RngCore) -> [u8; N] {
 /// # Examples
 ///
 /// ```
-/// use wnfs::utils;
+/// use wnfs_common::utils;
 ///
 /// let digest = utils::make_digest(&[0xff, 0x22]);
 ///

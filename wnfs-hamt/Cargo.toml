@@ -44,6 +44,7 @@ async-std = { version = "1.11", features = ["attributes"] }
 proptest = "1.1"
 rand = "0.8"
 test-strategy = "0.3"
+wnfs-common = { path = "../wnfs-common", features = ["test_utils"] }
 
 [features]
 test_utils = ["proptest"]

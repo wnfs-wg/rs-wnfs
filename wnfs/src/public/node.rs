@@ -9,7 +9,7 @@ use chrono::{DateTime, Utc};
 use libipld::{Cid, Ipld};
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 use std::{collections::BTreeSet, rc::Rc};
-use wnfs_common::{AsyncSerialize, BlockStore, NodeType};
+use wnfs_common::{AsyncSerialize, BlockStore, NodeType, RemembersCid};
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions

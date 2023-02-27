@@ -1,13 +1,14 @@
 //! Public fs file node.
 
-use crate::Id;
+use crate::{error::FsError, Id};
 use anyhow::Result;
+use async_once_cell::OnceCell;
 use chrono::{DateTime, Utc};
 use libipld::Cid;
 use semver::Version;
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use std::collections::BTreeSet;
-use wnfs_common::{BlockStore, Metadata, NodeType};
+use serde::{de::Error as DeError, Deserialize, Deserializer, Serialize, Serializer};
+use std::{collections::BTreeSet, rc::Rc};
+use wnfs_common::{BlockStore, Metadata, NodeType, RemembersCid};
 
 /// Represents a file in the WNFS public filesystem.
 ///
@@ -117,7 +118,7 @@ impl PublicFile {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::{PublicFile, Id, MemoryBlockStore};
+    /// use wnfs::{PublicFile, Id, common::MemoryBlockStore};
     /// use chrono::Utc;
     /// use libipld::Cid;
     ///
@@ -222,8 +223,8 @@ impl RemembersCid for PublicFile {
 mod tests {
     use super::*;
     use chrono::Utc;
-    use libipld::Cid;
-    use wnfs_common::dagcbor;
+    use libipld::{Cid, IpldCodec};
+    use wnfs_common::{dagcbor, MemoryBlockStore};
 
     #[async_std::test]
     async fn serialized_public_file_can_be_deserialized() {

@@ -40,7 +40,7 @@ impl ToString for NodeType {
 /// # Examples
 ///
 /// ```
-/// use wnfs::Metadata;
+/// use wnfs_common::Metadata;
 /// use chrono::Utc;
 ///
 /// let metadata = Metadata::new(Utc::now());
@@ -60,7 +60,7 @@ impl Metadata {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::Metadata;
+    /// use wnfs_common::Metadata;
     /// use chrono::Utc;
     ///
     /// let metadata = Metadata::new(Utc::now());
@@ -80,7 +80,7 @@ impl Metadata {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::Metadata;
+    /// use wnfs_common::Metadata;
     /// use chrono::{Utc, TimeZone, Duration};
     ///
     /// let mut metadata = Metadata::new(Utc::now());
@@ -100,7 +100,7 @@ impl Metadata {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::Metadata;
+    /// use wnfs_common::Metadata;
     /// use chrono::{Utc, TimeZone};
     ///
     /// let time = Utc::now();
@@ -124,7 +124,7 @@ impl Metadata {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::Metadata;
+    /// use wnfs_common::Metadata;
     /// use chrono::{Utc, TimeZone};
     ///
     /// let time = Utc::now();

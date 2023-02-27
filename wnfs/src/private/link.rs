@@ -1,10 +1,11 @@
 use super::{PrivateForest, PrivateRef};
-use crate::{BlockStore, PrivateNode};
+use crate::PrivateNode;
 use anyhow::Result;
 use async_once_cell::OnceCell;
 use async_recursion::async_recursion;
 use rand_core::RngCore;
 use std::rc::Rc;
+use wnfs_common::BlockStore;
 
 #[derive(Debug)]
 pub(crate) enum PrivateLink {

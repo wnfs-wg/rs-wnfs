@@ -73,13 +73,11 @@ help() {
     echo "    rs-wnfs [COMMAND] [...args]"
     echo ""
     echo "COMMAND:"
-    echo "   * build    [--fs|--wasm|--all]  - build projects"
-    echo "   * test     [--fs|--wasm|--all]  - run tests"
-    echo "   * bench    [--fs|--wasm|--all]  - run benchmarks"
-    echo "   * publish  [--fs|--wasm|--all]  - publish packages"
-    echo "   * coverage [--fs|--wasm|--all]  - show code coverage"
-    echo "   * setup                         - install rs-wnfs script"
-    echo "   * help                          - print this help message"
+    echo "   * build [--fs|--wasm|--common|--hamt|--filter]  - build projects"
+    echo "   * test  [--fs|--wasm|--common|--hamt|--filter]  - run tests"
+    echo "   * bench                                             - run wnfs benchmarks"
+    echo "   * setup                                             - install rs-wnfs script"
+    echo "   * help                                              - print this help message"
     echo ""
     echo ""
 }
@@ -92,14 +90,23 @@ help() {
 #	Builds the project.
 #
 # USAGE:
-#	rs-wnfs build [--fs|--wasm|--all]
+#	rs-wnfs build [--fs|--wasm|--common|--hamt|--filter]
 #
 build() {
 	if check_flag --fs; then
         build_fs
     elif check_flag --wasm; then
         build_wasm
+    elif check_flag --common; then
+        build_common
+    elif check_flag --hamt; then
+        build_hamt
+    elif check_flag --filter; then
+        build_filter
     else
+        build_common
+        build_hamt
+        build_filter
         build_fs
         build_wasm
     fi
@@ -107,7 +114,22 @@ build() {
 
 build_fs() {
     display_header "💿 | BUILDING WNFS PROJECT | 💿"
-    cargo build --release
+    cargo build -p wnfs --release
+}
+
+build_common() {
+    display_header "💿 | BUILDING WNFS-COMMON PROJECT | 💿"
+    cargo build -p wnfs-common --release
+}
+
+build_hamt() {
+    display_header "💿 | BUILDING WNFS-HAMT PROJECT | 💿"
+    cargo build -p wnfs-hamt --release
+}
+
+build_filter() {
+    display_header "💿 | BUILDING WNFS-NAMEFILTER PROJECT | 💿"
+    cargo build -p wnfs-namefilter --release
 }
 
 build_wasm() {
@@ -125,14 +147,23 @@ build_wasm() {
 #   Runs tests.
 #
 # USAGE:
-#	rs-wnfs test [--fs|--wasm|--all]
+#	rs-wnfs test [--fs|--wasm|--common|--hamt|--filter]
 #
 test() {
 	if check_flag --fs; then
         test_fs
     elif check_flag --wasm; then
         test_wasm
+    elif check_flag --common; then
+        test_common
+    elif check_flag --hamt; then
+        test_hamt
+    elif check_flag --filter; then
+        test_filter
     else
+        test_common
+        test_hamt
+        test_filter
         test_fs
         test_wasm
     fi
@@ -140,7 +171,22 @@ test() {
 
 test_fs() {
     display_header "🧪 | RUNNING WNFS TESTS | 🧪"
-    cargo test -p wnfs --all-features
+    cargo test -p wnfs
+}
+
+test_common() {
+    display_header "🧪 | RUNNING WNFS-COMMON TESTS | 🧪"
+    cargo test -p wnfs-common
+}
+
+test_hamt() {
+    display_header "🧪 | RUNNING WNFS-HAMT TESTS | 🧪"
+    cargo test -p wnfs-hamt
+}
+
+test_filter() {
+    display_header "🧪 | RUNNING WNFS-NAMEFILTER TESTS | 🧪"
+    cargo test -p wnfs-namefilter
 }
 
 test_wasm() {
@@ -154,48 +200,11 @@ test_wasm() {
 #   Runs benchmarks.
 #
 # USAGE:
-#	rs-wnfs bench [--fs|--wasm|--all]
+#	rs-wnfs bench
 #
 bench() {
-	if check_flag --fs; then
-        bench_fs
-    elif check_flag --wasm; then
-        bench_wasm
-    else
-        bench_fs
-    fi
-}
-
-bench_fs() {
     display_header "📈 | RUNNING WNFS BENCHMARKS | 📈"
     cargo bench -p wnfs-bench
-}
-
-bench_wasm() {
-    errorln "benchmarks for wnfs-wasm not implemented yet"
-    exit 1
-}
-
-# DESCRIPTION:
-#    Shows the code coverage of the project
-#
-# USAGE:
-#	rs-wnfs coverage [--fs|--wasm|--all]
-#
-coverage() {
-    errorln "coverage command not implemented yet"
-    exit 1
-}
-
-# DESCRIPTION:
-#    Publishes the project.
-#
-# USAGE:
-#	rs-wnfs publish [--fs|--wasm|--all]
-#
-publish() {
-    errorln "publish command not implemented yet"
-    exit 1
 }
 
 #------------------------------------------------------------------------------
