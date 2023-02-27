@@ -2,8 +2,8 @@ use super::{PrivateNodeHeader, TemporalKey};
 use crate::{
     error::FsError,
     private::{
-        encrypted::Encrypted, PrivateDirectory, PrivateDirectoryContent, PrivateFile,
-        PrivateFileContent, PrivateForest, PrivateRef, link::PrivateLink,
+        encrypted::Encrypted, link::PrivateLink, PrivateDirectory, PrivateDirectoryContent,
+        PrivateFile, PrivateFileContent, PrivateForest, PrivateRef,
     },
     Id,
 };
@@ -11,11 +11,11 @@ use anyhow::{bail, Result};
 use async_recursion::async_recursion;
 use chrono::{DateTime, Utc};
 use futures::StreamExt;
-use libipld::{ Cid, Ipld};
+use libipld::{Cid, Ipld};
 use rand_core::RngCore;
 use skip_ratchet::{seek::JumpSize, RatchetSeeker};
 use std::{cmp::Ordering, collections::BTreeSet, fmt::Debug, rc::Rc};
-use wnfs_common::{BlockStore, NodeType, dagcbor};
+use wnfs_common::{dagcbor, BlockStore, NodeType};
 use wnfs_namefilter::Namefilter;
 
 //--------------------------------------------------------------------------------------------------
@@ -182,6 +182,7 @@ impl PrivateNode {
     /// The previous links is `None`, it doesn't have previous Cids.
     /// The node is malformed if the previous links are `Some`, but
     /// the `BTreeSet` inside is empty.
+    #[allow(clippy::mutable_key_type)]
     pub fn get_previous(&self) -> &BTreeSet<(usize, Encrypted<Cid>)> {
         match self {
             Self::File(file) => &file.content.previous,

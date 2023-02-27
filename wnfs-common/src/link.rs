@@ -240,13 +240,12 @@ impl<T: RemembersCid> RemembersCid for Rc<T> {
 
 #[cfg(test)]
 mod tests {
+    use crate::{AsyncSerialize, BlockStore, Link, MemoryBlockStore, RemembersCid};
     use ::serde::{Deserialize, Serialize};
     use async_once_cell::OnceCell;
     use async_trait::async_trait;
     use libipld::Cid;
     use serde::Serializer;
-
-    use crate::{AsyncSerialize, BlockStore, Link, MemoryBlockStore, RemembersCid};
 
     #[derive(Debug, Serialize, Deserialize)]
     struct Example {

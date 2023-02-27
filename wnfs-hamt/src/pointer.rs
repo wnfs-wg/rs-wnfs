@@ -7,8 +7,7 @@ use serde::{
     ser::Error as SerError,
     Deserialize, Deserializer, Serialize, Serializer,
 };
-use std::fmt::Debug;
-use std::rc::Rc;
+use std::{fmt::Debug, rc::Rc};
 use wnfs_common::{utils::error, AsyncSerialize, BlockStore, Link};
 
 //--------------------------------------------------------------------------------------------------

@@ -4,8 +4,9 @@ use js_sys::{Array, Error, Object, Reflect};
 use std::{fmt::Debug, rc::Rc};
 use wasm_bindgen::JsValue;
 use wnfs::{
+    common::Metadata,
     private::{PrivateDirectory as WnfsPrivateDirectory, PrivateForest as WnfsPrivateForest},
-    public::PublicDirectory as WnfsPublicDirectory, common::Metadata,
+    public::PublicDirectory as WnfsPublicDirectory,
 };
 
 //--------------------------------------------------------------------------------------------------

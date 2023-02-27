@@ -7,8 +7,10 @@ use js_sys::{Promise, Uint8Array};
 use std::borrow::Cow;
 use wasm_bindgen::prelude::wasm_bindgen;
 use wasm_bindgen_futures::JsFuture;
-use wnfs::common::BlockStore as WnfsBlockStore;
-use wnfs::libipld::{Cid, IpldCodec};
+use wnfs::{
+    common::BlockStore as WnfsBlockStore,
+    libipld::{Cid, IpldCodec},
+};
 
 //--------------------------------------------------------------------------------------------------
 // Externs

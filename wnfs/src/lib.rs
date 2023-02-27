@@ -13,15 +13,13 @@ pub mod private;
 pub mod public;
 mod traits;
 mod utils;
-pub use private::{PrivateDirectory, PrivateFile, PrivateNode, PrivateOpResult};
-pub use public::{PublicDirectory, PublicFile, PublicNode, PublicOpResult};
-pub use traits::*;
-
 //--------------------------------------------------------------------------------------------------
 // Re-exports
 //--------------------------------------------------------------------------------------------------
-
 pub use libipld;
+pub use private::{PrivateDirectory, PrivateFile, PrivateNode, PrivateOpResult};
+pub use public::{PublicDirectory, PublicFile, PublicNode, PublicOpResult};
+pub use traits::*;
 pub mod rand_core {
     pub use rand_core::RngCore;
 }

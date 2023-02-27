@@ -14,8 +14,8 @@ use std::rc::Rc;
 use wasm_bindgen::{prelude::wasm_bindgen, JsValue};
 use wasm_bindgen_futures::future_to_promise;
 use wnfs::{
-    Id, PrivateDirectory as WnfsPrivateDirectory, PrivateNode as WnfsPrivateNode,
-    PrivateOpResult as WnfsPrivateOpResult, common::HASH_BYTE_SIZE,
+    common::HASH_BYTE_SIZE, Id, PrivateDirectory as WnfsPrivateDirectory,
+    PrivateNode as WnfsPrivateNode, PrivateOpResult as WnfsPrivateOpResult,
 };
 
 //--------------------------------------------------------------------------------------------------
