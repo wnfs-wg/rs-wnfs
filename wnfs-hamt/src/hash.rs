@@ -10,7 +10,7 @@ use wnfs_common::{utils, HashOutput, HASH_BYTE_SIZE};
 
 /// The number of nibbles in a [`HashOutput`][HashOutput].
 ///
-/// [HashOutput]: crate::HashOutput
+/// [HashOutput]: wnfs_common::HashOutput
 pub const MAX_HASH_NIBBLE_LENGTH: usize = HASH_BYTE_SIZE * 2;
 
 //--------------------------------------------------------------------------------------------------
