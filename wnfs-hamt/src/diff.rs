@@ -310,11 +310,11 @@ mod tests {
 
         pub(super) static HASH_KV_PAIRS: Lazy<Vec<(HashOutput, &'static str)>> = Lazy::new(|| {
             vec![
-                (utils::make_digest(&[0xA0]), "first"),
-                (utils::make_digest(&[0xA3]), "second"),
-                (utils::make_digest(&[0xA7]), "third"),
-                (utils::make_digest(&[0xAC]), "fourth"),
-                (utils::make_digest(&[0xAE]), "fifth"),
+                (utils::to_hash_output(&[0xA0]), "first"),
+                (utils::to_hash_output(&[0xA3]), "second"),
+                (utils::to_hash_output(&[0xA7]), "third"),
+                (utils::to_hash_output(&[0xAC]), "fourth"),
+                (utils::to_hash_output(&[0xAE]), "fifth"),
             ]
         });
 

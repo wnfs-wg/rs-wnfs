@@ -1,4 +1,4 @@
-//! TODO(appcypher): Needs documentation.
+//! This crate contains the common types and functions used by the WNFS crates.
 
 mod async_serialize;
 pub mod blockstore;

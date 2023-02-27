@@ -59,7 +59,7 @@ pub struct HashNibbles<'a> {
 /// use wnfs_hamt::HashPrefix;
 /// use wnfs_common::utils;
 ///
-/// let hashprefix = HashPrefix::with_length(utils::make_digest(&[0xff, 0x22]), 4);
+/// let hashprefix = HashPrefix::with_length(utils::to_hash_output(&[0xff, 0x22]), 4);
 ///
 /// println!("{:?}", hashprefix);
 /// ```
@@ -77,7 +77,7 @@ pub struct HashPrefix {
 /// use wnfs_hamt::HashPrefix;
 /// use wnfs_common::utils;
 ///
-/// let hashprefix = HashPrefix::with_length(utils::make_digest(&[0xff, 0x22]), 4);
+/// let hashprefix = HashPrefix::with_length(utils::to_hash_output(&[0xff, 0x22]), 4);
 /// for i in hashprefix.iter() {
 ///    println!("{}", i);
 /// }
@@ -169,7 +169,7 @@ impl HashPrefix {
     /// use wnfs_hamt::HashPrefix;
     /// use wnfs_common::utils;
     ///
-    /// let hashprefix = HashPrefix::with_length(utils::make_digest(&[0xff, 0x22]), 4);
+    /// let hashprefix = HashPrefix::with_length(utils::to_hash_output(&[0xff, 0x22]), 4);
     ///
     /// println!("{:?}", hashprefix);
     /// ```
@@ -280,7 +280,7 @@ impl HashPrefix {
     /// use wnfs_hamt::HashPrefix;
     /// use wnfs_common::utils;
     ///
-    /// let hashprefix = HashPrefix::with_length(utils::make_digest(&[0xff, 0x22]), 4);
+    /// let hashprefix = HashPrefix::with_length(utils::to_hash_output(&[0xff, 0x22]), 4);
     /// for i in hashprefix.iter() {
     ///    println!("{}", i);
     /// }
@@ -300,12 +300,12 @@ impl HashPrefix {
     /// use wnfs_hamt::HashPrefix;
     /// use wnfs_common::utils;
     ///
-    /// let hashprefix = HashPrefix::with_length(utils::make_digest(&[0xff, 0x22]), 4);
+    /// let hashprefix = HashPrefix::with_length(utils::to_hash_output(&[0xff, 0x22]), 4);
     ///
     /// assert!(hashprefix.is_prefix_of(&[0xff, 0x22, 0x33]));
     /// ```
     pub fn is_prefix_of(&self, bytes: &[u8]) -> bool {
-        self == &HashPrefix::with_length(utils::make_digest(bytes), self.length)
+        self == &HashPrefix::with_length(utils::to_hash_output(bytes), self.length)
     }
 }
 

@@ -9,7 +9,6 @@ edition = "2021"
 async-std = { version = "1.11", features = ["attributes"] }
 criterion = { version = "0.4", features = ["async_std"] }
 proptest = "1.1"
-wnfs = { path = "../wnfs" }
 wnfs-common = { path = "../wnfs-common", features = ["test_utils"] }
 wnfs-hamt = { path = "../wnfs-hamt", features = ["test_utils"] }
 wnfs-namefilter = { path = "../wnfs-namefilter" }

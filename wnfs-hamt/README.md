@@ -31,12 +31,27 @@
 
 ##
 
-<!-- TODO(appcypher): Needs documentation -->
+This Rust crate provides an implementation of a [Hash Array Mapped Trie (HAMT)](https://en.wikipedia.org/wiki/Hash_array_mapped_trie) based on IPLD.
+
+HAMT is a data structure that hashes keys and uses increments of the hash at each level to determine placement of the entry or child node in the tree structure.
+
+The number of bits used for index calculation at each level is determined by the bitWidth.
+Each node can hold up to 2^bitWidth elements, which are stored in an array. Entries are stored in key-sorted order in buckets.
+If a bucket already contains the maximum number of elements, a new child node is created and entries are inserted into the new node.
+
+The data elements array is only allocated to store actual entries, and a map bitfield is used to determine if an index exists in the data array.
+
+The implementation is based on [fvm_ipld_hamt](https://github.com/filecoin-project/ref-fvm/tree/master/ipld/hamt) with some modifications for async blockstore access and immutability-by-default.
 
 ## Usage
 
-<!-- TODO(appcypher): Needs documentation -->
-
 ```rust
-todo!()
+use wnfs_hamt::Node;
+use wnfs_common::MemoryBlockStore;
+
+let store = &mut MemoryBlockStore::default();
+let scores: Node<String, usize> = Rc::new(Node::default());
+
+scores.set("Mandy", 30, store).await?;
+let result = scores.get("Mandy", store).await?;
 ```

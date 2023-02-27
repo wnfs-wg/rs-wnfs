@@ -28,15 +28,3 @@
 </div>
 
 <div align="center"><sub>:warning: Work in progress :warning:</sub></div>
-
-##
-
-<!-- Todo: Summary here -->
-
-## Usage
-
-<!-- Todo: Usage description here -->
-
-```rust
-todo!()
-```

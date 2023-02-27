@@ -321,27 +321,27 @@ mod tests {
             Lazy::new(|| {
                 vec![
                     (
-                        utils::make_digest(&[0xA0]),
+                        utils::to_hash_output(&[0xA0]),
                         generate_saturated_name_hash(&mut thread_rng()),
                         generate_cid(&mut thread_rng()),
                     ),
                     (
-                        utils::make_digest(&[0xA3]),
+                        utils::to_hash_output(&[0xA3]),
                         generate_saturated_name_hash(&mut thread_rng()),
                         generate_cid(&mut thread_rng()),
                     ),
                     (
-                        utils::make_digest(&[0xA7]),
+                        utils::to_hash_output(&[0xA7]),
                         generate_saturated_name_hash(&mut thread_rng()),
                         generate_cid(&mut thread_rng()),
                     ),
                     (
-                        utils::make_digest(&[0xAC]),
+                        utils::to_hash_output(&[0xAC]),
                         generate_saturated_name_hash(&mut thread_rng()),
                         generate_cid(&mut thread_rng()),
                     ),
                     (
-                        utils::make_digest(&[0xAE]),
+                        utils::to_hash_output(&[0xAE]),
                         generate_saturated_name_hash(&mut thread_rng()),
                         generate_cid(&mut thread_rng()),
                     ),

@@ -1,17 +1,15 @@
 //! Block store traits.
 
-use crate::{AsyncSerialize, BlockStoreError, MAX_BLOCK_SIZE};
+use crate::{dagcbor, AsyncSerialize, BlockStoreError, MAX_BLOCK_SIZE};
 use anyhow::{bail, Result};
 use async_trait::async_trait;
 use libipld::{
-    cbor::DagCborCodec,
     cid::Version,
-    codec::{Decode, Encode},
     multihash::{Code, MultihashDigest},
-    serde as ipld_serde, Cid, Ipld, IpldCodec,
+    serde as ipld_serde, Cid, IpldCodec,
 };
 use serde::{de::DeserializeOwned, Serialize};
-use std::{borrow::Cow, collections::HashMap, io::Cursor};
+use std::{borrow::Cow, collections::HashMap};
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
@@ -24,26 +22,19 @@ pub trait BlockStore {
     async fn put_block(&mut self, bytes: Vec<u8>, codec: IpldCodec) -> Result<Cid>;
 
     async fn put_serializable<V: Serialize>(&mut self, value: &V) -> Result<Cid> {
-        let ipld = ipld_serde::to_ipld(value)?;
-
-        let mut bytes = Vec::new();
-        ipld.encode(DagCborCodec, &mut bytes)?;
-
+        let bytes = dagcbor::encode(&ipld_serde::to_ipld(value)?)?;
         self.put_block(bytes, IpldCodec::DagCbor).await
     }
 
     async fn put_async_serializable<V: AsyncSerialize>(&mut self, value: &V) -> Result<Cid> {
         let ipld = value.async_serialize_ipld(self).await?;
-
-        let mut bytes = Vec::new();
-        ipld.encode(DagCborCodec, &mut bytes)?;
-
+        let bytes = dagcbor::encode(&ipld)?;
         self.put_block(bytes, IpldCodec::DagCbor).await
     }
 
-    async fn get_deserializable<'a, V: DeserializeOwned>(&'a self, cid: &Cid) -> Result<V> {
+    async fn get_deserializable<V: DeserializeOwned>(&self, cid: &Cid) -> Result<V> {
         let bytes = self.get_block(cid).await?;
-        let ipld = Ipld::decode(DagCborCodec, &mut Cursor::new(bytes.as_ref()))?;
+        let ipld = dagcbor::decode(bytes.as_ref())?;
         Ok(ipld_serde::from_ipld::<V>(ipld)?)
     }
 }

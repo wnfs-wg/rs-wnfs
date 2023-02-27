@@ -115,13 +115,13 @@ pub fn get_random_bytes<const N: usize>(rng: &mut impl RngCore) -> [u8; N] {
 /// ```
 /// use wnfs_common::utils;
 ///
-/// let digest = utils::make_digest(&[0xff, 0x22]);
+/// let digest = utils::to_hash_output(&[0xff, 0x22]);
 ///
 /// assert_eq!(digest.len(), 32);
 /// ```
 ///
 /// [HashOutput]: crate::HashOutput
-pub fn make_digest(bytes: &[u8]) -> HashOutput {
+pub fn to_hash_output(bytes: &[u8]) -> HashOutput {
     let mut nibbles = [0u8; 32];
     nibbles[..bytes.len()].copy_from_slice(bytes);
     nibbles

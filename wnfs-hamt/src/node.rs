@@ -541,7 +541,7 @@ where
     ///             .unwrap();
     ///     }
     ///
-    ///     let hashprefix = HashPrefix::with_length(utils::make_digest(&[0x8C]), 2);
+    ///     let hashprefix = HashPrefix::with_length(utils::to_hash_output(&[0x8C]), 2);
     ///     let result = node.get_node_at(&hashprefix, store).await.unwrap();
     ///
     ///     println!("Result: {:#?}", result);
@@ -813,10 +813,10 @@ mod tests {
 
         pub(super) static HASH_KV_PAIRS: Lazy<Vec<(HashOutput, &'static str)>> = Lazy::new(|| {
             vec![
-                (utils::make_digest(&[0xE0]), "first"),
-                (utils::make_digest(&[0xE1]), "second"),
-                (utils::make_digest(&[0xE2]), "third"),
-                (utils::make_digest(&[0xE3]), "fourth"),
+                (utils::to_hash_output(&[0xE0]), "first"),
+                (utils::to_hash_output(&[0xE1]), "second"),
+                (utils::to_hash_output(&[0xE2]), "third"),
+                (utils::to_hash_output(&[0xE3]), "fourth"),
             ]
         });
 
@@ -964,7 +964,7 @@ mod tests {
 
         let working_node = &mut Rc::new(Node::<String, String>::default());
         for (hash, expected_idx) in hash_expected_idx_samples.into_iter() {
-            let bytes = utils::make_digest(&hash[..]);
+            let bytes = utils::to_hash_output(&hash[..]);
             let hashnibbles = &mut HashNibbles::new(&bytes);
 
             working_node
@@ -1079,7 +1079,7 @@ mod tests {
             assert_eq!(result, Some(Either::Left(&Pair { key, value })));
         }
 
-        let hashprefix = HashPrefix::with_length(utils::make_digest(&[0xE0]), 1);
+        let hashprefix = HashPrefix::with_length(utils::to_hash_output(&[0xE0]), 1);
         let result = node.get_node_at(&hashprefix, store).await.unwrap();
 
         assert!(matches!(result, Some(Either::Right(_))));
