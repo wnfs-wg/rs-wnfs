@@ -28,7 +28,6 @@ bitvec = { version = "1.0", features = ["serde"] }
 chrono = { version = "0.4.23", default-features = false, features = ["clock", "std"] }
 either = "1.8"
 futures = "0.3"
-futures-util = "0.3"
 libipld = { version = "0.16", features = ["dag-cbor", "derive", "serde-codec"] }
 log = "0.4"
 multihash = "0.18"
