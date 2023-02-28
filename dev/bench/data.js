@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1677572063350,
+  "lastUpdate": 1677572066746,
   "repoUrl": "https://github.com/wnfs-wg/rs-wnfs",
   "entries": {
     "Rust Benchmark": [
@@ -7483,6 +7483,108 @@ window.BENCHMARK_DATA = {
             "name": "namefilter encode",
             "value": 347,
             "range": "± 191",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter decode/0",
+            "value": 1,
+            "range": "± 0",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "36498018+pinkforest@users.noreply.github.com",
+            "name": "pinkforest(she/her)",
+            "username": "pinkforest"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "9c55a116328c870773f5701cdbdfc1edd76238ef",
+          "message": "chore: Redundant bitvec (#193)",
+          "timestamp": "2023-02-28T09:11:06+01:00",
+          "tree_id": "679e1160c7526a398c35a39c8fb9e16a3abfdba9",
+          "url": "https://github.com/wnfs-wg/rs-wnfs/commit/9c55a116328c870773f5701cdbdfc1edd76238ef"
+        },
+        "date": 1677572065283,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "node set",
+            "value": 9207,
+            "range": "± 719",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node set 1000 consecutive",
+            "value": 5255760,
+            "range": "± 320823",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and get",
+            "value": 217157,
+            "range": "± 14471",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and remove",
+            "value": 229627,
+            "range": "± 14263",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt load and decode/0",
+            "value": 60282,
+            "range": "± 3148",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt set and encode",
+            "value": 211590,
+            "range": "± 9835",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt diff",
+            "value": 62146,
+            "range": "± 11697",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt merge",
+            "value": 271236,
+            "range": "± 29069",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter add",
+            "value": 12357,
+            "range": "± 784",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter contains",
+            "value": 12996,
+            "range": "± 715",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter saturate",
+            "value": 52053,
+            "range": "± 2712",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter encode",
+            "value": 163,
+            "range": "± 27",
             "unit": "ns/iter"
           },
           {
