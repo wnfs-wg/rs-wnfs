@@ -2,7 +2,7 @@ use super::{
     encrypted::Encrypted, AesKey, PrivateForest, PrivateNode, PrivateNodeHeader, PrivateRef,
     SnapshotKey, AUTHENTICATION_TAG_SIZE, NONCE_SIZE,
 };
-use crate::{error::FsError, Id};
+use crate::{error::FsError, traits::Id};
 use anyhow::Result;
 use async_once_cell::OnceCell;
 use async_stream::try_stream;

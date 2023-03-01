@@ -9,7 +9,7 @@ use wasm_bindgen::prelude::wasm_bindgen;
 use wasm_bindgen_futures::future_to_promise;
 use wnfs::{
     libipld::Cid,
-    private::{recipient, sharer, SharePayload as WnfsSharePayload},
+    private::share::{recipient, sharer, SharePayload as WnfsSharePayload},
     public::PublicLink,
 };
 
@@ -147,17 +147,13 @@ pub fn receive_share(
 ) -> JsResult<Promise> {
     let sharer_store = ForeignBlockStore(sharer_store);
     let recipient_key = ForeignPrivateKey(recipient_key);
-    let mut sharer_forest = Rc::clone(&sharer_forest.0);
+    let sharer_forest = Rc::clone(&sharer_forest.0);
 
     Ok(future_to_promise(async move {
-        let node = recipient::receive_share(
-            share_label.0,
-            &recipient_key,
-            &mut sharer_forest,
-            &sharer_store,
-        )
-        .await
-        .map_err(error("Cannot receive share"))?;
+        let node =
+            recipient::receive_share(share_label.0, &recipient_key, &sharer_forest, &sharer_store)
+                .await
+                .map_err(error("Cannot receive share"))?;
 
         Ok(value!(PrivateNode(node)))
     }))

@@ -215,8 +215,7 @@ pub mod sharer {
     use super::{SharePayload, EXCHANGE_KEY_NAME};
     use crate::{
         private::{ExchangeKey, PrivateForest, PublicKeyModulus},
-        public::PublicLink,
-        PublicOpResult,
+        public::{PublicLink, PublicOpResult},
     };
     use anyhow::Result;
     use async_stream::try_stream;
@@ -399,8 +398,7 @@ mod tests {
     };
     use crate::{
         private::{PrivateDirectory, PrivateForest, PrivateOpResult, RsaPublicKey},
-        public::PublicLink,
-        PublicNode, PublicOpResult,
+        public::{PublicLink, PublicNode, PublicOpResult},
     };
     use chrono::Utc;
     use proptest::test_runner::{RngAlgorithm, TestRng};
@@ -413,7 +411,7 @@ mod tests {
                 share::EXCHANGE_KEY_NAME, PrivateDirectory, PrivateForest, PrivateOpResult,
                 RsaPrivateKey,
             },
-            PublicDirectory, PublicOpResult,
+            public::{PublicDirectory, PublicOpResult},
         };
         use anyhow::Result;
         use chrono::Utc;

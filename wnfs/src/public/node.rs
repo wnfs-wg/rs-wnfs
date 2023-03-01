@@ -1,7 +1,7 @@
 //! Public node system in-memory representation.
 
 use super::{PublicDirectory, PublicFile};
-use crate::{error::FsError, Id};
+use crate::{error::FsError, traits::Id};
 use anyhow::{bail, Result};
 use async_once_cell::OnceCell;
 use async_trait::async_trait;
@@ -332,7 +332,7 @@ impl RemembersCid for PublicNode {
 
 #[cfg(test)]
 mod tests {
-    use crate::{PublicDirectory, PublicFile, PublicNode};
+    use crate::public::{PublicDirectory, PublicFile, PublicNode};
     use chrono::Utc;
     use libipld::Cid;
     use std::rc::Rc;

@@ -1,7 +1,7 @@
 use crate::fs::{JsResult, PublicDirectory, PublicFile};
 use js_sys::Error;
 use wasm_bindgen::prelude::wasm_bindgen;
-use wnfs::{Id, PublicNode as WnfsPublicNode};
+use wnfs::{public::PublicNode as WnfsPublicNode, traits::Id};
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions

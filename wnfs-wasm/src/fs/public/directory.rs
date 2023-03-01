@@ -14,8 +14,13 @@ use std::rc::Rc;
 use wasm_bindgen::{prelude::wasm_bindgen, JsValue};
 use wasm_bindgen_futures::future_to_promise;
 use wnfs::{
-    common::BlockStore as WnfsBlockStore, libipld::Cid, Id, PublicDirectory as WnfsPublicDirectory,
-    PublicNode as WnfsPublicNode, PublicOpResult as WnfsPublicOpResult,
+    common::BlockStore as WnfsBlockStore,
+    libipld::Cid,
+    public::{
+        PublicDirectory as WnfsPublicDirectory, PublicNode as WnfsPublicNode,
+        PublicOpResult as WnfsPublicOpResult,
+    },
+    traits::Id,
 };
 
 //--------------------------------------------------------------------------------------------------
@@ -110,12 +115,12 @@ impl PublicDirectory {
     /// Reads specified file content from the directory.
     pub fn read(&self, path_segments: &Array, store: BlockStore) -> JsResult<Promise> {
         let directory = Rc::clone(&self.0);
-        let mut store = ForeignBlockStore(store);
+        let store = ForeignBlockStore(store);
         let path_segments = utils::convert_path_segments(path_segments)?;
 
         Ok(future_to_promise(async move {
             let WnfsPublicOpResult { root_dir, result } = directory
-                .read(&path_segments, &mut store)
+                .read(&path_segments, &store)
                 .await
                 .map_err(error("Cannot read from directory"))?;
 

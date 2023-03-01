@@ -12,7 +12,10 @@ use js_sys::{Date, Promise, Uint8Array};
 use std::rc::Rc;
 use wasm_bindgen::{prelude::wasm_bindgen, JsValue};
 use wasm_bindgen_futures::future_to_promise;
-use wnfs::{Id, PrivateFile as WnfsPrivateFile, PrivateNode as WnfsPrivateNode};
+use wnfs::{
+    private::{PrivateFile as WnfsPrivateFile, PrivateNode as WnfsPrivateNode},
+    traits::Id,
+};
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions

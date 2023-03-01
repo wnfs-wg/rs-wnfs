@@ -5,7 +5,7 @@ use crate::{
         encrypted::Encrypted, link::PrivateLink, PrivateDirectory, PrivateDirectoryContent,
         PrivateFile, PrivateFileContent, PrivateForest, PrivateRef,
     },
-    Id,
+    traits::Id,
 };
 use anyhow::{bail, Result};
 use async_recursion::async_recursion;

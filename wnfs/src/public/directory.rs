@@ -1,7 +1,7 @@
 //! Public fs directory node.
 
 use super::{PublicFile, PublicLink, PublicNode};
-use crate::{error::FsError, utils, Id};
+use crate::{error::FsError, traits::Id, utils};
 use anyhow::{bail, ensure, Result};
 use async_once_cell::OnceCell;
 use async_recursion::async_recursion;

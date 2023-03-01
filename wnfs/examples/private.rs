@@ -5,10 +5,7 @@ use chrono::Utc;
 use libipld::Cid;
 use rand::{thread_rng, RngCore};
 use std::rc::Rc;
-use wnfs::{
-    private::{PrivateDirectory, PrivateForest, PrivateOpResult, PrivateRef},
-    PrivateNode,
-};
+use wnfs::private::{PrivateDirectory, PrivateForest, PrivateNode, PrivateOpResult, PrivateRef};
 use wnfs_common::{BlockStore, MemoryBlockStore};
 use wnfs_namefilter::Namefilter;
 

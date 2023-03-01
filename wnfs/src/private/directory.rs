@@ -2,7 +2,7 @@ use super::{
     encrypted::Encrypted, link::PrivateLink, PrivateFile, PrivateForest, PrivateNode,
     PrivateNodeHeader, PrivateRef, PrivateRefSerializable, TemporalKey,
 };
-use crate::{error::FsError, utils::split_last, Id};
+use crate::{error::FsError, traits::Id, utils::split_last};
 use anyhow::{bail, ensure, Result};
 use async_once_cell::OnceCell;
 use chrono::{DateTime, Utc};
