@@ -398,7 +398,7 @@ mod tests {
     };
     use crate::{
         private::{PrivateDirectory, PrivateForest, PrivateOpResult, RsaPublicKey},
-        public::{PublicLink, PublicNode, PublicOpResult},
+        public::{PublicLink, PublicNode},
     };
     use chrono::Utc;
     use proptest::test_runner::{RngAlgorithm, TestRng};
