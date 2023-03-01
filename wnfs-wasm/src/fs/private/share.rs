@@ -110,7 +110,7 @@ pub fn create_share_label(
     ))
 }
 
-#[wasm_bindgen(js_name = "findShare")]
+#[wasm_bindgen(js_name = "findLatestShareCounter")]
 pub fn find_latest_share_counter(
     share_count: u32,
     limit: u32,
