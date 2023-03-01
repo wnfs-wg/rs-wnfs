@@ -20,7 +20,7 @@ use wnfs_common::{AsyncSerialize, BlockStore, NodeType, RemembersCid};
 /// # Examples
 ///
 /// ```
-/// use wnfs::{PublicDirectory, PublicNode};
+/// use wnfs::public::{PublicDirectory, PublicNode};
 /// use chrono::Utc;
 /// use std::rc::Rc;
 ///
@@ -45,7 +45,7 @@ impl PublicNode {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::{PublicDirectory, PublicNode};
+    /// use wnfs::public::{PublicDirectory, PublicNode};
     /// use chrono::{Utc, Duration, TimeZone};
     /// use std::rc::Rc;
     ///
@@ -84,7 +84,7 @@ impl PublicNode {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::{PublicDirectory, PublicNode};
+    /// use wnfs::public::{PublicDirectory, PublicNode};
     /// use chrono::Utc;
     /// use libipld::Cid;
     /// use std::{rc::Rc, collections::BTreeSet};
@@ -122,7 +122,7 @@ impl PublicNode {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::{PublicDirectory, PublicNode};
+    /// use wnfs::public::{PublicDirectory, PublicNode};
     /// use chrono::Utc;
     /// use std::rc::Rc;
     ///
@@ -148,7 +148,7 @@ impl PublicNode {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::{PublicDirectory, PublicNode};
+    /// use wnfs::public::{PublicDirectory, PublicNode};
     /// use chrono::Utc;
     /// use std::rc::Rc;
     ///
@@ -169,7 +169,7 @@ impl PublicNode {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::{PublicFile, PublicNode};
+    /// use wnfs::public::{PublicFile, PublicNode};
     /// use chrono::Utc;
     /// use std::rc::Rc;
     /// use libipld::Cid;
@@ -199,7 +199,7 @@ impl PublicNode {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::{PublicDirectory, PublicNode};
+    /// use wnfs::public::{PublicDirectory, PublicNode};
     /// use chrono::Utc;
     /// use std::rc::Rc;
     ///
@@ -217,7 +217,7 @@ impl PublicNode {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::{PublicFile, PublicNode};
+    /// use wnfs::public::{PublicFile, PublicNode};
     /// use chrono::Utc;
     /// use std::rc::Rc;
     /// use libipld::Cid;

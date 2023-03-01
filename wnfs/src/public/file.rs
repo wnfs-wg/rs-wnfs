@@ -15,7 +15,7 @@ use wnfs_common::{BlockStore, Metadata, NodeType, RemembersCid};
 /// # Examples
 ///
 /// ```
-/// use wnfs::PublicFile;
+/// use wnfs::public::PublicFile;
 /// use chrono::Utc;
 /// use libipld::Cid;
 ///
@@ -50,7 +50,7 @@ impl PublicFile {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::PublicFile;
+    /// use wnfs::public::PublicFile;
     /// use chrono::Utc;
     /// use libipld::Cid;
     ///
@@ -72,7 +72,7 @@ impl PublicFile {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::{PublicDirectory, Id};
+    /// use wnfs::{public::PublicDirectory, traits::Id};
     /// use chrono::Utc;
     ///
     /// let dir = PublicDirectory::new(Utc::now());
@@ -118,7 +118,11 @@ impl PublicFile {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::{PublicFile, Id, common::MemoryBlockStore};
+    /// use wnfs::{
+    ///     public::PublicFile,
+    ///     traits::Id,
+    ///     common::MemoryBlockStore
+    /// };
     /// use chrono::Utc;
     /// use libipld::Cid;
     ///

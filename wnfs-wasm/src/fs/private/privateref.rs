@@ -3,7 +3,7 @@ use wasm_bindgen::prelude::wasm_bindgen;
 use wnfs::{
     common::HASH_BYTE_SIZE,
     libipld::Cid,
-    private::{AesKey, PrivateRef as WnfsPrivateRef, TemporalKey, KEY_BYTE_SIZE},
+    private::{PrivateRef as WnfsPrivateRef, TemporalKey, KEY_BYTE_SIZE},
 };
 
 //--------------------------------------------------------------------------------------------------
@@ -60,8 +60,7 @@ impl TryInto<WnfsPrivateRef> for PrivateRef {
         let saturated_name_hash = utils::expect_bytes::<HASH_BYTE_SIZE>(label)?;
 
         let key_bytes = utils::expect_bytes::<KEY_BYTE_SIZE>(temporal_key)?;
-        let key = AesKey::new(key_bytes);
-        let temporal_key = TemporalKey(key);
+        let temporal_key = TemporalKey::from(key_bytes);
 
         let content_cid = Cid::try_from(content_cid).map_err(error("Error parsing CID"))?;
         Ok(WnfsPrivateRef {

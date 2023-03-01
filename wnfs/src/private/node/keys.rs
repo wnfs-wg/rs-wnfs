@@ -1,6 +1,6 @@
 use crate::{
     error::AesError,
-    private::{AesKey, NONCE_SIZE},
+    private::{AesKey, KEY_BYTE_SIZE, NONCE_SIZE},
 };
 use aes_gcm::{
     aead::{consts::U12, Aead},
@@ -36,7 +36,7 @@ impl TemporalKey {
     /// revisions into a SnapshotKey, which only gives read access to the current revision.
     pub fn derive_snapshot_key(&self) -> SnapshotKey {
         let TemporalKey(key) = self;
-        SnapshotKey(AesKey::new(Sha3_256::hash(&key.as_bytes())))
+        SnapshotKey::from(Sha3_256::hash(&key.as_bytes()))
     }
 
     /// Encrypt a cleartext with this temporal key.
@@ -75,7 +75,7 @@ impl SnapshotKey {
     /// use rand::thread_rng;
     ///
     /// let rng = &mut thread_rng();
-    /// let key = SnapshotKey(AesKey::new(utils::get_random_bytes(rng)));
+    /// let key = SnapshotKey::from(utils::get_random_bytes(rng));
     ///
     /// let plaintext = b"Hello World!";
     /// let ciphertext = key.encrypt(plaintext, rng).unwrap();
@@ -122,7 +122,7 @@ impl SnapshotKey {
     /// use rand::thread_rng;
     ///
     /// let rng = &mut thread_rng();
-    /// let key = SnapshotKey(AesKey::new(utils::get_random_bytes(rng)));
+    /// let key = SnapshotKey::from(utils::get_random_bytes(rng));
     ///
     /// let plaintext = b"Hello World!";
     /// let ciphertext = key.encrypt(plaintext, rng).unwrap();
@@ -162,8 +162,8 @@ impl From<AesKey> for TemporalKey {
     }
 }
 
-impl From<[u8; 32]> for TemporalKey {
-    fn from(key: [u8; 32]) -> Self {
+impl From<[u8; KEY_BYTE_SIZE]> for TemporalKey {
+    fn from(key: [u8; KEY_BYTE_SIZE]) -> Self {
         Self(AesKey::new(key))
     }
 }
@@ -177,6 +177,12 @@ impl From<&Ratchet> for TemporalKey {
 impl From<AesKey> for SnapshotKey {
     fn from(key: AesKey) -> Self {
         Self(key)
+    }
+}
+
+impl From<[u8; KEY_BYTE_SIZE]> for SnapshotKey {
+    fn from(key: [u8; KEY_BYTE_SIZE]) -> Self {
+        Self(AesKey::new(key))
     }
 }
 
@@ -207,7 +213,7 @@ mod proptests {
         #[strategy(any::<[u8; KEY_BYTE_SIZE]>())] rng_seed: [u8; KEY_BYTE_SIZE],
         key_bytes: [u8; KEY_BYTE_SIZE],
     ) {
-        let key = SnapshotKey(AesKey::new(key_bytes));
+        let key = SnapshotKey::from(key_bytes);
         let rng = &mut TestRng::from_seed(RngAlgorithm::ChaCha, &rng_seed);
 
         let encrypted = key.encrypt(&data, rng).unwrap();
@@ -228,7 +234,7 @@ mod proptests {
     ) {
         let mut buffer = data.clone();
         let nonce = Nonce::from_slice(&nonce);
-        let key = SnapshotKey(AesKey::new(key_bytes));
+        let key = SnapshotKey::from(key_bytes);
 
         let tag = key.encrypt_in_place(nonce, &mut buffer).unwrap();
 
