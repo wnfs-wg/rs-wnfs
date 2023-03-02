@@ -326,9 +326,7 @@ pub mod recipient {
         sharer_forest: &PrivateForest,
         store: &impl BlockStore,
     ) -> Result<Option<u64>> {
-        for i in 0..limit {
-            let share_count = share_count_start + i;
-
+        for share_count in share_count_start..share_count_start + limit {
             let share_label =
                 sharer::create_share_label(share_count, sharer_root_did, recipient_exchange_key);
 
@@ -336,8 +334,8 @@ pub mod recipient {
                 .has(&Sha3_256::hash(&share_label), store)
                 .await?
             {
-                if i == 0 {
-                    // There don't seem to be any shares yet
+                if share_count == share_count_start {
+                    // There don't seem to be any shares
                     return Ok(None);
                 } else {
                     // We've hit the first unpopulated label,
