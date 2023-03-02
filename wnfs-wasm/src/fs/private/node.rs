@@ -1,8 +1,8 @@
 use crate::{
     fs::{
+        private::{PrivateDirectory, PrivateFile, PrivateForest, PrivateRef},
         utils::{self, error},
-        BlockStore, ForeignBlockStore, JsResult, Namefilter, PrivateDirectory, PrivateFile,
-        PrivateForest, PrivateRef, Rng,
+        BlockStore, ForeignBlockStore, JsResult, Namefilter, Rng,
     },
     value,
 };
@@ -15,7 +15,7 @@ use wnfs::{
     libipld::Cid,
     namefilter::Namefilter as WnfsNamefilter,
     private::PrivateNode as WnfsPrivateNode,
-    Id,
+    traits::Id,
 };
 
 //--------------------------------------------------------------------------------------------------

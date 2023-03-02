@@ -5,7 +5,7 @@ use crate::{
         encrypted::Encrypted, link::PrivateLink, PrivateDirectory, PrivateDirectoryContent,
         PrivateFile, PrivateFileContent, PrivateForest, PrivateRef,
     },
-    Id,
+    traits::Id,
 };
 use anyhow::{bail, Result};
 use async_recursion::async_recursion;
@@ -27,7 +27,10 @@ use wnfs_namefilter::Namefilter;
 /// # Examples
 ///
 /// ```
-/// use wnfs::{PrivateDirectory, PrivateNode, namefilter::Namefilter};
+/// use wnfs::{
+///     private::{PrivateDirectory, PrivateNode},
+///     namefilter::Namefilter
+/// };
 /// use chrono::Utc;
 /// use std::rc::Rc;
 /// use rand::thread_rng;
@@ -65,7 +68,10 @@ impl PrivateNode {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::{PrivateDirectory, PrivateNode, namefilter::Namefilter};
+    /// use wnfs::{
+    ///     private::{PrivateDirectory, PrivateNode},
+    ///     namefilter::Namefilter
+    /// };
     /// use chrono::{Utc, Duration, TimeZone};
     /// use std::rc::Rc;
     /// use rand::thread_rng;
@@ -142,7 +148,10 @@ impl PrivateNode {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::{PrivateDirectory, PrivateNode, namefilter::Namefilter};
+    /// use wnfs::{
+    ///     private::{PrivateDirectory, PrivateNode},
+    ///     namefilter::Namefilter
+    /// };
     /// use chrono::Utc;
     /// use std::rc::Rc;
     /// use rand::thread_rng;
@@ -195,7 +204,10 @@ impl PrivateNode {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::{PrivateDirectory, PrivateNode, namefilter::Namefilter};
+    /// use wnfs::{
+    ///     private::{PrivateDirectory, PrivateNode},
+    ///     namefilter::Namefilter
+    /// };
     /// use chrono::Utc;
     /// use std::rc::Rc;
     /// use rand::thread_rng;
@@ -222,7 +234,10 @@ impl PrivateNode {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::{PrivateFile, PrivateNode, namefilter::Namefilter};
+    /// use wnfs::{
+    ///     private::{PrivateFile, PrivateNode},
+    ///     namefilter::Namefilter
+    /// };
     /// use chrono::Utc;
     /// use std::rc::Rc;
     /// use rand::thread_rng;
@@ -249,7 +264,10 @@ impl PrivateNode {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::{PrivateDirectory, PrivateNode, namefilter::Namefilter};
+    /// use wnfs::{
+    ///     private::{PrivateDirectory, PrivateNode},
+    ///     namefilter::Namefilter
+    /// };
     /// use chrono::Utc;
     /// use std::rc::Rc;
     /// use rand::thread_rng;
@@ -273,7 +291,10 @@ impl PrivateNode {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::{PrivateFile, PrivateNode, namefilter::Namefilter};
+    /// use wnfs::{
+    ///     private::{PrivateFile, PrivateNode},
+    ///     namefilter::Namefilter
+    /// };
     /// use chrono::Utc;
     /// use std::rc::Rc;
     /// use rand::thread_rng;
@@ -301,9 +322,9 @@ impl PrivateNode {
     /// use chrono::Utc;
     /// use rand::thread_rng;
     /// use wnfs::{
-    ///     private::{PrivateForest, PrivateRef, PrivateNode},
+    ///     private::{PrivateForest, PrivateRef, PrivateNode, PrivateDirectory, PrivateOpResult},
     ///     common::{BlockStore, MemoryBlockStore},
-    ///     namefilter::Namefilter, PrivateDirectory, PrivateOpResult,
+    ///     namefilter::Namefilter,
     /// };
     ///
     /// #[async_std::main]
@@ -416,9 +437,9 @@ impl PrivateNode {
     /// use chrono::Utc;
     /// use rand::thread_rng;
     /// use wnfs::{
-    ///     private::{PrivateForest, PrivateRef}, PrivateNode,
+    ///     private::{PrivateForest, PrivateRef, PrivateNode, PrivateDirectory, PrivateOpResult},
     ///     common::{BlockStore, MemoryBlockStore},
-    ///     namefilter::Namefilter, PrivateDirectory, PrivateOpResult,
+    ///     namefilter::Namefilter,
     /// };
     ///
     /// #[async_std::main]

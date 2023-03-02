@@ -1,5 +1,5 @@
-use super::{SnapshotKey, TemporalKey};
-use crate::private::{AesKey, RevisionRef};
+use super::TemporalKey;
+use crate::private::RevisionRef;
 use anyhow::Result;
 use libipld::{Cid, IpldCodec};
 use rand_core::RngCore;
@@ -23,7 +23,11 @@ pub type INumber = HashOutput;
 /// # Examples
 ///
 /// ```
-/// use wnfs::{PrivateFile, namefilter::Namefilter, Id};
+/// use wnfs::{
+///     private::PrivateFile,
+///     namefilter::Namefilter,
+///     traits::Id
+/// };
 /// use chrono::Utc;
 /// use rand::thread_rng;
 ///
@@ -109,7 +113,11 @@ impl PrivateNodeHeader {
     ///
     /// ```
     /// use std::rc::Rc;
-    /// use wnfs::{PrivateFile, namefilter::Namefilter, Id};
+    /// use wnfs::{
+    ///     private::PrivateFile,
+    ///     namefilter::Namefilter,
+    ///     traits::Id
+    /// };
     /// use chrono::Utc;
     /// use rand::thread_rng;
     ///
@@ -134,6 +142,7 @@ impl PrivateNodeHeader {
     }
 
     /// Returns the label used for identifying the revision in the PrivateForest.
+    #[inline]
     pub fn get_saturated_name_hash(&self) -> HashOutput {
         Sha3_256::hash(&self.get_saturated_name())
     }
@@ -144,7 +153,11 @@ impl PrivateNodeHeader {
     ///
     /// ```
     /// use std::rc::Rc;
-    /// use wnfs::{PrivateFile, namefilter::Namefilter, Id};
+    /// use wnfs::{
+    ///     private::PrivateFile,
+    ///     namefilter::Namefilter,
+    ///     traits::Id
+    /// };
     /// use chrono::Utc;
     /// use rand::thread_rng;
     ///
@@ -160,32 +173,7 @@ impl PrivateNodeHeader {
     /// ```
     #[inline]
     pub fn derive_temporal_key(&self) -> TemporalKey {
-        AesKey::new(self.ratchet.derive_key()).into()
-    }
-
-    /// Derives the snapshot key.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use std::rc::Rc;
-    /// use wnfs::{PrivateFile, namefilter::Namefilter, Id};
-    /// use chrono::Utc;
-    /// use rand::thread_rng;
-    ///
-    /// let rng = &mut thread_rng();
-    /// let file = Rc::new(PrivateFile::new(
-    ///     Namefilter::default(),
-    ///     Utc::now(),
-    ///     rng,
-    /// ));
-    /// let snapshot_key = file.header.derive_snapshot_key();
-    ///
-    /// println!("Snapshot Key: {:?}", snapshot_key);
-    /// ```
-    #[inline]
-    pub fn derive_snapshot_key(&self) -> SnapshotKey {
-        AesKey::new(Sha3_256::hash(&self.ratchet.derive_key())).into()
+        TemporalKey::from(&self.ratchet)
     }
 
     /// Gets the saturated namefilter for this node using the provided ratchet key.
@@ -202,7 +190,10 @@ impl PrivateNodeHeader {
     ///
     /// ```
     /// use std::rc::Rc;
-    /// use wnfs::{PrivateFile, namefilter::Namefilter, private::AesKey};
+    /// use wnfs::{
+    ///     private::{PrivateFile, AesKey},
+    ///     namefilter::Namefilter
+    /// };
     /// use chrono::Utc;
     /// use rand::thread_rng;
     ///
@@ -218,8 +209,7 @@ impl PrivateNodeHeader {
     /// ```
     #[inline]
     pub fn get_saturated_name(&self) -> Namefilter {
-        let temporal_key = self.derive_temporal_key();
-        self.get_saturated_name_with_key(&temporal_key)
+        self.get_saturated_name_with_key(&self.derive_temporal_key())
     }
 
     /// Encrypts this private node header in an block, then stores that in the given

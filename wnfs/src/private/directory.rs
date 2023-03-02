@@ -2,7 +2,7 @@ use super::{
     encrypted::Encrypted, link::PrivateLink, PrivateFile, PrivateForest, PrivateNode,
     PrivateNodeHeader, PrivateRef, PrivateRefSerializable, TemporalKey,
 };
-use crate::{error::FsError, utils::split_last, Id};
+use crate::{error::FsError, traits::Id, utils::split_last};
 use anyhow::{bail, ensure, Result};
 use async_once_cell::OnceCell;
 use chrono::{DateTime, Utc};
@@ -34,7 +34,7 @@ pub type PrivatePathNodesResult = PathNodesResult<PrivateDirectory>;
 /// # Examples
 ///
 /// ```
-/// use wnfs::{PrivateDirectory, namefilter::Namefilter};
+/// use wnfs::{private::PrivateDirectory, namefilter::Namefilter};
 /// use chrono::Utc;
 /// use rand::thread_rng;
 ///
@@ -91,7 +91,7 @@ impl PrivateDirectory {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::{PrivateDirectory, namefilter::Namefilter};
+    /// use wnfs::{private::PrivateDirectory, namefilter::Namefilter};
     /// use chrono::Utc;
     /// use rand::thread_rng;
     ///
@@ -121,7 +121,7 @@ impl PrivateDirectory {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::{PrivateDirectory, namefilter::Namefilter};
+    /// use wnfs::{private::PrivateDirectory, namefilter::Namefilter};
     /// use chrono::Utc;
     /// use rand::{thread_rng, Rng};
     ///
@@ -201,7 +201,7 @@ impl PrivateDirectory {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::{PrivateDirectory, namefilter::Namefilter, common::Metadata};
+    /// use wnfs::{private::PrivateDirectory, namefilter::Namefilter, common::Metadata};
     /// use chrono::Utc;
     /// use rand::thread_rng;
     /// use std::rc::Rc;
@@ -423,9 +423,9 @@ impl PrivateDirectory {
     /// use rand::thread_rng;
     ///
     /// use wnfs::{
-    ///     private::{PrivateForest, PrivateRef},
+    ///     private::{PrivateForest, PrivateRef, PrivateDirectory, PrivateOpResult},
     ///     common::{BlockStore, MemoryBlockStore},
-    ///     namefilter::Namefilter, PrivateDirectory, PrivateOpResult,
+    ///     namefilter::Namefilter,
     /// };
     ///
     /// #[async_std::main]
@@ -499,9 +499,9 @@ impl PrivateDirectory {
     /// use rand::thread_rng;
     ///
     /// use wnfs::{
-    ///     private::{PrivateForest, PrivateRef},
+    ///     private::{PrivateForest, PrivateRef, PrivateDirectory, PrivateOpResult},
     ///     common::{BlockStore, MemoryBlockStore},
-    ///     namefilter::Namefilter, PrivateDirectory, PrivateOpResult,
+    ///     namefilter::Namefilter,
     /// };
     ///
     /// #[async_std::main]
@@ -580,9 +580,9 @@ impl PrivateDirectory {
     /// use chrono::Utc;
     /// use rand::thread_rng;
     /// use wnfs::{
-    ///     private::{PrivateForest, PrivateRef},
+    ///     private::{PrivateForest, PrivateRef, PrivateDirectory, PrivateOpResult},
     ///     common::{BlockStore, MemoryBlockStore},
-    ///     namefilter::Namefilter, PrivateDirectory, PrivateOpResult,
+    ///     namefilter::Namefilter,
     /// };
     ///
     /// #[async_std::main]
@@ -704,9 +704,9 @@ impl PrivateDirectory {
     /// use rand::thread_rng;
     ///
     /// use wnfs::{
-    ///     private::{PrivateForest, PrivateRef},
+    ///     private::{PrivateForest, PrivateRef, PrivateDirectory, PrivateOpResult},
     ///     common::{BlockStore, MemoryBlockStore},
-    ///     namefilter::Namefilter, PrivateDirectory, PrivateOpResult,
+    ///     namefilter::Namefilter,
     /// };
     ///
     /// #[async_std::main]
@@ -762,9 +762,9 @@ impl PrivateDirectory {
     /// use chrono::Utc;
     /// use rand::thread_rng;
     /// use wnfs::{
-    ///     private::{PrivateForest, PrivateRef, PrivateNode},
+    ///     private::{PrivateForest, PrivateRef, PrivateNode, PrivateDirectory, PrivateOpResult},
     ///     common::{BlockStore, MemoryBlockStore},
-    ///     namefilter::Namefilter, PrivateDirectory, PrivateOpResult,
+    ///     namefilter::Namefilter,
     /// };
     ///
     /// #[async_std::main]
@@ -821,9 +821,9 @@ impl PrivateDirectory {
     /// use rand::thread_rng;
     ///
     /// use wnfs::{
-    ///     private::{PrivateForest, PrivateRef},
+    ///     private::{PrivateForest, PrivateRef, PrivateDirectory, PrivateOpResult},
     ///     common::{BlockStore, MemoryBlockStore},
-    ///     namefilter::Namefilter, PrivateDirectory, PrivateOpResult,
+    ///     namefilter::Namefilter,
     /// };
     ///
     /// #[async_std::main]
@@ -882,9 +882,9 @@ impl PrivateDirectory {
     /// use rand::thread_rng;
     ///
     /// use wnfs::{
-    ///     private::{PrivateForest, PrivateRef},
+    ///     private::{PrivateForest, PrivateRef, PrivateDirectory, PrivateOpResult},
     ///     common::{BlockStore, MemoryBlockStore},
-    ///     namefilter::Namefilter, PrivateDirectory, PrivateOpResult,
+    ///     namefilter::Namefilter,
     /// };
     ///
     /// #[async_std::main]
@@ -968,9 +968,9 @@ impl PrivateDirectory {
     /// use chrono::Utc;
     /// use rand::thread_rng;
     /// use wnfs::{
-    ///     private::{PrivateForest, PrivateRef},
+    ///     private::{PrivateForest, PrivateRef, PrivateDirectory, PrivateOpResult},
     ///     common::{BlockStore, MemoryBlockStore},
-    ///     namefilter::Namefilter, PrivateDirectory, PrivateOpResult,
+    ///     namefilter::Namefilter,
     /// };
     ///
     /// #[async_std::main]
@@ -1118,9 +1118,9 @@ impl PrivateDirectory {
     /// use rand::thread_rng;
     ///
     /// use wnfs::{
-    ///     private::{PrivateForest, PrivateRef},
+    ///     private::{PrivateForest, PrivateRef, PrivateDirectory, PrivateOpResult},
     ///     common::{BlockStore, MemoryBlockStore},
-    ///     namefilter::Namefilter, PrivateDirectory, PrivateOpResult,
+    ///     namefilter::Namefilter,
     /// };
     ///
     /// #[async_std::main]
@@ -1211,9 +1211,9 @@ impl PrivateDirectory {
     /// use rand::thread_rng;
     ///
     /// use wnfs::{
-    ///     private::{PrivateForest, PrivateRef},
+    ///     private::{PrivateForest, PrivateRef, PrivateDirectory, PrivateOpResult},
     ///     common::{BlockStore, MemoryBlockStore},
-    ///     namefilter::Namefilter, PrivateDirectory, PrivateOpResult,
+    ///     namefilter::Namefilter,
     /// };
     ///
     /// #[async_std::main]
@@ -1299,9 +1299,9 @@ impl PrivateDirectory {
     /// use chrono::Utc;
     /// use rand::thread_rng;
     /// use wnfs::{
-    ///     private::{PrivateForest, PrivateRef}, PrivateNode,
+    ///     private::{PrivateForest, PrivateRef, PrivateNode, PrivateDirectory, PrivateOpResult},
     ///     common::{BlockStore, MemoryBlockStore},
-    ///     namefilter::Namefilter, PrivateDirectory, PrivateOpResult,
+    ///     namefilter::Namefilter,
     /// };
     ///
     /// #[async_std::main]

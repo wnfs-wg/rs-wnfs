@@ -1,8 +1,8 @@
 use super::{
-    encrypted::Encrypted, AesKey, PrivateForest, PrivateNode, PrivateNodeHeader, PrivateRef,
-    SnapshotKey, AUTHENTICATION_TAG_SIZE, NONCE_SIZE,
+    encrypted::Encrypted, PrivateForest, PrivateNode, PrivateNodeHeader, PrivateRef, SnapshotKey,
+    AUTHENTICATION_TAG_SIZE, NONCE_SIZE,
 };
-use crate::{error::FsError, Id};
+use crate::{error::FsError, traits::Id};
 use anyhow::Result;
 use async_once_cell::OnceCell;
 use async_stream::try_stream;
@@ -44,9 +44,9 @@ pub const MAX_BLOCK_CONTENT_SIZE: usize = MAX_BLOCK_SIZE - NONCE_SIZE - AUTHENTI
 /// use chrono::Utc;
 /// use rand::thread_rng;
 /// use wnfs::{
-///     private::{PrivateForest, PrivateRef},
+///     private::{PrivateForest, PrivateRef, PrivateFile},
 ///     common::{MemoryBlockStore, utils::get_random_bytes},
-///     namefilter::Namefilter, PrivateFile,
+///     namefilter::Namefilter,
 /// };
 ///
 /// #[async_std::main]
@@ -118,7 +118,11 @@ impl PrivateFile {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::{PrivateFile, namefilter::Namefilter, Id};
+    /// use wnfs::{
+    ///     private::PrivateFile,
+    ///     namefilter::Namefilter,
+    ///     traits::Id
+    /// };
     /// use chrono::Utc;
     /// use rand::thread_rng;
     ///
@@ -152,9 +156,9 @@ impl PrivateFile {
     /// use chrono::Utc;
     /// use rand::thread_rng;
     /// use wnfs::{
-    ///     private::{PrivateForest, PrivateRef},
+    ///     private::{PrivateForest, PrivateRef, PrivateFile},
     ///     common::{MemoryBlockStore, utils::get_random_bytes, MAX_BLOCK_SIZE},
-    ///     namefilter::Namefilter, PrivateFile,
+    ///     namefilter::Namefilter,
     /// };
     ///
     /// #[async_std::main]
@@ -212,9 +216,9 @@ impl PrivateFile {
     /// use chrono::Utc;
     /// use rand::thread_rng;
     /// use wnfs::{
-    ///     private::{PrivateForest, PrivateRef},
+    ///     private::{PrivateForest, PrivateRef, PrivateFile},
     ///     common::{MemoryBlockStore, MAX_BLOCK_SIZE},
-    ///     namefilter::Namefilter, PrivateFile,
+    ///     namefilter::Namefilter,
     /// };
     ///
     /// #[async_std::main]
@@ -273,9 +277,9 @@ impl PrivateFile {
     /// use chrono::Utc;
     /// use rand::thread_rng;
     /// use wnfs::{
-    ///     private::{PrivateForest, PrivateRef},
+    ///     private::{PrivateForest, PrivateRef, PrivateFile},
     ///     common::{MemoryBlockStore, utils::get_random_bytes},
-    ///     namefilter::Namefilter, PrivateFile,
+    ///     namefilter::Namefilter,
     /// };
     /// use futures::{future, StreamExt};
     ///
@@ -352,9 +356,9 @@ impl PrivateFile {
     /// use chrono::Utc;
     /// use rand::thread_rng;
     /// use wnfs::{
-    ///     private::{PrivateForest, PrivateRef},
+    ///     private::{PrivateFile, PrivateForest, PrivateRef},
     ///     common::{MemoryBlockStore, utils::get_random_bytes},
-    ///     namefilter::Namefilter, PrivateFile,
+    ///     namefilter::Namefilter,
     /// };
     ///
     /// #[async_std::main]
@@ -404,7 +408,7 @@ impl PrivateFile {
         rng: &mut impl RngCore,
     ) -> Result<FileContent> {
         // TODO(appcypher): Use a better heuristic to determine when to use external storage.
-        let key = SnapshotKey(AesKey::new(utils::get_random_bytes(rng)));
+        let key = SnapshotKey::from(utils::get_random_bytes(rng));
         let block_count = (content.len() as f64 / MAX_BLOCK_CONTENT_SIZE as f64).ceil() as usize;
 
         for (index, label) in
@@ -440,7 +444,7 @@ impl PrivateFile {
         store: &mut impl BlockStore,
         rng: &mut impl RngCore,
     ) -> Result<FileContent> {
-        let key = SnapshotKey(AesKey::new(utils::get_random_bytes(rng)));
+        let key = SnapshotKey::from(utils::get_random_bytes(rng));
 
         let mut block_index = 0;
 
@@ -632,9 +636,9 @@ impl PrivateFile {
     /// use chrono::Utc;
     /// use rand::thread_rng;
     /// use wnfs::{
-    ///     private::{PrivateForest, PrivateRef}, PrivateNode,
+    ///     private::{PrivateForest, PrivateRef, PrivateFile, PrivateOpResult, PrivateNode},
     ///     common::{BlockStore, MemoryBlockStore},
-    ///     namefilter::Namefilter, PrivateFile, PrivateOpResult,
+    ///     namefilter::Namefilter,
     /// };
     ///
     /// #[async_std::main]
@@ -665,7 +669,7 @@ impl PrivateFile {
         rng: &mut impl RngCore,
     ) -> Result<PrivateRef> {
         let header_cid = self.header.store(store).await?;
-        let snapshot_key = self.header.derive_snapshot_key();
+        let snapshot_key = self.header.derive_temporal_key().derive_snapshot_key();
         let label = self.header.get_saturated_name();
 
         let content_cid = self
