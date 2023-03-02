@@ -27,7 +27,7 @@ const setup = async () => {
     share,
     createShareLabel,
     receiveShare,
-    findShare,
+    findLatestShareCounter,
   } = await import("../../pkg/index");
 
   const mock = {
@@ -55,7 +55,7 @@ const setup = async () => {
     share,
     createShareLabel,
     receiveShare,
-    findShare,
+    findLatestShareCounter,
   };
 
   return { mock, wnfs, setPanicHook };

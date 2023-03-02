@@ -317,31 +317,36 @@ pub mod recipient {
     use wnfs_hamt::Hasher;
     use wnfs_namefilter::Namefilter;
 
-    /// Checks if a share count is available.
-    pub async fn find_share(
-        share_count: u64,
+    /// Seeks to the latest share counter that is populated.
+    pub async fn find_latest_share_counter(
+        share_count_start: u64,
         limit: u64,
         recipient_exchange_key: &[u8],
         sharer_root_did: &str,
         sharer_forest: &PrivateForest,
         store: &impl BlockStore,
     ) -> Result<Option<u64>> {
-        for i in 0..limit {
-            let share_label = sharer::create_share_label(
-                share_count + i,
-                sharer_root_did,
-                recipient_exchange_key,
-            );
+        for share_count in share_count_start..share_count_start + limit {
+            let share_label =
+                sharer::create_share_label(share_count, sharer_root_did, recipient_exchange_key);
 
-            if sharer_forest
+            if !sharer_forest
                 .has(&Sha3_256::hash(&share_label), store)
                 .await?
             {
-                return Ok(Some(share_count + i));
+                if share_count == share_count_start {
+                    // There don't seem to be any shares
+                    return Ok(None);
+                } else {
+                    // We've hit the first unpopulated label,
+                    // so the last one was the last valid share counter.
+                    return Ok(Some(share_count - 1));
+                }
             }
         }
 
-        Ok(None)
+        // We've exhausted the limit, this seems to be the last valid share count under the limit
+        Ok(Some(share_count_start + limit - 1))
     }
 
     /// Lets a recipient receive a share from a sharer using the sharer's forest and store.
@@ -388,16 +393,19 @@ pub mod recipient {
 
 #[cfg(test)]
 mod tests {
-    use super::{recipient, sharer, Recipient, Share, SharePayload, Sharer};
+    use super::{
+        recipient::{self, find_latest_share_counter},
+        sharer, Recipient, Share, SharePayload, Sharer, EXCHANGE_KEY_NAME,
+    };
     use crate::{
         private::{PrivateDirectory, PrivateForest, PrivateOpResult, RsaPublicKey},
         public::PublicLink,
-        PublicNode,
+        PublicNode, PublicOpResult,
     };
     use chrono::Utc;
     use proptest::test_runner::{RngAlgorithm, TestRng};
     use std::rc::Rc;
-    use wnfs_common::{dagcbor, MemoryBlockStore};
+    use wnfs_common::{dagcbor, BlockStore, MemoryBlockStore};
 
     mod helper {
         use crate::{
@@ -548,10 +556,104 @@ mod tests {
 
         let serialized = dagcbor::encode(&payload).unwrap();
 
-        assert!(serialized.len() < 190);
+        // Must be smaller than 190 bytes to fit within RSAES-OAEP limits
+        assert!(serialized.len() <= 190);
 
         let deserialized: SharePayload = dagcbor::decode(&serialized).unwrap();
 
         assert_eq!(payload, deserialized);
+    }
+
+    #[async_std::test]
+    async fn find_latest_share_counter_finds_highest_count() {
+        let sharer_store = &mut MemoryBlockStore::default();
+        let recipient_store = &mut MemoryBlockStore::default();
+        let forest = &mut Rc::new(PrivateForest::new());
+        let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
+
+        let sharer_root_did = "did:key:z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK";
+
+        // Establish recipient exchange root.
+        let (_, recipient_exchange_root) = helper::create_recipient_exchange_root(recipient_store)
+            .await
+            .unwrap();
+
+        // Get exchange public key
+        let PublicOpResult {
+            result: recipient_exchange_key_cid,
+            ..
+        } = Rc::clone(&recipient_exchange_root)
+            .read(
+                &["device1".into(), EXCHANGE_KEY_NAME.into()],
+                recipient_store,
+            )
+            .await
+            .unwrap();
+
+        let recipient_exchange_key = recipient_store
+            .get_block(&recipient_exchange_key_cid)
+            .await
+            .unwrap();
+
+        // Test finding latest share before having shared
+        let max_share_count_before = find_latest_share_counter(
+            0,
+            100,
+            recipient_exchange_key.as_ref(),
+            sharer_root_did,
+            forest,
+            sharer_store,
+        )
+        .await
+        .unwrap();
+
+        // We expect no shares to be found at all without sharing
+        assert_eq!(max_share_count_before, None);
+
+        // Create something to share access to.
+        let PrivateOpResult { root_dir, .. } = PrivateDirectory::new_and_store(
+            Default::default(),
+            Utc::now(),
+            forest,
+            sharer_store,
+            rng,
+        )
+        .await
+        .unwrap();
+
+        // Create the share
+        let payload = SharePayload::from_node(&root_dir.as_node(), true, forest, sharer_store, rng)
+            .await
+            .unwrap();
+
+        let expected_max_share_count = 5;
+
+        for i in 0..=expected_max_share_count {
+            sharer::share::<RsaPublicKey>(
+                &payload,
+                i,
+                sharer_root_did,
+                forest,
+                sharer_store,
+                PublicLink::with_dir(Rc::clone(&recipient_exchange_root)),
+                recipient_store,
+            )
+            .await
+            .unwrap();
+        }
+
+        let max_share_count = find_latest_share_counter(
+            0,
+            100,
+            recipient_exchange_key.as_ref(),
+            sharer_root_did,
+            forest,
+            sharer_store,
+        )
+        .await
+        .unwrap();
+
+        // We expect the count to be the latest share
+        assert_eq!(max_share_count, Some(expected_max_share_count));
     }
 }

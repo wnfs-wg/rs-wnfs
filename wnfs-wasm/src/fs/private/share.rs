@@ -110,8 +110,8 @@ pub fn create_share_label(
     ))
 }
 
-#[wasm_bindgen(js_name = "findShare")]
-pub fn find_share(
+#[wasm_bindgen(js_name = "findLatestShareCounter")]
+pub fn find_latest_share_counter(
     share_count: u32,
     limit: u32,
     recipient_exchange_key: Vec<u8>,
@@ -123,7 +123,7 @@ pub fn find_share(
     let sharer_forest = Rc::clone(&sharer_forest.0);
 
     Ok(future_to_promise(async move {
-        let count = recipient::find_share(
+        let count = recipient::find_latest_share_counter(
             share_count.into(),
             limit.into(),
             &recipient_exchange_key,
