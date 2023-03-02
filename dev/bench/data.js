@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1677574593461,
+  "lastUpdate": 1677772311221,
   "repoUrl": "https://github.com/wnfs-wg/rs-wnfs",
   "entries": {
     "Rust Benchmark": [
@@ -7992,6 +7992,108 @@ window.BENCHMARK_DATA = {
           {
             "name": "namefilter encode",
             "value": 279,
+            "range": "± 7",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter decode/0",
+            "value": 1,
+            "range": "± 0",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "philipp.krueger1@gmail.com",
+            "name": "Philipp Krüger",
+            "username": "matheus23"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "69ffeeca20cc3106e6d733e2d5adf5f87987630c",
+          "message": "fix: `find_latest_share_counter` finds the last share count (#197)\n\n* fix: `find_latest_share_count` finds the last share count\r\n\r\n* refactor: Also rename func in generated TS\r\n\r\n* fix: Correct imports in wasm tests\r\n\r\n* refactor: Readability",
+          "timestamp": "2023-03-02T16:47:52+01:00",
+          "tree_id": "21f32445ca77f83ebfac28d675e71665f6d37882",
+          "url": "https://github.com/wnfs-wg/rs-wnfs/commit/69ffeeca20cc3106e6d733e2d5adf5f87987630c"
+        },
+        "date": 1677772309688,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "node set",
+            "value": 6910,
+            "range": "± 97",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node set 1000 consecutive",
+            "value": 4559316,
+            "range": "± 16479",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and get",
+            "value": 187040,
+            "range": "± 2517",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and remove",
+            "value": 202642,
+            "range": "± 469",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt load and decode/0",
+            "value": 52308,
+            "range": "± 73",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt set and encode",
+            "value": 178422,
+            "range": "± 585",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt diff",
+            "value": 60009,
+            "range": "± 4814",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt merge",
+            "value": 244308,
+            "range": "± 19690",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter add",
+            "value": 8084,
+            "range": "± 197",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter contains",
+            "value": 10080,
+            "range": "± 64",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter saturate",
+            "value": 42902,
+            "range": "± 80",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter encode",
+            "value": 164,
             "range": "± 7",
             "unit": "ns/iter"
           },
