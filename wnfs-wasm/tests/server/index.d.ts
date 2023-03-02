@@ -25,7 +25,7 @@ declare global {
         Namefilter: typeof import("../../pkg/index").Namefilter;
         SharePayload: typeof import("../../pkg/index").SharePayload;
         share: typeof import("../../pkg/index").share;
-        findShare: typeof import("../../pkg/index").findShare;
+        findLatestShareCounter: typeof import("../../pkg/index").findLatestShareCounter;
         receiveShare: typeof import("../../pkg/index").receiveShare;
         createShareLabel: typeof import("../../pkg/index").createShareLabel;
       };
