@@ -16,10 +16,7 @@ use wasm_bindgen_futures::future_to_promise;
 use wnfs::{
     common::BlockStore as WnfsBlockStore,
     libipld::Cid,
-    public::{
-        PublicDirectory as WnfsPublicDirectory, PublicNode as WnfsPublicNode,
-        PublicOpResult as WnfsPublicOpResult,
-    },
+    public::{PublicDirectory as WnfsPublicDirectory, PublicNode as WnfsPublicNode},
     traits::Id,
 };
 

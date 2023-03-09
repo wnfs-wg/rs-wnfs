@@ -78,6 +78,27 @@ impl<T: RemembersCid> Link<T> {
         }
     }
 
+    /// Gets mut value stored in link. It attempts to get it from the store if it is not present in link.
+    pub async fn resolve_value_mut(&mut self, store: &(impl BlockStore + ?Sized)) -> Result<&mut T>
+    where
+        T: DeserializeOwned, // + Clone,
+    {
+        match self {
+            Self::Encoded { cid, value_cache } => {
+                value_cache
+                    .get_or_try_init(async {
+                        let value: T = store.get_deserializable(cid).await?;
+                        value.persisted_as().get_or_init(async { *cid }).await;
+                        Result::<_, anyhow::Error>::Ok(value)
+                    })
+                    .await?;
+
+                Ok(value_cache.get_mut().unwrap())
+            }
+            Self::Decoded { value, .. } => Ok(value),
+        }
+    }
+
     /// Gets the cid data stored in type.
     ///
     /// NOTE: This does not attempt to get it from the store if it does not exist..
@@ -268,7 +289,7 @@ mod tests {
     impl Clone for Example {
         fn clone(&self) -> Self {
             Self {
-                price: self.price.clone(),
+                price: self.price,
                 persisted_as: OnceCell::new_with(self.persisted_as.get().cloned()),
             }
         }

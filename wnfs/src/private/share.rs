@@ -215,7 +215,7 @@ pub mod sharer {
     use super::{SharePayload, EXCHANGE_KEY_NAME};
     use crate::{
         private::{ExchangeKey, PrivateForest, PublicKeyModulus},
-        public::{PublicLink, PublicOpResult},
+        public::PublicLink,
     };
     use anyhow::Result;
     use async_stream::try_stream;
@@ -271,16 +271,13 @@ pub mod sharer {
                 .await?
                 .as_dir()?;
 
-            let PublicOpResult { result: devices, mut root_dir } = root_dir.ls(&[], store).await?;
+            let devices = root_dir.ls(&[], store).await?;
             for (device, _) in devices {
                 let value = root_dir.ls(&[device.clone()], store).await?;
-                root_dir = value.root_dir;
-
-                for (name, _) in value.result {
+                for (name, _) in value {
                     if name == EXCHANGE_KEY_NAME {
-                        let value = root_dir.read(&[device, name], store).await?;
-                        root_dir = value.root_dir;
-                        yield store.get_block(&value.result).await?.to_vec();
+                        let cid = root_dir.read(&[device, name], store).await?;
+                        yield store.get_block(&cid).await?.to_vec();
                         break
                     }
                 }
@@ -411,7 +408,7 @@ mod tests {
                 share::EXCHANGE_KEY_NAME, PrivateDirectory, PrivateForest, PrivateOpResult,
                 RsaPrivateKey,
             },
-            public::{PublicDirectory, PublicOpResult},
+            public::PublicDirectory,
         };
         use anyhow::Result;
         use chrono::Utc;
@@ -455,7 +452,8 @@ mod tests {
             let exchange_key = key.get_public_key().get_public_key_modulus()?;
             let exchange_key_cid = store.put_block(exchange_key, IpldCodec::Raw).await?;
 
-            let PublicOpResult { root_dir, .. } = Rc::new(PublicDirectory::new(Utc::now()))
+            let mut root_dir = Rc::new(PublicDirectory::new(Utc::now()));
+            root_dir
                 .write(
                     &["device1".into(), EXCHANGE_KEY_NAME.into()],
                     exchange_key_cid,
