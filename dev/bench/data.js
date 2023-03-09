@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1677773484060,
+  "lastUpdate": 1678368119718,
   "repoUrl": "https://github.com/wnfs-wg/rs-wnfs",
   "entries": {
     "Rust Benchmark": [
@@ -8197,6 +8197,108 @@ window.BENCHMARK_DATA = {
             "name": "namefilter encode",
             "value": 175,
             "range": "± 6",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter decode/0",
+            "value": 1,
+            "range": "± 0",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "49699333+dependabot[bot]@users.noreply.github.com",
+            "name": "dependabot[bot]",
+            "username": "dependabot[bot]"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "8c9f1423c5550a4ce09469002731ce55c579edce",
+          "message": "chore(npm)(deps-dev): bump @playwright/test in /wnfs-wasm (#200)\n\nBumps [@playwright/test](https://github.com/Microsoft/playwright) from 1.30.0 to 1.31.2.\r\n- [Release notes](https://github.com/Microsoft/playwright/releases)\r\n- [Commits](https://github.com/Microsoft/playwright/compare/v1.30.0...v1.31.2)\r\n\r\n---\r\nupdated-dependencies:\r\n- dependency-name: \"@playwright/test\"\r\n  dependency-type: direct:development\r\n  update-type: version-update:semver-minor\r\n...\r\n\r\nSigned-off-by: dependabot[bot] <support@github.com>\r\nCo-authored-by: dependabot[bot] <49699333+dependabot[bot]@users.noreply.github.com>",
+          "timestamp": "2023-03-09T14:16:53+01:00",
+          "tree_id": "b471fcfe01eac7e1ee84354c1fd54258a827ead0",
+          "url": "https://github.com/wnfs-wg/rs-wnfs/commit/8c9f1423c5550a4ce09469002731ce55c579edce"
+        },
+        "date": 1678368118638,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "node set",
+            "value": 7871,
+            "range": "± 336",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node set 1000 consecutive",
+            "value": 4402958,
+            "range": "± 19247",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and get",
+            "value": 177358,
+            "range": "± 7304",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and remove",
+            "value": 198533,
+            "range": "± 784",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt load and decode/0",
+            "value": 48527,
+            "range": "± 116",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt set and encode",
+            "value": 178733,
+            "range": "± 417",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt diff",
+            "value": 55972,
+            "range": "± 4534",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt merge",
+            "value": 234053,
+            "range": "± 18873",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter add",
+            "value": 8492,
+            "range": "± 13",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter contains",
+            "value": 11747,
+            "range": "± 18",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter saturate",
+            "value": 41200,
+            "range": "± 39",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter encode",
+            "value": 173,
+            "range": "± 15",
             "unit": "ns/iter"
           },
           {
