@@ -52,7 +52,7 @@ impl PrivateLink {
         match self {
             Self::Encrypted { private_ref, cache } => {
                 cache
-                    .get_or_try_init(async { PrivateNode::load(private_ref, forest, store).await })
+                    .get_or_try_init(PrivateNode::load(private_ref, forest, store))
                     .await
             }
             Self::Decrypted { node, .. } => Ok(node),

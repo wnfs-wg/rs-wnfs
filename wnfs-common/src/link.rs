@@ -53,7 +53,7 @@ impl<T: RemembersCid> Link<T> {
             Self::Decoded { value } => {
                 let cid_cache = value.persisted_as();
                 cid_cache
-                    .get_or_try_init(async { store.put_async_serializable(value).await })
+                    .get_or_try_init(store.put_async_serializable(value))
                     .await
             }
         }

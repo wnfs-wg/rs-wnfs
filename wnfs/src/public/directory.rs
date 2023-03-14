@@ -334,7 +334,7 @@ impl PublicDirectory {
     pub async fn store(&self, store: &mut impl BlockStore) -> Result<Cid> {
         Ok(*self
             .persisted_as
-            .get_or_try_init(async { store.put_async_serializable(self).await })
+            .get_or_try_init(store.put_async_serializable(self))
             .await?)
     }
 
