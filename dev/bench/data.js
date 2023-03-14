@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1678368119718,
+  "lastUpdate": 1678806192819,
   "repoUrl": "https://github.com/wnfs-wg/rs-wnfs",
   "entries": {
     "Rust Benchmark": [
@@ -8299,6 +8299,108 @@ window.BENCHMARK_DATA = {
             "name": "namefilter encode",
             "value": 173,
             "range": "± 15",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter decode/0",
+            "value": 1,
+            "range": "± 0",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "appcypher@outlook.com",
+            "name": "Stephen Akinyemi",
+            "username": "appcypher"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "7e31e0a3761657250f3d0e7b98dd409ed6f86d8f",
+          "message": "refactor(api): refactor out `PublicOpResult` (#201)\n\n* Dedup import paths and remove unused impls\r\n\r\n* Refactor out PublicOpResult\r\n\r\n* Fix wasm binding code\r\n\r\n* Fix lint",
+          "timestamp": "2023-03-14T15:56:28+01:00",
+          "tree_id": "2f53412da7c3a98ad4d32a5e4a7d0a34bdaeb21e",
+          "url": "https://github.com/wnfs-wg/rs-wnfs/commit/7e31e0a3761657250f3d0e7b98dd409ed6f86d8f"
+        },
+        "date": 1678806191962,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "node set",
+            "value": 7247,
+            "range": "± 69",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node set 1000 consecutive",
+            "value": 4358621,
+            "range": "± 17646",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and get",
+            "value": 176134,
+            "range": "± 188",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and remove",
+            "value": 197311,
+            "range": "± 325",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt load and decode/0",
+            "value": 48452,
+            "range": "± 105",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt set and encode",
+            "value": 178015,
+            "range": "± 555",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt diff",
+            "value": 54376,
+            "range": "± 4386",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt merge",
+            "value": 232976,
+            "range": "± 18478",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter add",
+            "value": 8591,
+            "range": "± 15",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter contains",
+            "value": 9979,
+            "range": "± 11",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter saturate",
+            "value": 40448,
+            "range": "± 127",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter encode",
+            "value": 170,
+            "range": "± 6",
             "unit": "ns/iter"
           },
           {
