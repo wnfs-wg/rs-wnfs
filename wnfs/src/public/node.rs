@@ -50,10 +50,10 @@ impl PublicNode {
     /// use std::rc::Rc;
     ///
     /// let dir = Rc::new(PublicDirectory::new(Utc::now()));
-    /// let node = PublicNode::Dir(dir);
+    /// let node = &mut PublicNode::Dir(dir);
     ///
     /// let time = Utc::now();
-    /// let node = node.upsert_mtime(time);
+    /// node.upsert_mtime(time);
     ///
     /// let imprecise_time = Utc.timestamp_opt(time.timestamp(), 0).single();
     /// assert_eq!(
@@ -64,17 +64,13 @@ impl PublicNode {
     ///         .get_modified()
     /// );
     /// ```
-    pub fn upsert_mtime(&self, time: DateTime<Utc>) -> Self {
+    pub fn upsert_mtime(&mut self, time: DateTime<Utc>) {
         match self {
             Self::File(file) => {
-                let mut file = (**file).clone();
-                file.metadata.upsert_mtime(time);
-                Self::File(Rc::new(file))
+                Rc::make_mut(file).metadata.upsert_mtime(time);
             }
             Self::Dir(dir) => {
-                let mut dir = (**dir).clone();
-                dir.metadata.upsert_mtime(time);
-                Self::Dir(Rc::new(dir))
+                Rc::make_mut(dir).metadata.upsert_mtime(time);
             }
         }
     }
@@ -160,6 +156,14 @@ impl PublicNode {
     pub fn as_dir(&self) -> Result<Rc<PublicDirectory>> {
         Ok(match self {
             Self::Dir(dir) => Rc::clone(dir),
+            _ => bail!(FsError::NotADirectory),
+        })
+    }
+
+    /// Casts a node to a mutable directory.
+    pub(crate) fn as_dir_mut(&mut self) -> Result<&mut Rc<PublicDirectory>> {
+        Ok(match self {
+            Self::Dir(dir) => dir,
             _ => bail!(FsError::NotADirectory),
         })
     }

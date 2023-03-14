@@ -53,7 +53,7 @@ impl<T: RemembersCid> Link<T> {
             Self::Decoded { value } => {
                 let cid_cache = value.persisted_as();
                 cid_cache
-                    .get_or_try_init(async { store.put_async_serializable(value).await })
+                    .get_or_try_init(store.put_async_serializable(value))
                     .await
             }
         }
@@ -73,6 +73,27 @@ impl<T: RemembersCid> Link<T> {
                         Ok(value)
                     })
                     .await
+            }
+            Self::Decoded { value, .. } => Ok(value),
+        }
+    }
+
+    /// Gets mut value stored in link. It attempts to get it from the store if it is not present in link.
+    pub async fn resolve_value_mut(&mut self, store: &(impl BlockStore + ?Sized)) -> Result<&mut T>
+    where
+        T: DeserializeOwned, // + Clone,
+    {
+        match self {
+            Self::Encoded { cid, value_cache } => {
+                value_cache
+                    .get_or_try_init(async {
+                        let value: T = store.get_deserializable(cid).await?;
+                        value.persisted_as().get_or_init(async { *cid }).await;
+                        Result::<_, anyhow::Error>::Ok(value)
+                    })
+                    .await?;
+
+                Ok(value_cache.get_mut().unwrap())
             }
             Self::Decoded { value, .. } => Ok(value),
         }
@@ -268,7 +289,7 @@ mod tests {
     impl Clone for Example {
         fn clone(&self) -> Self {
             Self {
-                price: self.price.clone(),
+                price: self.price,
                 persisted_as: OnceCell::new_with(self.persisted_as.get().cloned()),
             }
         }

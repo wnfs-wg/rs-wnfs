@@ -33,16 +33,22 @@ impl PublicLink {
         Self(Link::from(node))
     }
 
-    /// Creates a new directory node link.
+    /// Creates a link to a directory node.
     #[inline]
-    pub fn with_dir(dir: Rc<PublicDirectory>) -> Self {
+    pub fn with_dir(dir: PublicDirectory) -> Self {
+        Self(Link::from(PublicNode::Dir(Rc::new(dir))))
+    }
+
+    /// Creates a link to a directory node.
+    #[inline]
+    pub fn with_rc_dir(dir: Rc<PublicDirectory>) -> Self {
         Self(Link::from(PublicNode::Dir(dir)))
     }
 
-    /// Creates a new file node link.
+    /// Creates a link to a file node.
     #[inline]
-    pub fn with_file(file: Rc<PublicFile>) -> Self {
-        Self(Link::from(PublicNode::File(file)))
+    pub fn with_file(file: PublicFile) -> Self {
+        Self(Link::from(PublicNode::File(Rc::new(file))))
     }
 
     /// Gets the Cid stored in type. It attempts to get it from the store if it is not present in type.
@@ -55,6 +61,15 @@ impl PublicLink {
     #[inline]
     pub async fn resolve_value(&self, store: &(impl BlockStore + ?Sized)) -> Result<&PublicNode> {
         self.0.resolve_value(store).await
+    }
+
+    /// Gets mut value stored in link. It attempts to get it from the store if it is not present in link.
+    #[inline]
+    pub async fn resolve_value_mut(
+        &mut self,
+        store: &(impl BlockStore + ?Sized),
+    ) -> Result<&mut PublicNode> {
+        self.0.resolve_value_mut(store).await
     }
 
     /// Gets an owned value from type. It attempts to it get from the store if it is not present in type.

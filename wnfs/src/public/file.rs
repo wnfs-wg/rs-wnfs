@@ -1,6 +1,9 @@
 //! Public fs file node.
 
-use crate::{error::FsError, traits::Id};
+use crate::{
+    error::FsError,
+    traits::{Id, PrepareMut},
+};
 use anyhow::Result;
 use async_once_cell::OnceCell;
 use chrono::{DateTime, Utc};
@@ -93,26 +96,6 @@ impl PublicFile {
         &self.userland
     }
 
-    /// Takes care of creating previous links, in case the current
-    /// file was previously `.store()`ed.
-    /// In any case it'll try to give you ownership of the file if possible,
-    /// otherwise it clones.
-    pub(crate) fn prepare_next_revision(self: Rc<Self>) -> Self {
-        let Some(previous_cid) = self.persisted_as.get().cloned() else {
-            // If this revision was not yet persisted, we can
-            // modify it without forcing it to be flushed to a
-            // BlockStore.
-            return Rc::try_unwrap(self).unwrap_or_else(|rc| (*rc).clone());
-        };
-
-        let mut cloned = Rc::try_unwrap(self).unwrap_or_else(|rc| (*rc).clone());
-        // We need to reset the OnceCell.
-        cloned.persisted_as = OnceCell::new();
-        cloned.previous = [previous_cid].into_iter().collect();
-
-        cloned
-    }
-
     /// Stores file in provided block store.
     ///
     /// # Examples
@@ -137,8 +120,26 @@ impl PublicFile {
     pub async fn store(&self, store: &mut impl BlockStore) -> Result<Cid> {
         Ok(*self
             .persisted_as
-            .get_or_try_init(async { store.put_serializable(self).await })
+            .get_or_try_init(store.put_serializable(self))
             .await?)
+    }
+}
+
+impl PrepareMut for PublicFile {
+    /// Takes care of creating previous links, in case the current
+    /// directory was previously `.store()`ed.
+    /// In any case it'll try to give you ownership of the directory if possible,
+    /// otherwise it clones.
+    fn prepare_mut<'a>(self: &'a mut Rc<Self>) -> &'a mut Self {
+        let Some(previous_cid) = self.persisted_as.get().cloned() else {
+            return Rc::make_mut(self);
+        };
+
+        let cloned = Rc::make_mut(self);
+        cloned.persisted_as = OnceCell::new();
+        cloned.previous = [previous_cid].into_iter().collect();
+
+        cloned
     }
 }
 
@@ -250,38 +251,33 @@ mod tests {
             .await
             .unwrap();
 
-        let file = Rc::new(PublicFile::new(time, content_cid));
-
-        let previous_cid = file.store(store).await.unwrap();
-
-        let next_file = file.prepare_next_revision();
+        let file = &mut Rc::new(PublicFile::new(time, content_cid));
+        let previous_cid = &file.store(store).await.unwrap();
+        let next_file = file.prepare_mut();
 
         assert_eq!(
-            next_file.previous.into_iter().collect::<Vec<_>>(),
+            next_file.previous.iter().collect::<Vec<_>>(),
             vec![previous_cid]
         );
     }
 
     #[async_std::test]
-    async fn prepare_next_revision_shortcuts_if_possible() {
+    async fn prepare_mut_shortcuts_if_possible() {
         let time = Utc::now();
         let store = &mut MemoryBlockStore::default();
-
         let content_cid = store
             .put_block(b"Hello World".to_vec(), IpldCodec::Raw)
             .await
             .unwrap();
 
-        let file = Rc::new(PublicFile::new(time, content_cid));
-
-        let previous_cid = file.store(store).await.unwrap();
-
-        let next_file = file.prepare_next_revision();
-
-        let yet_another_file = Rc::new(next_file).prepare_next_revision();
+        let file = &mut Rc::new(PublicFile::new(time, content_cid));
+        let previous_cid = &file.store(store).await.unwrap();
+        let next_file = file.prepare_mut();
+        let next_file_clone = &mut Rc::new(next_file.clone());
+        let yet_another_file = next_file_clone.prepare_mut();
 
         assert_eq!(
-            yet_another_file.previous.into_iter().collect::<Vec<_>>(),
+            yet_another_file.previous.iter().collect::<Vec<_>>(),
             vec![previous_cid]
         );
     }
