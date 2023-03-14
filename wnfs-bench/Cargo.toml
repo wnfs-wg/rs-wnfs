@@ -24,9 +24,3 @@ path = "hamt.rs"
 name = "namefilter"
 harness = false
 path = "namefilter.rs"
-
-[[bench]]
-name = "public"
-harness = false
-path = "public.rs"
-

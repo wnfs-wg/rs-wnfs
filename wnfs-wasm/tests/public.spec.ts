@@ -67,7 +67,7 @@ test.describe("PublicDirectory", () => {
         store
       );
 
-      var { rootDir } = await rootDir.getNode(
+      await rootDir.getNode(
         ["pictures", "cats", "tabby.png"],
         store
       );
@@ -98,7 +98,7 @@ test.describe("PublicDirectory", () => {
         store
       );
 
-      var { result } = await rootDir.ls(["pictures"], store);
+      const result = await rootDir.ls(["pictures"], store);
 
       return result;
     });
@@ -135,7 +135,7 @@ test.describe("PublicDirectory", () => {
 
       var { rootDir } = await rootDir.rm(["pictures", "cats"], store);
 
-      var { result } = await rootDir.ls(["pictures"], store);
+      const result = await rootDir.ls(["pictures"], store);
 
       return result;
     });
@@ -178,9 +178,9 @@ test.describe("PublicDirectory", () => {
         store
       );
 
-      var { result: imagesContent } = await rootDir.ls(["images"], store);
+      const imagesContent = await rootDir.ls(["images"], store);
 
-      var { result: picturesContent } = await rootDir.ls(["pictures"], store);
+      const picturesContent = await rootDir.ls(["pictures"], store);
 
       return [imagesContent, picturesContent];
     });

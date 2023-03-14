@@ -575,10 +575,7 @@ mod tests {
             .unwrap();
 
         // Get exchange public key
-        let PublicOpResult {
-            result: recipient_exchange_key_cid,
-            ..
-        } = Rc::clone(&recipient_exchange_root)
+        let recipient_exchange_key_cid = recipient_exchange_root
             .read(
                 &["device1".into(), EXCHANGE_KEY_NAME.into()],
                 recipient_store,
@@ -631,7 +628,7 @@ mod tests {
                 sharer_root_did,
                 forest,
                 sharer_store,
-                PublicLink::with_dir(Rc::clone(&recipient_exchange_root)),
+                PublicLink::with_rc_dir(Rc::clone(&recipient_exchange_root)),
                 recipient_store,
             )
             .await

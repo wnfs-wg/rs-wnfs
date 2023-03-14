@@ -49,15 +49,12 @@ impl PublicDirectory {
         let path_segments = utils::convert_path_segments(path_segments)?;
 
         Ok(future_to_promise(async move {
-            let WnfsPublicOpResult { root_dir, result } = directory
+            let found_node = directory
                 .get_node(&path_segments, &store)
                 .await
                 .map_err(error("Cannot get node"))?;
 
-            Ok(utils::create_public_op_result(
-                root_dir,
-                result.map(PublicNode),
-            )?)
+            Ok(value!(found_node.cloned().map(PublicNode)))
         }))
     }
 
@@ -73,7 +70,7 @@ impl PublicDirectory {
                 .await
                 .map_err(error("Cannot lookup node"))?;
 
-            Ok(value!(found_node.map(PublicNode)))
+            Ok(value!(found_node.cloned().map(PublicNode)))
         }))
     }
 
@@ -116,14 +113,14 @@ impl PublicDirectory {
         let path_segments = utils::convert_path_segments(path_segments)?;
 
         Ok(future_to_promise(async move {
-            let WnfsPublicOpResult { root_dir, result } = directory
+            let result = directory
                 .read(&path_segments, &store)
                 .await
                 .map_err(error("Cannot read from directory"))?;
 
             let result = Uint8Array::from(&result.to_bytes()[..]);
 
-            Ok(utils::create_public_op_result(root_dir, result)?)
+            Ok(value!(result))
         }))
     }
 
@@ -134,7 +131,7 @@ impl PublicDirectory {
         let path_segments = utils::convert_path_segments(path_segments)?;
 
         Ok(future_to_promise(async move {
-            let WnfsPublicOpResult { root_dir, result } = directory
+            let result = directory
                 .ls(&path_segments, &store)
                 .await
                 .map_err(error("Cannot list directory content"))?;
@@ -144,26 +141,23 @@ impl PublicDirectory {
                 .flat_map(|(name, metadata)| utils::create_ls_entry(name, metadata))
                 .collect::<Array>();
 
-            Ok(utils::create_public_op_result(root_dir, result)?)
+            Ok(value!(result))
         }))
     }
 
     /// Removes a file or directory from the directory.
     pub fn rm(&self, path_segments: &Array, store: BlockStore) -> JsResult<Promise> {
-        let directory = Rc::clone(&self.0);
+        let mut directory = Rc::clone(&self.0);
         let store = ForeignBlockStore(store);
         let path_segments = utils::convert_path_segments(path_segments)?;
 
         Ok(future_to_promise(async move {
-            let WnfsPublicOpResult {
-                root_dir,
-                result: node,
-            } = directory
+            let node = (&mut directory)
                 .rm(&path_segments, &store)
                 .await
                 .map_err(error("Cannot remove from directory"))?;
 
-            Ok(utils::create_public_op_result(root_dir, PublicNode(node))?)
+            Ok(utils::create_public_op_result(directory, PublicNode(node))?)
         }))
     }
 
@@ -175,7 +169,7 @@ impl PublicDirectory {
         time: &Date,
         store: BlockStore,
     ) -> JsResult<Promise> {
-        let directory = Rc::clone(&self.0);
+        let mut directory = Rc::clone(&self.0);
         let store = ForeignBlockStore(store);
 
         let cid = Cid::try_from(content_cid).map_err(error("Invalid CID"))?;
@@ -183,12 +177,12 @@ impl PublicDirectory {
         let path_segments = utils::convert_path_segments(path_segments)?;
 
         Ok(future_to_promise(async move {
-            let WnfsPublicOpResult { root_dir, .. } = directory
+            (&mut directory)
                 .write(&path_segments, cid, time, &store)
                 .await
                 .map_err(error("Cannot write to directory"))?;
 
-            Ok(utils::create_public_op_result(root_dir, JsValue::NULL)?)
+            Ok(utils::create_public_op_result(directory, JsValue::NULL)?)
         }))
     }
 
@@ -201,19 +195,19 @@ impl PublicDirectory {
         time: &Date,
         store: BlockStore,
     ) -> JsResult<Promise> {
-        let directory = Rc::clone(&self.0);
+        let mut directory = Rc::clone(&self.0);
         let store = ForeignBlockStore(store);
         let time = DateTime::<Utc>::from(time);
         let path_segments_from = utils::convert_path_segments(path_segments_from)?;
         let path_segments_to = utils::convert_path_segments(path_segments_to)?;
 
         Ok(future_to_promise(async move {
-            let WnfsPublicOpResult { root_dir, .. } = directory
+            (&mut directory)
                 .basic_mv(&path_segments_from, &path_segments_to, time, &store)
                 .await
                 .map_err(error("Cannot move content between directories"))?;
 
-            Ok(utils::create_public_op_result(root_dir, JsValue::NULL)?)
+            Ok(utils::create_public_op_result(directory, JsValue::NULL)?)
         }))
     }
 
@@ -226,18 +220,18 @@ impl PublicDirectory {
         time: &Date,
         store: BlockStore,
     ) -> JsResult<Promise> {
-        let directory = Rc::clone(&self.0);
+        let mut directory = Rc::clone(&self.0);
         let store = ForeignBlockStore(store);
         let time = DateTime::<Utc>::from(time);
         let path_segments = utils::convert_path_segments(path_segments)?;
 
         Ok(future_to_promise(async move {
-            let WnfsPublicOpResult { root_dir, .. } = directory
+            (&mut directory)
                 .mkdir(&path_segments, time, &store)
                 .await
                 .map_err(error("Cannot create directory"))?;
 
-            Ok(utils::create_public_op_result(root_dir, JsValue::NULL)?)
+            Ok(utils::create_public_op_result(directory, JsValue::NULL)?)
         }))
     }
 

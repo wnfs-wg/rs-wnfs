@@ -33,13 +33,19 @@ impl PublicLink {
         Self(Link::from(node))
     }
 
-    /// Creates a new directory node link.
+    /// Creates a link to a directory node.
     #[inline]
     pub fn with_dir(dir: PublicDirectory) -> Self {
         Self(Link::from(PublicNode::Dir(Rc::new(dir))))
     }
 
-    /// Creates a new file node link.
+    /// Creates a link to a directory node.
+    #[inline]
+    pub fn with_rc_dir(dir: Rc<PublicDirectory>) -> Self {
+        Self(Link::from(PublicNode::Dir(dir)))
+    }
+
+    /// Creates a link to a file node.
     #[inline]
     pub fn with_file(file: PublicFile) -> Self {
         Self(Link::from(PublicNode::File(Rc::new(file))))
