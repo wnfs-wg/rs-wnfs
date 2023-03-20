@@ -6,7 +6,7 @@
     "file-loader": "^6.2.0",
     "html-webpack-plugin": "^5.5.0",
     "multiformats": "^11.0.1",
-    "style-loader": "^3.3.1",
+    "style-loader": "^3.3.2",
     "text-encoding": "^0.7.0",
     "ts-loader": "^9.4.2",
     "typescript": "^4.9.5",
