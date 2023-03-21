@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1679397585081,
+  "lastUpdate": 1679397639066,
   "repoUrl": "https://github.com/wnfs-wg/rs-wnfs",
   "entries": {
     "Rust Benchmark": [
@@ -8809,6 +8809,108 @@ window.BENCHMARK_DATA = {
             "name": "namefilter encode",
             "value": 164,
             "range": "± 20",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter decode/0",
+            "value": 1,
+            "range": "± 0",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "49699333+dependabot[bot]@users.noreply.github.com",
+            "name": "dependabot[bot]",
+            "username": "dependabot[bot]"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "b90e96441d096d2bfb61db0393cc2bf5a52786d2",
+          "message": "chore(npm)(deps-dev): bump typescript from 4.9.5 to 5.0.2 in /wnfs-wasm (#204)\n\nBumps [typescript](https://github.com/Microsoft/TypeScript) from 4.9.5 to 5.0.2.\r\n- [Release notes](https://github.com/Microsoft/TypeScript/releases)\r\n- [Commits](https://github.com/Microsoft/TypeScript/compare/v4.9.5...v5.0.2)\r\n\r\n---\r\nupdated-dependencies:\r\n- dependency-name: typescript\r\n  dependency-type: direct:development\r\n  update-type: version-update:semver-major\r\n...\r\n\r\nSigned-off-by: dependabot[bot] <support@github.com>\r\nCo-authored-by: dependabot[bot] <49699333+dependabot[bot]@users.noreply.github.com>",
+          "timestamp": "2023-03-21T12:14:43+01:00",
+          "tree_id": "46f53d83cff581925ad917b8d379bcc4b8eb5931",
+          "url": "https://github.com/wnfs-wg/rs-wnfs/commit/b90e96441d096d2bfb61db0393cc2bf5a52786d2"
+        },
+        "date": 1679397638450,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "node set",
+            "value": 7202,
+            "range": "± 86",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node set 1000 consecutive",
+            "value": 4579087,
+            "range": "± 18177",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and get",
+            "value": 182639,
+            "range": "± 243",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and remove",
+            "value": 200560,
+            "range": "± 401",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt load and decode/0",
+            "value": 51973,
+            "range": "± 70",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt set and encode",
+            "value": 176790,
+            "range": "± 444",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt diff",
+            "value": 59930,
+            "range": "± 4713",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt merge",
+            "value": 243193,
+            "range": "± 19740",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter add",
+            "value": 8301,
+            "range": "± 152",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter contains",
+            "value": 9644,
+            "range": "± 89",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter saturate",
+            "value": 43131,
+            "range": "± 59",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter encode",
+            "value": 166,
+            "range": "± 17",
             "unit": "ns/iter"
           },
           {
