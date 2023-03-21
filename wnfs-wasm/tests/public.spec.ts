@@ -6,6 +6,7 @@ const url = "http://localhost:8085";
 
 test.beforeEach(async ({ page }) => {
   await page.goto(url);
+  await page.waitForFunction(() => window.setup != null);
 });
 
 test.describe("PublicDirectory", () => {
