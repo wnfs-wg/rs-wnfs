@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1678806192819,
+  "lastUpdate": 1679394859295,
   "repoUrl": "https://github.com/wnfs-wg/rs-wnfs",
   "entries": {
     "Rust Benchmark": [
@@ -8401,6 +8401,108 @@ window.BENCHMARK_DATA = {
             "name": "namefilter encode",
             "value": 170,
             "range": "± 6",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter decode/0",
+            "value": 1,
+            "range": "± 0",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "philipp.krueger1@gmail.com",
+            "name": "Philipp Krüger",
+            "username": "matheus23"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "4ef324de45f8b986d48d79abc5f53f59f4f62611",
+          "message": "chore: Use cargo-deny & fix time CVE (#208)\n\n* chore: Use cargo-deny & ignore time CVE\r\n\r\n* chore: Turn off default chrono features\r\n\r\n* chore: Configure licenses\r\n\r\n* chore: Allow wnfs-wg git sources\r\n\r\n* test: Ensure that playwright tests wait for js\r\n\r\nSince js is loaded via a script with `defer` in it, it seems to be necessary to wait for it to load.",
+          "timestamp": "2023-03-21T11:28:59+01:00",
+          "tree_id": "9439cd1221615c3c7a092b9058acd1d28a3b122c",
+          "url": "https://github.com/wnfs-wg/rs-wnfs/commit/4ef324de45f8b986d48d79abc5f53f59f4f62611"
+        },
+        "date": 1679394858585,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "node set",
+            "value": 10399,
+            "range": "± 499",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node set 1000 consecutive",
+            "value": 5521577,
+            "range": "± 214956",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and get",
+            "value": 226001,
+            "range": "± 15709",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and remove",
+            "value": 252027,
+            "range": "± 8204",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt load and decode/0",
+            "value": 66842,
+            "range": "± 1333",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt set and encode",
+            "value": 225177,
+            "range": "± 23234",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt diff",
+            "value": 70370,
+            "range": "± 7190",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt merge",
+            "value": 293321,
+            "range": "± 39599",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter add",
+            "value": 16656,
+            "range": "± 692",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter contains",
+            "value": 13273,
+            "range": "± 578",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter saturate",
+            "value": 56528,
+            "range": "± 1610",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter encode",
+            "value": 232,
+            "range": "± 41",
             "unit": "ns/iter"
           },
           {
