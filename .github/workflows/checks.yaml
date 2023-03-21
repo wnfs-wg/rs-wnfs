@@ -48,14 +48,20 @@ jobs:
           command: clippy
           toolchain: ${{ matrix.rust-toolchain }}
 
-      - name: Install Cargo Audit
-        uses: "actions-rs/cargo@v1"
+      # Check for security advisories.
+      - name: Check Advisories
+        if: ${{ matrix.rust-toolchain == 'stable' }}
+        uses: EmbarkStudios/cargo-deny-action@v1
         with:
-          args: "--force cargo-audit"
-          command: install
+          command: check advisories
+        continue-on-error: true
 
-      - name: Run Audit on Deps
-        run: cargo-audit audit
+      # Audit licenses, unreleased crates, and unexpected duplicate versions.
+      - name: Check Bans, Licenses, and Sources
+        if: ${{ matrix.rust-toolchain == 'stable' }}
+        uses: EmbarkStudios/cargo-deny-action@v1
+        with:
+          command: check bans licenses sources
 
       # Only "test" release build on push event.
       - name: Test Release
