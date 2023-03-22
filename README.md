@@ -172,22 +172,20 @@ WNFS does not have an opinion on where you want to persist your content or the f
 Let's see an example of working with a public directory. Here we are going to use the memory-based blockstore provided by the library.
 
 ```rust
-use wnfs::{MemoryBlockStore, PublicDirectory, PublicOpResult};
-
+use wnfs::{MemoryBlockStore, PublicDirectory};
 use chrono::Utc;
-
 use std::rc::Rc;
 
 #[async_std::main]
 async fn main() {
     // Create a new public directory.
-    let dir = Rc::new(PublicDirectory::new(Utc::now()));
+    let dir = &mut Rc::new(PublicDirectory::new(Utc::now()));
 
     // Create a memory-based blockstore.
     let store = &mut MemoryBlockStore::default();
 
     // Add a /pictures/cats subdirectory.
-    let PublicOpResult { root_dir, .. } = dir
+    dir
         .mkdir(&["pictures".into(), "cats".into()], Utc::now(), store)
         .await
         .unwrap();
@@ -206,12 +204,10 @@ The private filesystem, on the other hand, is a bit more involved. [Hash Array M
 
 ```rust
 use wnfs::{
-    private::PrivateForest, MemoryBlockStore, Namefilter, PrivateDirectory, PrivateOpResult,
+    private::PrivateForest, MemoryBlockStore, Namefilter, PrivateDirectory,
 };
-
 use chrono::Utc;
 use rand::thread_rng;
-
 use std::rc::Rc;
 
 #[async_std::main]
@@ -223,17 +219,17 @@ async fn main() {
     let rng = &mut thread_rng();
 
     // Create a private forest.
-    let forest = Rc::new(PrivateForest::new());
+    let forest = &mut Rc::new(PrivateForest::new());
 
     // Create a new private directory.
-    let dir = Rc::new(PrivateDirectory::new(
+    let dir = &mut Rc::new(PrivateDirectory::new(
         Namefilter::default(),
         Utc::now(),
         rng,
     ));
 
     // Add a file to /pictures/cats directory.
-    let PrivateOpResult { root_dir, forest, .. } = dir
+    dir
         .mkdir(
             &["pictures".into(), "cats".into()],
             true,
@@ -246,7 +242,7 @@ async fn main() {
         .unwrap();
 
     // Add a file to /pictures/dogs/billie.jpg file.
-    let PrivateOpResult { root_dir, forest, .. } = root_dir
+    dir
         .write(
             &["pictures".into(), "dogs".into(), "billie.jpeg".into()],
             true,
@@ -260,7 +256,7 @@ async fn main() {
         .unwrap();
 
     // List all files in /pictures directory.
-    let PrivateOpResult { result, .. } = root_dir
+    let result = dir
         .ls(&["pictures".into()], true, forest, store)
         .await
         .unwrap();
