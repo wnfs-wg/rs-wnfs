@@ -1725,8 +1725,7 @@ mod tests {
     async fn search_latest_finds_the_most_recent() {
         let store = &mut MemoryBlockStore::default();
         let forest = &mut Rc::new(PrivateForest::new());
-        let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
-        // let rng = &mut rand::thread_rng();
+        let rng = &mut rand::thread_rng();
         let root_dir = &mut Rc::new(PrivateDirectory::new(
             Namefilter::default(),
             Utc::now(),
@@ -1736,27 +1735,11 @@ mod tests {
         let path = ["Documents".into(), "file.txt".into()];
 
         root_dir
-            .write(&path, false, Utc::now(), b"One".to_vec(), forest, store, rng)
-            .await
-            .unwrap();
-
-        root_dir.store(forest, store, rng).await.unwrap();
-
-        // let old_root = &Rc::clone(root_dir);
-
-        root_dir
-            .write(&path, true, Utc::now(), b"Two".to_vec(), forest, store, rng)
-            .await
-            .unwrap();
-
-        root_dir.store(forest, store, rng).await.unwrap();
-
-        root_dir
             .write(
                 &path,
                 false,
                 Utc::now(),
-                b"Three".to_vec(),
+                b"One".to_vec(),
                 forest,
                 store,
                 rng,
@@ -1766,19 +1749,28 @@ mod tests {
 
         root_dir.store(forest, store, rng).await.unwrap();
 
+        let old_root = &Rc::clone(root_dir);
+
+        root_dir
+            .write(&path, true, Utc::now(), b"Two".to_vec(), forest, store, rng)
+            .await
+            .unwrap();
+
+        root_dir.store(forest, store, rng).await.unwrap();
+
         let new_read = root_dir.read(&path, false, forest, store).await.unwrap();
 
-        // let old_read = Rc::clone(old_root)
-        //     .read(&path, false, forest, store)
-        //     .await
-        //     .unwrap();
+        let old_read = Rc::clone(old_root)
+            .read(&path, false, forest, store)
+            .await
+            .unwrap();
 
-        // let old_read_latest = old_root.read(&path, true, forest, store).await.unwrap();
+        let old_read_latest = old_root.read(&path, true, forest, store).await.unwrap();
         let new_read_latest = root_dir.read(&path, true, forest, store).await.unwrap();
 
         assert_eq!(&String::from_utf8_lossy(&new_read), "Two");
-        // assert_eq!(&String::from_utf8_lossy(&old_read), "One");
-        // assert_eq!(&String::from_utf8_lossy(&old_read_latest), "Two");
+        assert_eq!(&String::from_utf8_lossy(&old_read), "One");
+        assert_eq!(&String::from_utf8_lossy(&old_read_latest), "Two");
         assert_eq!(&String::from_utf8_lossy(&new_read_latest), "Two");
     }
 

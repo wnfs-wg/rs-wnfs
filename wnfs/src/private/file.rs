@@ -573,16 +573,12 @@ impl PrivateFile {
         };
 
         let temporal_key = self.header.derive_temporal_key();
+        let previous_link = (1, Encrypted::from_value(previous_cid, &temporal_key)?);
         let mut cloned = Rc::make_mut(self);
 
         // We make sure to clear any cached states.
-        // `.clone()` does this too, but `try_unwrap` may circumvent clone.
         cloned.content.persisted_as = OnceCell::new();
-        cloned.content.previous.clear();
-        cloned
-            .content
-            .previous
-            .insert((1, Encrypted::from_value(previous_cid, &temporal_key)?));
+        cloned.content.previous = [previous_link].into_iter().collect();
         cloned.header.advance_ratchet();
 
         Ok(cloned)

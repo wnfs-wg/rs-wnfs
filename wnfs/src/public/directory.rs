@@ -1137,10 +1137,7 @@ mod tests {
         let root_dir = &mut Rc::new(PublicDirectory::new(time));
         let previous_cid = root_dir.store(store).await.unwrap();
 
-        root_dir
-            .mkdir(&["test".into()], time, store)
-            .await
-            .unwrap();
+        root_dir.mkdir(&["test".into()], time, store).await.unwrap();
 
         let ipld = root_dir.async_serialize_ipld(store).await.unwrap();
         match ipld {

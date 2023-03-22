@@ -63,11 +63,17 @@ impl PrivateLink {
     ) -> Result<&mut PrivateNode> {
         match self {
             Self::Encrypted { private_ref, cache } => {
-                cache
-                    .get_or_try_init(PrivateNode::load(private_ref, forest, store))
-                    .await?;
+                let private_node = match cache.take() {
+                    Some(node) => node,
+                    None => PrivateNode::load(private_ref, forest, store).await?,
+                };
 
-                Ok(cache.get_mut().unwrap())
+                *self = Self::Decrypted { node: private_node };
+
+                Ok(match self {
+                    Self::Encrypted { .. } => unreachable!(),
+                    Self::Decrypted { node, .. } => node,
+                })
             }
             Self::Decrypted { node, .. } => Ok(node),
         }
