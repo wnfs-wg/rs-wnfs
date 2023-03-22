@@ -261,7 +261,7 @@ impl PrivateDirectory {
     /// use rand::thread_rng;
     ///
     /// use wnfs::{
-    ///     private::{PrivateForest, PrivateRef, PrivateDirectory, PrivateOpResult},
+    ///     private::{PrivateForest, PrivateRef, PrivateDirectory},
     ///     common::{BlockStore, MemoryBlockStore},
     ///     namefilter::Namefilter,
     /// };
@@ -271,14 +271,13 @@ impl PrivateDirectory {
     ///     let store = &mut MemoryBlockStore::default();
     ///     let rng = &mut thread_rng();
     ///     let forest = &mut Rc::new(PrivateForest::new());
-    ///
-    ///     let dir = Rc::new(PrivateDirectory::new(
+    ///     let root_dir = &mut Rc::new(PrivateDirectory::new(
     ///         Namefilter::default(),
     ///         Utc::now(),
     ///         rng,
     ///     ));
     ///
-    ///     let PrivateOpResult { root_dir, .. } = dir
+    ///     root_dir
     ///         .mkdir(&["pictures".into(), "cats".into()], true, Utc::now(), forest, store, rng)
     ///         .await
     ///         .unwrap();
@@ -494,7 +493,7 @@ impl PrivateDirectory {
     /// use rand::thread_rng;
     ///
     /// use wnfs::{
-    ///     private::{PrivateForest, PrivateRef, PrivateDirectory, PrivateOpResult},
+    ///     private::{PrivateForest, PrivateRef, PrivateDirectory},
     ///     common::{BlockStore, MemoryBlockStore},
     ///     namefilter::Namefilter,
     /// };
@@ -504,19 +503,18 @@ impl PrivateDirectory {
     ///     let store = &mut MemoryBlockStore::default();
     ///     let rng = &mut thread_rng();
     ///     let forest = &mut Rc::new(PrivateForest::new());
-    ///
-    ///     let dir = Rc::new(PrivateDirectory::new(
+    ///     let root_dir = &mut Rc::new(PrivateDirectory::new(
     ///         Namefilter::default(),
     ///         Utc::now(),
     ///         rng,
     ///     ));
     ///
-    ///     let PrivateOpResult { root_dir, .. } = dir
+    ///     root_dir
     ///         .mkdir(&["pictures".into(), "cats".into()], true, Utc::now(), forest, store, rng)
     ///         .await
     ///         .unwrap();
     ///
-    ///     let PrivateOpResult { result, .. } = root_dir
+    ///     let result = root_dir
     ///         .get_node(&["pictures".into(), "cats".into()], true, forest, store)
     ///         .await
     ///         .unwrap();
@@ -553,7 +551,7 @@ impl PrivateDirectory {
     /// use rand::thread_rng;
     ///
     /// use wnfs::{
-    ///     private::{PrivateForest, PrivateRef, PrivateDirectory, PrivateOpResult},
+    ///     private::{PrivateForest, PrivateRef, PrivateDirectory},
     ///     common::{BlockStore, MemoryBlockStore},
     ///     namefilter::Namefilter,
     /// };
@@ -563,8 +561,7 @@ impl PrivateDirectory {
     ///     let store = &mut MemoryBlockStore::default();
     ///     let rng = &mut thread_rng();
     ///     let forest = &mut Rc::new(PrivateForest::new());
-    ///
-    ///     let dir = Rc::new(PrivateDirectory::new(
+    ///     let root_dir = &mut Rc::new(PrivateDirectory::new(
     ///         Namefilter::default(),
     ///         Utc::now(),
     ///         rng,
@@ -572,7 +569,7 @@ impl PrivateDirectory {
     ///
     ///     let content = b"print('hello world')";
     ///
-    ///     let PrivateOpResult { root_dir, .. } = dir
+    ///     root_dir
     ///         .write(
     ///             &["code".into(), "hello.py".into()],
     ///             true,
@@ -585,7 +582,7 @@ impl PrivateDirectory {
     ///         .await
     ///         .unwrap();
     ///
-    ///     let PrivateOpResult { result, .. } = root_dir
+    ///     let result = root_dir
     ///         .read(&["code".into(), "hello.py".into()], true, forest, store)
     ///         .await
     ///         .unwrap();
@@ -639,7 +636,7 @@ impl PrivateDirectory {
     /// use chrono::Utc;
     /// use rand::thread_rng;
     /// use wnfs::{
-    ///     private::{PrivateForest, PrivateRef, PrivateDirectory, PrivateOpResult},
+    ///     private::{PrivateForest, PrivateRef, PrivateDirectory},
     ///     common::{BlockStore, MemoryBlockStore},
     ///     namefilter::Namefilter,
     /// };
@@ -649,8 +646,7 @@ impl PrivateDirectory {
     ///     let store = &mut MemoryBlockStore::default();
     ///     let rng = &mut thread_rng();
     ///     let forest = &mut Rc::new(PrivateForest::new());
-    ///
-    ///     let dir = Rc::new(PrivateDirectory::new(
+    ///     let root_dir = &mut Rc::new(PrivateDirectory::new(
     ///         Namefilter::default(),
     ///         Utc::now(),
     ///         rng,
@@ -658,7 +654,7 @@ impl PrivateDirectory {
     ///
     ///     let content = b"print('hello world')";
     ///
-    ///     let PrivateOpResult { root_dir, .. } = dir
+    ///     root_dir
     ///         .write(
     ///             &["code".into(), "hello.py".into()],
     ///             true,
@@ -671,7 +667,7 @@ impl PrivateDirectory {
     ///         .await
     ///         .unwrap();
     ///
-    ///     let PrivateOpResult { result, .. } = root_dir
+    ///     let result = root_dir
     ///         .read(&["code".into(), "hello.py".into()], true, forest, store)
     ///         .await
     ///         .unwrap();
@@ -749,7 +745,7 @@ impl PrivateDirectory {
     /// use chrono::Utc;
     /// use rand::thread_rng;
     /// use wnfs::{
-    ///     private::{PrivateForest, PrivateRef, PrivateNode, PrivateDirectory, PrivateOpResult},
+    ///     private::{PrivateForest, PrivateRef, PrivateNode, PrivateDirectory},
     ///     common::{BlockStore, MemoryBlockStore},
     ///     namefilter::Namefilter,
     /// };
@@ -759,8 +755,7 @@ impl PrivateDirectory {
     ///     let store = &mut MemoryBlockStore::default();
     ///     let rng = &mut thread_rng();
     ///     let forest = &mut Rc::new(PrivateForest::new());
-    ///
-    ///     let PrivateOpResult { root_dir: init_dir, .. } = PrivateDirectory::new_and_store(
+    ///     let mut init_dir = PrivateDirectory::new_and_store(
     ///         Default::default(),
     ///         Utc::now(),
     ///         forest,
@@ -768,12 +763,14 @@ impl PrivateDirectory {
     ///         rng
     ///     ).await.unwrap();
     ///
-    ///     let PrivateOpResult { root_dir, .. } = Rc::clone(&init_dir)
+    ///     let dir_clone = &mut Rc::clone(&init_dir);
+    ///
+    ///     dir_clone
     ///         .mkdir(&["pictures".into(), "cats".into()], true, Utc::now(), forest, store, rng)
     ///         .await
     ///         .unwrap();
     ///
-    ///     root_dir.store(forest, store, rng).await.unwrap();
+    ///     dir_clone.store(forest, store, rng).await.unwrap();
     ///
     ///     let latest_dir = init_dir.search_latest(forest, store).await.unwrap();
     ///
@@ -808,7 +805,7 @@ impl PrivateDirectory {
     /// use rand::thread_rng;
     ///
     /// use wnfs::{
-    ///     private::{PrivateForest, PrivateRef, PrivateDirectory, PrivateOpResult},
+    ///     private::{PrivateForest, PrivateRef, PrivateDirectory},
     ///     common::{BlockStore, MemoryBlockStore},
     ///     namefilter::Namefilter,
     /// };
@@ -818,14 +815,13 @@ impl PrivateDirectory {
     ///     let store = &mut MemoryBlockStore::default();
     ///     let rng = &mut thread_rng();
     ///     let forest = &mut Rc::new(PrivateForest::new());
-    ///
-    ///     let dir = Rc::new(PrivateDirectory::new(
+    ///     let root_dir = &mut Rc::new(PrivateDirectory::new(
     ///         Namefilter::default(),
     ///         Utc::now(),
     ///         rng,
     ///     ));
     ///
-    ///     let PrivateOpResult { root_dir, .. } = dir
+    ///     root_dir
     ///         .mkdir(&["pictures".into(), "cats".into()], true, Utc::now(), forest, store, rng)
     ///         .await
     ///         .unwrap();
@@ -864,7 +860,7 @@ impl PrivateDirectory {
     /// use rand::thread_rng;
     ///
     /// use wnfs::{
-    ///     private::{PrivateForest, PrivateRef, PrivateDirectory, PrivateOpResult},
+    ///     private::{PrivateForest, PrivateRef, PrivateDirectory},
     ///     common::{BlockStore, MemoryBlockStore},
     ///     namefilter::Namefilter,
     /// };
@@ -874,14 +870,13 @@ impl PrivateDirectory {
     ///     let store = &mut MemoryBlockStore::default();
     ///     let rng = &mut thread_rng();
     ///     let forest = &mut Rc::new(PrivateForest::new());
-    ///
-    ///     let dir = Rc::new(PrivateDirectory::new(
+    ///     let root_dir = &mut Rc::new(PrivateDirectory::new(
     ///         Namefilter::default(),
     ///         Utc::now(),
     ///         rng,
     ///     ));
     ///
-    ///     let PrivateOpResult { root_dir, .. } = dir
+    ///     root_dir
     ///         .write(
     ///             &["code".into(), "hello.py".into()],
     ///             true,
@@ -894,12 +889,12 @@ impl PrivateDirectory {
     ///         .await
     ///         .unwrap();
     ///
-    ///     let PrivateOpResult { root_dir, .. } = root_dir
+    ///     root_dir
     ///         .mkdir(&["code".into(), "bin".into()], true, Utc::now(), forest, store, rng)
     ///         .await
     ///         .unwrap();
     ///
-    ///     let PrivateOpResult { result, .. } = root_dir
+    ///     let result = root_dir
     ///         .ls(&["code".into()], true, forest, store)
     ///         .await
     ///         .unwrap();
@@ -950,7 +945,7 @@ impl PrivateDirectory {
     /// use chrono::Utc;
     /// use rand::thread_rng;
     /// use wnfs::{
-    ///     private::{PrivateForest, PrivateRef, PrivateDirectory, PrivateOpResult},
+    ///     private::{PrivateForest, PrivateRef, PrivateDirectory},
     ///     common::{BlockStore, MemoryBlockStore},
     ///     namefilter::Namefilter,
     /// };
@@ -960,14 +955,13 @@ impl PrivateDirectory {
     ///     let store = &mut MemoryBlockStore::default();
     ///     let rng = &mut thread_rng();
     ///     let forest = &mut Rc::new(PrivateForest::new());
-    ///
-    ///     let dir = Rc::new(PrivateDirectory::new(
+    ///     let root_dir = &mut Rc::new(PrivateDirectory::new(
     ///         Namefilter::default(),
     ///         Utc::now(),
     ///         rng,
     ///     ));
     ///
-    ///     let PrivateOpResult { root_dir, .. } = dir
+    ///     root_dir
     ///         .write(
     ///             &["code".into(), "python".into(), "hello.py".into()],
     ///             true,
@@ -980,19 +974,19 @@ impl PrivateDirectory {
     ///         .await
     ///         .unwrap();
     ///
-    ///     let PrivateOpResult { root_dir, result } = root_dir
+    ///     let result = root_dir
     ///         .ls(&["code".into()], true, forest, store)
     ///         .await
     ///         .unwrap();
     ///
     ///     assert_eq!(result.len(), 1);
     ///
-    ///     let PrivateOpResult { root_dir, .. } = root_dir
+     ///     root_dir
     ///         .rm(&["code".into(), "python".into()], true, forest, store)
     ///         .await
     ///         .unwrap();
     ///
-    ///     let PrivateOpResult { result, .. } = root_dir
+    ///     let result = root_dir
     ///         .ls(&["code".into()], true, forest, store)
     ///         .await
     ///         .unwrap();
@@ -1061,12 +1055,11 @@ impl PrivateDirectory {
     ///
     /// ```
     /// use std::rc::Rc;
-    ///
     /// use chrono::Utc;
     /// use rand::thread_rng;
     ///
     /// use wnfs::{
-    ///     private::{PrivateForest, PrivateRef, PrivateDirectory, PrivateOpResult},
+    ///     private::{PrivateForest, PrivateRef, PrivateDirectory},
     ///     common::{BlockStore, MemoryBlockStore},
     ///     namefilter::Namefilter,
     /// };
@@ -1076,14 +1069,13 @@ impl PrivateDirectory {
     ///     let store = &mut MemoryBlockStore::default();
     ///     let rng = &mut thread_rng();
     ///     let forest = &mut Rc::new(PrivateForest::new());
-    ///
-    ///     let dir = Rc::new(PrivateDirectory::new(
+    ///     let root_dir = &mut Rc::new(PrivateDirectory::new(
     ///         Namefilter::default(),
     ///         Utc::now(),
     ///         rng,
     ///     ));
     ///
-    ///     let PrivateOpResult { root_dir, .. } = dir
+    ///     root_dir
     ///         .write(
     ///             &["code".into(), "python".into(), "hello.py".into()],
     ///             true,
@@ -1096,7 +1088,7 @@ impl PrivateDirectory {
     ///         .await
     ///         .unwrap();
     ///
-    ///     let PrivateOpResult { root_dir, result } = root_dir
+    ///     let result = root_dir
     ///         .basic_mv(
     ///             &["code".into(), "python".into(), "hello.py".into()],
     ///             &["code".into(), "hello.py".into()],
@@ -1109,7 +1101,7 @@ impl PrivateDirectory {
     ///         .await
     ///         .unwrap();
     ///
-    ///     let PrivateOpResult { result, .. } = root_dir
+    ///     let result = root_dir
     ///         .ls(&["code".into()], true, forest, store)
     ///         .await
     ///         .unwrap();
@@ -1155,7 +1147,7 @@ impl PrivateDirectory {
     /// use rand::thread_rng;
     ///
     /// use wnfs::{
-    ///     private::{PrivateForest, PrivateRef, PrivateDirectory, PrivateOpResult},
+    ///     private::{PrivateForest, PrivateRef, PrivateDirectory},
     ///     common::{BlockStore, MemoryBlockStore},
     ///     namefilter::Namefilter,
     /// };
@@ -1165,14 +1157,13 @@ impl PrivateDirectory {
     ///     let store = &mut MemoryBlockStore::default();
     ///     let rng = &mut thread_rng();
     ///     let forest = &mut Rc::new(PrivateForest::new());
-    ///
-    ///     let dir = Rc::new(PrivateDirectory::new(
+    ///     let root_dir = &mut Rc::new(PrivateDirectory::new(
     ///         Namefilter::default(),
     ///         Utc::now(),
     ///         rng,
     ///     ));
     ///
-    ///     let PrivateOpResult { root_dir, .. } = dir
+    ///     root_dir
     ///         .write(
     ///             &["code".into(), "python".into(), "hello.py".into()],
     ///             true,
@@ -1185,7 +1176,7 @@ impl PrivateDirectory {
     ///         .await
     ///         .unwrap();
     ///
-    ///     let PrivateOpResult { root_dir, result } = root_dir
+    ///     let result = root_dir
     ///         .cp(
     ///             &["code".into(), "python".into(), "hello.py".into()],
     ///             &["code".into(), "hello.py".into()],
@@ -1198,7 +1189,7 @@ impl PrivateDirectory {
     ///         .await
     ///         .unwrap();
     ///
-    ///     let PrivateOpResult { result, .. } = root_dir
+    ///     let result = root_dir
     ///         .ls(&["code".into()], true, forest, store)
     ///         .await
     ///         .unwrap();
@@ -1242,7 +1233,7 @@ impl PrivateDirectory {
     /// use chrono::Utc;
     /// use rand::thread_rng;
     /// use wnfs::{
-    ///     private::{PrivateForest, PrivateRef, PrivateNode, PrivateDirectory, PrivateOpResult},
+    ///     private::{PrivateForest, PrivateRef, PrivateNode, PrivateDirectory},
     ///     common::{BlockStore, MemoryBlockStore},
     ///     namefilter::Namefilter,
     /// };
@@ -1252,7 +1243,7 @@ impl PrivateDirectory {
     ///     let store = &mut MemoryBlockStore::default();
     ///     let rng = &mut thread_rng();
     ///     let forest = &mut Rc::new(PrivateForest::new());
-    ///     let dir = Rc::new(PrivateDirectory::new(
+    ///     let dir = &mut Rc::new(PrivateDirectory::new(
     ///         Namefilter::default(),
     ///         Utc::now(),
     ///         rng,

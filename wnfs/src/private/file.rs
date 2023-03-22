@@ -632,7 +632,7 @@ impl PrivateFile {
     /// use chrono::Utc;
     /// use rand::thread_rng;
     /// use wnfs::{
-    ///     private::{PrivateForest, PrivateRef, PrivateFile, PrivateOpResult, PrivateNode},
+    ///     private::{PrivateForest, PrivateRef, PrivateFile, PrivateNode},
     ///     common::{BlockStore, MemoryBlockStore},
     ///     namefilter::Namefilter,
     /// };

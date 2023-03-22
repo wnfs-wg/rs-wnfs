@@ -56,7 +56,7 @@ impl PrivateForest {
     /// use rand::thread_rng;
     /// use sha3::Sha3_256;
     /// use wnfs::{
-    ///     private::{PrivateForest, PrivateRef, PrivateDirectory, PrivateOpResult, PrivateNode},
+    ///     private::{PrivateForest, PrivateRef, PrivateDirectory, PrivateNode},
     ///     common::{BlockStore, MemoryBlockStore},
     ///     hamt::Hasher,
     ///     namefilter::Namefilter,
@@ -200,7 +200,7 @@ where
     /// use rand::{thread_rng, Rng};
     /// use futures::StreamExt;
     /// use wnfs::{
-    ///     private::{PrivateForest, RevisionRef, PrivateDirectory, PrivateOpResult, PrivateNode},
+    ///     private::{PrivateForest, RevisionRef, PrivateDirectory, PrivateNode},
     ///     common::{BlockStore, MemoryBlockStore},
     ///     namefilter::Namefilter,
     /// };
