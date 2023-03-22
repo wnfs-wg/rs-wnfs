@@ -981,7 +981,7 @@ impl PrivateDirectory {
     ///
     ///     assert_eq!(result.len(), 1);
     ///
-     ///     root_dir
+    ///     root_dir
     ///         .rm(&["code".into(), "python".into()], true, forest, store)
     ///         .await
     ///         .unwrap();
