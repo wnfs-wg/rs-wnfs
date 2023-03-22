@@ -68,6 +68,11 @@ impl PrivateLink {
                     None => PrivateNode::load(private_ref, forest, store).await?,
                 };
 
+                // We need to switch this PrivateLink to be a `Decrypted` again, since
+                // mutations on the `PrivateNode` may change the `private_ref`, e.g. by
+                // advancing the ratchet forward.
+                // So the `PrivateRef` should be managed by the `PrivateNode` itself
+                // rather than the `PrivateLink`.
                 *self = Self::Decrypted { node: private_node };
 
                 Ok(match self {
