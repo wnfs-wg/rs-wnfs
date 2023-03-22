@@ -8,6 +8,7 @@ use crate::{
     traits::Id,
 };
 use anyhow::{bail, Result};
+use async_once_cell::OnceCell;
 use async_recursion::async_recursion;
 use chrono::{DateTime, Utc};
 use futures::StreamExt;
@@ -127,14 +128,14 @@ impl PrivateNode {
                 file.prepare_key_rotation(parent_bare_name, forest, store, rng)
                     .await?;
             }
-            PrivateNode::Dir(dir_rc) => {
+            Self::Dir(dir_rc) => {
                 let dir = Rc::make_mut(dir_rc);
 
                 for private_link in &mut dir.content.entries.values_mut() {
                     let mut node = private_link.resolve_node(forest, store).await?.clone();
                     node.update_ancestry(dir.header.bare_name.clone(), forest, store, rng)
                         .await?;
-                    *private_link = PrivateLink::new(node);
+                    *private_link = PrivateLink::from(node);
                 }
 
                 dir.prepare_key_rotation(parent_bare_name, rng);
@@ -225,6 +226,14 @@ impl PrivateNode {
     pub fn as_dir(&self) -> Result<Rc<PrivateDirectory>> {
         Ok(match self {
             Self::Dir(dir) => Rc::clone(dir),
+            _ => bail!(FsError::NotADirectory),
+        })
+    }
+
+    /// Casts a node to a mutable directory.
+    pub(crate) fn as_dir_mut(&mut self) -> Result<&mut Rc<PrivateDirectory>> {
+        Ok(match self {
+            Self::Dir(dir) => dir,
             _ => bail!(FsError::NotADirectory),
         })
     }
@@ -418,6 +427,18 @@ impl PrivateNode {
         }
 
         current_header.ratchet = search.current().clone();
+        // {
+        //     let x = {
+        //         let mut t = search.current().clone();
+        //         t.inc();
+        //         t
+        //     };
+        //     println!(
+        //         "    final ratchet: {:?}\n    inc: {:?}",
+        //         search.current(),
+        //         x
+        //     );
+        // }
 
         Ok(forest
             .get_multivalue(&current_header.derive_revision_ref(), store)
@@ -538,6 +559,13 @@ impl PrivateNode {
         match self {
             Self::File(file) => file.get_private_ref(),
             Self::Dir(dir) => dir.get_private_ref(),
+        }
+    }
+
+    pub(crate) fn persisted_as(&self) -> &OnceCell<Cid> {
+        match self {
+            Self::Dir(dir) => &dir.content.persisted_as,
+            Self::File(file) => &file.content.persisted_as,
         }
     }
 }

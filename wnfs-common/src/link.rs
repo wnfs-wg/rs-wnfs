@@ -81,7 +81,7 @@ impl<T: RemembersCid> Link<T> {
     /// Gets mut value stored in link. It attempts to get it from the store if it is not present in link.
     pub async fn resolve_value_mut(&mut self, store: &(impl BlockStore + ?Sized)) -> Result<&mut T>
     where
-        T: DeserializeOwned, // + Clone,
+        T: DeserializeOwned,
     {
         match self {
             Self::Encoded { cid, value_cache } => {
@@ -125,14 +125,11 @@ impl<T: RemembersCid> Link<T> {
         T: DeserializeOwned,
     {
         match self {
-            Self::Encoded {
-                ref cid,
-                value_cache,
-            } => match value_cache.into_inner() {
+            Self::Encoded { cid, value_cache } => match value_cache.into_inner() {
                 Some(cached) => Ok(cached),
                 None => {
-                    let value: T = store.get_deserializable(cid).await?;
-                    value.persisted_as().get_or_init(async { *cid }).await;
+                    let value: T = store.get_deserializable(&cid).await?;
+                    value.persisted_as().get_or_init(async { cid }).await;
                     Ok(value)
                 }
             },

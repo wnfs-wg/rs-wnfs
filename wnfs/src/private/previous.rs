@@ -501,7 +501,7 @@ impl PrivateNodeOnPathHistory {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::private::{PrivateDirectory, PrivateOpResult};
+    use crate::private::PrivateDirectory;
     use chrono::Utc;
     use proptest::test_runner::{RngAlgorithm, TestRng};
     use wnfs_common::MemoryBlockStore;
@@ -541,7 +541,7 @@ mod tests {
             mut rng,
             mut store,
             ref mut forest,
-            root_dir,
+            mut root_dir,
             discrepancy_budget,
         } = TestSetup::new();
 
@@ -552,7 +552,7 @@ mod tests {
 
         let past_ratchet = root_dir.header.ratchet.clone();
 
-        let PrivateOpResult { root_dir, .. } = root_dir
+        root_dir
             .write(
                 &["file.txt".into()],
                 true,
@@ -567,7 +567,7 @@ mod tests {
 
         root_dir.store(forest, store, rng).await.unwrap();
 
-        let PrivateOpResult { root_dir, .. } = root_dir
+        root_dir
             .mkdir(&["docs".into()], true, Utc::now(), forest, store, rng)
             .await
             .unwrap();
@@ -626,7 +626,7 @@ mod tests {
             mut rng,
             mut store,
             ref mut forest,
-            root_dir,
+            mut root_dir,
             discrepancy_budget,
         } = TestSetup::new();
 
@@ -639,14 +639,14 @@ mod tests {
 
         let path = ["Docs".into(), "Notes.md".into()];
 
-        let PrivateOpResult { root_dir, .. } = root_dir
+        root_dir
             .write(&path, true, Utc::now(), b"Hi".to_vec(), forest, store, rng)
             .await
             .unwrap();
 
         root_dir.store(forest, store, rng).await.unwrap();
 
-        let PrivateOpResult { root_dir, .. } = root_dir
+        root_dir
             .write(
                 &path,
                 true,
@@ -726,7 +726,7 @@ mod tests {
             mut rng,
             mut store,
             ref mut forest,
-            root_dir,
+            mut root_dir,
             discrepancy_budget,
         } = TestSetup::new();
 
@@ -739,27 +739,21 @@ mod tests {
 
         let path = ["Docs".into(), "Notes.md".into()];
 
-        let PrivateOpResult { root_dir, .. } = root_dir
+        root_dir
             .write(&path, true, Utc::now(), b"Hi".to_vec(), forest, store, rng)
             .await
             .unwrap();
 
         root_dir.store(forest, store, rng).await.unwrap();
 
-        let PrivateOpResult {
-            root_dir,
-            result: docs_dir,
-            ..
-        } = root_dir
+        let docs_dir = root_dir
             .get_node(&["Docs".into()], true, forest, store)
             .await
             .unwrap();
 
-        let docs_dir = docs_dir.unwrap().as_dir().unwrap();
+        let mut docs_dir = docs_dir.unwrap().as_dir().unwrap();
 
-        let PrivateOpResult {
-            root_dir: docs_dir, ..
-        } = docs_dir
+        docs_dir
             .write(
                 &["Notes.md".into()],
                 true,
@@ -839,7 +833,7 @@ mod tests {
             mut rng,
             mut store,
             ref mut forest,
-            root_dir,
+            mut root_dir,
             discrepancy_budget,
         } = TestSetup::new();
 
@@ -848,7 +842,7 @@ mod tests {
 
         let path = ["Docs".into(), "Notes.md".into()];
 
-        let PrivateOpResult { root_dir, .. } = root_dir
+        root_dir
             .write(
                 &path,
                 true,
@@ -865,20 +859,14 @@ mod tests {
 
         let past_ratchet = root_dir.header.ratchet.clone();
 
-        let PrivateOpResult {
-            root_dir,
-            result: docs_dir,
-            ..
-        } = root_dir
+        let docs_dir = root_dir
             .get_node(&["Docs".into()], true, forest, store)
             .await
             .unwrap();
 
-        let docs_dir = docs_dir.unwrap().as_dir().unwrap();
+        let mut docs_dir = docs_dir.unwrap().as_dir().unwrap();
 
-        let PrivateOpResult {
-            root_dir: docs_dir, ..
-        } = docs_dir
+        docs_dir
             .write(
                 &["Notes.md".into()],
                 true,
@@ -893,7 +881,7 @@ mod tests {
 
         docs_dir.store(forest, store, rng).await.unwrap();
 
-        let PrivateOpResult { root_dir, .. } = root_dir
+        root_dir
             .write(
                 &path,
                 true,
@@ -987,7 +975,7 @@ mod tests {
             mut rng,
             mut store,
             ref mut forest,
-            root_dir,
+            mut root_dir,
             discrepancy_budget,
         } = TestSetup::new();
 
@@ -996,7 +984,7 @@ mod tests {
 
         let path = ["Docs".into(), "Notes.md".into()];
 
-        let PrivateOpResult { root_dir, .. } = root_dir
+        root_dir
             .write(
                 &path,
                 true,
@@ -1013,11 +1001,11 @@ mod tests {
 
         let past_ratchet = root_dir.header.ratchet.clone();
 
-        let root_dir = Rc::new(root_dir.prepare_next_revision().unwrap());
+        let mut root_dir = Rc::new(root_dir.prepare_next_revision().unwrap().clone());
 
         root_dir.store(forest, store, rng).await.unwrap();
 
-        let PrivateOpResult { root_dir, .. } = root_dir
+        root_dir
             .write(
                 &path,
                 true,

@@ -27,3 +27,14 @@ pub mod hamt {
 pub mod namefilter {
     pub use wnfs_namefilter::*;
 }
+
+//--------------------------------------------------------------------------------------------------
+// Types
+//--------------------------------------------------------------------------------------------------
+
+/// The result of an basic get operation.
+pub(crate) enum SearchResult<T> {
+    Missing(T, usize),
+    NotADir(T, usize),
+    Found(T),
+}
