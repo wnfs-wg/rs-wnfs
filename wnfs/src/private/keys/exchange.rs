@@ -5,7 +5,7 @@ use anyhow::anyhow;
 use anyhow::Result;
 use async_trait::async_trait;
 #[cfg(test)]
-use rsa::{BigUint, PaddingScheme, PublicKey as PublicKeyTrait, PublicKeyParts};
+use rsa::{BigUint, Oaep, PublicKey as PublicKeyTrait, PublicKeyParts};
 #[cfg(test)]
 use sha2::Sha256;
 
@@ -90,7 +90,7 @@ impl RsaPrivateKey {
 #[async_trait(?Send)]
 impl ExchangeKey for RsaPublicKey {
     async fn encrypt(&self, data: &[u8]) -> Result<Vec<u8>> {
-        let padding = PaddingScheme::new_oaep::<Sha256>();
+        let padding = Oaep::new::<Sha256>();
         self.0
             .encrypt(&mut rand::thread_rng(), padding, data)
             .map_err(|e| anyhow!(RsaError::EncryptionFailed(anyhow!(e))))
@@ -110,7 +110,7 @@ impl ExchangeKey for RsaPublicKey {
 #[async_trait(?Send)]
 impl PrivateKey for RsaPrivateKey {
     async fn decrypt(&self, ciphertext: &[u8]) -> Result<Vec<u8>> {
-        let padding = PaddingScheme::new_oaep::<Sha256>();
+        let padding = Oaep::new::<Sha256>();
         self.0
             .decrypt(padding, ciphertext)
             .map_err(|e| anyhow!(RsaError::DecryptionFailed(anyhow!(e))))
