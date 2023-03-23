@@ -7,8 +7,14 @@
   "packages": {
     "wnfs": {},
     "wnfs-wasm": {},
-    "wnfs-common": {},
-    "wnfs-hamt": {},
-    "wnfs-namefilter": {}
+    "wnfs-common": {
+      "release-as": "0.1.19"
+    },
+    "wnfs-hamt": {
+      "release-as": "0.1.19"
+    },
+    "wnfs-namefilter": {
+      "release-as": "0.1.19"
+    }
   }
 }
