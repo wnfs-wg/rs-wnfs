@@ -5,7 +5,7 @@ use chrono::Utc;
 use libipld::Cid;
 use rand::{thread_rng, RngCore};
 use std::rc::Rc;
-use wnfs::private::{PrivateDirectory, PrivateForest, PrivateNode, PrivateOpResult, PrivateRef};
+use wnfs::private::{PrivateDirectory, PrivateForest, PrivateNode, PrivateRef};
 use wnfs_common::{BlockStore, MemoryBlockStore};
 use wnfs_namefilter::Namefilter;
 
@@ -43,27 +43,26 @@ async fn get_forest_cid_and_private_ref(
     let forest = &mut Rc::new(PrivateForest::new());
 
     // Create a new directory.
-    let dir = Rc::new(PrivateDirectory::new(
+    let dir = &mut Rc::new(PrivateDirectory::new(
         Namefilter::default(),
         Utc::now(),
         rng,
     ));
 
     // Add a /pictures/cats subdirectory.
-    let PrivateOpResult { root_dir, .. } = dir
-        .mkdir(
-            &["pictures".into(), "cats".into()],
-            true,
-            Utc::now(),
-            forest,
-            store,
-            rng,
-        )
-        .await
-        .unwrap();
+    dir.mkdir(
+        &["pictures".into(), "cats".into()],
+        true,
+        Utc::now(),
+        forest,
+        store,
+        rng,
+    )
+    .await
+    .unwrap();
 
     // Private ref contains data and keys for fetching and decrypting the directory node in the private forest.
-    let private_ref = root_dir.store(forest, store, rng).await.unwrap();
+    let private_ref = dir.store(forest, store, rng).await.unwrap();
 
     // Persist encoded private forest to the block store.
     let forest_cid = store.put_async_serializable(forest).await.unwrap();

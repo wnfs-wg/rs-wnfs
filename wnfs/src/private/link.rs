@@ -1,4 +1,4 @@
-use super::{PrivateForest, PrivateNode, PrivateRef};
+use super::{PrivateDirectory, PrivateFile, PrivateForest, PrivateNode, PrivateRef};
 use anyhow::Result;
 use async_once_cell::OnceCell;
 use async_recursion::async_recursion;
@@ -27,10 +27,6 @@ impl PrivateLink {
         }
     }
 
-    pub(crate) fn new(node: PrivateNode) -> Self {
-        Self::Decrypted { node }
-    }
-
     #[async_recursion(?Send)]
     pub(crate) async fn resolve_ref(
         &self,
@@ -57,6 +53,68 @@ impl PrivateLink {
             }
             Self::Decrypted { node, .. } => Ok(node),
         }
+    }
+
+    /// Gets mut value stored in link. It attempts to get it from the store if it is not present in link.
+    pub(crate) async fn resolve_node_mut(
+        &mut self,
+        forest: &PrivateForest,
+        store: &impl BlockStore,
+    ) -> Result<&mut PrivateNode> {
+        match self {
+            Self::Encrypted { private_ref, cache } => {
+                let private_node = match cache.take() {
+                    Some(node) => node,
+                    None => PrivateNode::load(private_ref, forest, store).await?,
+                };
+
+                // We need to switch this PrivateLink to be a `Decrypted` again, since
+                // mutations on the `PrivateNode` may change the `private_ref`, e.g. by
+                // advancing the ratchet forward.
+                // So the `PrivateRef` should be managed by the `PrivateNode` itself
+                // rather than the `PrivateLink`.
+                *self = Self::Decrypted { node: private_node };
+
+                Ok(match self {
+                    Self::Decrypted { node, .. } => node,
+                    _ => unreachable!(),
+                })
+            }
+            Self::Decrypted { node, .. } => Ok(node),
+        }
+    }
+
+    /// Gets an owned value from type. It attempts to it get from the store if it is not present in type.
+    pub(crate) async fn resolve_owned_node(
+        self,
+        forest: &PrivateForest,
+        store: &impl BlockStore,
+    ) -> Result<PrivateNode> {
+        match self {
+            Self::Encrypted { private_ref, cache } => match cache.into_inner() {
+                Some(cached) => Ok(cached),
+                None => {
+                    let node = PrivateNode::load(&private_ref, forest, store).await?;
+                    node.persisted_as()
+                        .get_or_init(async { private_ref.content_cid })
+                        .await;
+                    Ok(node)
+                }
+            },
+            Self::Decrypted { node, .. } => Ok(node),
+        }
+    }
+
+    /// Creates a link to a directory node.
+    #[inline]
+    pub(crate) fn with_dir(dir: PrivateDirectory) -> Self {
+        Self::from(PrivateNode::Dir(Rc::new(dir)))
+    }
+
+    /// Creates a link to a file node.
+    #[inline]
+    pub(crate) fn with_file(file: PrivateFile) -> Self {
+        Self::from(PrivateNode::File(Rc::new(file)))
     }
 
     #[allow(dead_code)]
@@ -103,5 +161,11 @@ impl Clone for PrivateLink {
             },
             Self::Decrypted { node } => Self::Decrypted { node: node.clone() },
         }
+    }
+}
+
+impl From<PrivateNode> for PrivateLink {
+    fn from(node: PrivateNode) -> Self {
+        Self::Decrypted { node }
     }
 }

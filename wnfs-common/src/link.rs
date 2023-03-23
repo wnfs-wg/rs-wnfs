@@ -81,19 +81,25 @@ impl<T: RemembersCid> Link<T> {
     /// Gets mut value stored in link. It attempts to get it from the store if it is not present in link.
     pub async fn resolve_value_mut(&mut self, store: &(impl BlockStore + ?Sized)) -> Result<&mut T>
     where
-        T: DeserializeOwned, // + Clone,
+        T: DeserializeOwned,
     {
         match self {
             Self::Encoded { cid, value_cache } => {
-                value_cache
-                    .get_or_try_init(async {
+                let value = match value_cache.take() {
+                    Some(v) => v,
+                    None => {
                         let value: T = store.get_deserializable(cid).await?;
                         value.persisted_as().get_or_init(async { *cid }).await;
-                        Result::<_, anyhow::Error>::Ok(value)
-                    })
-                    .await?;
+                        value
+                    }
+                };
 
-                Ok(value_cache.get_mut().unwrap())
+                *self = Self::Decoded { value };
+
+                Ok(match self {
+                    Self::Decoded { value } => value,
+                    _ => unreachable!(),
+                })
             }
             Self::Decoded { value, .. } => Ok(value),
         }
@@ -125,14 +131,11 @@ impl<T: RemembersCid> Link<T> {
         T: DeserializeOwned,
     {
         match self {
-            Self::Encoded {
-                ref cid,
-                value_cache,
-            } => match value_cache.into_inner() {
+            Self::Encoded { cid, value_cache } => match value_cache.into_inner() {
                 Some(cached) => Ok(cached),
                 None => {
-                    let value: T = store.get_deserializable(cid).await?;
-                    value.persisted_as().get_or_init(async { *cid }).await;
+                    let value: T = store.get_deserializable(&cid).await?;
+                    value.persisted_as().get_or_init(async { cid }).await;
                     Ok(value)
                 }
             },

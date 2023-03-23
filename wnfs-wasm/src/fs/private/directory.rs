@@ -15,10 +15,7 @@ use wasm_bindgen::{prelude::wasm_bindgen, JsValue};
 use wasm_bindgen_futures::future_to_promise;
 use wnfs::{
     common::HASH_BYTE_SIZE,
-    private::{
-        PrivateDirectory as WnfsPrivateDirectory, PrivateNode as WnfsPrivateNode,
-        PrivateOpResult as WnfsPrivateOpResult,
-    },
+    private::{PrivateDirectory as WnfsPrivateDirectory, PrivateNode as WnfsPrivateNode},
     traits::Id,
 };
 
@@ -86,7 +83,7 @@ impl PrivateDirectory {
         let mut forest = Rc::clone(&forest.0);
 
         Ok(future_to_promise(async move {
-            let WnfsPrivateOpResult { root_dir, .. } = WnfsPrivateDirectory::new_and_store(
+            let root_dir = WnfsPrivateDirectory::new_and_store(
                 parent_bare_name.0,
                 time,
                 &mut forest,
@@ -122,18 +119,17 @@ impl PrivateDirectory {
         let mut forest = Rc::clone(&forest.0);
 
         Ok(future_to_promise(async move {
-            let WnfsPrivateOpResult { root_dir, .. } =
-                WnfsPrivateDirectory::new_with_seed_and_store(
-                    parent_bare_name.0,
-                    time,
-                    ratchet_seed,
-                    inumber,
-                    &mut forest,
-                    &mut store,
-                    &mut rng,
-                )
-                .await
-                .map_err(error("Cannot create and store new directory"))?;
+            let root_dir = WnfsPrivateDirectory::new_with_seed_and_store(
+                parent_bare_name.0,
+                time,
+                ratchet_seed,
+                inumber,
+                &mut forest,
+                &mut store,
+                &mut rng,
+            )
+            .await
+            .map_err(error("Cannot create and store new directory"))?;
 
             Ok(utils::create_private_op_result(
                 root_dir,
@@ -165,13 +161,13 @@ impl PrivateDirectory {
         let forest = Rc::clone(&forest.0);
 
         Ok(future_to_promise(async move {
-            let WnfsPrivateOpResult { root_dir, result } = directory
+            let result = directory
                 .get_node(&path_segments, search_latest, &forest, &store)
                 .await
                 .map_err(error("Cannot get node"))?;
 
             Ok(utils::create_private_op_result(
-                root_dir,
+                directory,
                 forest,
                 result.map(PrivateNode),
             )?)
@@ -216,13 +212,13 @@ impl PrivateDirectory {
         let forest = Rc::clone(&forest.0);
 
         Ok(future_to_promise(async move {
-            let WnfsPrivateOpResult { root_dir, result } = directory
+            let result = directory
                 .read(&path_segments, search_latest, &forest, &store)
                 .await
                 .map_err(error("Cannot read from directory"))?;
 
             Ok(utils::create_private_op_result(
-                root_dir,
+                directory,
                 forest,
                 Uint8Array::from(&result[..]),
             )?)
@@ -243,7 +239,7 @@ impl PrivateDirectory {
         let forest = Rc::clone(&forest.0);
 
         Ok(future_to_promise(async move {
-            let WnfsPrivateOpResult { root_dir, result } = directory
+            let result = directory
                 .ls(&path_segments, search_latest, &forest, &store)
                 .await
                 .map_err(error("Cannot list directory content"))?;
@@ -253,7 +249,7 @@ impl PrivateDirectory {
                 .flat_map(|(name, metadata)| utils::create_ls_entry(name, metadata))
                 .collect::<Array>();
 
-            Ok(utils::create_private_op_result(root_dir, forest, result)?)
+            Ok(utils::create_private_op_result(directory, forest, result)?)
         }))
     }
 
@@ -265,22 +261,19 @@ impl PrivateDirectory {
         forest: &PrivateForest,
         store: BlockStore,
     ) -> JsResult<Promise> {
-        let directory = Rc::clone(&self.0);
+        let mut directory = Rc::clone(&self.0);
         let store = ForeignBlockStore(store);
         let path_segments = utils::convert_path_segments(path_segments)?;
         let forest = Rc::clone(&forest.0);
 
         Ok(future_to_promise(async move {
-            let WnfsPrivateOpResult {
-                root_dir,
-                result: node,
-            } = directory
+            let node = directory
                 .rm(&path_segments, search_latest, &forest, &store)
                 .await
                 .map_err(error("Cannot remove from directory"))?;
 
             Ok(utils::create_private_op_result(
-                root_dir,
+                directory,
                 forest,
                 PrivateNode(node),
             )?)
@@ -299,14 +292,14 @@ impl PrivateDirectory {
         store: BlockStore,
         mut rng: Rng,
     ) -> JsResult<Promise> {
-        let directory = Rc::clone(&self.0);
+        let mut directory = Rc::clone(&self.0);
         let mut store = ForeignBlockStore(store);
         let time = DateTime::<Utc>::from(time);
         let path_segments = utils::convert_path_segments(path_segments)?;
         let mut forest = Rc::clone(&forest.0);
 
         Ok(future_to_promise(async move {
-            let WnfsPrivateOpResult { root_dir, .. } = directory
+            directory
                 .write(
                     &path_segments,
                     search_latest,
@@ -320,7 +313,7 @@ impl PrivateDirectory {
                 .map_err(error("Cannot write to directory"))?;
 
             Ok(utils::create_private_op_result(
-                root_dir,
+                directory,
                 forest,
                 JsValue::NULL,
             )?)
@@ -340,7 +333,7 @@ impl PrivateDirectory {
         store: BlockStore,
         mut rng: Rng,
     ) -> JsResult<Promise> {
-        let directory = Rc::clone(&self.0);
+        let mut directory = Rc::clone(&self.0);
         let mut store = ForeignBlockStore(store);
         let time = DateTime::<Utc>::from(time);
         let path_segments_from = utils::convert_path_segments(path_segments_from)?;
@@ -348,7 +341,7 @@ impl PrivateDirectory {
         let mut forest = Rc::clone(&forest.0);
 
         Ok(future_to_promise(async move {
-            let WnfsPrivateOpResult { root_dir, .. } = directory
+            directory
                 .basic_mv(
                     &path_segments_from,
                     &path_segments_to,
@@ -362,7 +355,7 @@ impl PrivateDirectory {
                 .map_err(error("Cannot move content between directories"))?;
 
             Ok(utils::create_private_op_result(
-                root_dir,
+                directory,
                 forest,
                 JsValue::NULL,
             )?)
@@ -381,7 +374,7 @@ impl PrivateDirectory {
         store: BlockStore,
         mut rng: Rng,
     ) -> JsResult<Promise> {
-        let directory = Rc::clone(&self.0);
+        let mut directory = Rc::clone(&self.0);
         let mut store = ForeignBlockStore(store);
         let time = DateTime::<Utc>::from(time);
         let path_segments_from = utils::convert_path_segments(path_segments_from)?;
@@ -389,7 +382,7 @@ impl PrivateDirectory {
         let mut forest = Rc::clone(&forest.0);
 
         Ok(future_to_promise(async move {
-            let WnfsPrivateOpResult { root_dir, .. } = directory
+            directory
                 .cp(
                     &path_segments_from,
                     &path_segments_to,
@@ -403,7 +396,7 @@ impl PrivateDirectory {
                 .map_err(error("Cannot copy content between directories"))?;
 
             Ok(utils::create_private_op_result(
-                root_dir,
+                directory,
                 forest,
                 JsValue::NULL,
             )?)
@@ -422,14 +415,14 @@ impl PrivateDirectory {
         store: BlockStore,
         mut rng: Rng,
     ) -> JsResult<Promise> {
-        let directory = Rc::clone(&self.0);
+        let mut directory = Rc::clone(&self.0);
         let store = ForeignBlockStore(store);
         let time = DateTime::<Utc>::from(time);
         let path_segments = utils::convert_path_segments(path_segments)?;
         let forest = Rc::clone(&forest.0);
 
         Ok(future_to_promise(async move {
-            let WnfsPrivateOpResult { root_dir, .. } = directory
+            directory
                 .mkdir(
                     &path_segments,
                     search_latest,
@@ -442,7 +435,7 @@ impl PrivateDirectory {
                 .map_err(error("Cannot create directory"))?;
 
             Ok(utils::create_private_op_result(
-                root_dir,
+                directory,
                 forest,
                 JsValue::NULL,
             )?)

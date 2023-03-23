@@ -3,7 +3,7 @@ use futures::StreamExt;
 use rand::thread_rng;
 use sha3::Sha3_256;
 use std::rc::Rc;
-use wnfs::private::{AesKey, PrivateDirectory, PrivateForest, PrivateOpResult, RevisionRef};
+use wnfs::private::{AesKey, PrivateDirectory, PrivateForest, RevisionRef};
 use wnfs_common::{dagcbor, utils, MemoryBlockStore};
 use wnfs_hamt::Hasher;
 use wnfs_namefilter::Namefilter;
@@ -28,7 +28,7 @@ async fn main() -> anyhow::Result<()> {
     let inumber = utils::get_random_bytes::<32>(rng); // Needs to be random
 
     // Create a root directory from the ratchet_seed, inumber and namefilter. Directory gets saved in forest.
-    let PrivateOpResult { root_dir, .. } = PrivateDirectory::new_with_seed_and_store(
+    let root_dir = &mut PrivateDirectory::new_with_seed_and_store(
         Namefilter::default(),
         Utc::now(),
         ratchet_seed,
@@ -43,7 +43,7 @@ async fn main() -> anyhow::Result<()> {
     // ----------- Create a subdirectory -----------
 
     // Add a /movies/anime to the directory.
-    let PrivateOpResult { root_dir, .. } = root_dir
+    root_dir
         .mkdir(
             &["movies".into(), "anime".into()],
             true,

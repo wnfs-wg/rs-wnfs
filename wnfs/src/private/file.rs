@@ -77,7 +77,7 @@ pub struct PrivateFile {
 
 #[derive(Debug)]
 pub struct PrivateFileContent {
-    persisted_as: OnceCell<Cid>,
+    pub(crate) persisted_as: OnceCell<Cid>,
     pub(crate) previous: BTreeSet<(usize, Encrypted<Cid>)>,
     pub(crate) metadata: Metadata,
     pub(crate) content: FileContent,
@@ -561,28 +561,23 @@ impl PrivateFile {
     /// This doesn't have any effect if the current state hasn't been `.store()`ed yet.
     /// Otherwise, it clones itself, stores its current CID in the previous links and
     /// advances its ratchet.
-    pub(crate) fn prepare_next_revision(self: Rc<Self>) -> Result<Self> {
+    pub(crate) fn prepare_next_revision<'a>(self: &'a mut Rc<Self>) -> Result<&'a mut Self> {
         let previous_cid = match self.content.persisted_as.get() {
             Some(cid) => *cid,
             None => {
                 // The current revision wasn't written yet.
                 // There's no point in advancing the revision even further.
-                return Ok(Rc::try_unwrap(self).unwrap_or_else(|rc| (*rc).clone()));
+                return Ok(Rc::make_mut(self));
             }
         };
 
         let temporal_key = self.header.derive_temporal_key();
+        let previous_link = (1, Encrypted::from_value(previous_cid, &temporal_key)?);
+        let mut cloned = Rc::make_mut(self);
 
-        let mut cloned = Rc::try_unwrap(self).unwrap_or_else(|rc| (*rc).clone());
         // We make sure to clear any cached states.
-        // `.clone()` does this too, but `try_unwrap` may circumvent clone.
         cloned.content.persisted_as = OnceCell::new();
-        cloned.content.previous.clear();
-        cloned
-            .content
-            .previous
-            .insert((1, Encrypted::from_value(previous_cid, &temporal_key)?));
-
+        cloned.content.previous = [previous_link].into_iter().collect();
         cloned.header.advance_ratchet();
 
         Ok(cloned)
@@ -636,7 +631,7 @@ impl PrivateFile {
     /// use chrono::Utc;
     /// use rand::thread_rng;
     /// use wnfs::{
-    ///     private::{PrivateForest, PrivateRef, PrivateFile, PrivateOpResult, PrivateNode},
+    ///     private::{PrivateForest, PrivateRef, PrivateFile, PrivateNode},
     ///     common::{BlockStore, MemoryBlockStore},
     ///     namefilter::Namefilter,
     /// };

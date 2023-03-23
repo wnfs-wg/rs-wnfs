@@ -1,11 +1,7 @@
 //! Public fs directory node.
 
 use super::{PublicFile, PublicLink, PublicNode};
-use crate::{
-    error::FsError,
-    traits::{Id, PrepareMut},
-    utils,
-};
+use crate::{error::FsError, traits::Id, utils, SearchResult};
 use anyhow::{bail, ensure, Result};
 use async_once_cell::OnceCell;
 use async_recursion::async_recursion;
@@ -59,13 +55,6 @@ struct PublicDirectorySerializable {
     metadata: Metadata,
     userland: BTreeMap<String, Cid>,
     previous: Vec<Cid>,
-}
-
-/// The result of an basic get operation.
-enum SearchState<T> {
-    Missing(T, usize),
-    NotADir(T, usize),
-    Found(T),
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -131,31 +120,46 @@ impl PublicDirectory {
         &self.metadata
     }
 
+    /// Takes care of creating previous links, in case the current
+    /// directory was previously `.store()`ed.
+    /// In any case it'll try to give you ownership of the directory if possible,
+    /// otherwise it clones.
+    pub(crate) fn prepare_next_revision<'a>(self: &'a mut Rc<Self>) -> &'a mut Self {
+        let Some(previous_cid) = self.persisted_as.get().cloned() else {
+            return Rc::make_mut(self);
+        };
+
+        let cloned = Rc::make_mut(self);
+        cloned.persisted_as = OnceCell::new();
+        cloned.previous = [previous_cid].into_iter().collect();
+        cloned
+    }
+
     async fn get_leaf_dir<'a>(
         &'a self,
         path_segments: &[String],
         store: &impl BlockStore,
-    ) -> Result<SearchState<&'a Self>> {
+    ) -> Result<SearchResult<&'a Self>> {
         let mut working_dir = self;
         for (depth, segment) in path_segments.iter().enumerate() {
             match working_dir.lookup_node(segment, store).await? {
-                Some(PublicNode::Dir(ref directory)) => {
-                    working_dir = directory;
+                Some(PublicNode::Dir(directory)) => {
+                    working_dir = directory.as_ref();
                 }
-                Some(_) => return Ok(SearchState::NotADir(working_dir, depth)),
-                None => return Ok(SearchState::Missing(working_dir, depth)),
+                Some(_) => return Ok(SearchResult::NotADir(working_dir, depth)),
+                None => return Ok(SearchResult::Missing(working_dir, depth)),
             }
         }
 
-        Ok(SearchState::Found(working_dir))
+        Ok(SearchResult::Found(working_dir))
     }
 
     async fn get_leaf_dir_mut<'a>(
         self: &'a mut Rc<Self>,
         path_segments: &[String],
         store: &impl BlockStore,
-    ) -> Result<SearchState<&'a mut Self>> {
-        let mut working_dir = self.prepare_mut();
+    ) -> Result<SearchResult<&'a mut Self>> {
+        let mut working_dir = self.prepare_next_revision();
         for (depth, segment) in path_segments.iter().enumerate() {
             match working_dir.lookup_node(segment, store).await? {
                 Some(PublicNode::Dir(_)) => {
@@ -169,14 +173,14 @@ impl PublicDirectory {
                         .unwrap()
                         .as_dir_mut()
                         .unwrap()
-                        .prepare_mut()
+                        .prepare_next_revision()
                 }
-                Some(_) => return Ok(SearchState::NotADir(working_dir, depth)),
-                None => return Ok(SearchState::Missing(working_dir, depth)),
+                Some(_) => return Ok(SearchResult::NotADir(working_dir, depth)),
+                None => return Ok(SearchResult::Missing(working_dir, depth)),
             };
         }
 
-        Ok(SearchState::Found(working_dir))
+        Ok(SearchResult::Found(working_dir))
     }
 
     async fn get_or_create_leaf_dir_mut<'a>(
@@ -186,8 +190,8 @@ impl PublicDirectory {
         store: &impl BlockStore,
     ) -> Result<&'a mut Self> {
         match self.get_leaf_dir_mut(path_segments, store).await? {
-            SearchState::Found(dir) => Ok(dir),
-            SearchState::Missing(mut dir, depth) => {
+            SearchResult::Found(dir) => Ok(dir),
+            SearchResult::Missing(mut dir, depth) => {
                 for segment in &path_segments[depth..] {
                     dir = Rc::make_mut(
                         dir.userland
@@ -203,7 +207,7 @@ impl PublicDirectory {
 
                 Ok(dir)
             }
-            SearchState::NotADir(_, _) => bail!(FsError::NotADirectory),
+            SearchResult::NotADir(_, _) => bail!(FsError::NotADirectory),
         }
     }
 
@@ -246,7 +250,7 @@ impl PublicDirectory {
             bail!(FsError::InvalidPath);
         };
 
-        let SearchState::Found(dir) = self.get_leaf_dir(path, store).await? else {
+        let SearchResult::Found(dir) = self.get_leaf_dir(path, store).await? else {
             bail!(FsError::NotFound);
         };
 
@@ -292,7 +296,8 @@ impl PublicDirectory {
         })
     }
 
-    pub async fn lookup_node_mut<'a>(
+    /// Looks up a node by its path name in the current directory.
+    async fn lookup_node_mut<'a>(
         &'a mut self,
         path_segment: &str,
         store: &impl BlockStore,
@@ -378,7 +383,7 @@ impl PublicDirectory {
     pub async fn read(&self, path_segments: &[String], store: &impl BlockStore) -> Result<Cid> {
         let (path, filename) = utils::split_last(path_segments)?;
         match self.get_leaf_dir(path, store).await? {
-            SearchState::Found(dir) => match dir.lookup_node(filename, store).await? {
+            SearchResult::Found(dir) => match dir.lookup_node(filename, store).await? {
                 Some(PublicNode::File(file)) => Ok(file.userland),
                 Some(_) => error(FsError::NotAFile),
                 None => error(FsError::NotFound),
@@ -428,7 +433,7 @@ impl PublicDirectory {
 
         match dir.lookup_node_mut(filename, store).await? {
             Some(PublicNode::File(file)) => {
-                let file = file.prepare_mut();
+                let file = file.prepare_next_revision();
                 file.userland = content_cid;
                 file.metadata.upsert_mtime(time);
             }
@@ -534,7 +539,7 @@ impl PublicDirectory {
         store: &impl BlockStore,
     ) -> Result<Vec<(String, Metadata)>> {
         match self.get_leaf_dir(path_segments, store).await? {
-            SearchState::Found(dir) => {
+            SearchResult::Found(dir) => {
                 let mut result = vec![];
                 for (name, link) in dir.userland.iter() {
                     match link.resolve_value(store).await? {
@@ -548,7 +553,7 @@ impl PublicDirectory {
                 }
                 Ok(result)
             }
-            SearchState::NotADir(_, _) => bail!(FsError::NotADirectory),
+            SearchResult::NotADir(_, _) => bail!(FsError::NotADirectory),
             _ => bail!(FsError::NotFound),
         }
     }
@@ -608,7 +613,7 @@ impl PublicDirectory {
     ) -> Result<PublicNode> {
         let (path, node_name) = utils::split_last(path_segments)?;
 
-        let SearchState::Found(dir) = self.get_leaf_dir_mut(path, store).await? else {
+        let SearchResult::Found(dir) = self.get_leaf_dir_mut(path, store).await? else {
             bail!(FsError::NotFound)
         };
 
@@ -678,7 +683,7 @@ impl PublicDirectory {
         let (path, filename) = utils::split_last(path_segments_to)?;
         let mut removed_node = self.rm(path_segments_from, store).await?;
 
-        let SearchState::Found(dir) = self.get_leaf_dir_mut(path, store).await? else {
+        let SearchResult::Found(dir) = self.get_leaf_dir_mut(path, store).await? else {
             bail!(FsError::NotFound);
         };
 
@@ -693,23 +698,6 @@ impl PublicDirectory {
             .insert(filename.clone(), PublicLink::new(removed_node));
 
         Ok(())
-    }
-}
-
-impl PrepareMut for PublicDirectory {
-    /// Takes care of creating previous links, in case the current
-    /// directory was previously `.store()`ed.
-    /// In any case it'll try to give you ownership of the directory if possible,
-    /// otherwise it clones.
-    fn prepare_mut<'a>(self: &'a mut Rc<PublicDirectory>) -> &'a mut PublicDirectory {
-        let Some(previous_cid) = self.persisted_as.get().cloned() else {
-            return Rc::make_mut(self);
-        };
-
-        let cloned = Rc::make_mut(self);
-        cloned.persisted_as = OnceCell::new();
-        cloned.previous = [previous_cid].into_iter().collect();
-        cloned
     }
 }
 
@@ -1147,15 +1135,11 @@ mod tests {
         let time = Utc::now();
         let store = &mut MemoryBlockStore::default();
         let root_dir = &mut Rc::new(PublicDirectory::new(time));
-
         let previous_cid = root_dir.store(store).await.unwrap();
-        let root_dir_clone = &mut Rc::clone(root_dir);
-        root_dir_clone
-            .mkdir(&["test".into()], time, store)
-            .await
-            .unwrap();
 
-        let ipld = root_dir_clone.async_serialize_ipld(store).await.unwrap();
+        root_dir.mkdir(&["test".into()], time, store).await.unwrap();
+
+        let ipld = root_dir.async_serialize_ipld(store).await.unwrap();
         match ipld {
             Ipld::Map(map) => match map.get("previous") {
                 Some(Ipld::List(previous)) => {
@@ -1168,15 +1152,15 @@ mod tests {
     }
 
     #[async_std::test]
-    async fn prepare_mut_shortcuts_if_possible() {
+    async fn prepare_next_revision_shortcuts_if_possible() {
         let time = Utc::now();
         let store = &mut MemoryBlockStore::default();
         let root_dir = &mut Rc::new(PublicDirectory::new(time));
 
         let previous_cid = &root_dir.store(store).await.unwrap();
-        let next_root_dir = root_dir.prepare_mut();
+        let next_root_dir = root_dir.prepare_next_revision();
         let next_root_dir_clone = &mut Rc::new(next_root_dir.clone());
-        let yet_another_dir = next_root_dir_clone.prepare_mut();
+        let yet_another_dir = next_root_dir_clone.prepare_next_revision();
 
         assert_eq!(
             yet_another_dir.previous.iter().collect::<Vec<_>>(),

@@ -394,7 +394,7 @@ mod tests {
         sharer, Recipient, Share, SharePayload, Sharer, EXCHANGE_KEY_NAME,
     };
     use crate::{
-        private::{PrivateDirectory, PrivateForest, PrivateOpResult, RsaPublicKey},
+        private::{PrivateDirectory, PrivateForest, RsaPublicKey},
         public::{PublicLink, PublicNode},
     };
     use chrono::Utc;
@@ -404,10 +404,7 @@ mod tests {
 
     mod helper {
         use crate::{
-            private::{
-                share::EXCHANGE_KEY_NAME, PrivateDirectory, PrivateForest, PrivateOpResult,
-                RsaPrivateKey,
-            },
+            private::{share::EXCHANGE_KEY_NAME, PrivateDirectory, PrivateForest, RsaPrivateKey},
             public::PublicDirectory,
         };
         use anyhow::Result;
@@ -422,8 +419,8 @@ mod tests {
             forest: &mut Rc<PrivateForest>,
             store: &mut impl BlockStore,
             rng: &mut impl RngCore,
-        ) -> Result<PrivateOpResult<()>> {
-            let PrivateOpResult { root_dir, .. } = PrivateDirectory::new_and_store(
+        ) -> Result<Rc<PrivateDirectory>> {
+            let mut dir = PrivateDirectory::new_and_store(
                 Namefilter::default(),
                 Utc::now(),
                 forest,
@@ -432,17 +429,18 @@ mod tests {
             )
             .await?;
 
-            root_dir
-                .write(
-                    &["text.txt".into()],
-                    true,
-                    Utc::now(),
-                    b"Hello World!".to_vec(),
-                    forest,
-                    store,
-                    rng,
-                )
-                .await
+            dir.write(
+                &["text.txt".into()],
+                true,
+                Utc::now(),
+                b"Hello World!".to_vec(),
+                forest,
+                store,
+                rng,
+            )
+            .await?;
+
+            Ok(dir)
         }
 
         pub(super) async fn create_recipient_exchange_root(
@@ -476,10 +474,7 @@ mod tests {
         let sharer_root_did = "did:key:z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK";
         // Create directory to share.
 
-        let PrivateOpResult {
-            root_dir: sharer_dir,
-            ..
-        } = helper::create_sharer_dir(sharer_forest, sharer_store, rng)
+        let sharer_dir = helper::create_sharer_dir(sharer_forest, sharer_store, rng)
             .await
             .unwrap();
 
@@ -540,13 +535,12 @@ mod tests {
         let store = &mut MemoryBlockStore::default();
         let forest = &mut Rc::new(PrivateForest::new());
         let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
-
-        let PrivateOpResult { root_dir, .. } =
+        let dir =
             PrivateDirectory::new_and_store(Default::default(), Utc::now(), forest, store, rng)
                 .await
                 .unwrap();
 
-        let payload = SharePayload::from_node(&root_dir.as_node(), true, forest, store, rng)
+        let payload = SharePayload::from_node(&dir.as_node(), true, forest, store, rng)
             .await
             .unwrap();
 
@@ -604,7 +598,7 @@ mod tests {
         assert_eq!(max_share_count_before, None);
 
         // Create something to share access to.
-        let PrivateOpResult { root_dir, .. } = PrivateDirectory::new_and_store(
+        let dir = PrivateDirectory::new_and_store(
             Default::default(),
             Utc::now(),
             forest,
@@ -615,7 +609,7 @@ mod tests {
         .unwrap();
 
         // Create the share
-        let payload = SharePayload::from_node(&root_dir.as_node(), true, forest, sharer_store, rng)
+        let payload = SharePayload::from_node(&dir.as_node(), true, forest, sharer_store, rng)
             .await
             .unwrap();
 
