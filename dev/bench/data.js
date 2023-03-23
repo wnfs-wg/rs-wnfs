@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1679402484675,
+  "lastUpdate": 1679565254699,
   "repoUrl": "https://github.com/wnfs-wg/rs-wnfs",
   "entries": {
     "Rust Benchmark": [
@@ -9018,6 +9018,108 @@ window.BENCHMARK_DATA = {
           {
             "name": "namefilter decode/0",
             "value": 2,
+            "range": "± 0",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "appcypher@outlook.com",
+            "name": "Stephen Akinyemi",
+            "username": "appcypher"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "700c09fe8416f1524f9283115daab4c3440cf03f",
+          "message": "refactor(api): refactor out PrivateOpResult  (#211)\n\n* Refactor privateopresult\r\n\r\n* fix: `PrivatLink::resolve_node_mut` disassociates `PrivateRef`\r\n\r\n* chore: Add an explainer comment\r\n\r\n* Fix tests and bindings\r\n\r\n* Fix readme\r\n\r\n* Fix fmt\r\n\r\n* Remove prints and fix resolve-value-mut\r\n\r\nCo-authored-by: Philipp Krüger <philipp.krueger1@gmail.com>\r\n\r\n---------\r\n\r\nCo-authored-by: Philipp Krüger <philipp.krueger1@gmail.com>",
+          "timestamp": "2023-03-23T10:49:41+01:00",
+          "tree_id": "5df9a26fcc8773f398effba007848b8a24f10a74",
+          "url": "https://github.com/wnfs-wg/rs-wnfs/commit/700c09fe8416f1524f9283115daab4c3440cf03f"
+        },
+        "date": 1679565253736,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "node set",
+            "value": 7090,
+            "range": "± 71",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node set 1000 consecutive",
+            "value": 4595038,
+            "range": "± 21630",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and get",
+            "value": 181272,
+            "range": "± 556",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and remove",
+            "value": 204877,
+            "range": "± 508",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt load and decode/0",
+            "value": 51525,
+            "range": "± 96",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt set and encode",
+            "value": 176258,
+            "range": "± 553",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt diff",
+            "value": 60021,
+            "range": "± 4772",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt merge",
+            "value": 243524,
+            "range": "± 19504",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter add",
+            "value": 7520,
+            "range": "± 20",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter contains",
+            "value": 9621,
+            "range": "± 69",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter saturate",
+            "value": 45739,
+            "range": "± 317",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter encode",
+            "value": 170,
+            "range": "± 17",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter decode/0",
+            "value": 1,
             "range": "± 0",
             "unit": "ns/iter"
           }
