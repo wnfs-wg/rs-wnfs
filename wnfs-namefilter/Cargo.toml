@@ -30,7 +30,7 @@ rand_core = "0.6"
 serde = { version = "1.0", features = ["rc"] }
 sha3 = "0.10"
 thiserror = "1.0"
-wnfs-common = { path = "../wnfs-common" }
+wnfs-common = { path = "../wnfs-common", version = "0.1.18" }
 xxhash-rust = { version = "0.8", features = ["xxh3"] }
 
 [dev-dependencies]
