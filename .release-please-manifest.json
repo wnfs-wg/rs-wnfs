@@ -1,8 +1,8 @@
 {
   "wnfs": "0.1.17",
   "wnfs-bench": "0.1.17",
-  "wnfs-common": "0.1.17",
-  "wnfs-hamt": "0.1.17",
-  "wnfs-namefilter": "0.1.17",
+  "wnfs-common": "0.1.18",
+  "wnfs-hamt": "0.1.18",
+  "wnfs-namefilter": "0.1.18",
   "wnfs-wasm": "0.1.17"
 }
