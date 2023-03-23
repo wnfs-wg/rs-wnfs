@@ -8,6 +8,20 @@
   * dependencies
     * wnfs bumped from 0.1.12 to 0.1.13
 
+## [0.1.18](https://github.com/wnfs-wg/rs-wnfs/compare/wnfs-wasm-v0.1.17...wnfs-wasm-v0.1.18) (2023-03-23)
+
+
+### Bug Fixes
+
+* `find_latest_share_counter` finds the last share count ([#197](https://github.com/wnfs-wg/rs-wnfs/issues/197)) ([69ffeec](https://github.com/wnfs-wg/rs-wnfs/commit/69ffeeca20cc3106e6d733e2d5adf5f87987630c))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * wnfs bumped from 0.1.17 to 0.1.18
+
 ## [0.1.17](https://github.com/wnfs-wg/rs-wnfs/compare/wnfs-wasm-v0.1.16...wnfs-wasm-v0.1.17) (2023-02-24)
 
 
