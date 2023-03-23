@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1679565254699,
+  "lastUpdate": 1679566631411,
   "repoUrl": "https://github.com/wnfs-wg/rs-wnfs",
   "entries": {
     "Rust Benchmark": [
@@ -9115,6 +9115,108 @@ window.BENCHMARK_DATA = {
             "name": "namefilter encode",
             "value": 170,
             "range": "± 17",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter decode/0",
+            "value": 1,
+            "range": "± 0",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "49699333+dependabot[bot]@users.noreply.github.com",
+            "name": "dependabot[bot]",
+            "username": "dependabot[bot]"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "129c53803f598e2d8a99eddb22bec3a836f0bf10",
+          "message": "chore(rust)(deps): update rsa requirement from 0.7 to 0.8 in /wnfs (#168)\n\n* chore(rust)(deps): update rsa requirement from 0.7 to 0.8 in /wnfs\r\n\r\nUpdates the requirements on [rsa](https://github.com/RustCrypto/RSA) to permit the latest version.\r\n- [Release notes](https://github.com/RustCrypto/RSA/releases)\r\n- [Changelog](https://github.com/RustCrypto/RSA/blob/master/CHANGELOG.md)\r\n- [Commits](https://github.com/RustCrypto/RSA/compare/v0.7.0...v0.8.1)\r\n\r\n---\r\nupdated-dependencies:\r\n- dependency-name: rsa\r\n  dependency-type: direct:production\r\n...\r\n\r\nSigned-off-by: dependabot[bot] <support@github.com>\r\n\r\n* fix: Adjust to rsa 0.8 API\r\n\r\n* refactor: merge imports\r\n\r\n---------\r\n\r\nSigned-off-by: dependabot[bot] <support@github.com>\r\nCo-authored-by: dependabot[bot] <49699333+dependabot[bot]@users.noreply.github.com>\r\nCo-authored-by: Philipp Krüger <philipp.krueger1@gmail.com>",
+          "timestamp": "2023-03-23T11:12:38+01:00",
+          "tree_id": "00974db25ef8e3dc46123cd6beacfd35c673240a",
+          "url": "https://github.com/wnfs-wg/rs-wnfs/commit/129c53803f598e2d8a99eddb22bec3a836f0bf10"
+        },
+        "date": 1679566630705,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "node set",
+            "value": 7321,
+            "range": "± 96",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node set 1000 consecutive",
+            "value": 4378298,
+            "range": "± 38007",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and get",
+            "value": 175926,
+            "range": "± 773",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and remove",
+            "value": 198396,
+            "range": "± 415",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt load and decode/0",
+            "value": 48861,
+            "range": "± 794",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt set and encode",
+            "value": 179299,
+            "range": "± 483",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt diff",
+            "value": 54451,
+            "range": "± 4453",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt merge",
+            "value": 232379,
+            "range": "± 18553",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter add",
+            "value": 7595,
+            "range": "± 10",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter contains",
+            "value": 9366,
+            "range": "± 26",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter saturate",
+            "value": 50070,
+            "range": "± 49",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter encode",
+            "value": 284,
+            "range": "± 5",
             "unit": "ns/iter"
           },
           {
