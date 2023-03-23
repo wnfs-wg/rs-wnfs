@@ -85,15 +85,21 @@ impl<T: RemembersCid> Link<T> {
     {
         match self {
             Self::Encoded { cid, value_cache } => {
-                value_cache
-                    .get_or_try_init(async {
+                let value = match value_cache.take() {
+                    Some(v) => v,
+                    None => {
                         let value: T = store.get_deserializable(cid).await?;
                         value.persisted_as().get_or_init(async { *cid }).await;
-                        Result::<_, anyhow::Error>::Ok(value)
-                    })
-                    .await?;
+                        value
+                    }
+                };
 
-                Ok(value_cache.get_mut().unwrap())
+                *self = Self::Decoded { value };
+
+                Ok(match self {
+                    Self::Decoded { value } => value,
+                    _ => unreachable!(),
+                })
             }
             Self::Decoded { value, .. } => Ok(value),
         }

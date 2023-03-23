@@ -76,8 +76,8 @@ impl PrivateLink {
                 *self = Self::Decrypted { node: private_node };
 
                 Ok(match self {
-                    Self::Encrypted { .. } => unreachable!(),
                     Self::Decrypted { node, .. } => node,
+                    _ => unreachable!(),
                 })
             }
             Self::Decrypted { node, .. } => Ok(node),

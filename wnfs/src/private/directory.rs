@@ -597,28 +597,17 @@ impl PrivateDirectory {
         forest: &PrivateForest,
         store: &impl BlockStore,
     ) -> Result<Vec<u8>> {
-        println!();
         let (path, filename) = crate::utils::split_last(path_segments)?;
         match self
             .get_leaf_dir(path, search_latest, forest, store)
             .await?
         {
             SearchResult::Found(dir) => {
-                println!(
-                    "read: latest: {:?}, dir: {:?}",
-                    search_latest, dir.header.ratchet
-                );
                 match dir
                     .lookup_node(filename, search_latest, forest, store)
                     .await?
                 {
-                    Some(PrivateNode::File(file)) => {
-                        println!(
-                            "read: latest: {:?}, file: {:?}",
-                            search_latest, file.header.ratchet
-                        );
-                        Ok(file.get_content(forest, store).await?)
-                    }
+                    Some(PrivateNode::File(file)) => Ok(file.get_content(forest, store).await?),
                     Some(_) => error(FsError::NotAFile),
                     None => error(FsError::NotFound),
                 }
@@ -686,7 +675,6 @@ impl PrivateDirectory {
         store: &mut impl BlockStore,
         rng: &mut impl RngCore,
     ) -> Result<()> {
-        println!();
         let (path, filename) = crate::utils::split_last(path_segments)?;
         let dir = self
             .get_or_create_leaf_dir_mut(path, time, search_latest, forest, store, rng)
@@ -698,10 +686,6 @@ impl PrivateDirectory {
         {
             Some(PrivateNode::File(file)) => {
                 let file = file.prepare_next_revision()?;
-                println!(
-                    "write(file found): latest: {:?}, file: {:?}",
-                    search_latest, file.header.ratchet
-                );
                 let content = PrivateFile::prepare_content(
                     &file.header.bare_name,
                     content,
@@ -724,10 +708,6 @@ impl PrivateDirectory {
                     rng,
                 )
                 .await?;
-                println!(
-                    "write(file not found): latest: {:?}, file: {:?}",
-                    search_latest, file.header.ratchet,
-                );
                 let link = PrivateLink::with_file(file);
                 dir.content.entries.insert(filename.to_string(), link);
             }

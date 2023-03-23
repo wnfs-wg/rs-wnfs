@@ -562,7 +562,6 @@ impl PrivateFile {
     /// Otherwise, it clones itself, stores its current CID in the previous links and
     /// advances its ratchet.
     pub(crate) fn prepare_next_revision<'a>(self: &'a mut Rc<Self>) -> Result<&'a mut Self> {
-        println!("persisted_as: {:?}", self.content.persisted_as.get());
         let previous_cid = match self.content.persisted_as.get() {
             Some(cid) => *cid,
             None => {
