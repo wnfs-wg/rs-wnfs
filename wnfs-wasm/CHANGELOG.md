@@ -8,6 +8,20 @@
   * dependencies
     * wnfs bumped from 0.1.12 to 0.1.13
 
+## [0.1.19](https://github.com/wnfs-wg/rs-wnfs/compare/wnfs-wasm-v0.1.18...wnfs-wasm-v0.1.19) (2023-03-23)
+
+
+### Miscellaneous Chores
+
+* release 0.1.19 ([1f37ec4](https://github.com/wnfs-wg/rs-wnfs/commit/1f37ec4d706b9bcb4305128451cc77063b4f211d))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * wnfs bumped from 0.1.18 to 0.1.19
+
 ## [0.1.18](https://github.com/wnfs-wg/rs-wnfs/compare/wnfs-wasm-v0.1.17...wnfs-wasm-v0.1.18) (2023-03-23)
 
 
