@@ -142,6 +142,68 @@ impl Metadata {
             _ => None,
         })
     }
+
+    /// Inserts a key-value pair into the metadata.
+    /// If the key already existed, the value is updated, and the old value is returned.
+    ///
+    /// # Examples
+    /// ```
+    /// use wnfs::Metadata;
+    /// use chrono::Utc;
+    /// use libipld::Ipld;
+    ///
+    /// let mut metadata = Metadata::new(Utc::now());
+    /// metadata.put("foo", Ipld::String("bar".into()));
+    /// assert_eq!(metadata.0.get("foo"), Some(&Ipld::String("bar".into())));
+    /// metadata.put("foo", Ipld::String("baz".into()));
+    /// assert_eq!(metadata.0.get("foo"), Some(&Ipld::String("baz".into())));
+    /// ```
+    ///
+    /// Returns (self, old_value), where old_value is `None` if the key did not exist prior to this call.
+    pub fn put(&mut self, key: &str, value: Ipld) -> Option<Ipld> {
+        self.0.insert(key.into(), value)
+    }
+
+    /// Deletes a key from the metadata.
+    ///
+    /// # Examples
+    /// ```
+    /// use wnfs::Metadata;
+    /// use chrono::Utc;
+    /// use libipld::Ipld;
+    ///
+    /// let mut metadata = Metadata::new(Utc::now());
+    /// metadata.put("foo", Ipld::String("bar".into()));
+    /// assert_eq!(metadata.0.get("foo"), Some(&Ipld::String("bar".into())));
+    /// metadata.delete("foo");
+    /// assert_eq!(metadata.0.get("foo"), None);
+    /// ```
+    ///
+    /// Returns Some<Ipld> if the key existed prior to this call, otherwise None.
+    pub fn delete(&mut self, key: &str) -> Option<Ipld> {
+        self.0.remove(key)
+    }
+
+    /// Updates this metadata with the contents of another metadata. merge strategy is to take theirs.
+    ///
+    /// # Examples
+    /// ```
+    /// use wnfs::Metadata;
+    /// use chrono::Utc;
+    /// use libipld::Ipld;
+    ///
+    /// let mut metadata1 = Metadata::new(Utc::now());
+    /// metadata1.put("foo", Ipld::String("bar".into()));
+    /// let mut metadata2 = Metadata::new(Utc::now());
+    /// metadata2.put("foo", Ipld::String("baz".into()));
+    /// metadata1.update(&metadata2);
+    /// assert_eq!(metadata1.0.get("foo"), Some(&Ipld::String("baz".into())));
+    /// ```
+    pub fn update(&mut self, other: &Self) {
+        for (key, value) in other.0.iter() {
+            self.0.insert(key.clone(), value.clone());
+        }
+    }
 }
 
 impl TryFrom<&Ipld> for NodeType {
