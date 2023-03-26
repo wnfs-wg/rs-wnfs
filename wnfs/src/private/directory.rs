@@ -616,6 +616,94 @@ impl PrivateDirectory {
         }
     }
 
+    /// Opens a mutable reference to the specified file.
+    /// If the file is missing, it initializes an empty file and give a mut reference to that.
+    /// If the file already exists, it will copy it to the next revision, update the edit time, and give a mut reference to that.
+    /// # Examples
+    /// ```
+    /// use std::rc::Rc;
+    /// use chrono::Utc;
+    /// use rand::thread_rng;
+    /// use wnfs::{
+    ///    private::{PrivateForest, PrivateRef, PrivateDirectory},
+    ///    common::{BlockStore, MemoryBlockStore},
+    ///    namefilter::Namefilter,
+    /// };
+    /// #[async_std::main]
+    /// async fn main() {
+    ///    let store = &mut MemoryBlockStore::default();
+    ///    let rng = &mut thread_rng();
+    ///    let forest = &mut Rc::new(PrivateForest::new());
+    ///    let root_dir = &mut Rc::new(PrivateDirectory::new(
+    ///         Namefilter::default(),
+    ///         Utc::now(),
+    ///         rng,
+    ///    ));
+    ///    let content = b"print('hello world')";
+    ///    root_dir
+    ///        .write(
+    ///            &["code".into(), "hello.py".into()],
+    ///            true,
+    ///            Utc::now(),
+    ///            content.to_vec(),
+    ///            forest,
+    ///            store,
+    ///            rng
+    ///        )
+    ///        .await
+    ///        .unwrap();
+    ///    let mut file = {
+    ///        root_dir
+    ///            .open_file_mut(&["code".into(), "hello.py".into()], true, Utc::now(), forest, store, rng)
+    ///            .await
+    ///            .unwrap()
+    ///    };
+    ///    file.set_content(
+    ///        Utc::now(),
+    ///        &b"print('hello world 2')"[..],
+    ///        forest,
+    ///        store,
+    ///        rng,
+    ///    );
+    ///    let result = root_dir
+    ///        .read(&["code".into(), "hello.py".into()], true, forest, store)
+    ///        .await
+    ///        .unwrap();
+    ///    assert_eq!(&result, b"print('hello world 2')");
+    /// }
+    /// ```
+    pub async fn open_file_mut<'a>(
+        self: &'a mut Rc<Self>,
+        path_segments: &[String],
+        search_latest: bool,
+        time: DateTime<Utc>,
+        forest: &'a mut Rc<PrivateForest>,
+        store: &'a mut impl BlockStore,
+        rng: &mut impl RngCore,
+    ) -> Result<&'a mut PrivateFile> {
+        let (path, filename) = crate::utils::split_last(path_segments)?;
+        let SearchResult::Found(dir) = self.get_leaf_dir_mut(path, search_latest, forest, store).await? else {
+            bail!(FsError::NotFound);
+        };
+
+        if !dir.content.entries.contains_key(filename.as_str()) {
+            let parent_bare_name = dir.header.bare_name.clone();
+            let file_ref = Rc::new(PrivateFile::new(parent_bare_name, time, rng));
+            let link = PrivateLink::from(PrivateNode::File(file_ref));
+            dir.content.entries.insert(filename.to_string(), link);
+        }
+        let lookup_result = dir
+            .lookup_node_mut(filename, search_latest, forest, store)
+            .await?;
+        if let Some(PrivateNode::File(file)) = lookup_result {
+            let file = file.prepare_next_revision()?;
+            file.content.metadata.upsert_mtime(time);
+            Ok(file)
+        } else {
+            bail!(FsError::NotAFile);
+        }
+    }
+
     /// Writes a file to the directory.
     ///
     /// # Examples

@@ -399,6 +399,22 @@ impl PrivateFile {
         Ok(content)
     }
 
+    /// Sets the content of a file.
+    pub async fn set_content(
+        &mut self,
+        time: DateTime<Utc>,
+        content: impl AsyncRead + Unpin,
+        forest: &mut Rc<PrivateForest>,
+        store: &mut impl BlockStore,
+        rng: &mut impl RngCore,
+    ) -> Result<()> {
+        self.content.metadata = Metadata::new(time);
+        self.content.content =
+            Self::prepare_content_streaming(&self.header.bare_name, content, forest, store, rng)
+                .await?;
+        Ok(())
+    }
+
     /// Determines where to put the content of a file. This can either be inline or stored up in chunks in a private forest.
     pub(super) async fn prepare_content(
         bare_name: &Namefilter,
