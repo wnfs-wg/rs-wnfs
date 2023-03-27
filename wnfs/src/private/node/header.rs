@@ -214,7 +214,7 @@ impl PrivateNodeHeader {
 
     /// Encrypts this private node header in an block, then stores that in the given
     /// BlockStore and returns its CID.
-    pub async fn store(&self, store: &mut impl BlockStore) -> Result<Cid> {
+    pub async fn store(&self, store: &impl BlockStore) -> Result<Cid> {
         let temporal_key = self.derive_temporal_key();
         let cbor_bytes = dagcbor::encode(self)?;
         let ciphertext = temporal_key.key_wrap_encrypt(&cbor_bytes)?;

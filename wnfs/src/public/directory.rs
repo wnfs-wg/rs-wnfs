@@ -336,7 +336,7 @@ impl PublicDirectory {
     ///     );
     /// }
     /// ```
-    pub async fn store(&self, store: &mut impl BlockStore) -> Result<Cid> {
+    pub async fn store(&self, store: &impl BlockStore) -> Result<Cid> {
         Ok(*self
             .persisted_as
             .get_or_try_init(store.put_async_serializable(self))
@@ -735,7 +735,7 @@ impl RemembersCid for PublicDirectory {
 /// Implements async deserialization for serde serializable types.
 #[async_trait(?Send)]
 impl AsyncSerialize for PublicDirectory {
-    async fn async_serialize<S, B>(&self, serializer: S, store: &mut B) -> Result<S::Ok, S::Error>
+    async fn async_serialize<S, B>(&self, serializer: S, store: &B) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
         B: BlockStore + ?Sized,

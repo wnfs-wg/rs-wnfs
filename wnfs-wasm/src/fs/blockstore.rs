@@ -57,7 +57,7 @@ pub struct ForeignBlockStore(pub(crate) BlockStore);
 #[async_trait(?Send)]
 impl WnfsBlockStore for ForeignBlockStore {
     /// Stores an array of bytes in the block store.
-    async fn put_block(&mut self, bytes: Vec<u8>, codec: IpldCodec) -> Result<Cid> {
+    async fn put_block(&self, bytes: Vec<u8>, codec: IpldCodec) -> Result<Cid> {
         let value = JsFuture::from(self.0.put_block(bytes, codec.into()))
             .await
             .map_err(anyhow_error("Cannot get block: {:?}"))?;
