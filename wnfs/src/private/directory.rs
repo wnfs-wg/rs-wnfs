@@ -633,7 +633,7 @@ impl PrivateDirectory {
     /// async fn main() {
     ///    let store = &mut MemoryBlockStore::default();
     ///    let rng = &mut thread_rng();
-    ///    let forest = &mut Rc::new(PrivateForest::new());
+    ///    let mut forest : &mut Rc<PrivateForest> = &mut Rc::new(PrivateForest::new());
     ///    let root_dir = &mut Rc::new(PrivateDirectory::new(
     ///         Namefilter::default(),
     ///         Utc::now(),
@@ -646,12 +646,13 @@ impl PrivateDirectory {
     ///            true,
     ///            Utc::now(),
     ///            content.to_vec(),
-    ///            forest,
+    ///            &mut forest,
     ///            store,
     ///            rng
     ///        )
     ///        .await
     ///        .unwrap();
+    ///    let mut file_forest = &mut Rc::clone(forest);
     ///    let mut file = {
     ///        root_dir
     ///            .open_file_mut(&["code".into(), "hello.py".into()], true, Utc::now(), forest, store, rng)
@@ -661,10 +662,11 @@ impl PrivateDirectory {
     ///    file.set_content(
     ///        Utc::now(),
     ///        &b"print('hello world 2')"[..],
-    ///        forest,
+    ///        file_forest,
     ///        store,
     ///        rng,
     ///    );
+    ///    let forest = &forest.merge(&file_forest, store).await.unwrap();
     ///    let result = root_dir
     ///        .read(&["code".into(), "hello.py".into()], true, forest, store)
     ///        .await
