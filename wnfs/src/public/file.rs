@@ -104,6 +104,11 @@ impl PublicFile {
         &self.metadata
     }
 
+    /// Gets mutable reference of metadata.
+    pub fn get_metadata_mut(&mut self) -> &mut Metadata {
+        &mut self.metadata
+    }
+
     /// Gets the content cid of a file
     pub fn get_content_cid(&self) -> &Cid {
         &self.userland

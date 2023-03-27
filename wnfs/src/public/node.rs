@@ -190,6 +190,14 @@ impl PublicNode {
         })
     }
 
+    /// Casts a node to a mutable dile.
+    pub(crate) fn as_file_mut(&mut self) -> Result<&mut Rc<PublicFile>> {
+        Ok(match self {
+            Self::File(file) => file,
+            _ => bail!(FsError::NotAFile),
+        })
+    }
+
     /// Serializes a node to the block store.
     pub async fn store(&self, store: &mut impl BlockStore) -> Result<Cid> {
         Ok(match self {

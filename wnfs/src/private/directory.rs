@@ -250,6 +250,11 @@ impl PrivateDirectory {
         &self.content.metadata
     }
 
+    /// Gets mutable reference of metadata.
+    pub fn get_metadata_mut(&mut self) -> &mut Metadata {
+        &mut self.content.metadata
+    }
+
     /// Looks up a node by its path name in the current directory.
     ///
     /// # Examples
@@ -529,15 +534,49 @@ impl PrivateDirectory {
         forest: &PrivateForest,
         store: &impl BlockStore,
     ) -> Result<Option<PrivateNode>> {
-        let Some((tail, path)) = path_segments.split_last() else {
-            bail!(FsError::InvalidPath);
-        };
-
+        let (path, tail) = crate::utils::split_last(path_segments)?;
         let SearchResult::Found(dir) = self.get_leaf_dir(path,  search_latest, forest, store).await? else {
             bail!(FsError::NotFound);
         };
 
         dir.lookup_node(tail, search_latest, forest, store).await
+    }
+
+    /// Gets a mutable reference of file at the given path.
+    pub async fn open_mut<'a>(
+        self: &'a mut Rc<Self>,
+        path_segments: &[String],
+        search_latest: bool,
+        forest: &PrivateForest,
+        store: &impl BlockStore,
+    ) -> Result<&'a mut Rc<PrivateFile>> {
+        let (path, filename) = crate::utils::split_last(path_segments)?;
+
+        let SearchResult::Found(dir) = self.get_leaf_dir_mut(path,  search_latest, forest, store).await? else {
+            bail!(FsError::NotFound);
+        };
+
+        let Some(node) = dir
+            .lookup_node_mut(filename, search_latest, forest, store)
+            .await? else {
+                bail!(FsError::NotFound);
+            };
+
+        node.as_file_mut()
+    }
+
+    /// Gets a reference of file at the given path.
+    pub async fn open<'a>(
+        self: &'a mut Rc<Self>,
+        path_segments: &[String],
+        search_latest: bool,
+        forest: &PrivateForest,
+        store: &impl BlockStore,
+    ) -> Result<Rc<PrivateFile>> {
+        self.get_node(path_segments, search_latest, forest, store)
+            .await?
+            .unwrap()
+            .as_file()
     }
 
     /// Reads specified file content from the directory.

@@ -268,6 +268,14 @@ impl PrivateNode {
         })
     }
 
+    /// Casts a node to a mutable file.
+    pub(crate) fn as_file_mut(&mut self) -> Result<&mut Rc<PrivateFile>> {
+        Ok(match self {
+            Self::File(file) => file,
+            _ => bail!(FsError::NotAFile),
+        })
+    }
+
     /// Returns true if underlying node is a directory.
     ///
     /// # Examples

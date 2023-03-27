@@ -120,6 +120,11 @@ impl PublicDirectory {
         &self.metadata
     }
 
+    /// Gets mutable reference of metadata.
+    pub fn get_metadata_mut(&mut self) -> &mut Metadata {
+        &mut self.metadata
+    }
+
     /// Takes care of creating previous links, in case the current
     /// directory was previously `.store()`ed.
     /// In any case it'll try to give you ownership of the directory if possible,
@@ -246,15 +251,47 @@ impl PublicDirectory {
         path_segments: &[String],
         store: &impl BlockStore,
     ) -> Result<Option<&'a PublicNode>> {
-        let Some((tail, path)) = path_segments.split_last() else {
-            bail!(FsError::InvalidPath);
-        };
-
+        let (path, tail) = crate::utils::split_last(path_segments)?;
         let SearchResult::Found(dir) = self.get_leaf_dir(path, store).await? else {
             bail!(FsError::NotFound);
         };
 
         dir.lookup_node(tail, store).await
+    }
+
+    /// Gets a mutable reference of file at the given path.
+    pub async fn open_mut<'a>(
+        self: &'a mut Rc<Self>,
+        path_segments: &[String],
+        store: &impl BlockStore,
+    ) -> Result<&'a mut Rc<PublicFile>> {
+        let (path, filename) = crate::utils::split_last(path_segments)?;
+        let SearchResult::Found(dir) = self.get_leaf_dir_mut(path, store).await? else {
+            bail!(FsError::NotFound);
+        };
+
+        let Some(node) = dir
+            .lookup_node_mut(filename, store)
+            .await? else {
+                bail!(FsError::NotFound);
+            };
+
+        node.as_file_mut()
+    }
+
+    /// Gets a reference of file at the given path.
+    pub async fn open(
+        &self,
+        path_segments: &[String],
+        store: &impl BlockStore,
+    ) -> Result<Rc<PublicFile>> {
+        let Some(node) = self.get_node(path_segments, store)
+            .await? else {
+                bail!(FsError::NotFound);
+
+            };
+
+        node.as_file()
     }
 
     /// Looks up a node by its path name in the current directory.

@@ -7,7 +7,7 @@ use anyhow::Result;
 use async_once_cell::OnceCell;
 use async_stream::try_stream;
 use chrono::{DateTime, Utc};
-use futures::{future, AsyncRead, Stream, StreamExt};
+use futures::{future, AsyncRead, AsyncWrite, Stream, StreamExt};
 use libipld::{Cid, IpldCodec};
 use rand_core::RngCore;
 use semver::Version;
@@ -147,61 +147,61 @@ impl PrivateFile {
         }
     }
 
-    /// Creates a file with provided content.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use std::rc::Rc;
-    /// use chrono::Utc;
-    /// use rand::thread_rng;
-    /// use wnfs::{
-    ///     private::{PrivateForest, PrivateRef, PrivateFile},
-    ///     common::{MemoryBlockStore, utils::get_random_bytes, MAX_BLOCK_SIZE},
-    ///     namefilter::Namefilter,
-    /// };
-    ///
-    /// #[async_std::main]
-    /// async fn main() {
-    ///     let store = &mut MemoryBlockStore::default();
-    ///     let rng = &mut thread_rng();
-    ///     let forest = &mut Rc::new(PrivateForest::new());
-    ///
-    ///     let file = PrivateFile::with_content(
-    ///         Namefilter::default(),
-    ///         Utc::now(),
-    ///         get_random_bytes::<100>(rng).to_vec(),
-    ///         forest,
-    ///         store,
-    ///         rng,
-    ///     )
-    ///     .await
-    ///     .unwrap();
-    ///
-    ///     println!("file = {:?}", file);
-    /// }
-    /// ```
-    pub async fn with_content(
-        parent_bare_name: Namefilter,
-        time: DateTime<Utc>,
-        content: Vec<u8>,
-        forest: &mut Rc<PrivateForest>,
-        store: &mut impl BlockStore,
-        rng: &mut impl RngCore,
-    ) -> Result<Self> {
-        let header = PrivateNodeHeader::new(parent_bare_name, rng);
-        let content = Self::prepare_content(&header.bare_name, content, forest, store, rng).await?;
-
-        Ok(Self {
-            header,
-            content: PrivateFileContent {
-                persisted_as: OnceCell::new(),
-                metadata: Metadata::new(time),
-                previous: BTreeSet::new(),
-                content,
-            },
-        })
-    }
+    // /// Creates a file with provided content.
+    // ///
+    // /// # Examples
+    // ///
+    // /// ```
+    // /// use std::rc::Rc;
+    // /// use chrono::Utc;
+    // /// use rand::thread_rng;
+    // /// use wnfs::{
+    // ///     private::{PrivateForest, PrivateRef, PrivateFile},
+    // ///     common::{MemoryBlockStore, utils::get_random_bytes, MAX_BLOCK_SIZE},
+    // ///     namefilter::Namefilter,
+    // /// };
+    // ///
+    // /// #[async_std::main]
+    // /// async fn main() {
+    // ///     let store = &mut MemoryBlockStore::default();
+    // ///     let rng = &mut thread_rng();
+    // ///     let forest = &mut Rc::new(PrivateForest::new());
+    // ///
+    // ///     let file = PrivateFile::with_content(
+    // ///         Namefilter::default(),
+    // ///         Utc::now(),
+    // ///         get_random_bytes::<100>(rng).to_vec(),
+    // ///         forest,
+    // ///         store,
+    // ///         rng,
+    // ///     )
+    // ///     .await
+    // ///     .unwrap();
+    // ///
+    // ///     println!("file = {:?}", file);
+    // /// }
+    // /// ```
+    // pub async fn with_content(
+    //     parent_bare_name: Namefilter,
+    //     time: DateTime<Utc>,
+    //     content: Vec<u8>,
+    //     forest: &mut Rc<PrivateForest>,
+    //     store: &mut impl BlockStore,
+    //     rng: &mut impl RngCore,
+    // ) -> Result<Self> {
+    //     let header = PrivateNodeHeader::new(parent_bare_name, rng);
+    //     let content = Self::prepare_content(&header.bare_name, content, forest, store, rng).await?;
+    //
+    //     Ok(Self {
+    //         header,
+    //         content: PrivateFileContent {
+    //             persisted_as: OnceCell::new(),
+    //             metadata: Metadata::new(time),
+    //             previous: BTreeSet::new(),
+    //             content,
+    //         },
+    //     })
+    // }
 
     /// Creates a file with provided content as a stream.
     ///
@@ -268,83 +268,111 @@ impl PrivateFile {
         })
     }
 
+    /// Gets the metadata of the file
+    pub fn get_metadata(&self) -> &Metadata {
+        &self.content.metadata
+    }
+
+    /// Gets mutable reference of metadata.
+    pub fn get_metadata_mut(&mut self) -> &mut Metadata {
+        &mut self.content.metadata
+    }
+
+    // /// Streams the content of a file as chunk of blocks.
+    // ///
+    // /// # Examples
+    // ///
+    // /// ```
+    // /// use std::rc::Rc;
+    // /// use chrono::Utc;
+    // /// use rand::thread_rng;
+    // /// use wnfs::{
+    // ///     private::{PrivateForest, PrivateRef, PrivateFile},
+    // ///     common::{MemoryBlockStore, utils::get_random_bytes},
+    // ///     namefilter::Namefilter,
+    // /// };
+    // /// use futures::{future, StreamExt};
+    // ///
+    // /// #[async_std::main]
+    // /// async fn main() {
+    // ///     let store = &mut MemoryBlockStore::default();
+    // ///     let rng = &mut thread_rng();
+    // ///     let forest = &mut Rc::new(PrivateForest::new());
+    // ///
+    // ///     let content = get_random_bytes::<100>(rng).to_vec();
+    // ///     let file = PrivateFile::with_content(
+    // ///         Namefilter::default(),
+    // ///         Utc::now(),
+    // ///         content.clone(),
+    // ///         forest,
+    // ///         store,
+    // ///         rng,
+    // ///     )
+    // ///     .await
+    // ///     .unwrap();
+    // ///
+    // ///     let mut stream_content = vec![];
+    // ///     file.stream_content(0, &forest, store)
+    // ///         .for_each(|chunk| {
+    // ///             stream_content.extend_from_slice(&chunk.unwrap());
+    // ///             future::ready(())
+    // ///         })
+    // ///         .await;
+    // ///
+    // ///     assert_eq!(content, stream_content);
+    // /// }
+    // /// ```
+    // pub fn get_content_streaming<'a>(
+    //     &'a self,
+    //     index: usize,
+    //     forest: &'a PrivateForest,
+    //     store: &'a impl BlockStore,
+    // ) -> impl Stream<Item = Result<Vec<u8>>> + 'a {
+    //     Box::pin(try_stream! {
+    //         match &self.content.content {
+    //             FileContent::Inline { data } => {
+    //                 if index != 0 {
+    //                     Err(FsError::FileShardNotFound)?
+    //                 }
+    //
+    //                 yield data.clone()
+    //             },
+    //             FileContent::External {
+    //                 key,
+    //                 block_count,
+    //                 ..
+    //             } => {
+    //                 let bare_name = &self.header.bare_name;
+    //                 for label in Self::generate_shard_labels(key, index,  *block_count, bare_name) {
+    //                     let bytes = Self::decrypt_block(key, &label, forest, store).await?;
+    //                     yield bytes
+    //                 }
+    //             }
+    //         }
+    //     })
+    // }
+
     /// Streams the content of a file as chunk of blocks.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use std::rc::Rc;
-    /// use chrono::Utc;
-    /// use rand::thread_rng;
-    /// use wnfs::{
-    ///     private::{PrivateForest, PrivateRef, PrivateFile},
-    ///     common::{MemoryBlockStore, utils::get_random_bytes},
-    ///     namefilter::Namefilter,
-    /// };
-    /// use futures::{future, StreamExt};
-    ///
-    /// #[async_std::main]
-    /// async fn main() {
-    ///     let store = &mut MemoryBlockStore::default();
-    ///     let rng = &mut thread_rng();
-    ///     let forest = &mut Rc::new(PrivateForest::new());
-    ///
-    ///     let content = get_random_bytes::<100>(rng).to_vec();
-    ///     let file = PrivateFile::with_content(
-    ///         Namefilter::default(),
-    ///         Utc::now(),
-    ///         content.clone(),
-    ///         forest,
-    ///         store,
-    ///         rng,
-    ///     )
-    ///     .await
-    ///     .unwrap();
-    ///
-    ///     let mut stream_content = vec![];
-    ///     file.stream_content(0, &forest, store)
-    ///         .for_each(|chunk| {
-    ///             stream_content.extend_from_slice(&chunk.unwrap());
-    ///             future::ready(())
-    ///         })
-    ///         .await;
-    ///
-    ///     assert_eq!(content, stream_content);
-    /// }
-    /// ```
-    pub fn stream_content<'a>(
+    pub fn get_content_streaming<'a>(
         &'a self,
         index: usize,
         forest: &'a PrivateForest,
         store: &'a impl BlockStore,
-    ) -> impl Stream<Item = Result<Vec<u8>>> + 'a {
-        Box::pin(try_stream! {
-            match &self.content.content {
-                FileContent::Inline { data } => {
-                    if index != 0 {
-                        Err(FsError::FileShardNotFound)?
-                    }
-
-                    yield data.clone()
-                },
-                FileContent::External {
-                    key,
-                    block_count,
-                    ..
-                } => {
-                    let bare_name = &self.header.bare_name;
-                    for label in Self::generate_shard_labels(key, index,  *block_count, bare_name) {
-                        let bytes = Self::decrypt_block(key, &label, forest, store).await?;
-                        yield bytes
-                    }
-                }
-            }
-        })
+    ) -> impl AsyncWrite {
+        todo!()
     }
 
-    /// Gets the metadata of the file
-    pub fn get_metadata(&self) -> &Metadata {
-        &self.content.metadata
+    /// TODO(appcypher): Document
+    ///
+    pub async fn put_content_streaming(
+        &mut self,
+        time: DateTime<Utc>,
+        content: impl AsyncRead + Unpin,
+        forest: &mut Rc<PrivateForest>,
+        store: &mut impl BlockStore,
+        rng: &mut impl RngCore,
+    ) -> Result<()> {
+        todo!()
     }
 
     /// Gets the entire content of a file.
@@ -389,14 +417,7 @@ impl PrivateFile {
         forest: &PrivateForest,
         store: &impl BlockStore,
     ) -> Result<Vec<u8>> {
-        let mut content = Vec::with_capacity(self.get_content_size_upper_bound());
-        self.stream_content(0, forest, store)
-            .for_each(|chunk| {
-                content.extend_from_slice(&chunk.unwrap());
-                future::ready(())
-            })
-            .await;
-        Ok(content)
+        todo!()
     }
 
     /// Determines where to put the content of a file. This can either be inline or stored up in chunks in a private forest.
