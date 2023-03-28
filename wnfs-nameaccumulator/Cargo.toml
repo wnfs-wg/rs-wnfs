@@ -1,0 +1,34 @@
+[package]
+name = "wnfs-nameaccumulator"
+version = "0.1.19"
+description = "Name accumulators for the Webnative Filesystem"
+keywords = ["wnfs", "webnative", "ipfs", "decentralisation"]
+categories = [
+  "filesystem",
+  "cryptography",
+  "web-programming",
+  "wasm",
+]
+license = "Apache-2.0"
+readme = "README.md"
+edition = "2021"
+repository = "https://github.com/wnfs-wg/rs-wnfs/tree/main/wnfs"
+homepage = "https://fission.codes"
+authors = ["The Fission Authors"]
+
+[dependencies]
+libipld = { version = "0.16", features = ["dag-cbor", "derive", "serde-codec"] }
+num-bigint-dig = { version = "0.8.2", features = ["prime"] }
+num-integer = "0.1.45"
+num-traits = "0.2.15"
+rand_core = "0.6"
+serde = { version = "1.0", features = ["rc"] }
+serde_bytes = "0.11.9"
+sha3 = "0.10"
+
+[dev-dependencies]
+hex = "0.4.3"
+proptest = "1.1"
+rand = "0.8.5"
+rand_chacha = "0.3"
+test-strategy = "0.3"
