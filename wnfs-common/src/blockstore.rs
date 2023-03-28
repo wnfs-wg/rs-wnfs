@@ -9,7 +9,12 @@ use libipld::{
     serde as ipld_serde, Cid, IpldCodec,
 };
 use serde::{de::DeserializeOwned, Serialize};
-use std::{borrow::Cow, collections::HashMap};
+use std::{
+    borrow::Cow,
+    cell::RefCell,
+    collections::HashMap,
+    sync::{Arc, RwLock},
+};
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
@@ -17,33 +22,33 @@ use std::{borrow::Cow, collections::HashMap};
 
 /// For types that implement block store operations like adding, getting content from the store.
 #[async_trait(?Send)]
-pub trait BlockStore {
-    async fn get_block<'a>(&'a self, cid: &Cid) -> Result<Cow<'a, Vec<u8>>>;
-    async fn put_block(&mut self, bytes: Vec<u8>, codec: IpldCodec) -> Result<Cid>;
-
-    async fn put_serializable<V: Serialize>(&mut self, value: &V) -> Result<Cid> {
-        let bytes = dagcbor::encode(&ipld_serde::to_ipld(value)?)?;
-        self.put_block(bytes, IpldCodec::DagCbor).await
-    }
-
-    async fn put_async_serializable<V: AsyncSerialize>(&mut self, value: &V) -> Result<Cid> {
-        let ipld = value.async_serialize_ipld(self).await?;
-        let bytes = dagcbor::encode(&ipld)?;
-        self.put_block(bytes, IpldCodec::DagCbor).await
-    }
+pub trait BlockStore: Clone {
+    async fn get_block(&self, cid: &Cid) -> Result<Cow<Vec<u8>>>;
+    async fn put_block(&self, bytes: Vec<u8>, codec: IpldCodec) -> Result<Cid>;
 
     async fn get_deserializable<V: DeserializeOwned>(&self, cid: &Cid) -> Result<V> {
         let bytes = self.get_block(cid).await?;
         let ipld = dagcbor::decode(bytes.as_ref())?;
         Ok(ipld_serde::from_ipld::<V>(ipld)?)
     }
+
+    async fn put_serializable<V: Serialize>(&self, value: &V) -> Result<Cid> {
+        let bytes = dagcbor::encode(&ipld_serde::to_ipld(value)?)?;
+        self.put_block(bytes, IpldCodec::DagCbor).await
+    }
+
+    async fn put_async_serializable<V: AsyncSerialize>(&self, value: &V) -> Result<Cid> {
+        let ipld = value.async_serialize_ipld(self).await?;
+        let bytes = dagcbor::encode(&ipld)?;
+        self.put_block(bytes, IpldCodec::DagCbor).await
+    }
 }
 
 /// An in-memory block store to simulate IPFS.
 ///
 /// IPFS is basically a glorified HashMap.
-#[derive(Debug, Default)]
-pub struct MemoryBlockStore(HashMap<String, Vec<u8>>);
+#[derive(Debug, Default, Clone)]
+pub struct MemoryBlockStore(RefCell<HashMap<String, Vec<u8>>>);
 
 //--------------------------------------------------------------------------------------------------
 // Implementations
@@ -58,8 +63,19 @@ impl MemoryBlockStore {
 
 #[async_trait(?Send)]
 impl BlockStore for MemoryBlockStore {
+    /// Retrieves an array of bytes from the block store with given CID.
+    async fn get_block(&self, cid: &Cid) -> Result<Cow<Vec<u8>>> {
+        Ok(Cow::Owned(
+            self.0
+                .borrow()
+                .get(&cid.to_string())
+                .ok_or(BlockStoreError::CIDNotFound(*cid))?
+                .clone(),
+        ))
+    }
+
     /// Stores an array of bytes in the block store.
-    async fn put_block(&mut self, bytes: Vec<u8>, codec: IpldCodec) -> Result<Cid> {
+    async fn put_block(&self, bytes: Vec<u8>, codec: IpldCodec) -> Result<Cid> {
         if bytes.len() > MAX_BLOCK_SIZE {
             bail!(BlockStoreError::MaximumBlockSizeExceeded(bytes.len()))
         }
@@ -67,19 +83,57 @@ impl BlockStore for MemoryBlockStore {
         let hash = Code::Sha2_256.digest(&bytes);
         let cid = Cid::new(Version::V1, codec.into(), hash)?;
 
-        self.0.insert(cid.to_string(), bytes);
+        self.0.borrow_mut().insert(cid.to_string(), bytes);
 
         Ok(cid)
     }
+}
 
+/// A concurrency-friendly blockstore that you can mutate.
+#[derive(Debug, Default)]
+pub struct ThreadSafeMemoryBlockStore(Arc<RwLock<HashMap<String, Vec<u8>>>>);
+
+impl ThreadSafeMemoryBlockStore {
+    /// Creates a new in-memory block store.
+    pub fn new() -> Self {
+        Self::default()
+    }
+}
+
+impl Clone for ThreadSafeMemoryBlockStore {
+    fn clone(&self) -> Self {
+        Self::new()
+        //Self(RwLock::new(self.0.read().unwrap().clone()))
+    }
+}
+
+#[async_trait(?Send)]
+impl BlockStore for ThreadSafeMemoryBlockStore {
     /// Retrieves an array of bytes from the block store with given CID.
-    async fn get_block<'a>(&'a self, cid: &Cid) -> Result<Cow<'a, Vec<u8>>> {
+    async fn get_block(&self, cid: &Cid) -> Result<Cow<Vec<u8>>> {
         let bytes = self
             .0
+            .read()
+            .map_err(|_| BlockStoreError::LockPoisoned)?
             .get(&cid.to_string())
-            .ok_or(BlockStoreError::CIDNotFound(*cid))?;
+            .ok_or(BlockStoreError::CIDNotFound(*cid))?
+            .clone();
+        Ok(Cow::Owned(bytes))
+    }
 
-        Ok(Cow::Borrowed(bytes))
+    async fn put_block(&self, bytes: Vec<u8>, codec: IpldCodec) -> Result<Cid> {
+        if bytes.len() > MAX_BLOCK_SIZE {
+            bail!(BlockStoreError::MaximumBlockSizeExceeded(bytes.len()))
+        }
+
+        let hash = Code::Sha2_256.digest(&bytes);
+        let cid = Cid::new(Version::V1, codec.into(), hash)?;
+
+        self.0
+            .write()
+            .map_err(|_| BlockStoreError::LockPoisoned)?
+            .insert(cid.to_string(), bytes);
+        Ok(cid)
     }
 }
 

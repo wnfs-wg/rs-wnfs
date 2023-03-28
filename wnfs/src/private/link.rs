@@ -31,7 +31,7 @@ impl PrivateLink {
     pub(crate) async fn resolve_ref(
         &self,
         forest: &mut Rc<PrivateForest>,
-        store: &mut impl BlockStore,
+        store: &impl BlockStore,
         rng: &mut impl RngCore,
     ) -> Result<PrivateRef> {
         match self {
