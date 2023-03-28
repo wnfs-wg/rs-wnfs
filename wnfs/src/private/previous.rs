@@ -5,7 +5,7 @@ use super::{
 use crate::error::FsError;
 use anyhow::{bail, Result};
 use libipld::Cid;
-use skip_ratchet::{ratchet::PreviousIterator, Ratchet};
+use skip_ratchet::{PreviousIterator, Ratchet};
 use std::{collections::BTreeSet, rc::Rc};
 use wnfs_common::{BlockStore, PathNodes, PathNodesResult};
 
@@ -89,7 +89,9 @@ impl PrivateNodeHistory {
         forest: Rc<PrivateForest>,
     ) -> Result<Self> {
         let forest = Rc::clone(&forest);
-        let ratchets = PreviousIterator::new(past_ratchet, &header.ratchet, discrepancy_budget)
+        let ratchets = header
+            .ratchet
+            .previous(&past_ratchet, discrepancy_budget)
             .map_err(FsError::NoIntermediateRatchet)?;
 
         Ok(PrivateNodeHistory {
@@ -253,9 +255,9 @@ impl PrivateNodeOnPathHistory {
 
         let new_ratchet = directory.header.ratchet.clone();
 
-        previous_iter.path[0].history.ratchets =
-            PreviousIterator::new(past_ratchet, &new_ratchet, discrepancy_budget)
-                .map_err(FsError::NoIntermediateRatchet)?;
+        previous_iter.path[0].history.ratchets = new_ratchet
+            .previous(&past_ratchet, discrepancy_budget)
+            .map_err(FsError::NoIntermediateRatchet)?;
 
         Ok(previous_iter)
     }
@@ -505,6 +507,7 @@ mod tests {
     use chrono::Utc;
     use proptest::test_runner::{RngAlgorithm, TestRng};
     use wnfs_common::MemoryBlockStore;
+    use wnfs_nameaccumulator::AccumulatorSetup;
     use wnfs_namefilter::Namefilter;
 
     struct TestSetup {
@@ -524,11 +527,12 @@ mod tests {
                 Utc::now(),
                 &mut rng,
             ));
+            let setup = AccumulatorSetup::from_rsa_factoring_challenge(&mut rng);
 
             Self {
                 rng,
                 store,
-                forest: Rc::new(PrivateForest::new()),
+                forest: Rc::new(PrivateForest::new(setup)),
                 root_dir,
                 discrepancy_budget: 1_000_000,
             }

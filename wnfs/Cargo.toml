@@ -34,10 +34,11 @@ rand_core = "0.6"
 semver = { version = "1.0", features = ["serde"] }
 serde = { version = "1.0", features = ["rc"] }
 sha3 = "0.10"
-skip_ratchet = { version = "0.1", features = ["serde"] }
+skip_ratchet = { version = "0.2", features = ["serde"], git = "https://github.com/wnfs-wg/rs-skip-ratchet.git", branch = "main" }
 thiserror = "1.0"
 wnfs-common = { path = "../wnfs-common", version = "0.1.19" }
 wnfs-hamt = { path = "../wnfs-hamt", version = "0.1.19" }
+wnfs-nameaccumulator = { path = "../wnfs-nameaccumulator", version = "0.1.19" }
 wnfs-namefilter = { path = "../wnfs-namefilter", version = "0.1.19" }
 xxhash-rust = { version = "0.8", features = ["xxh3"] }
 
@@ -46,6 +47,7 @@ async-std = { version = "1.11", features = ["attributes"] }
 env_logger = "0.10"
 proptest = "1.1"
 rand = "0.8"
+rand_chacha = "0.3.1"
 rsa = "0.8"
 sha2 = "0.10"
 test-log = "0.2"

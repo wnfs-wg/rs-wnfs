@@ -9,14 +9,14 @@ use async_stream::try_stream;
 use chrono::{DateTime, Utc};
 use futures::{future, AsyncRead, Stream, StreamExt};
 use libipld::{Cid, IpldCodec};
-use rand_core::RngCore;
+use rand_core::{CryptoRngCore, RngCore};
 use semver::Version;
 use serde::{de::Error as DeError, Deserialize, Deserializer, Serialize};
-use sha3::Sha3_256;
+use sha3::{Digest, Sha3_256};
 use std::{collections::BTreeSet, iter, rc::Rc};
 use wnfs_common::{dagcbor, utils, BlockStore, Metadata, NodeType, MAX_BLOCK_SIZE};
 use wnfs_hamt::Hasher;
-use wnfs_namefilter::Namefilter;
+use wnfs_nameaccumulator::{AccumulatorSetup, NameAccumulator, NameSegment};
 
 //--------------------------------------------------------------------------------------------------
 // Constants
@@ -135,9 +135,14 @@ impl PrivateFile {
     ///
     /// println!("file = {:?}", file);
     /// ```
-    pub fn new(parent_bare_name: Namefilter, time: DateTime<Utc>, rng: &mut impl RngCore) -> Self {
+    pub fn new(
+        parent_name: &NameAccumulator,
+        time: DateTime<Utc>,
+        setup: &AccumulatorSetup,
+        rng: &mut impl RngCore,
+    ) -> Self {
         Self {
-            header: PrivateNodeHeader::new(parent_bare_name, rng),
+            header: PrivateNodeHeader::new(parent_name, setup, rng),
             content: PrivateFileContent {
                 persisted_as: OnceCell::new(),
                 metadata: Metadata::new(time),
@@ -182,15 +187,16 @@ impl PrivateFile {
     /// }
     /// ```
     pub async fn with_content(
-        parent_bare_name: Namefilter,
+        parent_name: &NameAccumulator,
         time: DateTime<Utc>,
         content: Vec<u8>,
         forest: &mut Rc<PrivateForest>,
         store: &mut impl BlockStore,
         rng: &mut impl RngCore,
     ) -> Result<Self> {
-        let header = PrivateNodeHeader::new(parent_bare_name, rng);
-        let content = Self::prepare_content(&header.bare_name, content, forest, store, rng).await?;
+        let setup = forest.get_accumulator_setup();
+        let header = PrivateNodeHeader::new(parent_name, setup, rng);
+        let content = Self::prepare_content(&header.name, content, forest, store, rng).await?;
 
         Ok(Self {
             header,
@@ -246,16 +252,17 @@ impl PrivateFile {
     /// }
     /// ```
     pub async fn with_content_streaming(
-        parent_bare_name: Namefilter,
+        parent_name: &NameAccumulator,
         time: DateTime<Utc>,
         content: impl AsyncRead + Unpin,
         forest: &mut Rc<PrivateForest>,
         store: &mut impl BlockStore,
         rng: &mut impl RngCore,
     ) -> Result<Self> {
-        let header = PrivateNodeHeader::new(parent_bare_name, rng);
+        let setup = forest.get_accumulator_setup();
+        let header = PrivateNodeHeader::new(parent_name, setup, rng);
         let content =
-            Self::prepare_content_streaming(&header.bare_name, content, forest, store, rng).await?;
+            Self::prepare_content_streaming(&header.name, content, forest, store, rng).await?;
 
         Ok(Self {
             header,
@@ -332,8 +339,9 @@ impl PrivateFile {
                     block_count,
                     ..
                 } => {
-                    let bare_name = &self.header.bare_name;
-                    for label in Self::generate_shard_labels(key, index,  *block_count, bare_name) {
+                    let name = &self.header.name;
+                    let setup = forest.get_accumulator_setup();
+                    for label in Self::generate_shard_labels(key, index, *block_count, name, setup) {
                         let bytes = Self::decrypt_block(key, &label, forest, store).await?;
                         yield bytes
                     }
@@ -401,18 +409,19 @@ impl PrivateFile {
 
     /// Determines where to put the content of a file. This can either be inline or stored up in chunks in a private forest.
     pub(super) async fn prepare_content(
-        bare_name: &Namefilter,
+        file_name: &NameAccumulator,
         content: Vec<u8>,
         forest: &mut Rc<PrivateForest>,
         store: &mut impl BlockStore,
         rng: &mut impl RngCore,
     ) -> Result<FileContent> {
+        let setup = &forest.get_accumulator_setup().clone();
         // TODO(appcypher): Use a better heuristic to determine when to use external storage.
         let key = SnapshotKey::from(utils::get_random_bytes(rng));
         let block_count = (content.len() as f64 / MAX_BLOCK_CONTENT_SIZE as f64).ceil() as usize;
 
         for (index, label) in
-            Self::generate_shard_labels(&key, 0, block_count, bare_name).enumerate()
+            Self::generate_shard_labels(&key, 0, block_count, file_name, setup).enumerate()
         {
             let start = index * MAX_BLOCK_CONTENT_SIZE;
             let end = content.len().min((index + 1) * MAX_BLOCK_CONTENT_SIZE);
@@ -438,13 +447,15 @@ impl PrivateFile {
     /// Returns an external `FileContent` that contains necessary information
     /// to later retrieve the data.
     pub(super) async fn prepare_content_streaming(
-        bare_name: &Namefilter,
+        file_block_name: &NameAccumulator,
         mut content: impl AsyncRead + Unpin,
         forest: &mut Rc<PrivateForest>,
         store: &mut impl BlockStore,
         rng: &mut impl RngCore,
     ) -> Result<FileContent> {
+        let setup = &forest.get_accumulator_setup().clone();
         let key = SnapshotKey::from(utils::get_random_bytes(rng));
+        let file_revision_name = Self::create_revision_name(file_block_name, &key, setup);
 
         let mut block_index = 0;
 
@@ -468,7 +479,7 @@ impl PrivateFile {
 
             let content_cid = store.put_block(current_block, IpldCodec::Raw).await?;
 
-            let label = Self::create_block_label(&key, block_index, bare_name);
+            let label = Self::create_block_label(&key, block_index, &file_revision_name, setup);
             forest
                 .put_encrypted(label, Some(content_cid), store)
                 .await?;
@@ -502,11 +513,11 @@ impl PrivateFile {
     /// Decrypts a block of a file's content.
     async fn decrypt_block(
         key: &SnapshotKey,
-        label: &Namefilter,
+        label: &NameAccumulator,
         forest: &PrivateForest,
         store: &impl BlockStore,
     ) -> Result<Vec<u8>> {
-        let label_hash = &Sha3_256::hash(&label.as_bytes());
+        let label_hash = &Sha3_256::hash(&label.as_ref());
 
         let cids = forest
             .get_encrypted(label_hash, store)
@@ -529,29 +540,48 @@ impl PrivateFile {
         key: &'a SnapshotKey,
         mut index: usize,
         block_count: usize,
-        bare_name: &'a Namefilter,
-    ) -> impl Iterator<Item = Namefilter> + 'a {
+        file_block_name: &'a NameAccumulator,
+        setup: &'a AccumulatorSetup,
+    ) -> impl Iterator<Item = NameAccumulator> + 'a {
+        let file_revision_name = Self::create_revision_name(file_block_name, key, setup);
         iter::from_fn(move || {
             if index >= block_count {
                 return None;
             }
 
-            let label = Self::create_block_label(key, index, bare_name);
+            let label = Self::create_block_label(key, index, &file_revision_name, setup);
             index += 1;
             Some(label)
         })
     }
 
+    fn create_revision_name(
+        file_block_name: &NameAccumulator,
+        key: &SnapshotKey,
+        setup: &AccumulatorSetup,
+    ) -> NameAccumulator {
+        let mut file_revision_name = file_block_name.clone();
+        file_revision_name.add(
+            &NameSegment::from_digest(Sha3_256::new().chain_update(&key.0.as_bytes())),
+            setup,
+        );
+        file_revision_name
+    }
+
     /// Creates the label for a block of a file.
-    fn create_block_label(key: &SnapshotKey, index: usize, bare_name: &Namefilter) -> Namefilter {
-        let key_bytes = key.0.as_bytes();
-        let key_hash = Sha3_256::hash(&[key_bytes, &index.to_le_bytes()[..]].concat());
+    fn create_block_label(
+        key: &SnapshotKey,
+        index: usize,
+        file_revision_name: &NameAccumulator,
+        setup: &AccumulatorSetup,
+    ) -> NameAccumulator {
+        let key_hash = Sha3_256::new()
+            .chain_update(key.0.as_bytes())
+            .chain_update(index.to_le_bytes());
+        let elem = NameSegment::from_digest(key_hash);
 
-        let mut label = bare_name.clone();
-        label.add(&key_bytes);
-        label.add(&key_hash);
-        label.saturate();
-
+        let mut label = file_revision_name.clone();
+        label.add(&elem, setup);
         label
     }
 
@@ -584,10 +614,10 @@ impl PrivateFile {
     }
 
     /// Returns the private ref, if this file has been `.store()`ed before.
-    pub(crate) fn get_private_ref(&self) -> Option<PrivateRef> {
+    pub(crate) fn get_private_ref(&self, setup: &AccumulatorSetup) -> Option<PrivateRef> {
         self.content.persisted_as.get().map(|content_cid| {
             self.header
-                .derive_revision_ref()
+                .derive_revision_ref(setup)
                 .as_private_ref(*content_cid)
         })
     }
@@ -603,20 +633,20 @@ impl PrivateFile {
     /// Will copy and re-encrypt all external content.
     pub(crate) async fn prepare_key_rotation(
         &mut self,
-        parent_bare_name: Namefilter,
+        parent_name: &NameAccumulator,
         forest: &mut Rc<PrivateForest>,
         store: &mut impl BlockStore,
-        rng: &mut impl RngCore,
+        rng: &mut impl CryptoRngCore,
     ) -> Result<()> {
+        let setup = forest.get_accumulator_setup();
         let content = self.get_content(forest, store).await?;
 
-        self.header.inumber = utils::get_random_bytes(rng);
-        self.header.update_bare_name(parent_bare_name);
+        self.header.inumber = NameSegment::new(rng);
+        self.header.update_bare_name(parent_name, setup);
         self.header.reset_ratchet(rng);
         self.content.persisted_as = OnceCell::new();
 
-        let content =
-            Self::prepare_content(&self.header.bare_name, content, forest, store, rng).await?;
+        let content = Self::prepare_content(&self.header.name, content, forest, store, rng).await?;
         self.content.content = content;
 
         Ok(())
@@ -663,9 +693,10 @@ impl PrivateFile {
         store: &mut impl BlockStore,
         rng: &mut impl RngCore,
     ) -> Result<PrivateRef> {
+        let setup = &forest.get_accumulator_setup().clone();
         let header_cid = self.header.store(store).await?;
         let snapshot_key = self.header.derive_temporal_key().derive_snapshot_key();
-        let label = self.header.get_saturated_name();
+        let label = self.header.get_name(setup);
 
         let content_cid = self
             .content
@@ -678,7 +709,7 @@ impl PrivateFile {
 
         Ok(self
             .header
-            .derive_revision_ref()
+            .derive_revision_ref(setup)
             .as_private_ref(content_cid))
     }
 
@@ -808,9 +839,10 @@ mod tests {
     async fn can_create_empty_file() {
         let store = &mut MemoryBlockStore::default();
         let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
-        let forest = &Rc::new(PrivateForest::new());
+        let setup = &AccumulatorSetup::from_rsa_factoring_challenge(rng);
+        let forest = &Rc::new(PrivateForest::new(setup.clone()));
 
-        let file = PrivateFile::new(Namefilter::new(), Utc::now(), rng);
+        let file = PrivateFile::new(&NameAccumulator::empty(setup), Utc::now(), setup, rng);
         let file_content = file.get_content(forest, store).await.unwrap();
 
         assert!(file_content.is_empty());
@@ -823,10 +855,11 @@ mod tests {
 
         let store = &mut MemoryBlockStore::default();
         let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
-        let forest = &mut Rc::new(PrivateForest::new());
+        let setup = &AccumulatorSetup::from_rsa_factoring_challenge(rng);
+        let forest = &mut Rc::new(PrivateForest::new(setup.clone()));
 
         let file = PrivateFile::with_content(
-            Namefilter::default(),
+            &NameAccumulator::empty(setup),
             Utc::now(),
             content.clone(),
             forest,
@@ -862,12 +895,13 @@ mod tests {
             .await
             .unwrap();
 
-        let forest = &mut Rc::new(PrivateForest::new());
         let store = &mut MemoryBlockStore::new();
         let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
+        let setup = &AccumulatorSetup::from_rsa_factoring_challenge(rng);
+        let forest = &mut Rc::new(PrivateForest::new(setup.clone()));
 
         let file = PrivateFile::with_content_streaming(
-            Namefilter::default(),
+            &NameAccumulator::empty(setup),
             Utc::now(),
             disk_file,
             forest,
@@ -893,7 +927,7 @@ mod proptests {
     use std::rc::Rc;
     use test_strategy::proptest;
     use wnfs_common::MemoryBlockStore;
-    use wnfs_namefilter::Namefilter;
+    use wnfs_nameaccumulator::{AccumulatorSetup, NameAccumulator};
 
     #[proptest(cases = 100)]
     fn can_include_and_get_content_from_file(
@@ -903,10 +937,11 @@ mod proptests {
             let content = vec![0u8; length];
             let store = &mut MemoryBlockStore::default();
             let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
-            let forest = &mut Rc::new(PrivateForest::new());
+            let setup = &AccumulatorSetup::from_rsa_factoring_challenge(rng);
+            let forest = &mut Rc::new(PrivateForest::new(setup.clone()));
 
             let file = PrivateFile::with_content(
-                Namefilter::new(),
+                &NameAccumulator::empty(setup),
                 Utc::now(),
                 content.clone(),
                 forest,
@@ -930,10 +965,11 @@ mod proptests {
             let content = vec![0u8; length];
             let store = &mut MemoryBlockStore::default();
             let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
-            let forest = &mut Rc::new(PrivateForest::new());
+            let setup = &AccumulatorSetup::from_rsa_factoring_challenge(rng);
+            let forest = &mut Rc::new(PrivateForest::new(setup.clone()));
 
             let file = PrivateFile::with_content(
-                Namefilter::new(),
+                &NameAccumulator::empty(setup),
                 Utc::now(),
                 content.clone(),
                 forest,

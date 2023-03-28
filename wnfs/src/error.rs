@@ -47,6 +47,9 @@ pub enum FsError {
 
     #[error("Cannot find shard for file content")]
     FileShardNotFound,
+
+    #[error("Cannot merge forests, incompatible accumulator setups")]
+    IncompatibleAccumulatorSetups,
 }
 
 /// Data sharing related errors

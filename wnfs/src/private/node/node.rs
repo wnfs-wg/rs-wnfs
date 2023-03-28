@@ -13,11 +13,11 @@ use async_recursion::async_recursion;
 use chrono::{DateTime, Utc};
 use futures::StreamExt;
 use libipld::{Cid, Ipld};
-use rand_core::RngCore;
-use skip_ratchet::{seek::JumpSize, RatchetSeeker};
+use rand_core::{CryptoRngCore, RngCore};
+use skip_ratchet::{JumpSize, RatchetSeeker};
 use std::{cmp::Ordering, collections::BTreeSet, fmt::Debug, rc::Rc};
 use wnfs_common::{dagcbor, BlockStore, NodeType};
-use wnfs_namefilter::Namefilter;
+use wnfs_nameaccumulator::NameAccumulator;
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
@@ -116,16 +116,16 @@ impl PrivateNode {
     #[async_recursion(?Send)]
     pub(crate) async fn update_ancestry(
         &mut self,
-        parent_bare_name: Namefilter,
+        parent_name: &NameAccumulator,
         forest: &mut Rc<PrivateForest>,
         store: &mut impl BlockStore,
-        rng: &mut impl RngCore,
+        rng: &mut impl CryptoRngCore,
     ) -> Result<()> {
         match self {
             Self::File(file_rc) => {
                 let file = Rc::make_mut(file_rc);
 
-                file.prepare_key_rotation(parent_bare_name, forest, store, rng)
+                file.prepare_key_rotation(parent_name, forest, store, rng)
                     .await?;
             }
             Self::Dir(dir_rc) => {
@@ -133,12 +133,12 @@ impl PrivateNode {
 
                 for private_link in &mut dir.content.entries.values_mut() {
                     let mut node = private_link.resolve_node(forest, store).await?.clone();
-                    node.update_ancestry(dir.header.bare_name.clone(), forest, store, rng)
+                    node.update_ancestry(&dir.header.name, forest, store, rng)
                         .await?;
                     *private_link = PrivateLink::from(node);
                 }
 
-                dir.prepare_key_rotation(parent_bare_name, rng);
+                dir.prepare_key_rotation(parent_name, forest.get_accumulator_setup(), rng);
             }
         }
         Ok(())
@@ -396,8 +396,9 @@ impl PrivateNode {
         store: &impl BlockStore,
     ) -> Result<Vec<PrivateNode>> {
         let header = self.get_header();
+        let setup = forest.get_accumulator_setup();
 
-        let current_name = &header.get_saturated_name_hash();
+        let current_name = &header.get_name(setup);
         if !forest.has(current_name, store).await? {
             return Ok(vec![self.clone()]);
         }
@@ -413,9 +414,7 @@ impl PrivateNode {
             let current = search.current();
             current_header.ratchet = current.clone();
 
-            let has_curr = forest
-                .has(&current_header.get_saturated_name_hash(), store)
-                .await?;
+            let has_curr = forest.has(&current_header.get_name(setup), store).await?;
 
             let ord = if has_curr {
                 Ordering::Less
@@ -429,21 +428,9 @@ impl PrivateNode {
         }
 
         current_header.ratchet = search.current().clone();
-        // {
-        //     let x = {
-        //         let mut t = search.current().clone();
-        //         t.inc();
-        //         t
-        //     };
-        //     println!(
-        //         "    final ratchet: {:?}\n    inc: {:?}",
-        //         search.current(),
-        //         x
-        //     );
-        // }
 
         Ok(forest
-            .get_multivalue(&current_header.derive_revision_ref(), store)
+            .get_multivalue(&current_header.derive_revision_ref(setup), store)
             .collect::<Vec<Result<PrivateNode>>>()
             .await
             .into_iter()

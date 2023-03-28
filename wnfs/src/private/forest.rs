@@ -1,16 +1,16 @@
 use super::{PrivateNode, RevisionRef};
-use crate::error::AesError;
+use crate::error::{AesError, FsError};
 use anyhow::Result;
 use async_stream::stream;
 use async_trait::async_trait;
 use futures::Stream;
-use libipld::Cid;
-use serde::{Deserialize, Deserializer, Serializer};
+use libipld::{Cid, Ipld};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use sha3::Sha3_256;
 use std::{collections::BTreeSet, rc::Rc};
 use wnfs_common::{AsyncSerialize, BlockStore, HashOutput, Link};
 use wnfs_hamt::{merge, Hamt, Hasher, KeyValueChange};
-use wnfs_namefilter::Namefilter;
+use wnfs_nameaccumulator::{AccumulatorSetup, NameAccumulator};
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
@@ -34,16 +34,22 @@ use wnfs_namefilter::Namefilter;
 /// println!("{:?}", forest);
 /// ```
 #[derive(Debug, Clone)]
-pub struct PrivateForest<H: Hasher = Sha3_256>(Hamt<Namefilter, BTreeSet<Cid>, H>);
+pub struct PrivateForest<H: Hasher = Sha3_256> {
+    hamt: Hamt<NameAccumulator, BTreeSet<Cid>, H>,
+    accumulator: AccumulatorSetup,
+}
 
 //--------------------------------------------------------------------------------------------------
 // Implementations
 //--------------------------------------------------------------------------------------------------
 
 impl PrivateForest {
-    /// Creates a new empty PrivateForest.
-    pub fn new() -> Self {
-        Self(Hamt::new())
+    /// Creates a new empty PrivateForest with given accumulator setup
+    pub fn new(setup: AccumulatorSetup) -> Self {
+        Self {
+            hamt: Hamt::new(),
+            accumulator: setup,
+        }
     }
 
     /// Checks that a value with the given saturated name hash key exists.
@@ -79,23 +85,24 @@ impl PrivateForest {
     ///     assert!(forest.has(&private_ref.saturated_name_hash, store).await.unwrap());
     /// }
     /// ```
-    pub async fn has(
-        &self,
-        saturated_name_hash: &HashOutput,
-        store: &impl BlockStore,
-    ) -> Result<bool> {
+    pub async fn has_hash(&self, name_hash: &HashOutput, store: &impl BlockStore) -> Result<bool> {
         Ok(self
-            .0
+            .hamt
             .root
-            .get_by_hash(saturated_name_hash, store)
+            .get_by_hash(name_hash, store)
             .await?
             .is_some())
+    }
+
+    /// TODO(matheus23) docs
+    pub async fn has(&self, name: &NameAccumulator, store: &impl BlockStore) -> Result<bool> {
+        self.has_hash(&Sha3_256::hash(&name.as_ref()), store).await
     }
 
     /// Adds new encrypted values at the given key.
     pub async fn put_encrypted(
         self: &mut Rc<Self>,
-        name: Namefilter,
+        name: NameAccumulator,
         values: impl IntoIterator<Item = Cid>,
         store: &mut impl BlockStore,
     ) -> Result<()> {
@@ -103,7 +110,7 @@ impl PrivateForest {
         // We could consider implementing something like upsert instead.
         // Or some kind of "cursor".
         let mut cids = self
-            .0
+            .hamt
             .root
             .get(&name, store)
             .await?
@@ -112,7 +119,7 @@ impl PrivateForest {
 
         cids.extend(values);
 
-        Rc::make_mut(self).0.root.set(name, cids, store).await?;
+        Rc::make_mut(self).hamt.root.set(name, cids, store).await?;
         Ok(())
     }
 
@@ -123,7 +130,7 @@ impl PrivateForest {
         name_hash: &HashOutput,
         store: &impl BlockStore,
     ) -> Result<Option<&'b BTreeSet<Cid>>> {
-        self.0.root.get_by_hash(name_hash, store).await
+        self.hamt.root.get_by_hash(name_hash, store).await
     }
 
     /// Removes the encrypted value at the given key.
@@ -133,7 +140,7 @@ impl PrivateForest {
         store: &mut impl BlockStore,
     ) -> Result<Option<BTreeSet<Cid>>> {
         let pair = Rc::make_mut(self)
-            .0
+            .hamt
             .root
             .remove_by_hash(name_hash, store)
             .await?;
@@ -180,8 +187,12 @@ impl PrivateForest {
         &self,
         other: &Self,
         store: &mut impl BlockStore,
-    ) -> Result<Vec<KeyValueChange<Namefilter, BTreeSet<Cid>>>> {
-        self.0.diff(&other.0, store).await
+    ) -> Result<Vec<KeyValueChange<NameAccumulator, BTreeSet<Cid>>>> {
+        self.hamt.diff(&other.hamt, store).await
+    }
+
+    pub(crate) fn get_accumulator_setup(&self) -> &AccumulatorSetup {
+        &self.accumulator
     }
 }
 
@@ -253,24 +264,25 @@ where
     /// }
     /// ```
     pub async fn merge(&self, other: &Self, store: &mut impl BlockStore) -> Result<Self> {
-        let merge_node = merge(
-            Link::from(Rc::clone(&self.0.root)),
-            Link::from(Rc::clone(&other.0.root)),
+        if self.accumulator != other.accumulator {
+            return Err(FsError::IncompatibleAccumulatorSetups.into());
+        }
+
+        let merged_root = merge(
+            Link::from(Rc::clone(&self.hamt.root)),
+            Link::from(Rc::clone(&other.hamt.root)),
             |a, b| Ok(a.union(b).cloned().collect()),
             store,
         )
         .await?;
 
-        Ok(Self(Hamt {
-            version: self.0.version.clone(),
-            root: merge_node,
-        }))
-    }
-}
-
-impl Default for PrivateForest {
-    fn default() -> Self {
-        Self(Hamt::new())
+        Ok(Self {
+            hamt: Hamt {
+                version: self.hamt.version.clone(),
+                root: merged_root,
+            },
+            accumulator: self.accumulator.clone(),
+        })
     }
 }
 
@@ -281,7 +293,24 @@ impl AsyncSerialize for PrivateForest {
         S: Serializer,
         B: BlockStore + ?Sized,
     {
-        self.0.async_serialize(serializer, store).await
+        let hamt_ipld = self
+            .hamt
+            .async_serialize(libipld::serde::Serializer, store)
+            .await
+            .map_err(serde::ser::Error::custom)?;
+
+        let accumulator_ipld = self
+            .accumulator
+            .serialize(libipld::serde::Serializer)
+            .map_err(serde::ser::Error::custom)?;
+
+        let Ipld::Map(mut ipld_map) = hamt_ipld else {
+            return todo!(); // TODO(matheus23) probably use `Node::AsyncSerialize` instead of `Hamt`
+        };
+
+        ipld_map.insert("accumulator".into(), accumulator_ipld);
+
+        Ipld::Map(ipld_map).serialize(serializer)
     }
 }
 
@@ -290,7 +319,16 @@ impl<'de> Deserialize<'de> for PrivateForest {
     where
         D: Deserializer<'de>,
     {
-        Hamt::deserialize(deserializer).map(Self)
+        let ipld: Ipld = Deserialize::deserialize(deserializer)?;
+        let hamt = Hamt::deserialize(ipld.clone()).map_err(serde::de::Error::custom)?;
+        let Ipld::Map(ipld_map) = ipld else {
+            return todo!(); // TODO(matheus23)
+        };
+        let Some(accumulator_ipld) = ipld_map.get("accumulator").cloned();
+        let accumulator =
+            AccumulatorSetup::deserialize(accumulator_ipld).map_err(serde::de::Error::custom)?;
+
+        Ok(Self { hamt, accumulator })
     }
 }
 
@@ -315,34 +353,35 @@ mod tests {
         use rand::{thread_rng, RngCore};
         use wnfs_common::{utils, HashOutput};
         use wnfs_hamt::Hasher;
-        use wnfs_namefilter::Namefilter;
+        use wnfs_nameaccumulator::{AccumulatorSetup, NameAccumulator, NameSegment};
 
-        pub(super) static HASH_KV_PAIRS: Lazy<Vec<(HashOutput, Namefilter, Cid)>> =
+        pub(super) static HASH_KV_PAIRS: Lazy<Vec<(HashOutput, NameAccumulator, Cid)>> =
             Lazy::new(|| {
+                let setup = AccumulatorSetup::from_rsa_factoring_challenge(&mut thread_rng());
                 vec![
                     (
                         utils::to_hash_output(&[0xA0]),
-                        generate_saturated_name_hash(&mut thread_rng()),
+                        generate_name_accumulator(&setup, &mut thread_rng()),
                         generate_cid(&mut thread_rng()),
                     ),
                     (
                         utils::to_hash_output(&[0xA3]),
-                        generate_saturated_name_hash(&mut thread_rng()),
+                        generate_name_accumulator(&setup, &mut thread_rng()),
                         generate_cid(&mut thread_rng()),
                     ),
                     (
                         utils::to_hash_output(&[0xA7]),
-                        generate_saturated_name_hash(&mut thread_rng()),
+                        generate_name_accumulator(&setup, &mut thread_rng()),
                         generate_cid(&mut thread_rng()),
                     ),
                     (
                         utils::to_hash_output(&[0xAC]),
-                        generate_saturated_name_hash(&mut thread_rng()),
+                        generate_name_accumulator(&setup, &mut thread_rng()),
                         generate_cid(&mut thread_rng()),
                     ),
                     (
                         utils::to_hash_output(&[0xAE]),
-                        generate_saturated_name_hash(&mut thread_rng()),
+                        generate_name_accumulator(&setup, &mut thread_rng()),
                         generate_cid(&mut thread_rng()),
                     ),
                 ]
@@ -360,11 +399,13 @@ mod tests {
             }
         }
 
-        pub(super) fn generate_saturated_name_hash(rng: &mut impl RngCore) -> Namefilter {
-            let mut namefilter = Namefilter::default();
-            namefilter.add(&utils::get_random_bytes::<32>(rng));
-            namefilter.saturate();
-            namefilter
+        pub(super) fn generate_name_accumulator(
+            setup: &AccumulatorSetup,
+            rng: &mut impl RngCore,
+        ) -> NameAccumulator {
+            let mut name = NameAccumulator::empty(setup);
+            name.add(&NameSegment::new(rng), setup);
+            name
         }
 
         pub(super) fn generate_cid(rng: &mut impl RngCore) -> Cid {
@@ -383,12 +424,14 @@ mod tests {
     #[async_std::test]
     async fn inserted_items_can_be_fetched() {
         let store = &mut MemoryBlockStore::new();
-        let forest = &mut Rc::new(PrivateForest::new());
         let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
+        let setup = &AccumulatorSetup::from_rsa_factoring_challenge(rng);
+        let forest = &mut Rc::new(PrivateForest::new(setup.clone()));
 
         let dir = Rc::new(PrivateDirectory::new(
-            Namefilter::default(),
+            &NameAccumulator::empty(forest.get_accumulator_setup()),
             Utc::now(),
+            setup,
             rng,
         ));
 
@@ -404,12 +447,14 @@ mod tests {
     #[async_std::test]
     async fn multivalue_conflict_can_be_fetched_individually() {
         let store = &mut MemoryBlockStore::new();
-        let forest = &mut Rc::new(PrivateForest::new());
         let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
+        let setup = &AccumulatorSetup::from_rsa_factoring_challenge(rng);
+        let forest = &mut Rc::new(PrivateForest::new(setup.clone()));
 
         let dir = Rc::new(PrivateDirectory::new(
-            Namefilter::default(),
+            &NameAccumulator::empty(setup),
             Utc::now(),
+            setup,
             rng,
         ));
 
@@ -461,6 +506,7 @@ mod tests {
     async fn can_merge_nodes_with_different_structure_and_modified_changes() {
         let store = &mut MemoryBlockStore::new();
         let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
+        let setup = &AccumulatorSetup::from_rsa_factoring_challenge(rng);
 
         // A node that adds the first 3 pairs of HASH_KV_PAIRS.
         let other_node = &mut Rc::new(Node::<_, _, MockHasher>::default());
@@ -511,19 +557,21 @@ mod tests {
                 .unwrap();
         }
 
-        let main_forest = PrivateForest(Hamt::<Namefilter, BTreeSet<Cid>, _>::with_root(
-            Rc::clone(main_node),
-        ));
+        let main_forest = PrivateForest {
+            hamt: Hamt::<NameAccumulator, BTreeSet<Cid>, _>::with_root(Rc::clone(main_node)),
+            accumulator: setup.clone(),
+        };
 
-        let other_forest = PrivateForest(Hamt::<Namefilter, BTreeSet<Cid>, _>::with_root(
-            Rc::clone(other_node),
-        ));
+        let other_forest = PrivateForest {
+            hamt: Hamt::<NameAccumulator, BTreeSet<Cid>, _>::with_root(Rc::clone(other_node)),
+            accumulator: setup.clone(),
+        };
 
         let merge_forest = main_forest.merge(&other_forest, store).await.unwrap();
 
         for (i, (digest, _, v)) in HASH_KV_PAIRS.iter().take(5).enumerate() {
             let retrieved = merge_forest
-                .0
+                .hamt
                 .root
                 .get_by_hash(digest, store)
                 .await

@@ -1,5 +1,5 @@
 use super::{
-    encrypted::Encrypted, link::PrivateLink, PrivateFile, PrivateForest, PrivateNode,
+    encrypted::Encrypted, link::PrivateLink, INumber, PrivateFile, PrivateForest, PrivateNode,
     PrivateNodeHeader, PrivateRef, PrivateRefSerializable, TemporalKey,
 };
 use crate::{error::FsError, traits::Id, SearchResult};
@@ -7,7 +7,7 @@ use anyhow::{bail, ensure, Result};
 use async_once_cell::OnceCell;
 use chrono::{DateTime, Utc};
 use libipld::Cid;
-use rand_core::RngCore;
+use rand_core::{CryptoRngCore, RngCore};
 use semver::Version;
 use serde::{de::Error as DeError, ser::Error as SerError, Deserialize, Deserializer, Serialize};
 use std::{
@@ -20,6 +20,7 @@ use wnfs_common::{
     utils::{self, error},
     BlockStore, HashOutput, Metadata, NodeType, PathNodes, PathNodesResult,
 };
+use wnfs_nameaccumulator::{AccumulatorSetup, NameAccumulator, NameSegment};
 use wnfs_namefilter::Namefilter;
 
 //--------------------------------------------------------------------------------------------------
@@ -95,9 +96,14 @@ impl PrivateDirectory {
     ///
     /// println!("dir = {:?}", dir);
     /// ```
-    pub fn new(parent_bare_name: Namefilter, time: DateTime<Utc>, rng: &mut impl RngCore) -> Self {
+    pub fn new(
+        parent_name: &NameAccumulator,
+        time: DateTime<Utc>,
+        setup: &AccumulatorSetup,
+        rng: &mut impl RngCore,
+    ) -> Self {
         Self {
-            header: PrivateNodeHeader::new(parent_bare_name, rng),
+            header: PrivateNodeHeader::new(parent_name, setup, rng),
             content: PrivateDirectoryContent {
                 persisted_as: OnceCell::new(),
                 previous: BTreeSet::new(),
@@ -127,13 +133,14 @@ impl PrivateDirectory {
     /// println!("dir = {:?}", dir);
     /// ```
     pub fn with_seed(
-        parent_bare_name: Namefilter,
+        parent_name: &NameAccumulator,
         time: DateTime<Utc>,
         ratchet_seed: HashOutput,
-        inumber: HashOutput,
+        inumber: INumber,
+        setup: &AccumulatorSetup,
     ) -> Self {
         Self {
-            header: PrivateNodeHeader::with_seed(parent_bare_name, ratchet_seed, inumber),
+            header: PrivateNodeHeader::with_seed(parent_name, ratchet_seed, inumber, setup),
             content: PrivateDirectoryContent {
                 persisted_as: OnceCell::new(),
                 metadata: Metadata::new(time),
@@ -145,13 +152,14 @@ impl PrivateDirectory {
 
     /// This contstructor creates a new private directory and stores it in a provided `PrivateForest`.
     pub async fn new_and_store(
-        parent_bare_name: Namefilter,
+        parent_name: &NameAccumulator,
         time: DateTime<Utc>,
         forest: &mut Rc<PrivateForest>,
         store: &mut impl BlockStore,
         rng: &mut impl RngCore,
     ) -> Result<Rc<Self>> {
-        let dir = Rc::new(Self::new(parent_bare_name, time, rng));
+        let setup = forest.get_accumulator_setup();
+        let dir = Rc::new(Self::new(parent_name, time, setup, rng));
         dir.store(forest, store, rng).await?;
         Ok(dir)
     }
@@ -159,19 +167,21 @@ impl PrivateDirectory {
     /// This contstructor creates a new private directory and stores it in a provided `PrivateForest` but
     /// with user-provided ratchet seed and inumber provided.
     pub async fn new_with_seed_and_store<B: BlockStore, R: RngCore>(
-        parent_bare_name: Namefilter,
+        parent_name: &NameAccumulator,
         time: DateTime<Utc>,
         ratchet_seed: HashOutput,
-        inumber: HashOutput,
+        inumber: INumber,
         forest: &mut Rc<PrivateForest>,
         store: &mut B,
         rng: &mut R,
     ) -> Result<Rc<Self>> {
+        let setup = forest.get_accumulator_setup();
         let dir = Rc::new(Self::with_seed(
-            parent_bare_name,
+            parent_name,
             time,
             ratchet_seed,
             inumber,
+            setup,
         ));
         dir.store(forest, store, rng).await?;
         Ok(dir)
@@ -410,8 +420,9 @@ impl PrivateDirectory {
                             .entry(segment.to_string())
                             .or_insert_with(|| {
                                 PrivateLink::with_dir(Self::new(
-                                    dir.header.bare_name.clone(),
+                                    &dir.header.name,
                                     time,
+                                    forest.get_accumulator_setup(),
                                     rng,
                                 ))
                             })
@@ -455,10 +466,10 @@ impl PrivateDirectory {
     }
 
     /// Returns the private ref, if this directory has been `.store()`ed before.
-    pub(crate) fn get_private_ref(&self) -> Option<PrivateRef> {
+    pub(crate) fn get_private_ref(&self, setup: &AccumulatorSetup) -> Option<PrivateRef> {
         self.content.persisted_as.get().map(|content_cid| {
             self.header
-                .derive_revision_ref()
+                .derive_revision_ref(setup)
                 .as_private_ref(*content_cid)
         })
     }
@@ -473,11 +484,12 @@ impl PrivateDirectory {
     /// resets the `persisted_as` pointer.
     pub(crate) fn prepare_key_rotation(
         &mut self,
-        parent_bare_name: Namefilter,
-        rng: &mut impl RngCore,
+        parent_name: &NameAccumulator,
+        setup: &AccumulatorSetup,
+        rng: &mut impl CryptoRngCore,
     ) {
-        self.header.inumber = utils::get_random_bytes(rng);
-        self.header.update_bare_name(parent_bare_name);
+        self.header.inumber = NameSegment::new(rng);
+        self.header.update_bare_name(parent_name, setup);
         self.header.reset_ratchet(rng);
         self.content.persisted_as = OnceCell::new();
     }
@@ -686,28 +698,17 @@ impl PrivateDirectory {
         {
             Some(PrivateNode::File(file)) => {
                 let file = file.prepare_next_revision()?;
-                let content = PrivateFile::prepare_content(
-                    &file.header.bare_name,
-                    content,
-                    forest,
-                    store,
-                    rng,
-                )
-                .await?;
+                let content =
+                    PrivateFile::prepare_content(&file.header.name, content, forest, store, rng)
+                        .await?;
                 file.content.content = content;
                 file.content.metadata.upsert_mtime(time);
             }
             Some(PrivateNode::Dir(_)) => bail!(FsError::DirectoryAlreadyExists),
             None => {
-                let file = PrivateFile::with_content(
-                    dir.header.bare_name.clone(),
-                    time,
-                    content,
-                    forest,
-                    store,
-                    rng,
-                )
-                .await?;
+                let file =
+                    PrivateFile::with_content(&dir.header.name, time, content, forest, store, rng)
+                        .await?;
                 let link = PrivateLink::with_file(file);
                 dir.content.entries.insert(filename.to_string(), link);
             }
@@ -1006,7 +1007,7 @@ impl PrivateDirectory {
         time: DateTime<Utc>,
         forest: &mut Rc<PrivateForest>,
         store: &mut impl BlockStore,
-        rng: &mut impl RngCore,
+        rng: &mut impl CryptoRngCore,
     ) -> Result<()> {
         let (path, node_name) = crate::utils::split_last(path_segments)?;
         let SearchResult::Found(dir) = self.get_leaf_dir_mut(path, search_latest, forest, store).await? else {
@@ -1019,7 +1020,7 @@ impl PrivateDirectory {
         );
 
         node.upsert_mtime(time);
-        node.update_ancestry(dir.header.bare_name.clone(), forest, store, rng)
+        node.update_ancestry(&dir.header.name, forest, store, rng)
             .await?;
 
         dir.content
@@ -1098,7 +1099,7 @@ impl PrivateDirectory {
         time: DateTime<Utc>,
         forest: &mut Rc<PrivateForest>,
         store: &mut impl BlockStore,
-        rng: &mut impl RngCore,
+        rng: &mut impl CryptoRngCore,
     ) -> Result<()> {
         let removed_node = self
             .rm(path_segments_from, search_latest, forest, store)
@@ -1186,7 +1187,7 @@ impl PrivateDirectory {
         time: DateTime<Utc>,
         forest: &mut Rc<PrivateForest>,
         store: &mut impl BlockStore,
-        rng: &mut impl RngCore,
+        rng: &mut impl CryptoRngCore,
     ) -> Result<()> {
         let result = self
             .get_node(path_segments_from, search_latest, forest, store)
@@ -1245,9 +1246,10 @@ impl PrivateDirectory {
         store: &mut impl BlockStore,
         rng: &mut impl RngCore,
     ) -> Result<PrivateRef> {
+        let setup = &forest.get_accumulator_setup().clone();
         let header_cid = self.header.store(store).await?;
         let temporal_key = self.header.derive_temporal_key();
-        let label = self.header.get_saturated_name();
+        let label = self.header.get_name(setup);
 
         let content_cid = self
             .content
@@ -1260,7 +1262,7 @@ impl PrivateDirectory {
 
         Ok(self
             .header
-            .derive_revision_ref()
+            .derive_revision_ref(setup)
             .as_private_ref(content_cid))
     }
 
