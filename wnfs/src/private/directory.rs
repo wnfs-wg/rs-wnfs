@@ -633,7 +633,7 @@ impl PrivateDirectory {
     /// async fn main() {
     ///    let store = &mut MemoryBlockStore::default();
     ///    let rng = &mut thread_rng();
-    ///    let mut forest : &mut Rc<PrivateForest> = &mut Rc::new(PrivateForest::new());
+    ///    let mut forest = &mut Rc::new(PrivateForest::new());
     ///    let root_dir = &mut Rc::new(PrivateDirectory::new(
     ///         Namefilter::default(),
     ///         Utc::now(),
@@ -652,7 +652,6 @@ impl PrivateDirectory {
     ///        )
     ///        .await
     ///        .unwrap();
-    ///    let mut file_forest = &mut Rc::clone(forest);
     ///    let mut file = {
     ///        root_dir
     ///            .open_file_mut(&["code".into(), "hello.py".into()], true, Utc::now(), forest, store, rng)
@@ -662,11 +661,10 @@ impl PrivateDirectory {
     ///    file.set_content(
     ///        Utc::now(),
     ///        &b"print('hello world 2')"[..],
-    ///        file_forest,
+    ///        forest,
     ///        store,
     ///        rng,
-    ///    );
-    ///    let forest = &forest.merge(&file_forest, store).await.unwrap();
+    ///    ).await.unwrap();
     ///    let result = root_dir
     ///        .read(&["code".into(), "hello.py".into()], true, forest, store)
     ///        .await
@@ -679,8 +677,8 @@ impl PrivateDirectory {
         path_segments: &[String],
         search_latest: bool,
         time: DateTime<Utc>,
-        forest: &'a mut Rc<PrivateForest>,
-        store: &'a mut impl BlockStore,
+        forest: &mut Rc<PrivateForest>,
+        store: &mut impl BlockStore,
         rng: &mut impl RngCore,
     ) -> Result<&'a mut PrivateFile> {
         let (path, filename) = crate::utils::split_last(path_segments)?;
