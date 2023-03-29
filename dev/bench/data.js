@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1679912770017,
+  "lastUpdate": 1680080581017,
   "repoUrl": "https://github.com/wnfs-wg/rs-wnfs",
   "entries": {
     "Rust Benchmark": [
@@ -10135,6 +10135,108 @@ window.BENCHMARK_DATA = {
             "name": "namefilter encode",
             "value": 160,
             "range": "± 18",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter decode/0",
+            "value": 1,
+            "range": "± 0",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "c@laudiacay.cool",
+            "name": "c r",
+            "username": "laudiacay"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "05f3739cdc4b5b9cb02427c51e5ddff6803122bd",
+          "message": "feat: adding mutation api for metadata. cleaning up clippy complaints (#217)\n\n* feat: adding mutation api for metadata. also cleaning up some clippy complaints in link.rs\r\n\r\n* fix: changing doctest imports",
+          "timestamp": "2023-03-29T10:56:09+02:00",
+          "tree_id": "1e58a6ee03ec5e73cfb010ee6b0a0d202a489b01",
+          "url": "https://github.com/wnfs-wg/rs-wnfs/commit/05f3739cdc4b5b9cb02427c51e5ddff6803122bd"
+        },
+        "date": 1680080579581,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "node set",
+            "value": 6973,
+            "range": "± 82",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node set 1000 consecutive",
+            "value": 4639450,
+            "range": "± 17492",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and get",
+            "value": 178844,
+            "range": "± 1353",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and remove",
+            "value": 202780,
+            "range": "± 377",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt load and decode/0",
+            "value": 51201,
+            "range": "± 71",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt set and encode",
+            "value": 177727,
+            "range": "± 328",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt diff",
+            "value": 60071,
+            "range": "± 4731",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt merge",
+            "value": 244973,
+            "range": "± 19670",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter add",
+            "value": 7821,
+            "range": "± 8",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter contains",
+            "value": 9625,
+            "range": "± 65",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter saturate",
+            "value": 45627,
+            "range": "± 400",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter encode",
+            "value": 287,
+            "range": "± 6",
             "unit": "ns/iter"
           },
           {
