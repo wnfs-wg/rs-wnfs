@@ -148,7 +148,7 @@ impl Metadata {
     ///
     /// # Examples
     /// ```
-    /// use wnfs::Metadata;
+    /// use wnfs_common::Metadata;
     /// use chrono::Utc;
     /// use libipld::Ipld;
     ///
@@ -168,7 +168,7 @@ impl Metadata {
     ///
     /// # Examples
     /// ```
-    /// use wnfs::Metadata;
+    /// use wnfs_common::Metadata;
     /// use chrono::Utc;
     /// use libipld::Ipld;
     ///
@@ -188,7 +188,7 @@ impl Metadata {
     ///
     /// # Examples
     /// ```
-    /// use wnfs::Metadata;
+    /// use wnfs_common::Metadata;
     /// use chrono::Utc;
     /// use libipld::Ipld;
     ///
