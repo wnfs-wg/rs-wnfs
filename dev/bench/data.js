@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1680080581017,
+  "lastUpdate": 1680172578773,
   "repoUrl": "https://github.com/wnfs-wg/rs-wnfs",
   "entries": {
     "Rust Benchmark": [
@@ -10242,6 +10242,108 @@ window.BENCHMARK_DATA = {
           {
             "name": "namefilter decode/0",
             "value": 1,
+            "range": "± 0",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "c@laudiacay.cool",
+            "name": "c r",
+            "username": "laudiacay"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "f80dbb19cee471447145245b8c0285608a25ebcc",
+          "message": "feat: `open_file_mut` function for getting `&mut PrivateFile` references (#218)\n\n* feat: adding open_file_mut. the doctest is broken because you have to mutably borrow twice to write content to the file.\r\n\r\n* fix: fixing doctest a little (doctest is still broken on multiple mutable references to store)\r\n\r\n* fix: doctest works",
+          "timestamp": "2023-03-30T06:31:54-04:00",
+          "tree_id": "4b660d07fb72dfc2b66cc1a6e871d361225ba0ea",
+          "url": "https://github.com/wnfs-wg/rs-wnfs/commit/f80dbb19cee471447145245b8c0285608a25ebcc"
+        },
+        "date": 1680172577401,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "node set",
+            "value": 8543,
+            "range": "± 172",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node set 1000 consecutive",
+            "value": 5131290,
+            "range": "± 70571",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and get",
+            "value": 205041,
+            "range": "± 3311",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and remove",
+            "value": 234203,
+            "range": "± 2860",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt load and decode/0",
+            "value": 57383,
+            "range": "± 191",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt set and encode",
+            "value": 215395,
+            "range": "± 9356",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt diff",
+            "value": 64583,
+            "range": "± 6380",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt merge",
+            "value": 276016,
+            "range": "± 22052",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter add",
+            "value": 9014,
+            "range": "± 137",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter contains",
+            "value": 11710,
+            "range": "± 97",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter saturate",
+            "value": 48033,
+            "range": "± 840",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter encode",
+            "value": 169,
+            "range": "± 21",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter decode/0",
+            "value": 2,
             "range": "± 0",
             "unit": "ns/iter"
           }
