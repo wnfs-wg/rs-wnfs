@@ -49,7 +49,7 @@ impl BlockStore for DiskBlockStore {
         // Try to build the CID from the bytes and codec
         let cid = self.create_cid(bytes.clone(), codec)?;
         // Create the file at the specified path
-        let mut file = std::fs::File::create(self.0.join(cid.to_string()))?;
+        let mut file = std::fs::File::create(self.path.join(cid.to_string()))?;
         // Write the bytes to disk at the File location
         std::io::Write::write_all(&mut file, &bytes)?;
         // Return Ok status with the generated CID
@@ -59,7 +59,7 @@ impl BlockStore for DiskBlockStore {
     /// Retrieves an array of bytes from the block store with given CID.
     async fn get_block(&self, cid: &Cid) -> Result<Cow<Vec<u8>>> {
         // Get the bytes from disk, using the given CID as the filename
-        let mut file = std::fs::File::open(self.0.join(cid.to_string()))?;
+        let mut file = std::fs::File::open(self.path.join(cid.to_string()))?;
         // Create a mutable vector of bytes
         let mut bytes: Vec<u8> = Vec::new();
         // Read the bytes into that
