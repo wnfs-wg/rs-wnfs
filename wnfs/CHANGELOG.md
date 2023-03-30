@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.1.20](https://github.com/wnfs-wg/rs-wnfs/compare/wnfs-v0.1.19...wnfs-v0.1.20) (2023-03-30)
+
+
+### Features
+
+* `open_file_mut` function for getting `&mut PrivateFile` references ([#218](https://github.com/wnfs-wg/rs-wnfs/issues/218)) ([f80dbb1](https://github.com/wnfs-wg/rs-wnfs/commit/f80dbb19cee471447145245b8c0285608a25ebcc))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * wnfs-common bumped from 0.1.19 to 0.1.20
+    * wnfs-hamt bumped from 0.1.19 to 0.1.20
+    * wnfs-namefilter bumped from 0.1.19 to 0.1.20
+
 ## [0.1.19](https://github.com/wnfs-wg/rs-wnfs/compare/wnfs-v0.1.18...wnfs-v0.1.19) (2023-03-23)
 
 
