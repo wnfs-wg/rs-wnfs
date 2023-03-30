@@ -119,7 +119,9 @@ mod tests {
 
     #[async_std::test]
     async fn disk_blockstore() {
-        let store = &mut DiskBlockStore { path: PathBuf::from("test_disk_blockstore") };
+        let store = &mut DiskBlockStore {
+            path: PathBuf::from("test_disk_blockstore"),
+        };
         test_block_store(store).await.unwrap();
         store.erase().unwrap();
     }

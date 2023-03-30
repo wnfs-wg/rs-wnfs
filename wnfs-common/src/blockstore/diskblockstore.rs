@@ -6,7 +6,7 @@ use std::{borrow::Cow, path::PathBuf};
 
 /// A disk-based blockstore that you can mutate.
 pub struct DiskBlockStore {
-    pub path: PathBuf
+    pub path: PathBuf,
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -16,14 +16,6 @@ pub struct DiskBlockStore {
 impl DiskBlockStore {
     /// Creates a new disk block store.
     pub fn new(path: PathBuf) -> Self {
-        // Ensure the directory is empty, if it exists
-        if path.exists() {
-            // Remove the directory and its contents
-            std::fs::remove_dir_all(&path).unwrap();
-        }
-
-        // Create the directories required to store the blocks
-        std::fs::create_dir_all(&path).unwrap();
         // Return the new DiskBlockStore
         Self { path }
     }
@@ -46,10 +38,19 @@ impl Clone for DiskBlockStore {
 impl BlockStore for DiskBlockStore {
     /// Stores an array of bytes in the block store.
     async fn put_block(&self, bytes: Vec<u8>, codec: IpldCodec) -> Result<Cid> {
+        // If the parent directory doesn't already exist
+        if !self.path.exists() {
+            // Create the directories required to store the blocks
+            std::fs::create_dir_all(&self.path).unwrap();
+        }
+
         // Try to build the CID from the bytes and codec
         let cid = self.create_cid(bytes.clone(), codec)?;
+        let file_path = self.path.join(cid.to_string());
+
         // Create the file at the specified path
-        let mut file = std::fs::File::create(self.path.join(cid.to_string()))?;
+        let mut file = std::fs::File::create(file_path)?;
+
         // Write the bytes to disk at the File location
         std::io::Write::write_all(&mut file, &bytes)?;
         // Return Ok status with the generated CID
