@@ -5,7 +5,9 @@ use libipld::{Cid, IpldCodec};
 use std::{borrow::Cow, path::PathBuf};
 
 /// A disk-based blockstore that you can mutate.
-pub struct DiskBlockStore(PathBuf);
+pub struct DiskBlockStore {
+    pub path: PathBuf
+}
 
 // -------------------------------------------------------------------------------------------------
 // Implementations
@@ -23,12 +25,12 @@ impl DiskBlockStore {
         // Create the directories required to store the blocks
         std::fs::create_dir_all(&path).unwrap();
         // Return the new DiskBlockStore
-        Self(path)
+        Self { path }
     }
 
     pub fn erase(&self) -> Result<()> {
         // Remove the directory
-        std::fs::remove_dir_all(&self.0)?;
+        std::fs::remove_dir_all(&self.path)?;
         // Return Ok status
         Ok(())
     }
@@ -36,7 +38,7 @@ impl DiskBlockStore {
 
 impl Clone for DiskBlockStore {
     fn clone(&self) -> Self {
-        Self::new(self.0.clone())
+        Self::new(self.path.clone())
     }
 }
 
