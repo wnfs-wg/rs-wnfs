@@ -48,11 +48,14 @@ impl BlockStore for DiskBlockStore {
         let cid = self.create_cid(bytes.clone(), codec)?;
         let file_path = self.path.join(cid.to_string());
 
-        // Create the file at the specified path
-        let mut file = std::fs::File::create(file_path)?;
+        // If this file has not already been written to disk
+        if !file_path.exists() {
+            // Create the file at the specified path
+            let mut file = std::fs::File::create(file_path)?;
+            // Write the bytes to disk at the File location
+            std::io::Write::write_all(&mut file, &bytes)?;
+        }
 
-        // Write the bytes to disk at the File location
-        std::io::Write::write_all(&mut file, &bytes)?;
         // Return Ok status with the generated CID
         Ok(cid)
     }
