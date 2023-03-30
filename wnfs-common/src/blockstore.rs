@@ -54,6 +54,14 @@ impl MemoryBlockStore {
     pub fn new() -> Self {
         Self::default()
     }
+
+    pub fn as_hash_map_mut(&mut self) -> &mut HashMap<String, Vec<u8>> {
+        &mut self.0
+    }
+
+    pub fn as_hash_map(&self) -> &HashMap<String, Vec<u8>> {
+        &self.0
+    }
 }
 
 #[async_trait(?Send)]
