@@ -17,7 +17,7 @@ use rand_core::{CryptoRngCore, RngCore};
 use skip_ratchet::{JumpSize, RatchetSeeker};
 use std::{cmp::Ordering, collections::BTreeSet, fmt::Debug, rc::Rc};
 use wnfs_common::{dagcbor, BlockStore, NodeType};
-use wnfs_nameaccumulator::NameAccumulator;
+use wnfs_nameaccumulator::{AccumulatorSetup, NameAccumulator};
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
@@ -544,10 +544,10 @@ impl PrivateNode {
     }
 
     /// Returns the private ref, if this node has been `.store()`ed before.
-    pub(crate) fn get_private_ref(&self) -> Option<PrivateRef> {
+    pub(crate) fn get_private_ref(&self, setup: &AccumulatorSetup) -> Option<PrivateRef> {
         match self {
-            Self::File(file) => file.get_private_ref(),
-            Self::Dir(dir) => dir.get_private_ref(),
+            Self::File(file) => file.get_private_ref(setup),
+            Self::Dir(dir) => dir.get_private_ref(setup),
         }
     }
 

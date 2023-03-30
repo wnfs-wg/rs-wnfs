@@ -5,6 +5,7 @@ use async_recursion::async_recursion;
 use rand_core::RngCore;
 use std::rc::Rc;
 use wnfs_common::BlockStore;
+use wnfs_nameaccumulator::AccumulatorSetup;
 
 #[derive(Debug)]
 pub(crate) enum PrivateLink {
@@ -118,10 +119,10 @@ impl PrivateLink {
     }
 
     #[allow(dead_code)]
-    pub(crate) fn get_ref(&self) -> Option<PrivateRef> {
+    pub(crate) fn get_ref(&self, setup: &AccumulatorSetup) -> Option<PrivateRef> {
         match self {
             Self::Encrypted { private_ref, .. } => Some(private_ref.clone()),
-            Self::Decrypted { node } => node.get_private_ref(),
+            Self::Decrypted { node } => node.get_private_ref(setup),
         }
     }
 }
@@ -143,10 +144,10 @@ impl PartialEq for PrivateLink {
                 l_node == r_node
             }
             (Self::Encrypted { private_ref, cache }, Self::Decrypted { node }) => {
-                Some(private_ref) == node.get_private_ref().as_ref() || Some(node) == cache.get()
+                Some(node) == cache.get()
             }
             (Self::Decrypted { node }, Self::Encrypted { private_ref, cache }) => {
-                Some(private_ref) == node.get_private_ref().as_ref() || Some(node) == cache.get()
+                Some(node) == cache.get()
             }
         }
     }

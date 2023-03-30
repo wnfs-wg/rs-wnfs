@@ -212,7 +212,7 @@ impl PrivateNodeHeader {
 
     /// TODO(matheus23)
     pub fn get_name_hash(&self, setup: &AccumulatorSetup) -> HashOutput {
-        Sha3_256::hash(self.get_name(setup).as_ref()).into()
+        Sha3_256::hash(&self.get_name(setup).as_ref()).into()
     }
 
     /// Encrypts this private node header in an block, then stores that in the given

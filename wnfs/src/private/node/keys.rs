@@ -170,7 +170,13 @@ impl From<[u8; KEY_BYTE_SIZE]> for TemporalKey {
 
 impl From<&Ratchet> for TemporalKey {
     fn from(ratchet: &Ratchet) -> Self {
-        Self::from(AesKey::new(ratchet.derive_key()))
+        use sha3::Digest;
+        Self::from(AesKey::new(
+            ratchet
+                .derive_key("WNFS temporal key derivation")
+                .finalize()
+                .into(),
+        ))
     }
 }
 
