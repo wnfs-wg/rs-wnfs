@@ -8,6 +8,10 @@
   * dependencies
     * wnfs bumped from 0.1.12 to 0.1.13
 
+* The following workspace dependencies were updated
+  * dependencies
+    * wnfs bumped from 0.1.19 to 0.1.20
+
 ## [0.1.19](https://github.com/wnfs-wg/rs-wnfs/compare/wnfs-wasm-v0.1.18...wnfs-wasm-v0.1.19) (2023-03-23)
 
 
