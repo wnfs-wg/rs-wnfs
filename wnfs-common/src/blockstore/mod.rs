@@ -70,51 +70,60 @@ mod tests {
     use std::path::PathBuf;
 
     use super::*;
-    use libipld::{cbor::DagCborCodec, codec::Encode};
 
     // Generic function used to test any type that conforms to the BlockStore trait
-    async fn test_block_store<T: BlockStore + Clone + Send + 'static>(store: &mut T) -> Result<()> {
-        let first_bytes = {
-            let mut tmp = vec![];
-            vec![1, 2, 3, 4, 5]
-                .to_vec()
-                .encode(DagCborCodec, &mut tmp)
-                .unwrap();
-            tmp
-        };
+    async fn bs_retrieval<T: BlockStore + Clone + Send + 'static>(store: &mut T) -> Result<()> {
+        // Example objects to insert and remove from the blockstore
+        let first_bytes = vec![1, 2, 3, 4, 5];
+        let second_bytes = b"hello world".to_vec();
 
-        let second_bytes = {
-            let mut tmp = vec![];
-            b"hello world"
-                .to_vec()
-                .encode(DagCborCodec, &mut tmp)
-                .unwrap();
-            tmp
-        };
+        // Insert the objects into the blockstore
+        let first_cid = store.put_serializable(&first_bytes).await.unwrap();
+        let second_cid = store.put_serializable(&second_bytes).await.unwrap();
 
-        let first_cid = &store
-            .put_block(first_bytes, IpldCodec::DagCbor)
-            .await
-            .unwrap();
+        // Retrieve the objects from the blockstore
+        let first_loaded: Vec<u8> = store.get_deserializable(&first_cid).await.unwrap();
+        let second_loaded: Vec<u8> = store.get_deserializable(&second_cid).await.unwrap();
 
-        let second_cid = &store
-            .put_block(second_bytes, IpldCodec::DagCbor)
-            .await
-            .unwrap();
+        // Assert that the objects are the same as the ones we inserted
+        assert_eq!(first_loaded, first_bytes);
+        assert_eq!(second_loaded, second_bytes);
 
-        let first_loaded: Vec<u8> = store.get_deserializable(first_cid).await.unwrap();
-        let second_loaded: Vec<u8> = store.get_deserializable(second_cid).await.unwrap();
+        // Return Ok
+        Ok(())
+    }
 
-        assert_eq!(first_loaded, vec![1, 2, 3, 4, 5]);
-        assert_eq!(second_loaded, b"hello world".to_vec());
+    // Generic function used to test any type that conforms to the BlockStore trait
+    async fn bs_duplication<T: BlockStore + Clone + Send + 'static>(store: &mut T) -> Result<()> {
+        // Example objects to insert and remove from the blockstore
+        let first_bytes = vec![1, 2, 3, 4, 5];
+        let second_bytes = first_bytes.clone();
 
+        // Insert the objects into the blockstore
+        let first_cid = store.put_serializable(&first_bytes).await.unwrap();
+        let second_cid = store.put_serializable(&second_bytes).await.unwrap();
+
+        // Assert that the two vecs produced the same CID
+        assert_eq!(first_cid, second_cid);
+
+        // Retrieve the objects from the blockstore
+        let first_loaded: Vec<u8> = store.get_deserializable(&first_cid).await.unwrap();
+        let second_loaded: Vec<u8> = store.get_deserializable(&second_cid).await.unwrap();
+
+        // Assert that the objects are the same as the ones we inserted
+        assert_eq!(first_loaded, first_bytes);
+        assert_eq!(second_loaded, second_bytes);
+        // Assert that the objects we loaded are the same
+        assert_eq!(first_loaded, second_loaded);
+
+        // Return Ok
         Ok(())
     }
 
     #[async_std::test]
     async fn memory_blockstore() {
         let store = &mut MemoryBlockStore::new();
-        test_block_store(store).await.unwrap();
+        bs_retrieval(store).await.unwrap();
     }
 
     #[async_std::test]
@@ -122,7 +131,21 @@ mod tests {
         let store = &mut DiskBlockStore {
             path: PathBuf::from("test_disk_blockstore"),
         };
-        test_block_store(store).await.unwrap();
+        bs_retrieval(store).await.unwrap();
+        store.erase().unwrap();
+    }
+
+    #[async_std::test]
+    async fn dedup_blockstore() {
+        // Test the deduplication of the MemoryBlockStore
+        let store = &mut MemoryBlockStore::new();
+        bs_duplication(store).await.unwrap();
+
+        // Test the deduplication of the DiskBlockStore
+        let store = &mut DiskBlockStore {
+            path: PathBuf::from("test_dedup_blockstore"),
+        };
+        bs_duplication(store).await.unwrap();
         store.erase().unwrap();
     }
 }
