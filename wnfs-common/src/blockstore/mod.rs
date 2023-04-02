@@ -17,7 +17,7 @@ use std::borrow::Cow;
 
 /// For types that implement block store operations like adding, getting content from the store.
 #[async_trait(?Send)]
-pub trait BlockStore: Clone {
+pub trait BlockStore: Sized {
     async fn get_block(&self, cid: &Cid) -> Result<Cow<Vec<u8>>>;
     async fn put_block(&self, bytes: Vec<u8>, codec: IpldCodec) -> Result<Cid>;
 
@@ -56,10 +56,11 @@ pub trait BlockStore: Clone {
 mod diskblockstore;
 mod memoryblockstore;
 mod threadsafememoryblockstore;
-
+mod carblockstore;
 pub use diskblockstore::DiskBlockStore;
 pub use memoryblockstore::MemoryBlockStore;
 pub use threadsafememoryblockstore::ThreadSafeMemoryBlockStore;
+pub use carblockstore::CarBlockStore;
 
 //--------------------------------------------------------------------------------------------------
 // Functions
@@ -67,6 +68,8 @@ pub use threadsafememoryblockstore::ThreadSafeMemoryBlockStore;
 
 #[cfg(test)]
 mod tests {
+    use std::path::PathBuf;
+
     use super::*;
     use libipld::{cbor::DagCborCodec, codec::Encode};
 
