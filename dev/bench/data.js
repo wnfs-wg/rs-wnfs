@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1680520173721,
+  "lastUpdate": 1680520189047,
   "repoUrl": "https://github.com/wnfs-wg/rs-wnfs",
   "entries": {
     "Rust Benchmark": [
@@ -10543,6 +10543,108 @@ window.BENCHMARK_DATA = {
             "name": "namefilter encode",
             "value": 282,
             "range": "± 5",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter decode/0",
+            "value": 1,
+            "range": "± 0",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "49699333+dependabot[bot]@users.noreply.github.com",
+            "name": "dependabot[bot]",
+            "username": "dependabot[bot]"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "b9fda6fc43831f33824f83e658296dad3a1895fe",
+          "message": "chore(ci)(deps): bump rustsec/audit-check from 0.1.0 to 1.3.2 (#227)\n\nBumps [rustsec/audit-check](https://github.com/rustsec/audit-check) from 0.1.0 to 1.3.2.\r\n- [Release notes](https://github.com/rustsec/audit-check/releases)\r\n- [Changelog](https://github.com/rustsec/audit-check/blob/main/CHANGELOG.md)\r\n- [Commits](https://github.com/rustsec/audit-check/compare/v0.1.0...v1.3.2)\r\n\r\n---\r\nupdated-dependencies:\r\n- dependency-name: rustsec/audit-check\r\n  dependency-type: direct:production\r\n  update-type: version-update:semver-major\r\n...\r\n\r\nSigned-off-by: dependabot[bot] <support@github.com>\r\nCo-authored-by: dependabot[bot] <49699333+dependabot[bot]@users.noreply.github.com>",
+          "timestamp": "2023-04-03T13:04:34+02:00",
+          "tree_id": "254d4a68611e9f5e06d5d0748676b77ce5a42e85",
+          "url": "https://github.com/wnfs-wg/rs-wnfs/commit/b9fda6fc43831f33824f83e658296dad3a1895fe"
+        },
+        "date": 1680520188319,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "node set",
+            "value": 9244,
+            "range": "± 509",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node set 1000 consecutive",
+            "value": 5318683,
+            "range": "± 285737",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and get",
+            "value": 224202,
+            "range": "± 13581",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and remove",
+            "value": 246410,
+            "range": "± 15668",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt load and decode/0",
+            "value": 65094,
+            "range": "± 4055",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt set and encode",
+            "value": 220547,
+            "range": "± 11800",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt diff",
+            "value": 66014,
+            "range": "± 9267",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt merge",
+            "value": 277663,
+            "range": "± 42729",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter add",
+            "value": 15768,
+            "range": "± 796",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter contains",
+            "value": 12879,
+            "range": "± 864",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter saturate",
+            "value": 54972,
+            "range": "± 4307",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter encode",
+            "value": 197,
+            "range": "± 37",
             "unit": "ns/iter"
           },
           {
