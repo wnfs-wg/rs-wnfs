@@ -53,14 +53,14 @@ pub trait BlockStore: Sized {
     }
 }
 
+mod carblockstore;
 mod diskblockstore;
 mod memoryblockstore;
 mod threadsafememoryblockstore;
-mod carblockstore;
+pub use carblockstore::CarBlockStore;
 pub use diskblockstore::DiskBlockStore;
 pub use memoryblockstore::MemoryBlockStore;
 pub use threadsafememoryblockstore::ThreadSafeMemoryBlockStore;
-pub use carblockstore::CarBlockStore;
 
 //--------------------------------------------------------------------------------------------------
 // Functions
@@ -68,10 +68,9 @@ pub use carblockstore::CarBlockStore;
 
 #[cfg(test)]
 mod tests {
-    use std::path::PathBuf;
-
     use super::*;
     use libipld::{cbor::DagCborCodec, codec::Encode};
+    use std::path::PathBuf;
 
     // Generic function used to test any type that conforms to the BlockStore trait
     async fn test_block_store<T: BlockStore + Clone + Send + 'static>(store: &mut T) -> Result<()> {
