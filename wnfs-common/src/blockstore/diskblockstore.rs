@@ -2,6 +2,7 @@ use crate::BlockStore;
 use anyhow::Result;
 use async_trait::async_trait;
 use libipld::{Cid, IpldCodec};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::{borrow::Cow, path::PathBuf};
 
 /// A disk-based blockstore that you can mutate.
@@ -31,6 +32,28 @@ impl DiskBlockStore {
 impl Clone for DiskBlockStore {
     fn clone(&self) -> Self {
         Self::new(self.path.clone())
+    }
+}
+
+impl Serialize for DiskBlockStore {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        // Serialize the path
+        self.path.serialize(serializer)
+    }
+}
+
+impl<'de> Deserialize<'de> for DiskBlockStore {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        // Deserialize the path
+        let path = PathBuf::deserialize(deserializer)?;
+        // Return Ok status with the new DiskBlockStore
+        Ok(Self::new(path))
     }
 }
 
