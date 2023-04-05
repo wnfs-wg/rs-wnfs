@@ -39,13 +39,13 @@ pub trait BlockStore: Sized {
     }
 
     // This should be the same in all implementations of BlockStore
-    fn create_cid(&self, bytes: Vec<u8>, codec: IpldCodec) -> Result<Cid> {
+    fn create_cid(&self, bytes: &Vec<u8>, codec: IpldCodec) -> Result<Cid> {
         // If there are too many bytes, abandon this task
         if bytes.len() > MAX_BLOCK_SIZE {
             bail!(BlockStoreError::MaximumBlockSizeExceeded(bytes.len()))
         }
         // Compute the SHA256 hash of the bytes
-        let hash = Code::Sha2_256.digest(&bytes);
+        let hash = Code::Sha2_256.digest(bytes);
         // Represent the hash as a V1 CID
         let cid = Cid::new(Version::V1, codec.into(), hash)?;
         // Return Ok with the CID
@@ -69,7 +69,6 @@ pub use threadsafememoryblockstore::ThreadSafeMemoryBlockStore;
 #[cfg(test)]
 mod tests {
     use super::*;
-    use libipld::{cbor::DagCborCodec, codec::Encode};
     use std::path::PathBuf;
 
     // Generic function used to test any type that conforms to the BlockStore trait

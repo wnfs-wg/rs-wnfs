@@ -30,8 +30,11 @@ struct DiskCarFactory {
 impl DiskCarFactory {
     // rotating the CAR file
     fn rotate(&mut self) -> Result<()> {
-        // close the current CAR file
-        self.current_car.take().unwrap().flush()?;
+        // If there is a car to close
+        if self.current_car.is_some() {
+            // Close the current CAR file
+            self.current_car.take().unwrap().flush()?;
+        }
         // increment the car number
         self.car_number += 1;
         // reset the current size
@@ -46,7 +49,7 @@ impl DiskCarFactory {
 pub struct CarBlockStore {
     /// The number of bytes that each CAR file can hold.
     max_size: usize,
-    /// index of which blocks are in which files (by CAR number), and the offset in the file.
+    /// Index of which blocks are in which files (by CAR number), and the offset in the file.
     index: RwLock<HashMap<Cid, LocationInCar>>,
     /// The current state of the CAR files.
     car_factory: RwLock<DiskCarFactory>,
@@ -81,104 +84,120 @@ impl CarBlockStore {
 impl BlockStore for CarBlockStore {
     // TODO audit this for deadlocks.
     async fn get_block(&self, cid: &Cid) -> Result<Cow<Vec<u8>>> {
-        // get the CAR number from the index
+        // Get a read-only reference to the <Cid, LocationInCar> HashMap
         let index = self.index.read().unwrap();
-        let location = index.get(cid).ok_or(anyhow!("CID not found"))?;
+        // Use that HashMap to look up the Cid provided to us
+        let location: &LocationInCar = index.get(cid).ok_or(anyhow!("CID not found"))?;
 
-        // lock the inner state (this is a long lock!)
-        let inner = self.car_factory.read().unwrap();
-        // open the CAR file
-        let mut car_file =
-            File::open(inner.directory.join(format!("{}.car", location.car_number)))?;
+        // Open the CAR file
+        let mut car_file: File;
+        {
+            // Grab read-only
+            let factory = self.car_factory.read().unwrap();
+            // Open the CAR file using the CAR number as the filename
+            car_file = File::open(
+                factory
+                    .directory
+                    .join(format!("{}.car", location.car_number)),
+            )?;
+        }
+        // Drop the read lock on the CAR Factory
 
-        // read the block from the CAR file
+        // Move to the correct offset point in the CAR file
         car_file.seek(SeekFrom::Start(location.offset as u64))?;
 
-        // read the block length as a u128
-        let mut block_length_bytes = [0u8; 16];
-        car_file.read_exact(&mut block_length_bytes)?;
-        let block_length = u128::from_le_bytes(block_length_bytes);
-
-        // read in the block
-        let mut block = vec![0u8; block_length.try_into().unwrap()];
+        // Create a buffer to store the Block Size
+        let mut block_size_bytes = [0u8; 16];
+        // Read the block size exactly, filling the buffer
+        car_file.read_exact(&mut block_size_bytes)?;
+        // Represent this as a number by interpreting the bytes as a Little Endian number
+        let block_size = u128::from_le_bytes(block_size_bytes);
+        // Create a buffer to store the actual block
+        let mut block = vec![0u8; block_size.try_into().unwrap()];
+        // Read in the block
         car_file.read_exact(&mut block)?;
-
-        // get the CID out of the block
-        let cid = Cid::read_bytes(block.as_slice())?;
-
-        // compute the CID of the rest of the block
-        let block_bytes = &block[cid.encoded_len()..];
-        let cid2 = self.create_cid(block_bytes.to_vec(), IpldCodec::try_from(cid.codec())?)?;
-
-        // check that the CID matches the one we were looking for
-        if cid != cid2 {
+        // Read the preliminary bytes of the block as a CID
+        let cid1 = Cid::read_bytes(block.as_slice())?;
+        // Exactract the non-cid block content from the block in totality
+        let block_content = block[cid.encoded_len()..].to_vec();
+        // Use the block content to generate another CID
+        let cid2 = self.create_cid(&block_content, IpldCodec::try_from(cid.codec())?)?;
+        // Ensure that the CID retrieved from storage matches the computed one
+        if cid1 != cid2 {
             return Err(anyhow!("CID mismatch"));
         }
-
-        // return the block
-        Ok(Cow::Owned(block))
+        // Return the block content
+        Ok(Cow::Owned(block_content))
     }
 
     async fn put_block(&self, bytes: Vec<u8>, codec: IpldCodec) -> Result<Cid> {
-        // get the CID for the block
-        let cid = self.create_cid(bytes.clone(), codec)?;
+        // Get the CID for the block
+        let cid = self.create_cid(&bytes, codec)?;
+        // Represent the CID as bytes
         let cid_bytes = cid.to_bytes();
+        // Determine the amount of space we need to allocate
+        let block_size: u128 = cid_bytes.len() as u128 + bytes.len() as u128;
+        // Represent that number as a Little Endian byte array
+        let block_size_bytes = block_size.to_le_bytes();
 
-        // yeah screw varints
-        let block_length: u128 = cid_bytes.len() as u128 + bytes.len() as u128;
-        let block_length_bytes = block_length.to_le_bytes();
+        // Grab a mutable reference to the CarFactory
+        let mut factory = self.car_factory.write().unwrap();
 
-        let mut inner = self.car_factory.write().unwrap();
-
-        // can this car file hold the block?
-        if inner.current_car.is_none()
-            || inner.current_size + block_length as usize + block_length_bytes.len() > self.max_size
+        // If there is no CAR or we don't have enough space left to fit this data
+        if factory.current_car.is_none()
+            || factory.current_size + block_size as usize + block_size_bytes.len() > self.max_size
         {
-            // no, so create a new car file with rotate
-            inner.rotate()?;
+            // Rotate the CAR to make room
+            factory.rotate()?;
         }
 
+        // Grab a mutable reference to the CarFile's BufWriter
+        let writable_car: &mut BufWriter<File> = factory.current_car.as_mut().unwrap();
+
+        // Write the block size to the current CAR file
+        writable_car.write_all(&block_size_bytes)?;
+        // Write the CID of the block
+        writable_car.write_all(&cid_bytes)?;
+        // Write the contents of the block
+        writable_car.write_all(&bytes)?;
+        // Flush the Writer to ensure that those bytes are actually written
+        writable_car.flush().unwrap();
+
+        // Denote LocationInCar
         let loc = LocationInCar {
-            car_number: inner.car_number,
-            offset: inner.current_size,
+            car_number: factory.car_number,
+            offset: factory.current_size,
         };
 
-        // write the block to the current CAR file
-        inner
-            .current_car
-            .as_mut()
-            .unwrap()
-            .write_all(&block_length_bytes)?;
-        inner.current_car.as_mut().unwrap().write_all(&cid_bytes)?;
-        inner.current_car.as_mut().unwrap().write_all(&bytes)?;
+        // Increment the size of the current CAR
+        factory.current_size += block_size as usize + block_size_bytes.len();
 
-        // update block size and index
-        inner.current_size += block_length as usize + block_length_bytes.len();
+        // Grab write lock and insert the <Cid, LocationInCar> pairing into the HashMap
         self.index
             .write()
             .map_err(|e| anyhow!("{e}: couldn't get write lock"))?
             .insert(cid, loc);
 
-        // return
+        // Return generated CID for future retrieval
         Ok(cid)
     }
 }
 
-// TODO test properly
-// #[cfg(test)]
-// mod tests {
-//     use super::*;
-//     use tempfile::tempdir;
-//     use libipld::Ipld;
-//     use std::io::BufReader;
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::tempdir;
 
-//     // TODO WAY more tests on this- this is just a smoke test.
-//     #[tokio::test]
-//     async fn test_car_block_store() {
-//         let dir = tempdir().unwrap();
-//         let store = CarBlockStore::new(dir.path().to_path_buf(), 1000);
-//         let cid = store.put_block(vec![1,2,3], IpldCodec::Raw).await.unwrap();
-//         let block = store.get_block(&cid).unwrap();
-//         assert_eq!(block, vec![1,2,3]);
-//     }
-// }
+    // TODO WAY more tests on this- this is just a smoke test.
+    #[async_std::test]
+    async fn test_car_blockstore() {
+        let dir = tempdir().unwrap();
+        let store = CarBlockStore::new(dir.path().to_path_buf(), 4000);
+        let cid = store
+            .put_block(vec![1, 2, 3], IpldCodec::Raw)
+            .await
+            .unwrap();
+        let block: Cow<Vec<u8>> = store.get_block(&cid).await.unwrap();
+        assert_eq!(block.to_vec(), vec![1, 2, 3]);
+    }
+}

@@ -2,7 +2,7 @@ use crate::BlockStore;
 use anyhow::Result;
 use async_trait::async_trait;
 use libipld::{Cid, IpldCodec};
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use serde::{Deserialize, Serialize, Serializer};
 use std::{borrow::Cow, path::PathBuf};
 
 /// A disk-based blockstore that you can mutate.
@@ -68,7 +68,7 @@ impl BlockStore for DiskBlockStore {
         }
 
         // Try to build the CID from the bytes and codec
-        let cid = self.create_cid(bytes.clone(), codec)?;
+        let cid = self.create_cid(&bytes, codec)?;
         let file_path = self.path.join(cid.to_string());
 
         // If this file has not already been written to disk

@@ -37,7 +37,7 @@ impl BlockStore for MemoryBlockStore {
     /// Stores an array of bytes in the block store.
     async fn put_block(&self, bytes: Vec<u8>, codec: IpldCodec) -> Result<Cid> {
         // Try to build the CID from the bytes and codec
-        let cid = self.create_cid(bytes.clone(), codec)?;
+        let cid = self.create_cid(&bytes, codec)?;
         // Insert the bytes into the HashMap using the CID as the key
         self.0.borrow_mut().insert(cid.to_string(), bytes);
         // Return Ok status with the generated CID

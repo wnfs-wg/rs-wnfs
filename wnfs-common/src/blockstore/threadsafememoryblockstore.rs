@@ -42,7 +42,7 @@ impl BlockStore for ThreadSafeMemoryBlockStore {
 
     async fn put_block(&self, bytes: Vec<u8>, codec: IpldCodec) -> Result<Cid> {
         // Try to build the CID from the bytes and codec
-        let cid = self.create_cid(bytes.clone(), codec)?;
+        let cid = self.create_cid(&bytes, codec)?;
         // Write the bytes to the HashMap using the CID as the key
         self.0
             .write()
