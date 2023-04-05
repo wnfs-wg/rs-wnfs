@@ -696,7 +696,7 @@ impl PrivateFileContent {
     {
         (PrivateFileContentSerializable {
             r#type: NodeType::PrivateFile,
-            version: Version::new(0, 2, 0),
+            version: crate::VERSION,
             previous: self.previous.iter().cloned().collect(),
             header_cid,
             metadata: self.metadata.clone(),

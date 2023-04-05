@@ -753,7 +753,7 @@ impl AsyncSerialize for PublicDirectory {
 
         (PublicDirectorySerializable {
             r#type: NodeType::PublicDirectory,
-            version: Version::new(0, 2, 0),
+            version: crate::VERSION,
             metadata: self.metadata.clone(),
             userland: encoded_userland,
             previous: self.previous.iter().cloned().collect(),

@@ -145,7 +145,7 @@ impl Serialize for PublicFile {
     {
         PublicFileSerializable {
             r#type: NodeType::PublicFile,
-            version: Version::new(0, 2, 0),
+            version: crate::VERSION,
             metadata: self.metadata.clone(),
             userland: self.userland,
             previous: self.previous.iter().cloned().collect(),
