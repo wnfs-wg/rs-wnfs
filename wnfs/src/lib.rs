@@ -11,6 +11,7 @@
 pub mod error;
 pub mod private;
 pub mod public;
+pub(crate) mod root_tree;
 pub mod traits;
 mod utils;
 
@@ -27,6 +28,12 @@ pub mod hamt {
 pub mod namefilter {
     pub use wnfs_namefilter::*;
 }
+
+//--------------------------------------------------------------------------------------------------
+// Constants
+//--------------------------------------------------------------------------------------------------
+
+const VERSION: semver::Version = semver::Version::new(0, 2, 0);
 
 //--------------------------------------------------------------------------------------------------
 // Types
