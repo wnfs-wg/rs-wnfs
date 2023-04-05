@@ -4,7 +4,6 @@ use aes_kw::KekAes256;
 use anyhow::Result;
 use libipld::Cid;
 use rand::thread_rng;
-use rand_core::RngCore;
 use serde::{de::Error as DeError, ser::Error as SerError, Deserialize, Serialize};
 use std::fmt::Debug;
 use wnfs_common::HashOutput;
@@ -179,8 +178,10 @@ impl Serialize for PrivateRef {
 impl<'de> Deserialize<'de> for PrivateRef {
     fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
     where
-        D: serde::Deserializer<'de> {
-        let (serializable, key) = <(PrivateRefSerializable, TemporalKey)>::deserialize(deserializer)?;
+        D: serde::Deserializer<'de>,
+    {
+        let (serializable, key) =
+            <(PrivateRefSerializable, TemporalKey)>::deserialize(deserializer)?;
         let result = PrivateRef::from_serializable(serializable, &key).unwrap();
         Ok(result)
     }

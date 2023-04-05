@@ -4,13 +4,13 @@ use anyhow::Result;
 use async_stream::stream;
 use async_trait::async_trait;
 use futures::Stream;
-use libipld::{cid::CidGeneric, Cid};
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use libipld::Cid;
+use serde::{Deserialize, Deserializer, Serializer};
 use sha3::Sha3_256;
 use std::{collections::BTreeSet, rc::Rc};
 use wnfs_common::{AsyncSerialize, BlockStore, HashOutput, Link};
 use wnfs_hamt::{merge, Hamt, Hasher, KeyValueChange};
-use wnfs_namefilter::{BloomFilter, Namefilter};
+use wnfs_namefilter::Namefilter;
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
@@ -294,14 +294,6 @@ impl<'de> Deserialize<'de> for PrivateForest {
     }
 }
 
-// impl Serialize for PrivateForest {
-//     fn serialize<S>(&self, serializer: S, store: &impl BlockStore) -> Result<Self, S::Error>
-//     where
-//         S: Serializer,
-//     {
-//         Hamt::async_serialize(self, serializer, store);
-//     }
-// }
 
 //--------------------------------------------------------------------------------------------------
 // Tests

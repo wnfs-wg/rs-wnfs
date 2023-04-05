@@ -69,10 +69,10 @@ pub use threadsafememoryblockstore::ThreadSafeMemoryBlockStore;
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::path::PathBuf;
+    use tempfile::tempdir;
 
     // Generic function used to test any type that conforms to the BlockStore trait
-    async fn bs_retrieval<T: BlockStore + Clone + Send + 'static>(store: &mut T) -> Result<()> {
+    async fn bs_retrieval<T: BlockStore + Send + 'static>(store: &mut T) -> Result<()> {
         // Example objects to insert and remove from the blockstore
         let first_bytes = vec![1, 2, 3, 4, 5];
         let second_bytes = b"hello world".to_vec();
@@ -94,7 +94,7 @@ mod tests {
     }
 
     // Generic function used to test any type that conforms to the BlockStore trait
-    async fn bs_duplication<T: BlockStore + Clone + Send + 'static>(store: &mut T) -> Result<()> {
+    async fn bs_duplication<T: BlockStore + Send + 'static>(store: &mut T) -> Result<()> {
         // Example objects to insert and remove from the blockstore
         let first_bytes = vec![1, 2, 3, 4, 5];
         let second_bytes = first_bytes.clone();
@@ -124,28 +124,25 @@ mod tests {
     async fn memory_blockstore() {
         let store = &mut MemoryBlockStore::new();
         bs_retrieval(store).await.unwrap();
+        bs_duplication(store).await.unwrap();
     }
 
     #[async_std::test]
     async fn disk_blockstore() {
-        let store = &mut DiskBlockStore {
-            path: PathBuf::from("test_disk_blockstore"),
-        };
+        let path = tempdir().unwrap().into_path();
+        let store = &mut DiskBlockStore::new(path);
         bs_retrieval(store).await.unwrap();
+        bs_duplication(store).await.unwrap();
         store.erase().unwrap();
     }
 
     #[async_std::test]
-    async fn dedup_blockstore() {
-        // Test the deduplication of the MemoryBlockStore
-        let store = &mut MemoryBlockStore::new();
+    async fn car_blockstore() {
+        let path = tempdir().unwrap().into_path();
+        // Create a CarBlockStore with a capacity one fewer than the blocks being inserted
+        // This ensures rotation is functioning correctly, too
+        let store = &mut CarBlockStore::new(path, 4);
+        bs_retrieval(store).await.unwrap();
         bs_duplication(store).await.unwrap();
-
-        // Test the deduplication of the DiskBlockStore
-        let store = &mut DiskBlockStore {
-            path: PathBuf::from("test_dedup_blockstore"),
-        };
-        bs_duplication(store).await.unwrap();
-        store.erase().unwrap();
     }
 }

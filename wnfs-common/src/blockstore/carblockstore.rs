@@ -122,12 +122,8 @@ impl BlockStore for CarBlockStore {
         let block_content = block[cid.encoded_len()..].to_vec();
         // Use the block content to generate another CID
         let cid2 = self.create_cid(&block_content, IpldCodec::try_from(cid.codec())?)?;
-        // Ensure that the CID retrieved from storage matches the computed one
-        if cid1 != cid2 {
-            return Err(anyhow!("CID mismatch"));
-        }
-        // Return the block content
-        Ok(Cow::Owned(block_content))
+        // Return the block content if CIDs match; error otherwise
+        if cid1 == cid2 { Ok(Cow::Owned(block_content)) } else { Err(anyhow!("CID mismatch")) }
     }
 
     async fn put_block(&self, bytes: Vec<u8>, codec: IpldCodec) -> Result<Cid> {
@@ -180,24 +176,5 @@ impl BlockStore for CarBlockStore {
 
         // Return generated CID for future retrieval
         Ok(cid)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use tempfile::tempdir;
-
-    // TODO WAY more tests on this- this is just a smoke test.
-    #[async_std::test]
-    async fn test_car_blockstore() {
-        let dir = tempdir().unwrap();
-        let store = CarBlockStore::new(dir.path().to_path_buf(), 4000);
-        let cid = store
-            .put_block(vec![1, 2, 3], IpldCodec::Raw)
-            .await
-            .unwrap();
-        let block: Cow<Vec<u8>> = store.get_block(&cid).await.unwrap();
-        assert_eq!(block.to_vec(), vec![1, 2, 3]);
     }
 }

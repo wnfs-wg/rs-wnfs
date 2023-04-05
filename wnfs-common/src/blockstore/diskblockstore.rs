@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize, Serializer};
 use std::{borrow::Cow, path::PathBuf};
 
 /// A disk-based blockstore that you can mutate.
+#[derive(Debug)]
 pub struct DiskBlockStore {
     pub path: PathBuf,
 }
