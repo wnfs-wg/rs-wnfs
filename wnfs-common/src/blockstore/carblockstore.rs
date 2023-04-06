@@ -123,7 +123,11 @@ impl BlockStore for CarBlockStore {
         // Use the block content to generate another CID
         let cid2 = self.create_cid(&block_content, IpldCodec::try_from(cid.codec())?)?;
         // Return the block content if CIDs match; error otherwise
-        if cid1 == cid2 { Ok(Cow::Owned(block_content)) } else { Err(anyhow!("CID mismatch")) }
+        if cid1 == cid2 {
+            Ok(Cow::Owned(block_content))
+        } else {
+            Err(anyhow!("CID mismatch"))
+        }
     }
 
     async fn put_block(&self, bytes: Vec<u8>, codec: IpldCodec) -> Result<Cid> {

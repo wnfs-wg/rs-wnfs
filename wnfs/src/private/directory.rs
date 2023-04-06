@@ -1121,6 +1121,33 @@ impl PrivateDirectory {
         Ok(())
     }
 
+    /// Attaches a node to the specified directory without modifying the node.
+    #[allow(clippy::too_many_arguments)]
+    async fn attach_link(
+        self: &mut Rc<Self>,
+        node: PrivateNode,
+        path_segments: &[String],
+        search_latest: bool,
+        forest: &mut Rc<PrivateForest>,
+        store: &impl BlockStore,
+    ) -> Result<()> {
+        let (path, node_name) = crate::utils::split_last(path_segments)?;
+        let SearchResult::Found(dir) = self.get_leaf_dir_mut(path, search_latest, forest, store).await? else {
+            bail!(FsError::NotFound);
+        };
+
+        ensure!(
+            !dir.content.entries.contains_key(node_name),
+            FsError::FileAlreadyExists
+        );
+
+        dir.content
+            .entries
+            .insert(node_name.clone(), PrivateLink::from(node));
+
+        Ok(())
+    }
+
     /// Moves a file or directory from one path to another.
     ///
     /// # Examples
@@ -1292,6 +1319,30 @@ impl PrivateDirectory {
             forest,
             store,
             rng,
+        )
+        .await
+    }
+
+    /// Copies a file or directory from one path to another without modifying it
+    #[allow(clippy::too_many_arguments)]
+    pub async fn cp_link(
+        self: &mut Rc<Self>,
+        path_segments_from: &[String],
+        path_segments_to: &[String],
+        search_latest: bool,
+        forest: &mut Rc<PrivateForest>,
+        store: &impl BlockStore,
+    ) -> Result<()> {
+        let result = self
+            .get_node(path_segments_from, search_latest, forest, store)
+            .await?;
+        
+        self.attach_link(
+            result.ok_or(FsError::NotFound)?,
+            path_segments_to,
+            search_latest,
+            forest,
+            store,
         )
         .await
     }
