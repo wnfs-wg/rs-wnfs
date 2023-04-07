@@ -1336,7 +1336,7 @@ impl PrivateDirectory {
         let result = self
             .get_node(path_segments_from, search_latest, forest, store)
             .await?;
-        
+
         self.attach_link(
             result.ok_or(FsError::NotFound)?,
             path_segments_to,

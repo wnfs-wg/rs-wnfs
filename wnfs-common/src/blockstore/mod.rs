@@ -69,6 +69,7 @@ pub use threadsafememoryblockstore::ThreadSafeMemoryBlockStore;
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde::Deserialize;
     use tempfile::tempdir;
 
     // Generic function used to test any type that conforms to the BlockStore trait
@@ -120,6 +121,32 @@ mod tests {
         Ok(())
     }
 
+    async fn bs_serialization<
+        T: BlockStore + Send + Serialize + 'static + for<'de> Deserialize<'de>,
+    >(
+        store: &mut T,
+    ) -> Result<()> {
+        // Example objects to insert and remove from the blockstore
+        let bytes = vec![1, 2, 3, 4, 5];
+        // Insert the object into the blockstore
+        let cid = store.put_serializable(&bytes).await.unwrap();
+
+        // Create a buffer to hold the serialized BlockStore
+        let mut writer: Vec<u8> = Vec::new();
+        // Serialize the blockstore
+        serde_json::to_writer_pretty(&mut writer, &store).unwrap();
+
+        // Construct a new BlockStore from the Serialized object
+        let new_store: T = serde_json::from_reader(writer.as_slice()).unwrap();
+
+        // Retrieve the object from the blockstore
+        let loaded: Vec<u8> = new_store.get_deserializable(&cid).await.unwrap();
+
+        // Assert that the objects are the same as the ones we inserted
+        assert_eq!(loaded, bytes);
+        Ok(())
+    }
+
     #[async_std::test]
     async fn memory_blockstore() {
         let store = &mut MemoryBlockStore::new();
@@ -133,6 +160,7 @@ mod tests {
         let store = &mut DiskBlockStore::new(path);
         bs_retrieval(store).await.unwrap();
         bs_duplication(store).await.unwrap();
+        bs_serialization(store).await.unwrap();
         store.erase().unwrap();
     }
 
@@ -141,8 +169,9 @@ mod tests {
         let path = tempdir().unwrap().into_path();
         // Create a CarBlockStore with a capacity one fewer than the blocks being inserted
         // This ensures rotation is functioning correctly, too
-        let store = &mut CarBlockStore::new(path, 4);
+        let store = &mut CarBlockStore::new(path, Some(4));
         bs_retrieval(store).await.unwrap();
         bs_duplication(store).await.unwrap();
+        bs_serialization(store).await.unwrap();
     }
 }

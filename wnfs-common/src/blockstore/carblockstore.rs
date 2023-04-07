@@ -2,15 +2,18 @@ use crate::BlockStore;
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use libipld::{Cid, IpldCodec};
+use serde::{Deserialize, Serialize, Serializer};
 use std::{
     borrow::Cow,
     collections::HashMap,
     fs::File,
     io::{BufWriter, Read, Seek, SeekFrom, Write},
     path::PathBuf,
+    str::FromStr,
     sync::RwLock,
 };
 
+#[derive(Serialize, Deserialize)]
 struct LocationInCar {
     car_number: usize,
     offset: usize,
@@ -28,45 +31,130 @@ struct DiskCarFactory {
 }
 
 impl DiskCarFactory {
-    // rotating the CAR file
-    fn rotate(&mut self) -> Result<()> {
+    fn new(directory: PathBuf) -> Self {
+        Self {
+            car_number: 0,
+            current_size: 0,
+            directory,
+            current_car: None,
+        }
+    }
+
+    // Flush the BufWriter
+    fn finish(&mut self) -> Result<()> {
         // If there is a car to close
         if self.current_car.is_some() {
             // Close the current CAR file
             self.current_car.take().unwrap().flush()?;
+            // Empty the Option
+            self.current_car = None;
         }
+        // Return OK status
+        Ok(())
+    }
+
+    // rotating the CAR file
+    fn rotate(&mut self) -> Result<()> {
+        // Finish the current CAR file
+        self.finish()?;
         // increment the car number
         self.car_number += 1;
         // reset the current size
         self.current_size = 0;
-        // open the new CAR file
-        let new_car = File::create(self.directory.join(format!("{}.car", self.car_number)))?;
-        self.current_car = Some(BufWriter::new(new_car));
+        // Construct the new CAR path
+        let path = self.directory.join(format!("{}.car", self.car_number));
+        // Create the new BufWriter
+        self.current_car = Some(BufWriter::new(File::create(path)?));
         Ok(())
+    }
+}
+
+impl Serialize for DiskCarFactory {
+    fn serialize<S>(self: &DiskCarFactory, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        (&self.car_number, &self.current_size, &self.directory).serialize(serializer)
+    }
+}
+
+impl<'de> Deserialize<'de> for DiskCarFactory {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let (car_number, current_size, directory) =
+            <(usize, usize, PathBuf)>::deserialize(deserializer).unwrap();
+
+        Ok(Self {
+            car_number,
+            current_size,
+            directory,
+            current_car: None,
+        })
     }
 }
 
 pub struct CarBlockStore {
     /// The number of bytes that each CAR file can hold.
-    max_size: usize,
+    max_size: Option<usize>,
     /// Index of which blocks are in which files (by CAR number), and the offset in the file.
     index: RwLock<HashMap<Cid, LocationInCar>>,
     /// The current state of the CAR files.
     car_factory: RwLock<DiskCarFactory>,
 }
 
+impl Serialize for CarBlockStore {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut string_keyed_index: HashMap<String, &LocationInCar> = HashMap::new();
+        let binding = self.index.read().unwrap();
+        for (k, v) in binding.iter() {
+            string_keyed_index.insert(k.to_string(), v);
+        }
+
+        (self.max_size, &string_keyed_index, &self.car_factory).serialize(serializer)
+    }
+}
+
+impl<'de> Deserialize<'de> for CarBlockStore {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        // Deserialize the path
+        let (max_size, string_keyed_index, car_factory) = <(
+            Option<usize>,
+            HashMap<String, LocationInCar>,
+            RwLock<DiskCarFactory>,
+        )>::deserialize(deserializer)?;
+
+        let mut index: HashMap<Cid, LocationInCar> = HashMap::new();
+        for (k, v) in string_keyed_index.into_iter() {
+            let cid = Cid::from_str(&k).unwrap();
+            index.insert(cid, v);
+        }
+
+        let index = RwLock::new(index);
+
+        // Return Ok status with the new DiskBlockStore
+        Ok(Self {
+            max_size,
+            index,
+            car_factory,
+        })
+    }
+}
+
 impl CarBlockStore {
-    pub fn new(directory: PathBuf, max_size: usize) -> Self {
+    pub fn new(directory: PathBuf, max_size: Option<usize>) -> Self {
         // create the directory if it doesn't exist
         std::fs::create_dir_all(&directory).unwrap();
 
         // create the CAR file factory
-        let car_factory = DiskCarFactory {
-            car_number: 0,
-            current_size: 0,
-            directory,
-            current_car: None,
-        };
+        let car_factory = DiskCarFactory::new(directory);
 
         // create the index
         let index = RwLock::new(HashMap::new());
@@ -143,10 +231,17 @@ impl BlockStore for CarBlockStore {
         // Grab a mutable reference to the CarFactory
         let mut factory = self.car_factory.write().unwrap();
 
+        // Determine if the data being put will exceed CAR file limit
+        let data_too_big = if let Some(max_size) = self.max_size {
+            factory.current_size + block_size as usize + block_size_bytes.len() > max_size
+        }
+        // If there is no max size the data is never too big
+        else {
+            false
+        };
+
         // If there is no CAR or we don't have enough space left to fit this data
-        if factory.current_car.is_none()
-            || factory.current_size + block_size as usize + block_size_bytes.len() > self.max_size
-        {
+        if factory.current_car.is_none() || data_too_big {
             // Rotate the CAR to make room
             factory.rotate()?;
         }
@@ -177,6 +272,10 @@ impl BlockStore for CarBlockStore {
             .write()
             .map_err(|e| anyhow!("{e}: couldn't get write lock"))?
             .insert(cid, loc);
+
+        // TODO (organizedgrime)
+        // might there be scenarios we want to do this given that we don't know when someone might serialize?
+        // factory.finish()?;
 
         // Return generated CID for future retrieval
         Ok(cid)
