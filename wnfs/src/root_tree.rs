@@ -24,7 +24,7 @@ use wnfs_common::{BlockStore, Metadata};
 //--------------------------------------------------------------------------------------------------
 
 #[derive(Debug)]
-pub(crate) struct RootTree<B: BlockStore, R: RngCore, T: Time = Utc> {
+pub struct RootTree<B: BlockStore, R: RngCore, T: Time = Utc> {
     pub store: B, // TODO(appcypher): Making put_block &self will remove the need for *RootMut types
     pub rng: R,
     pub forest: Rc<PrivateForest>,
@@ -35,7 +35,7 @@ pub(crate) struct RootTree<B: BlockStore, R: RngCore, T: Time = Utc> {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub(crate) struct RootTreeSerializable {
+pub struct RootTreeSerializable {
     pub public: Cid,
     pub exchange: Cid,
     pub forest: Cid,
@@ -52,7 +52,7 @@ where
     R: RngCore,
     T: Time,
 {
-    pub(crate) async fn new(
+    pub async fn new(
         forest: Rc<PrivateForest>,
         store: B,
         rng: R,
@@ -69,7 +69,7 @@ where
         }
     }
 
-    pub(crate) async fn create_private_root(&mut self, name: &str) -> Result<()> {
+    pub async fn create_private_root(&mut self, name: &str) -> Result<()> {
         let root = PrivateDirectory::new_and_store(
             Default::default(),
             Utc::now(),
@@ -84,7 +84,7 @@ where
         Ok(())
     }
 
-    pub(crate) async fn ls(
+    pub async fn ls(
         &self,
         root_segments: &[String],
         path_segments: &[String],
