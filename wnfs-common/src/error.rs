@@ -15,4 +15,7 @@ pub enum BlockStoreError {
 
     #[error("Cannot find specified CID in block store: {0}")]
     CIDNotFound(Cid),
+
+    #[error("Lock poisoned")]
+    LockPoisoned,
 }

@@ -148,7 +148,7 @@ impl PrivateDirectory {
         parent_bare_name: Namefilter,
         time: DateTime<Utc>,
         forest: &mut Rc<PrivateForest>,
-        store: &mut impl BlockStore,
+        store: &impl BlockStore,
         rng: &mut impl RngCore,
     ) -> Result<Rc<Self>> {
         let dir = Rc::new(Self::new(parent_bare_name, time, rng));
@@ -616,6 +616,98 @@ impl PrivateDirectory {
         }
     }
 
+    /// Opens a mutable reference to the specified file.
+    /// If the file is missing, it initializes an empty file and give a mut reference to that.
+    /// If the file already exists, it will copy it to the next revision, update the edit time, and give a mut reference to that.
+    /// # Examples
+    /// ```
+    /// use std::rc::Rc;
+    /// use chrono::Utc;
+    /// use rand::thread_rng;
+    /// use wnfs::{
+    ///    private::{PrivateForest, PrivateRef, PrivateDirectory},
+    ///    common::{BlockStore, MemoryBlockStore},
+    ///    namefilter::Namefilter,
+    /// };
+    /// #[async_std::main]
+    /// async fn main() {
+    ///    let mut store = MemoryBlockStore::default();
+    ///    let rng = &mut thread_rng();
+    ///    let mut forest = Rc::new(PrivateForest::new());
+    ///    let root_dir = &mut Rc::new(PrivateDirectory::new(
+    ///         Namefilter::default(),
+    ///         Utc::now(),
+    ///         rng,
+    ///     ));
+    ///     // The path to the file /code/hello.py as defined by our standards
+    ///     let hello_py: &[String] = &["code".into(), "hello.py".into()];
+    ///     // The original file content
+    ///     let original_file_content = b"print('hello world')";
+    ///     // Write content to the file
+    ///     root_dir
+    ///         .write(
+    ///             hello_py,
+    ///             true,
+    ///             Utc::now(),
+    ///             original_file_content.to_vec(),
+    ///             &mut forest,
+    ///             &store,
+    ///             rng,
+    ///        )
+    ///        .await
+    ///        .unwrap();
+    ///     // Clone the forest that was used to write the file
+    ///     // Open the file mutably
+    ///     let file = {
+    ///         root_dir
+    ///             .open_file_mut(hello_py, true, Utc::now(), &mut forest, &mut store, rng)
+    ///             .await
+    ///             .unwrap()
+    ///     };
+    ///     // Define the content that will replace what is already in the file
+    ///     let new_file_content = b"print('hello world 2')";
+    ///     // Set the contents of the file, waiting for result and expecting no errors
+    ///     file.set_content(Utc::now(), &new_file_content[..], &mut forest, &store, rng)
+    ///     .await
+    ///     .unwrap();
+    ///     // Read the file again
+    ///     let result = root_dir.read(hello_py, true, &forest, &store).await.unwrap();
+    ///     // Expect that the contents of the file are now different
+    ///     assert_eq!(&result, new_file_content);
+    /// }
+    /// ```
+    pub async fn open_file_mut<'a>(
+        self: &'a mut Rc<Self>,
+        path_segments: &[String],
+        search_latest: bool,
+        time: DateTime<Utc>,
+        forest: &mut Rc<PrivateForest>,
+        store: &mut impl BlockStore,
+        rng: &mut impl RngCore,
+    ) -> Result<&'a mut PrivateFile> {
+        let (path, filename) = crate::utils::split_last(path_segments)?;
+        let SearchResult::Found(dir) = self.get_leaf_dir_mut(path, search_latest, forest, store).await? else {
+            bail!(FsError::NotFound);
+        };
+
+        if !dir.content.entries.contains_key(filename.as_str()) {
+            let parent_bare_name = dir.header.bare_name.clone();
+            let file_ref = Rc::new(PrivateFile::new(parent_bare_name, time, rng));
+            let link = PrivateLink::from(PrivateNode::File(file_ref));
+            dir.content.entries.insert(filename.to_string(), link);
+        }
+        let lookup_result = dir
+            .lookup_node_mut(filename, search_latest, forest, store)
+            .await?;
+        if let Some(PrivateNode::File(file)) = lookup_result {
+            let file = file.prepare_next_revision()?;
+            file.content.metadata.upsert_mtime(time);
+            Ok(file)
+        } else {
+            bail!(FsError::NotAFile);
+        }
+    }
+
     /// Writes a file to the directory.
     ///
     /// # Examples
@@ -672,7 +764,7 @@ impl PrivateDirectory {
         time: DateTime<Utc>,
         content: Vec<u8>,
         forest: &mut Rc<PrivateForest>,
-        store: &mut impl BlockStore,
+        store: &impl BlockStore,
         rng: &mut impl RngCore,
     ) -> Result<()> {
         let (path, filename) = crate::utils::split_last(path_segments)?;
@@ -1005,7 +1097,7 @@ impl PrivateDirectory {
         search_latest: bool,
         time: DateTime<Utc>,
         forest: &mut Rc<PrivateForest>,
-        store: &mut impl BlockStore,
+        store: &impl BlockStore,
         rng: &mut impl RngCore,
     ) -> Result<()> {
         let (path, node_name) = crate::utils::split_last(path_segments)?;
@@ -1021,6 +1113,33 @@ impl PrivateDirectory {
         node.upsert_mtime(time);
         node.update_ancestry(dir.header.bare_name.clone(), forest, store, rng)
             .await?;
+
+        dir.content
+            .entries
+            .insert(node_name.clone(), PrivateLink::from(node));
+
+        Ok(())
+    }
+
+    /// Attaches a node to the specified directory without modifying the node.
+    #[allow(clippy::too_many_arguments)]
+    async fn attach_link(
+        self: &mut Rc<Self>,
+        node: PrivateNode,
+        path_segments: &[String],
+        search_latest: bool,
+        forest: &mut Rc<PrivateForest>,
+        store: &impl BlockStore,
+    ) -> Result<()> {
+        let (path, node_name) = crate::utils::split_last(path_segments)?;
+        let SearchResult::Found(dir) = self.get_leaf_dir_mut(path, search_latest, forest, store).await? else {
+            bail!(FsError::NotFound);
+        };
+
+        ensure!(
+            !dir.content.entries.contains_key(node_name),
+            FsError::FileAlreadyExists
+        );
 
         dir.content
             .entries
@@ -1097,7 +1216,7 @@ impl PrivateDirectory {
         search_latest: bool,
         time: DateTime<Utc>,
         forest: &mut Rc<PrivateForest>,
-        store: &mut impl BlockStore,
+        store: &impl BlockStore,
         rng: &mut impl RngCore,
     ) -> Result<()> {
         let removed_node = self
@@ -1185,7 +1304,7 @@ impl PrivateDirectory {
         search_latest: bool,
         time: DateTime<Utc>,
         forest: &mut Rc<PrivateForest>,
-        store: &mut impl BlockStore,
+        store: &impl BlockStore,
         rng: &mut impl RngCore,
     ) -> Result<()> {
         let result = self
@@ -1200,6 +1319,30 @@ impl PrivateDirectory {
             forest,
             store,
             rng,
+        )
+        .await
+    }
+
+    /// Copies a file or directory from one path to another without modifying it
+    #[allow(clippy::too_many_arguments)]
+    pub async fn cp_link(
+        self: &mut Rc<Self>,
+        path_segments_from: &[String],
+        path_segments_to: &[String],
+        search_latest: bool,
+        forest: &mut Rc<PrivateForest>,
+        store: &impl BlockStore,
+    ) -> Result<()> {
+        let result = self
+            .get_node(path_segments_from, search_latest, forest, store)
+            .await?;
+
+        self.attach_link(
+            result.ok_or(FsError::NotFound)?,
+            path_segments_to,
+            search_latest,
+            forest,
+            store,
         )
         .await
     }
@@ -1242,7 +1385,7 @@ impl PrivateDirectory {
     pub async fn store(
         &self,
         forest: &mut Rc<PrivateForest>,
-        store: &mut impl BlockStore,
+        store: &impl BlockStore,
         rng: &mut impl RngCore,
     ) -> Result<PrivateRef> {
         let header_cid = self.header.store(store).await?;
@@ -1278,7 +1421,7 @@ impl PrivateDirectoryContent {
         temporal_key: &TemporalKey,
         header_cid: Cid,
         forest: &mut Rc<PrivateForest>,
-        store: &mut impl BlockStore,
+        store: &impl BlockStore,
         rng: &mut impl RngCore,
     ) -> Result<S::Ok, S::Error>
     where
@@ -1367,7 +1510,7 @@ impl PrivateDirectoryContent {
         header_cid: Cid,
         temporal_key: &TemporalKey,
         forest: &mut Rc<PrivateForest>,
-        store: &mut impl BlockStore,
+        store: &impl BlockStore,
         rng: &mut impl RngCore,
     ) -> Result<Cid> {
         Ok(*self

@@ -1,8 +1,9 @@
-use super::{PrivateNodeHeader, SnapshotKey, TemporalKey, KEY_BYTE_SIZE};
+use super::{AesKey, PrivateNodeHeader, SnapshotKey, TemporalKey, KEY_BYTE_SIZE};
 use crate::error::{AesError, FsError};
 use aes_kw::KekAes256;
 use anyhow::Result;
 use libipld::Cid;
+use rand::thread_rng;
 use serde::{de::Error as DeError, ser::Error as SerError, Deserialize, Serialize};
 use std::fmt::Debug;
 use wnfs_common::HashOutput;
@@ -156,6 +157,33 @@ impl PrivateRef {
             saturated_name_hash: self.saturated_name_hash,
             temporal_key: self.temporal_key,
         }
+    }
+}
+
+impl Serialize for PrivateRef {
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let mut rng = &mut thread_rng();
+        let aes_key = AesKey::new(wnfs_common::utils::get_random_bytes(&mut rng));
+        let parent_temporal_key = TemporalKey::from(aes_key);
+        let serializable = self.to_serializable(&parent_temporal_key).unwrap();
+        let tuple = (serializable, parent_temporal_key);
+        // Serialize the tuple for the two of them
+        tuple.serialize(serializer)
+    }
+}
+
+impl<'de> Deserialize<'de> for PrivateRef {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let (serializable, key) =
+            <(PrivateRefSerializable, TemporalKey)>::deserialize(deserializer)?;
+        let result = PrivateRef::from_serializable(serializable, &key).unwrap();
+        Ok(result)
     }
 }
 

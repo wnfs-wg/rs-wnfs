@@ -130,7 +130,7 @@ impl PublicFile {
     ///     file.store(&mut store).await.unwrap();
     /// }
     /// ```
-    pub async fn store(&self, store: &mut impl BlockStore) -> Result<Cid> {
+    pub async fn store(&self, store: &impl BlockStore) -> Result<Cid> {
         Ok(*self
             .persisted_as
             .get_or_try_init(store.put_serializable(self))

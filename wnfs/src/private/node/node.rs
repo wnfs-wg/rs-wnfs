@@ -118,7 +118,7 @@ impl PrivateNode {
         &mut self,
         parent_bare_name: Namefilter,
         forest: &mut Rc<PrivateForest>,
-        store: &mut impl BlockStore,
+        store: &impl BlockStore,
         rng: &mut impl RngCore,
     ) -> Result<()> {
         match self {
@@ -547,7 +547,7 @@ impl PrivateNode {
     pub async fn store(
         &self,
         forest: &mut Rc<PrivateForest>,
-        store: &mut impl BlockStore,
+        store: &impl BlockStore,
         rng: &mut impl RngCore,
     ) -> Result<PrivateRef> {
         match self {

@@ -51,7 +51,7 @@ impl PrivateForest {
     /// Returns the CID from which it can be `.load()`ed again.
     pub fn store(&self, store: BlockStore) -> JsResult<Promise> {
         let forest = Rc::clone(&self.0);
-        let mut store = ForeignBlockStore(store);
+        let store = ForeignBlockStore(store);
 
         Ok(future_to_promise(async move {
             let cid = store
