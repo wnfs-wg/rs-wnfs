@@ -5,6 +5,7 @@ use crate::{
     private::{PrivateDirectory, PrivateForest},
     public::PublicDirectory,
     traits::Time,
+    VERSION,
 };
 use anyhow::{bail, Result};
 use chrono::Utc;
@@ -291,6 +292,39 @@ where
                 .await
             }
         }
+    }
+
+    pub async fn store(&self, store: &mut B) -> Result<Cid> {
+        let serializable = RootTreeSerializable {
+            public: self.public_root.store(store).await?,
+            exchange: self.exchange_root.store(store).await?,
+            forest: self.forest.store(store).await?,
+            version: VERSION,
+        };
+
+        store.put_serializable(&serializable).await
+    }
+
+    pub async fn load(
+        cid: &Cid,
+        store: B,
+        rng: R,
+        private_map: HashMap<Vec<String>, Rc<PrivateDirectory>>,
+    ) -> Result<Self> {
+        let deserialized: RootTreeSerializable = store.get_deserializable(cid).await?;
+        let forest = Rc::new(PrivateForest::load(&deserialized.forest, &store).await?);
+        let public_root = Rc::new(store.get_deserializable(&deserialized.public).await?);
+        let exchange_root = Rc::new(store.get_deserializable(&deserialized.exchange).await?);
+
+        Ok(Self {
+            store,
+            rng,
+            forest,
+            public_root,
+            exchange_root,
+            private_map,
+            phantom: std::marker::PhantomData,
+        })
     }
 }
 
