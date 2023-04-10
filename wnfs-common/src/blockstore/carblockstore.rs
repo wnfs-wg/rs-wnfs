@@ -13,88 +13,6 @@ use std::{
     sync::RwLock,
 };
 
-#[derive(Serialize, Deserialize)]
-struct LocationInCar {
-    car_number: usize,
-    offset: usize,
-}
-// TODO make sure most of the things go into the same local car file. hard. need to change blockstore interface. rip.
-struct DiskCarFactory {
-    /// car file number
-    car_number: usize,
-    /// The number of bytes currently stored in the current CAR file.
-    current_size: usize,
-    /// directory where the CAR files are stored
-    directory: PathBuf,
-    /// The current CAR file.
-    current_car: Option<BufWriter<File>>,
-}
-
-impl DiskCarFactory {
-    fn new(directory: PathBuf) -> Self {
-        Self {
-            car_number: 0,
-            current_size: 0,
-            directory,
-            current_car: None,
-        }
-    }
-
-    // Flush the BufWriter
-    fn finish(&mut self) -> Result<()> {
-        // If there is a car to close
-        if self.current_car.is_some() {
-            // Close the current CAR file
-            self.current_car.take().unwrap().flush()?;
-            // Empty the Option
-            self.current_car = None;
-        }
-        // Return OK status
-        Ok(())
-    }
-
-    // rotating the CAR file
-    fn rotate(&mut self) -> Result<()> {
-        // Finish the current CAR file
-        self.finish()?;
-        // increment the car number
-        self.car_number += 1;
-        // reset the current size
-        self.current_size = 0;
-        // Construct the new CAR path
-        let path = self.directory.join(format!("{}.car", self.car_number));
-        // Create the new BufWriter
-        self.current_car = Some(BufWriter::new(File::create(path)?));
-        Ok(())
-    }
-}
-
-impl Serialize for DiskCarFactory {
-    fn serialize<S>(self: &DiskCarFactory, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        (&self.car_number, &self.current_size, &self.directory).serialize(serializer)
-    }
-}
-
-impl<'de> Deserialize<'de> for DiskCarFactory {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        let (car_number, current_size, directory) =
-            <(usize, usize, PathBuf)>::deserialize(deserializer).unwrap();
-
-        Ok(Self {
-            car_number,
-            current_size,
-            directory,
-            current_car: None,
-        })
-    }
-}
-
 pub struct CarBlockStore {
     /// The number of bytes that each CAR file can hold.
     max_size: Option<usize>,
@@ -165,6 +83,16 @@ impl CarBlockStore {
             index,
             car_factory: RwLock::new(car_factory),
         }
+    }
+
+    // Public function to change the directory in which CAR files are read
+    pub fn change_dir(&mut self, new_directory: PathBuf) -> Result<()> {
+        // Grab RW lock on CAR factory
+        let factory: &mut DiskCarFactory = self.car_factory.get_mut().unwrap();
+        // Update the directory
+        factory.directory = new_directory;
+        // Return OK
+        Ok(())
     }
 }
 
@@ -279,5 +207,87 @@ impl BlockStore for CarBlockStore {
 
         // Return generated CID for future retrieval
         Ok(cid)
+    }
+}
+
+#[derive(Serialize, Deserialize)]
+struct LocationInCar {
+    car_number: usize,
+    offset: usize,
+}
+// TODO make sure most of the things go into the same local car file. hard. need to change blockstore interface. rip.
+pub struct DiskCarFactory {
+    /// car file number
+    car_number: usize,
+    /// The number of bytes currently stored in the current CAR file.
+    current_size: usize,
+    /// directory where the CAR files are stored
+    directory: PathBuf,
+    /// The current CAR file.
+    current_car: Option<BufWriter<File>>,
+}
+
+impl DiskCarFactory {
+    fn new(directory: PathBuf) -> Self {
+        Self {
+            car_number: 0,
+            current_size: 0,
+            directory,
+            current_car: None,
+        }
+    }
+
+    // Flush the BufWriter
+    fn finish(&mut self) -> Result<()> {
+        // If there is a car to close
+        if self.current_car.is_some() {
+            // Close the current CAR file
+            self.current_car.take().unwrap().flush()?;
+            // Empty the Option
+            self.current_car = None;
+        }
+        // Return OK status
+        Ok(())
+    }
+
+    // rotating the CAR file
+    fn rotate(&mut self) -> Result<()> {
+        // Finish the current CAR file
+        self.finish()?;
+        // increment the car number
+        self.car_number += 1;
+        // reset the current size
+        self.current_size = 0;
+        // Construct the new CAR path
+        let path = self.directory.join(format!("{}.car", self.car_number));
+        // Create the new BufWriter
+        self.current_car = Some(BufWriter::new(File::create(path)?));
+        Ok(())
+    }
+}
+
+impl Serialize for DiskCarFactory {
+    fn serialize<S>(self: &DiskCarFactory, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        (&self.car_number, &self.current_size, &self.directory).serialize(serializer)
+    }
+}
+
+impl<'de> Deserialize<'de> for DiskCarFactory {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let (car_number, current_size, directory) =
+            <(usize, usize, PathBuf)>::deserialize(deserializer).unwrap();
+
+        Ok(Self {
+            car_number,
+            current_size,
+            directory,
+            current_car: None,
+        })
     }
 }
