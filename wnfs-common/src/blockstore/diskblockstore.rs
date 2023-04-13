@@ -3,7 +3,10 @@ use anyhow::Result;
 use async_trait::async_trait;
 use libipld::{Cid, IpldCodec};
 use serde::{Deserialize, Serialize};
-use std::{borrow::Cow, path::PathBuf};
+use std::{
+    borrow::Cow,
+    path::{Path, PathBuf},
+};
 
 /// A disk-based blockstore that you can mutate.
 #[derive(Debug, Serialize, Deserialize)]
@@ -17,9 +20,11 @@ pub struct DiskBlockStore {
 
 impl DiskBlockStore {
     /// Creates a new disk block store.
-    pub fn new(path: PathBuf) -> Self {
+    pub fn new(path: &Path) -> Self {
         // Return the new DiskBlockStore
-        Self { path }
+        Self {
+            path: path.to_path_buf(),
+        }
     }
 
     pub fn erase(&self) -> Result<()> {
@@ -32,7 +37,7 @@ impl DiskBlockStore {
 
 impl Clone for DiskBlockStore {
     fn clone(&self) -> Self {
-        Self::new(self.path.clone())
+        Self::new(&self.path)
     }
 }
 

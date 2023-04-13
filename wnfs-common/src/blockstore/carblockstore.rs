@@ -8,7 +8,7 @@ use std::{
     collections::HashMap,
     fs::File,
     io::{BufWriter, Read, Seek, SeekFrom, Write},
-    path::PathBuf,
+    path::{Path, PathBuf},
     str::FromStr,
     sync::RwLock,
 };
@@ -67,17 +67,17 @@ impl<'de> Deserialize<'de> for CarBlockStore {
 }
 
 impl CarBlockStore {
-    pub fn new(directory: PathBuf, max_size: Option<usize>) -> Self {
-        // create the directory if it doesn't exist
-        std::fs::create_dir_all(&directory).unwrap();
-
-        // create the CAR file factory
+    /// Create a new CarBlockStore at a given directory; overwrites all data
+    pub fn new(directory: &Path, max_size: Option<usize>) -> Self {
+        // Remove anything that might be there already
+        let _ = std::fs::create_dir_all(directory);
+        // Create the directory
+        std::fs::create_dir_all(directory).unwrap();
+        // Create the CAR file factory
         let car_factory = DiskCarFactory::new(directory);
-
-        // create the index
+        // Create the indexer
         let index = RwLock::new(HashMap::new());
-
-        // create the block store
+        // Instantiate the block store
         Self {
             max_size,
             index,
@@ -85,12 +85,12 @@ impl CarBlockStore {
         }
     }
 
-    // Public function to change the directory in which CAR files are read
-    pub fn change_dir(&mut self, new_directory: PathBuf) -> Result<()> {
+    /// Public function to change the directory in which CAR files are read
+    pub fn change_dir(&mut self, new_directory: &Path) -> Result<()> {
         // Grab RW lock on CAR factory
         let factory: &mut DiskCarFactory = self.car_factory.get_mut().unwrap();
         // Update the directory
-        factory.directory = new_directory;
+        factory.directory = new_directory.to_path_buf();
         // Return OK
         Ok(())
     }
@@ -228,11 +228,11 @@ pub struct DiskCarFactory {
 }
 
 impl DiskCarFactory {
-    fn new(directory: PathBuf) -> Self {
+    fn new(directory: &Path) -> Self {
         Self {
             car_number: 0,
             current_size: 0,
-            directory,
+            directory: directory.to_path_buf(),
             current_car: None,
         }
     }

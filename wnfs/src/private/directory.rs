@@ -533,7 +533,7 @@ impl PrivateDirectory {
             bail!(FsError::InvalidPath);
         };
 
-        let SearchResult::Found(dir) = self.get_leaf_dir(path,  search_latest, forest, store).await? else {
+        let SearchResult::Found(dir) = self.get_leaf_dir(path, search_latest, forest, store).await? else {
             bail!(FsError::NotFound);
         };
 

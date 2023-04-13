@@ -157,7 +157,7 @@ mod tests {
     #[async_std::test]
     async fn disk_blockstore() {
         let path = tempdir().unwrap().into_path();
-        let store = &mut DiskBlockStore::new(path);
+        let store = &mut DiskBlockStore::new(&path);
         bs_retrieval(store).await.unwrap();
         bs_duplication(store).await.unwrap();
         bs_serialization(store).await.unwrap();
@@ -169,7 +169,7 @@ mod tests {
         let path = tempdir().unwrap().into_path();
         // Create a CarBlockStore with a capacity one fewer than the blocks being inserted
         // This ensures rotation is functioning correctly, too
-        let store = &mut CarBlockStore::new(path, Some(4));
+        let store = &mut CarBlockStore::new(&path, Some(4));
         bs_retrieval(store).await.unwrap();
         bs_duplication(store).await.unwrap();
         bs_serialization(store).await.unwrap();
