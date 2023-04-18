@@ -7,8 +7,8 @@ use anyhow::Result;
 use async_once_cell::OnceCell;
 use async_stream::try_stream;
 use chrono::{DateTime, Utc};
-use futures::{future, AsyncRead, Stream, StreamExt, TryStreamExt};
-use libipld::{Cid, IpldCodec};
+use futures::{future, AsyncRead, Stream, StreamExt};
+use libipld::{Cid, IpldCodec, Ipld};
 use rand_core::RngCore;
 use semver::Version;
 use serde::{de::Error as DeError, Deserialize, Deserializer, Serialize};
@@ -380,6 +380,33 @@ impl PrivateFile {
         Ok(bytes)
     }
 
+    /// Create a new Symlink PrivateFile
+    pub async fn new_symlink(
+        path: String,
+        parent_bare_name: Namefilter,
+        time: DateTime<Utc>,
+        rng: &mut impl RngCore,
+    ) -> Result<Self> {
+        // Header stays the same
+        let header = PrivateNodeHeader::new(parent_bare_name, rng);
+        // Symlinks have no file content
+        let content = FileContent::Inline { data: vec![] };
+        // Create a new Metadata object
+        let mut metadata: Metadata = Metadata::new(time);
+        // Write the original path into the Metadata HashMap
+        metadata.0.insert(String::from("symlink"), Ipld::String(path));
+        // Return self with PrivateFileContent
+        Ok(Self {
+            header,
+            content: PrivateFileContent {
+                persisted_as: OnceCell::new(),
+                metadata,
+                previous: BTreeSet::new(),
+                content,
+            },
+        })
+    }
+
     /// Gets the metadata of the file
     pub fn get_metadata(&self) -> &Metadata {
         &self.content.metadata
@@ -739,6 +766,18 @@ impl PrivateFile {
     /// Wraps the file in a [`PrivateNode`].
     pub fn as_node(self: &Rc<Self>) -> PrivateNode {
         PrivateNode::File(Rc::clone(self))
+    }
+
+    /// If the Metadata contains Symlink data, return it
+    pub fn symlink_origin(&self) -> Option<String> {
+        let meta = self.get_metadata();
+        // If the Metadata contains a String key for the symlink
+        if let Some(Ipld::String(path)) = meta.0.get("symlink") {
+            Some(path.to_string())
+        }
+        else {
+            None
+        }
     }
 }
 
