@@ -342,54 +342,54 @@ impl PrivateFile {
         })
     }
 
-    pub async fn read_chunk<'a>(
+    /// Reads a number of bytes starting from a given offset.
+    pub async fn read_at<'a>(
         &'a self,
         offset: usize,
         size: usize,
         forest: &'a PrivateForest,
         store: &'a impl BlockStore,
     ) -> Result<Vec<u8>> {
-        let pos_from = offset;
-        let pos_to = offset + size;
-        // eprintln!("read offset {offset} size {size} end {end}");
         match &self.content.content {
             FileContent::Inline { data } => {
-                let from = pos_from.min(data.len());
-                let to = pos_to.min(data.len());
+                let from = offset.min(data.len());
+                let to = (offset + size).min(data.len());
                 Ok(data[from..to].to_vec())
             }
             FileContent::External {
-                key,
                 block_count,
                 block_content_size,
+                ..
             } => {
-                // eprintln!("external {block_count} * {block_content_size}");
-                let max_size = ((block_count * block_content_size) - offset).min(size);
-                if max_size == 0 {
+                let max_total_size = ((block_count * block_content_size) - offset).min(size);
+                if max_total_size == 0 {
                     return Ok(vec![]);
                 }
-                // eprintln!("read block {start_block}:{start_offset} to {end_block}:{end_offset}");
-                let mut buf = Vec::with_capacity(max_size);
-                let bare_name = &self.header.bare_name;
-                let first_block = pos_from / block_content_size;
-                let last_block = pos_to / block_content_size;
-                for index in first_block..=last_block {
-                    let label = Self::create_block_label(key, index, bare_name);
-                    let block_offset = index * block_content_size;
-                    match Self::decrypt_block(key, &label, forest, store).await {
+                let mut buf = Vec::with_capacity(max_total_size);
+                let first_block = offset / block_content_size;
+                let last_block = (offset + size) / block_content_size;
+                let mut content_stream =
+                    self.stream_content(first_block, forest, store).enumerate();
+                while let Some((i, bytes)) = content_stream.next().await {
+                    match bytes {
                         Ok(bytes) => {
+                            let index = first_block + i;
                             let from = if index == first_block {
-                                (pos_from - block_offset).min(bytes.len())
+                                (offset - index * block_content_size).min(bytes.len())
                             } else {
                                 0
                             };
                             let to = if index == last_block {
-                                (pos_to - block_offset).min(bytes.len())
+                                (offset + size - index * block_content_size).min(bytes.len())
                             } else {
                                 bytes.len()
                             };
                             buf.extend_from_slice(&bytes[from..to]);
+                            if index == last_block {
+                                break;
+                            }
                         }
+                        // If a block doesn't exist, break and return what we read until here.
                         Err(_err) => {
                             break;
                         }
