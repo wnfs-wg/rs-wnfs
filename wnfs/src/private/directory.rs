@@ -1002,6 +1002,10 @@ impl PrivateDirectory {
         }
     }
 
+    pub fn entries<'a>(self: &'a Rc<Self>) -> impl Iterator<Item = &'a String> {
+        self.content.entries.iter().map(|x| x.0)
+    }
+
     /// Removes a file or directory from the directory.
     ///
     /// # Examples

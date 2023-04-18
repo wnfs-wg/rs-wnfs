@@ -342,6 +342,64 @@ impl PrivateFile {
         })
     }
 
+    pub async fn read_chunk<'a>(
+        &'a self,
+        offset: usize,
+        size: usize,
+        forest: &'a PrivateForest,
+        store: &'a impl BlockStore,
+    ) -> Result<Vec<u8>> {
+        let pos_from = offset;
+        let pos_to = offset + size;
+        // eprintln!("read offset {offset} size {size} end {end}");
+        match &self.content.content {
+            FileContent::Inline { data } => {
+                let from = pos_from.min(data.len());
+                let to = pos_to.min(data.len());
+                Ok(data[from..to].to_vec())
+            }
+            FileContent::External {
+                key,
+                block_count,
+                block_content_size,
+            } => {
+                // eprintln!("external {block_count} * {block_content_size}");
+                let max_size = ((block_count * block_content_size) - offset).min(size);
+                if max_size == 0 {
+                    return Ok(vec![]);
+                }
+                // eprintln!("read block {start_block}:{start_offset} to {end_block}:{end_offset}");
+                let mut buf = Vec::with_capacity(max_size);
+                let bare_name = &self.header.bare_name;
+                let first_block = pos_from / block_content_size;
+                let last_block = pos_to / block_content_size;
+                for index in first_block..=last_block {
+                    let label = Self::create_block_label(key, index, bare_name);
+                    let block_offset = index * block_content_size;
+                    match Self::decrypt_block(key, &label, forest, store).await {
+                        Ok(bytes) => {
+                            let from = if index == first_block {
+                                (pos_from - block_offset).min(bytes.len())
+                            } else {
+                                0
+                            };
+                            let to = if index == last_block {
+                                (pos_to - block_offset).min(bytes.len())
+                            } else {
+                                bytes.len()
+                            };
+                            buf.extend_from_slice(&bytes[from..to]);
+                        }
+                        Err(_err) => {
+                            break;
+                        }
+                    }
+                }
+                Ok(buf)
+            }
+        }
+    }
+
     /// Gets the metadata of the file
     pub fn get_metadata(&self) -> &Metadata {
         &self.content.metadata
@@ -504,7 +562,7 @@ impl PrivateFile {
     }
 
     /// Gets the upper bound of a file content size.
-    pub(crate) fn get_content_size_upper_bound(&self) -> usize {
+    pub fn get_content_size_upper_bound(&self) -> usize {
         match &self.content.content {
             FileContent::Inline { data } => data.len(),
             FileContent::External {
