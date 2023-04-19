@@ -350,54 +350,41 @@ impl PrivateFile {
         forest: &'a PrivateForest,
         store: &'a impl BlockStore,
     ) -> Result<Vec<u8>> {
-        match &self.content.content {
-            FileContent::Inline { data } => {
-                let from = offset.min(data.len());
-                let to = (offset + size).min(data.len());
-                Ok(data[from..to].to_vec())
-            }
-            FileContent::External {
-                block_count,
-                block_content_size,
-                ..
-            } => {
-                let max_total_size = ((block_count * block_content_size) - offset).min(size);
-                if max_total_size == 0 {
-                    return Ok(vec![]);
-                }
-                let mut buf = Vec::with_capacity(max_total_size);
-                let first_block = offset / block_content_size;
-                let last_block = (offset + size) / block_content_size;
-                let mut content_stream =
-                    self.stream_content(first_block, forest, store).enumerate();
-                while let Some((i, bytes)) = content_stream.next().await {
-                    match bytes {
-                        Ok(bytes) => {
-                            let index = first_block + i;
-                            let from = if index == first_block {
-                                (offset - index * block_content_size).min(bytes.len())
-                            } else {
-                                0
-                            };
-                            let to = if index == last_block {
-                                (offset + size - index * block_content_size).min(bytes.len())
-                            } else {
-                                bytes.len()
-                            };
-                            buf.extend_from_slice(&bytes[from..to]);
-                            if index == last_block {
-                                break;
-                            }
-                        }
-                        // If a block doesn't exist, break and return what we read until here.
-                        Err(_err) => {
-                            break;
-                        }
+        let block_content_size = MAX_BLOCK_CONTENT_SIZE;
+        let chunk_size_upper_bound = (self.get_content_size_upper_bound() - offset).min(size);
+        if chunk_size_upper_bound == 0 {
+            return Ok(vec![]);
+        }
+        let first_block = offset / block_content_size;
+        let last_block = (offset + size) / block_content_size;
+        let mut bytes = Vec::with_capacity(chunk_size_upper_bound);
+        let mut content_stream = self.stream_content(first_block, forest, store).enumerate();
+        while let Some((i, chunk)) = content_stream.next().await {
+            match chunk {
+                Ok(chunk) => {
+                    let index = first_block + i;
+                    let from = if index == first_block {
+                        (offset - index * block_content_size).min(chunk.len())
+                    } else {
+                        0
+                    };
+                    let to = if index == last_block {
+                        (offset + size - index * block_content_size).min(chunk.len())
+                    } else {
+                        chunk.len()
+                    };
+                    bytes.extend_from_slice(&chunk[from..to]);
+                    if index == last_block {
+                        break;
                     }
                 }
-                Ok(buf)
+                // If a block doesn't exist, break and return what we read until here.
+                Err(_err) => {
+                    break;
+                }
             }
         }
+        Ok(bytes)
     }
 
     /// Gets the metadata of the file
