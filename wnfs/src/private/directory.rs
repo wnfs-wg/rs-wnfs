@@ -1002,7 +1002,11 @@ impl PrivateDirectory {
         }
     }
 
-    pub fn entries<'a>(self: &'a Rc<Self>) -> impl Iterator<Item = &'a String> {
+    /// Get the names of directory's immediate children.
+    ///
+    /// Other than [PrivateDirectory::ls] this returns only the names, without loading the
+    /// metadata for each node from the store.
+    pub fn get_entries<'a>(self: &'a Rc<Self>) -> impl Iterator<Item = &'a String> {
         self.content.entries.iter().map(|x| x.0)
     }
 
