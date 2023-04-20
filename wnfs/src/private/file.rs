@@ -942,6 +942,7 @@ mod tests {
             matches!(file.content.content, FileContent::External { block_count, .. } if block_count > 0)
         );
     }
+
 }
 
 #[cfg(test)]
@@ -955,6 +956,9 @@ mod proptests {
     use test_strategy::proptest;
     use wnfs_common::MemoryBlockStore;
     use wnfs_namefilter::Namefilter;
+
+    /// File of the test fixture at "./test/fixtures/Clara Schumann, Scherzo no. 2, Op. 14.mp3"
+    const FIXTURE_SCHERZO_SIZE: usize = 4028150;
 
     #[proptest(cases = 100)]
     fn can_include_and_get_content_from_file(
@@ -1013,6 +1017,43 @@ mod proptests {
                 .await;
 
             assert_eq!(collected_content, content);
+        })
+    }
+
+    #[proptest(cases = 10)]
+    fn can_read_section_of_file(
+        #[strategy(0..FIXTURE_SCHERZO_SIZE)] size: usize,
+        #[strategy(0..FIXTURE_SCHERZO_SIZE)] offset: usize,
+    ) {
+        use async_std::prelude::*;
+        use async_std::io::SeekFrom;
+        async_std::task::block_on(async {
+            let size = size.min(FIXTURE_SCHERZO_SIZE - offset);
+            let mut disk_file = async_std::fs::File::open("./test/fixtures/Clara Schumann, Scherzo no. 2, Op. 14.mp3")
+                .await
+                .unwrap();
+
+            let forest = &mut Rc::new(PrivateForest::new());
+            let store = &mut MemoryBlockStore::new();
+            let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
+
+            let file = PrivateFile::with_content_streaming(
+                Namefilter::default(),
+                Utc::now(),
+                disk_file.clone(),
+                forest,
+                store,
+                rng,
+            )
+            .await
+            .unwrap();
+
+            let mut source_content = vec![0u8; size];
+            disk_file.seek(SeekFrom::Start(offset as u64)).await.unwrap();
+            disk_file.read_exact(&mut source_content).await.unwrap();
+            let wnfs_content = file.read_at(offset, size, forest, store).await.unwrap();
+
+            assert_eq!(source_content, wnfs_content);
         })
     }
 }
