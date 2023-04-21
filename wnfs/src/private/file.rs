@@ -360,28 +360,21 @@ impl PrivateFile {
         let mut bytes = Vec::with_capacity(chunk_size_upper_bound);
         let mut content_stream = self.stream_content(first_block, forest, store).enumerate();
         while let Some((i, chunk)) = content_stream.next().await {
-            match chunk {
-                Ok(chunk) => {
-                    let index = first_block + i;
-                    let from = if index == first_block {
-                        (offset - index * block_content_size).min(chunk.len())
-                    } else {
-                        0
-                    };
-                    let to = if index == last_block {
-                        (offset + size - index * block_content_size).min(chunk.len())
-                    } else {
-                        chunk.len()
-                    };
-                    bytes.extend_from_slice(&chunk[from..to]);
-                    if index == last_block {
-                        break;
-                    }
-                }
-                // If a block doesn't exist, break and return what we read until here.
-                Err(_err) => {
-                    break;
-                }
+            let chunk = chunk?;
+            let index = first_block + i;
+            let from = if index == first_block {
+                (offset - index * block_content_size).min(chunk.len())
+            } else {
+                0
+            };
+            let to = if index == last_block {
+                (offset + size - index * block_content_size).min(chunk.len())
+            } else {
+                chunk.len()
+            };
+            bytes.extend_from_slice(&chunk[from..to]);
+            if index == last_block {
+                break;
             }
         }
         Ok(bytes)
@@ -942,7 +935,6 @@ mod tests {
             matches!(file.content.content, FileContent::External { block_count, .. } if block_count > 0)
         );
     }
-
 }
 
 #[cfg(test)]
@@ -957,7 +949,7 @@ mod proptests {
     use wnfs_common::MemoryBlockStore;
     use wnfs_namefilter::Namefilter;
 
-    /// File of the test fixture at "./test/fixtures/Clara Schumann, Scherzo no. 2, Op. 14.mp3"
+    /// Size of the test file at "./test/fixtures/Clara Schumann, Scherzo no. 2, Op. 14.mp3"
     const FIXTURE_SCHERZO_SIZE: usize = 4028150;
 
     #[proptest(cases = 100)]
@@ -1025,13 +1017,14 @@ mod proptests {
         #[strategy(0..FIXTURE_SCHERZO_SIZE)] size: usize,
         #[strategy(0..FIXTURE_SCHERZO_SIZE)] offset: usize,
     ) {
-        use async_std::prelude::*;
-        use async_std::io::SeekFrom;
+        use async_std::{io::SeekFrom, prelude::*};
         async_std::task::block_on(async {
             let size = size.min(FIXTURE_SCHERZO_SIZE - offset);
-            let mut disk_file = async_std::fs::File::open("./test/fixtures/Clara Schumann, Scherzo no. 2, Op. 14.mp3")
-                .await
-                .unwrap();
+            let mut disk_file = async_std::fs::File::open(
+                "./test/fixtures/Clara Schumann, Scherzo no. 2, Op. 14.mp3",
+            )
+            .await
+            .unwrap();
 
             let forest = &mut Rc::new(PrivateForest::new());
             let store = &mut MemoryBlockStore::new();
@@ -1049,7 +1042,10 @@ mod proptests {
             .unwrap();
 
             let mut source_content = vec![0u8; size];
-            disk_file.seek(SeekFrom::Start(offset as u64)).await.unwrap();
+            disk_file
+                .seek(SeekFrom::Start(offset as u64))
+                .await
+                .unwrap();
             disk_file.read_exact(&mut source_content).await.unwrap();
             let wnfs_content = file.read_at(offset, size, forest, store).await.unwrap();
 
