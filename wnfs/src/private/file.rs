@@ -342,6 +342,44 @@ impl PrivateFile {
         })
     }
 
+    /// Reads a number of bytes starting from a given offset.
+    pub async fn read_at<'a>(
+        &'a self,
+        offset: usize,
+        size: usize,
+        forest: &'a PrivateForest,
+        store: &'a impl BlockStore,
+    ) -> Result<Vec<u8>> {
+        let block_content_size = MAX_BLOCK_CONTENT_SIZE;
+        let chunk_size_upper_bound = (self.get_content_size_upper_bound() - offset).min(size);
+        if chunk_size_upper_bound == 0 {
+            return Ok(vec![]);
+        }
+        let first_block = offset / block_content_size;
+        let last_block = (offset + size) / block_content_size;
+        let mut bytes = Vec::with_capacity(chunk_size_upper_bound);
+        let mut content_stream = self.stream_content(first_block, forest, store).enumerate();
+        while let Some((i, chunk)) = content_stream.next().await {
+            let chunk = chunk?;
+            let index = first_block + i;
+            let from = if index == first_block {
+                (offset - index * block_content_size).min(chunk.len())
+            } else {
+                0
+            };
+            let to = if index == last_block {
+                (offset + size - index * block_content_size).min(chunk.len())
+            } else {
+                chunk.len()
+            };
+            bytes.extend_from_slice(&chunk[from..to]);
+            if index == last_block {
+                break;
+            }
+        }
+        Ok(bytes)
+    }
+
     /// Gets the metadata of the file
     pub fn get_metadata(&self) -> &Metadata {
         &self.content.metadata
@@ -504,7 +542,7 @@ impl PrivateFile {
     }
 
     /// Gets the upper bound of a file content size.
-    pub(crate) fn get_content_size_upper_bound(&self) -> usize {
+    pub fn get_content_size_upper_bound(&self) -> usize {
         match &self.content.content {
             FileContent::Inline { data } => data.len(),
             FileContent::External {
@@ -911,6 +949,9 @@ mod proptests {
     use wnfs_common::MemoryBlockStore;
     use wnfs_namefilter::Namefilter;
 
+    /// Size of the test file at "./test/fixtures/Clara Schumann, Scherzo no. 2, Op. 14.mp3"
+    const FIXTURE_SCHERZO_SIZE: usize = 4028150;
+
     #[proptest(cases = 100)]
     fn can_include_and_get_content_from_file(
         #[strategy(0..(MAX_BLOCK_CONTENT_SIZE * 2))] length: usize,
@@ -968,6 +1009,47 @@ mod proptests {
                 .await;
 
             assert_eq!(collected_content, content);
+        })
+    }
+
+    #[proptest(cases = 10)]
+    fn can_read_section_of_file(
+        #[strategy(0..FIXTURE_SCHERZO_SIZE)] size: usize,
+        #[strategy(0..FIXTURE_SCHERZO_SIZE)] offset: usize,
+    ) {
+        use async_std::{io::SeekFrom, prelude::*};
+        async_std::task::block_on(async {
+            let size = size.min(FIXTURE_SCHERZO_SIZE - offset);
+            let mut disk_file = async_std::fs::File::open(
+                "./test/fixtures/Clara Schumann, Scherzo no. 2, Op. 14.mp3",
+            )
+            .await
+            .unwrap();
+
+            let forest = &mut Rc::new(PrivateForest::new());
+            let store = &mut MemoryBlockStore::new();
+            let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
+
+            let file = PrivateFile::with_content_streaming(
+                Namefilter::default(),
+                Utc::now(),
+                disk_file.clone(),
+                forest,
+                store,
+                rng,
+            )
+            .await
+            .unwrap();
+
+            let mut source_content = vec![0u8; size];
+            disk_file
+                .seek(SeekFrom::Start(offset as u64))
+                .await
+                .unwrap();
+            disk_file.read_exact(&mut source_content).await.unwrap();
+            let wnfs_content = file.read_at(offset, size, forest, store).await.unwrap();
+
+            assert_eq!(source_content, wnfs_content);
         })
     }
 }
