@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1681801533146,
+  "lastUpdate": 1682241353076,
   "repoUrl": "https://github.com/wnfs-wg/rs-wnfs",
   "entries": {
     "Rust Benchmark": [
@@ -11461,6 +11461,108 @@ window.BENCHMARK_DATA = {
             "name": "namefilter encode",
             "value": 172,
             "range": "± 6",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter decode/0",
+            "value": 1,
+            "range": "± 0",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "frando@unbiskant.org",
+            "name": "Franz Heinzmann",
+            "username": "Frando"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "1572f432b6ae5366436cdefda7defd71c23b0ca7",
+          "message": "feat: Add `PrivateDirectory::entires`, `PrivateFile::read_at` and make `PrivateFile::get_content_size_upper_bound` public (#237)\n\n* additions for fuse support\r\n\r\n* cleanup: rename read_chunk to read_at and use stream_content\r\n\r\n* refactor: simplify PrivateFile::read_at\r\n\r\n* fix: PrivateDirectory::get_entries docs & rename\r\n\r\n* test: add proptest for PrivateFile::read_at\r\n\r\n* fix: PrivateFile::read_at error out on bad block",
+          "timestamp": "2023-04-23T11:09:23+02:00",
+          "tree_id": "377a495ec1338e4a6d125d93151f3ab5e0d3f061",
+          "url": "https://github.com/wnfs-wg/rs-wnfs/commit/1572f432b6ae5366436cdefda7defd71c23b0ca7"
+        },
+        "date": 1682241352367,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "node set",
+            "value": 6802,
+            "range": "± 117",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node set 1000 consecutive",
+            "value": 4408846,
+            "range": "± 17686",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and get",
+            "value": 170511,
+            "range": "± 189",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and remove",
+            "value": 190397,
+            "range": "± 217",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt load and decode/0",
+            "value": 41805,
+            "range": "± 49",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt set and encode",
+            "value": 179273,
+            "range": "± 525",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt diff",
+            "value": 56207,
+            "range": "± 4755",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt merge",
+            "value": 235355,
+            "range": "± 18850",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter add",
+            "value": 8138,
+            "range": "± 13",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter contains",
+            "value": 12671,
+            "range": "± 10",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter saturate",
+            "value": 44601,
+            "range": "± 46",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter encode",
+            "value": 170,
+            "range": "± 9",
             "unit": "ns/iter"
           },
           {
