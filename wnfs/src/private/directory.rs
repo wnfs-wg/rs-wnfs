@@ -916,6 +916,7 @@ impl PrivateDirectory {
     }
 
     /// Write a Symlink to the filesystem with the reference path at the path segments specified
+    #[allow(clippy::too_many_arguments)]
     pub async fn write_symlink(
         self: &mut Rc<Self>,
         path: String,
@@ -941,17 +942,15 @@ impl PrivateDirectory {
                 file.content.content = super::FileContent::Inline { data: vec![] };
                 file.content.metadata.upsert_mtime(time);
                 // Write the path into the Metadata HashMap
-                file.content.metadata.0.insert(String::from("symlink"), Ipld::String(path));
+                file.content
+                    .metadata
+                    .0
+                    .insert(String::from("symlink"), Ipld::String(path));
             }
             Some(PrivateNode::Dir(_)) => bail!(FsError::DirectoryAlreadyExists),
             None => {
-                let file = PrivateFile::new_symlink(
-                    path,
-                    dir.header.bare_name.clone(),
-                    time,
-                    rng,
-                )
-                .await?;
+                let file =
+                    PrivateFile::new_symlink(path, dir.header.bare_name.clone(), time, rng).await?;
                 let link = PrivateLink::with_file(file);
                 dir.content.entries.insert(filename.to_string(), link);
             }
