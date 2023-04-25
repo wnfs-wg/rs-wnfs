@@ -235,14 +235,7 @@ impl TryFrom<&str> for NodeType {
 
 impl From<&NodeType> for String {
     fn from(r#type: &NodeType) -> Self {
-        match r#type {
-            NodeType::PrivateDirectory => "wnfs/priv/dir".into(),
-            NodeType::PrivateFile => "wnfs/priv/file".into(),
-            NodeType::PublicDirectory => "wnfs/pub/dir".into(),
-            NodeType::PublicFile => "wnfs/pub/file".into(),
-            NodeType::TemporalSharePointer => "wnfs/share/temporal".into(),
-            NodeType::SnapshotSharePointer => "wnfs/share/snapshot".into(),
-        }
+        r#type.to_string()
     }
 }
 

@@ -6,7 +6,7 @@ use crate::{error::FsError, traits::Id, SearchResult};
 use anyhow::{bail, ensure, Result};
 use async_once_cell::OnceCell;
 use chrono::{DateTime, Utc};
-use libipld::Cid;
+use libipld::{Cid, Ipld};
 use rand_core::RngCore;
 use semver::Version;
 use serde::{de::Error as DeError, ser::Error as SerError, Deserialize, Deserializer, Serialize};
@@ -917,6 +917,50 @@ impl PrivateDirectory {
         let _ = self
             .get_or_create_leaf_dir_mut(path_segments, time, search_latest, forest, store, rng)
             .await?;
+
+        Ok(())
+    }
+
+    /// Write a Symlink to the filesystem with the reference path at the path segments specified
+    #[allow(clippy::too_many_arguments)]
+    pub async fn write_symlink(
+        self: &mut Rc<Self>,
+        path: String,
+        path_segments: &[String],
+        search_latest: bool,
+        time: DateTime<Utc>,
+        forest: &PrivateForest,
+        store: &impl BlockStore,
+        rng: &mut impl RngCore,
+    ) -> Result<()> {
+        let (path_segments, filename) = crate::utils::split_last(path_segments)?;
+
+        let dir = self
+            .get_or_create_leaf_dir_mut(path_segments, time, search_latest, forest, store, rng)
+            .await?;
+
+        match dir
+            .lookup_node_mut(filename, search_latest, forest, store)
+            .await?
+        {
+            Some(PrivateNode::File(file)) => {
+                let file = file.prepare_next_revision()?;
+                file.content.content = super::FileContent::Inline { data: vec![] };
+                file.content.metadata.upsert_mtime(time);
+                // Write the path into the Metadata HashMap
+                file.content
+                    .metadata
+                    .0
+                    .insert(String::from("symlink"), Ipld::String(path));
+            }
+            Some(PrivateNode::Dir(_)) => bail!(FsError::DirectoryAlreadyExists),
+            None => {
+                let file =
+                    PrivateFile::new_symlink(path, dir.header.bare_name.clone(), time, rng).await?;
+                let link = PrivateLink::with_file(file);
+                dir.content.entries.insert(filename.to_string(), link);
+            }
+        };
 
         Ok(())
     }
