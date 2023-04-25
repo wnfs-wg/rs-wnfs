@@ -8,7 +8,7 @@ use async_once_cell::OnceCell;
 use async_stream::try_stream;
 use chrono::{DateTime, Utc};
 use futures::{future, AsyncRead, Stream, StreamExt};
-use libipld::{Cid, IpldCodec, Ipld};
+use libipld::{Cid, Ipld, IpldCodec};
 use rand_core::RngCore;
 use semver::Version;
 use serde::{de::Error as DeError, Deserialize, Deserializer, Serialize};
@@ -356,7 +356,9 @@ impl PrivateFile {
         // Create a new Metadata object
         let mut metadata: Metadata = Metadata::new(time);
         // Write the original path into the Metadata HashMap
-        metadata.0.insert(String::from("symlink"), Ipld::String(path));
+        metadata
+            .0
+            .insert(String::from("symlink"), Ipld::String(path));
         // Return self with PrivateFileContent
         Ok(Self {
             header,
@@ -736,8 +738,7 @@ impl PrivateFile {
         // If the Metadata contains a String key for the symlink
         if let Some(Ipld::String(path)) = meta.0.get("symlink") {
             Some(path.to_string())
-        }
-        else {
+        } else {
             None
         }
     }
