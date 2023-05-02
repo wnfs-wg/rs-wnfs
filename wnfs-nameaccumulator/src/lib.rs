@@ -109,15 +109,16 @@ impl Serialize for NameAccumulator {
     where
         S: serde::Serializer,
     {
-        self.as_ref().serialize(serializer)
+        serde_bytes::serialize(self.as_ref(), serializer)
     }
 }
 
 impl AsRef<[u8]> for NameAccumulator {
     fn as_ref(&self) -> &[u8] {
         self.serialized_cache.get_or_init(|| {
+            let vec = self.state.to_bytes_le();
             let mut bytes = [0u8; 256];
-            bytes.copy_from_slice(&self.state.to_bytes_le());
+            bytes[..vec.len()].copy_from_slice(&vec);
             bytes
         })
     }
@@ -183,7 +184,9 @@ impl Serialize for NameSegment {
     where
         S: serde::Serializer,
     {
-        self.0.to_bytes_le().serialize(serializer)
+        let mut bytes = self.0.to_bytes_le();
+        bytes.resize(32, 0);
+        serde_bytes::serialize(&bytes, serializer)
     }
 }
 
@@ -192,7 +195,7 @@ impl<'de> Deserialize<'de> for NameSegment {
     where
         D: serde::Deserializer<'de>,
     {
-        let bytes: Vec<u8> = Vec::deserialize(deserializer)?;
+        let bytes: Vec<u8> = serde_bytes::deserialize(deserializer)?;
         Ok(NameSegment(BigUint::from_bytes_le(&bytes)))
     }
 }
@@ -204,5 +207,52 @@ impl NameSegment {
 
     pub fn from_digest(digest: impl Digest + Clone) -> Self {
         Self(prime_digest(digest, 32).0)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{AccumulatorSetup, NameAccumulator, NameSegment};
+    use libipld::{
+        cbor::DagCborCodec,
+        prelude::{Decode, Encode},
+        Ipld,
+    };
+    use rand::thread_rng;
+    use std::io::Cursor;
+
+    #[test]
+    fn name_segment_serialize_roundtrip() {
+        let rng = &mut thread_rng();
+        let segment = NameSegment::new(rng);
+
+        let ipld = libipld::serde::to_ipld(&segment).unwrap();
+        let mut bytes = Vec::new();
+        ipld.encode(DagCborCodec, &mut bytes).unwrap();
+
+        let ipld = Ipld::decode(DagCborCodec, &mut Cursor::new(bytes)).unwrap();
+        let segment_back = libipld::serde::from_ipld::<NameSegment>(ipld).unwrap();
+
+        assert_eq!(segment_back, segment);
+    }
+
+    #[test]
+    fn name_accumulator_serialize_roundtrip() {
+        let rng = &mut thread_rng();
+        let setup = &AccumulatorSetup::from_rsa_factoring_challenge(rng);
+        let mut acc = NameAccumulator::empty(setup);
+
+        acc.add(&NameSegment::new(rng), setup);
+        acc.add(&NameSegment::new(rng), setup);
+        acc.add(&NameSegment::new(rng), setup);
+
+        let ipld = libipld::serde::to_ipld(&acc).unwrap();
+        let mut bytes = Vec::new();
+        ipld.encode(DagCborCodec, &mut bytes).unwrap();
+
+        let ipld = Ipld::decode(DagCborCodec, &mut Cursor::new(bytes)).unwrap();
+        let acc_back = libipld::serde::from_ipld::<NameAccumulator>(ipld).unwrap();
+
+        assert_eq!(acc_back, acc);
     }
 }
