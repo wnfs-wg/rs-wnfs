@@ -3,6 +3,5 @@
   "wnfs-bench": "0.1.19",
   "wnfs-common": "0.1.19",
   "wnfs-hamt": "0.1.19",
-  "wnfs-namefilter": "0.1.19",
   "wnfs-wasm": "0.1.19"
 }

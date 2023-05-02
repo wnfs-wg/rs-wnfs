@@ -39,7 +39,6 @@ thiserror = "1.0"
 wnfs-common = { path = "../wnfs-common", version = "0.1.19" }
 wnfs-hamt = { path = "../wnfs-hamt", version = "0.1.19" }
 wnfs-nameaccumulator = { path = "../wnfs-nameaccumulator", version = "0.1.19" }
-wnfs-namefilter = { path = "../wnfs-namefilter", version = "0.1.19" }
 xxhash-rust = { version = "0.8", features = ["xxh3"] }
 
 [dev-dependencies]

@@ -5,7 +5,6 @@ members = [
 	"wnfs-common",
 	"wnfs-hamt",
 	"wnfs-nameaccumulator",
-	"wnfs-namefilter",
 	"wnfs-wasm",
 ]
 

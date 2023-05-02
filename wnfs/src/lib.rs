@@ -24,8 +24,8 @@ pub mod common {
 pub mod hamt {
     pub use wnfs_hamt::*;
 }
-pub mod namefilter {
-    pub use wnfs_namefilter::*;
+pub mod nameaccumulator {
+    pub use wnfs_nameaccumulator::*;
 }
 
 //--------------------------------------------------------------------------------------------------

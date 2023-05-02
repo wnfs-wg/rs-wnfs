@@ -14,14 +14,8 @@ proptest = "1.1"
 wnfs = { path = "../wnfs" }
 wnfs-common = { path = "../wnfs-common", features = ["test_utils"] }
 wnfs-hamt = { path = "../wnfs-hamt", features = ["test_utils"] }
-wnfs-namefilter = { path = "../wnfs-namefilter" }
 
 [[bench]]
 name = "hamt"
 harness = false
 path = "hamt.rs"
-
-[[bench]]
-name = "namefilter"
-harness = false
-path = "namefilter.rs"
