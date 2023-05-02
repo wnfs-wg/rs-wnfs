@@ -174,7 +174,7 @@ impl PrivateNodeHeader {
     }
 
     /// Derives the key that's put into the accumulator.
-    pub(crate) fn derive_revision_segment(&self, setup: &AccumulatorSetup) -> NameSegment {
+    pub(crate) fn derive_revision_segment(&self) -> NameSegment {
         let mut hasher = sha3::Sha3_256::new();
         hasher.update(&"Revision name acc element");
         hasher.update(&self.derive_temporal_key().0.as_bytes());
@@ -206,7 +206,7 @@ impl PrivateNodeHeader {
     /// ```
     pub fn get_name(&self, setup: &AccumulatorSetup) -> NameAccumulator {
         let mut name = self.name.clone();
-        name.add(&self.derive_revision_segment(setup), setup);
+        name.add(&self.derive_revision_segment(), setup);
         name
     }
 

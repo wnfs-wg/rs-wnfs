@@ -1,11 +1,12 @@
 #![feature(once_cell)]
 //! TODO(matheus23)
 
+use anyhow::Result;
 use fns::prime_digest;
 use num_bigint_dig::{BigUint, RandBigInt, RandPrime};
 use rand_core::RngCore;
 use serde::{Deserialize, Serialize};
-use sha3::Digest;
+use sha3::{Digest, Sha3_256};
 use std::{cell::OnceCell, hash::Hash, str::FromStr};
 
 mod biguint_serde_le;
@@ -17,6 +18,41 @@ pub struct NameAccumulator {
     state: BigUint,
     /// A cache for its serialized form
     serialized_cache: OnceCell<[u8; 256]>,
+}
+
+impl NameAccumulator {
+    pub fn empty(setup: &AccumulatorSetup) -> Self {
+        Self {
+            state: setup.generator.clone(),
+            serialized_cache: OnceCell::new(),
+        }
+    }
+
+    pub fn from_state(state: BigUint) -> Self {
+        Self {
+            state,
+            serialized_cache: OnceCell::new(),
+        }
+    }
+
+    pub fn add(&mut self, segment: &NameSegment, setup: &AccumulatorSetup) {
+        self.state = self.state.modpow(&segment.0, &setup.modulus);
+        self.serialized_cache = OnceCell::new();
+    }
+
+    pub fn add_bytes(&mut self, bytes: impl AsRef<[u8]>, setup: &AccumulatorSetup) {
+        let digest = Sha3_256::new().chain_update(bytes.as_ref());
+        self.add(&NameSegment::from_digest(digest), setup)
+    }
+
+    pub fn parse_bytes(bytes: &[u8]) -> Result<Self> {
+        let bytes: [u8; 256] = bytes.try_into()?;
+        let state = BigUint::from_bytes_le(&bytes);
+        Ok(Self {
+            state,
+            serialized_cache: OnceCell::from(bytes),
+        })
+    }
 }
 
 impl Ord for NameAccumulator {
@@ -168,26 +204,5 @@ impl NameSegment {
 
     pub fn from_digest(digest: impl Digest + Clone) -> Self {
         Self(prime_digest(digest, 32).0)
-    }
-}
-
-impl NameAccumulator {
-    pub fn empty(setup: &AccumulatorSetup) -> Self {
-        Self {
-            state: setup.generator.clone(),
-            serialized_cache: OnceCell::new(),
-        }
-    }
-
-    pub fn from_state(state: BigUint) -> Self {
-        Self {
-            state,
-            serialized_cache: OnceCell::new(),
-        }
-    }
-
-    pub fn add(&mut self, segment: &NameSegment, setup: &AccumulatorSetup) {
-        self.state = self.state.modpow(&segment.0, &setup.modulus);
-        self.serialized_cache = OnceCell::new();
     }
 }

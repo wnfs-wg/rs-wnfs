@@ -223,7 +223,7 @@ pub mod sharer {
     use libipld::IpldCodec;
     use std::rc::Rc;
     use wnfs_common::{dagcbor, BlockStore};
-    use wnfs_namefilter::Namefilter;
+    use wnfs_nameaccumulator::{AccumulatorSetup, NameAccumulator};
 
     /// Encrypts and shares a payload with multiple recipients using their
     /// exchange keys and stores the shares in the sharer's private forest.
@@ -244,7 +244,9 @@ pub mod sharer {
             let public_key_modulus = result?;
             let exchange_key = K::from_modulus(&public_key_modulus).await?;
             let encrypted_payload = exchange_key.encrypt(encoded_payload).await?;
-            let share_label = create_share_label(share_count, sharer_root_did, &public_key_modulus);
+            let setup = sharer_forest.get_accumulator_setup();
+            let share_label =
+                create_share_label(share_count, sharer_root_did, &public_key_modulus, setup);
 
             let payload_cid = sharer_store
                 .put_block(encrypted_payload, IpldCodec::Raw)
@@ -291,12 +293,12 @@ pub mod sharer {
         share_count: u64,
         sharer_root_did: &str,
         recipient_exchange_key: &[u8],
-    ) -> Namefilter {
-        let mut label = Namefilter::default();
-        label.add(&sharer_root_did.as_bytes());
-        label.add(&recipient_exchange_key);
-        label.add(&share_count.to_le_bytes());
-        label.saturate();
+        setup: &AccumulatorSetup,
+    ) -> NameAccumulator {
+        let mut label = NameAccumulator::empty(setup);
+        label.add_bytes(&sharer_root_did.as_bytes(), setup);
+        label.add_bytes(&recipient_exchange_key, setup);
+        label.add_bytes(&share_count.to_le_bytes(), setup);
         label
     }
 }
@@ -311,7 +313,7 @@ pub mod recipient {
     use sha3::Sha3_256;
     use wnfs_common::{dagcbor, BlockStore};
     use wnfs_hamt::Hasher;
-    use wnfs_namefilter::Namefilter;
+    use wnfs_nameaccumulator::NameAccumulator;
 
     /// Seeks to the latest share counter that is populated.
     pub async fn find_latest_share_counter(
@@ -322,14 +324,16 @@ pub mod recipient {
         sharer_forest: &PrivateForest,
         store: &impl BlockStore,
     ) -> Result<Option<u64>> {
+        let setup = sharer_forest.get_accumulator_setup();
         for share_count in share_count_start..share_count_start + limit {
-            let share_label =
-                sharer::create_share_label(share_count, sharer_root_did, recipient_exchange_key);
+            let share_label = sharer::create_share_label(
+                share_count,
+                sharer_root_did,
+                recipient_exchange_key,
+                setup,
+            );
 
-            if !sharer_forest
-                .has(&Sha3_256::hash(&share_label), store)
-                .await?
-            {
+            if !sharer_forest.has(&share_label, store).await? {
                 if share_count == share_count_start {
                     // There don't seem to be any shares
                     return Ok(None);
@@ -348,7 +352,7 @@ pub mod recipient {
     /// Lets a recipient receive a share from a sharer using the sharer's forest and store.
     /// The recipient's private forest and store are used to store the share.
     pub async fn receive_share(
-        share_label: Namefilter,
+        share_label: &NameAccumulator,
         recipient_key: &impl PrivateKey,
         sharer_forest: &PrivateForest,
         store: &impl BlockStore,
@@ -401,6 +405,7 @@ mod tests {
     use proptest::test_runner::{RngAlgorithm, TestRng};
     use std::rc::Rc;
     use wnfs_common::{dagcbor, BlockStore, MemoryBlockStore};
+    use wnfs_nameaccumulator::{AccumulatorSetup, NameAccumulator};
 
     mod helper {
         use crate::{
@@ -413,15 +418,16 @@ mod tests {
         use rand_core::RngCore;
         use std::rc::Rc;
         use wnfs_common::BlockStore;
-        use wnfs_namefilter::Namefilter;
+        use wnfs_nameaccumulator::NameAccumulator;
 
         pub(super) async fn create_sharer_dir(
             forest: &mut Rc<PrivateForest>,
             store: &mut impl BlockStore,
             rng: &mut impl RngCore,
         ) -> Result<Rc<PrivateDirectory>> {
+            let setup = forest.get_accumulator_setup();
             let mut dir = PrivateDirectory::new_and_store(
-                Namefilter::default(),
+                &NameAccumulator::empty(setup),
                 Utc::now(),
                 forest,
                 store,
@@ -466,10 +472,11 @@ mod tests {
 
     #[async_std::test]
     async fn can_share_and_recieve_share() {
+        let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
+        let setup = &AccumulatorSetup::from_rsa_factoring_challenge(rng);
         let recipient_store = &mut MemoryBlockStore::default();
         let sharer_store = &mut MemoryBlockStore::default();
-        let sharer_forest = &mut Rc::new(PrivateForest::new());
-        let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
+        let sharer_forest = &mut Rc::new(PrivateForest::new(setup.clone()));
 
         let sharer_root_did = "did:key:z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK";
         // Create directory to share.
@@ -518,11 +525,12 @@ mod tests {
                 .get_public_key()
                 .get_public_key_modulus()
                 .unwrap(),
+            setup,
         );
 
         // Grab node using share label.
         let node =
-            recipient::receive_share(share_label, &recipient_key, sharer_forest, sharer_store)
+            recipient::receive_share(&share_label, &recipient_key, sharer_forest, sharer_store)
                 .await
                 .unwrap();
 
@@ -532,13 +540,19 @@ mod tests {
 
     #[async_std::test]
     async fn serialized_share_payload_can_be_deserialized() {
-        let store = &mut MemoryBlockStore::default();
-        let forest = &mut Rc::new(PrivateForest::new());
         let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
-        let dir =
-            PrivateDirectory::new_and_store(Default::default(), Utc::now(), forest, store, rng)
-                .await
-                .unwrap();
+        let setup = &AccumulatorSetup::from_rsa_factoring_challenge(rng);
+        let store = &mut MemoryBlockStore::default();
+        let forest = &mut Rc::new(PrivateForest::new(setup.clone()));
+        let dir = PrivateDirectory::new_and_store(
+            &NameAccumulator::empty(setup),
+            Utc::now(),
+            forest,
+            store,
+            rng,
+        )
+        .await
+        .unwrap();
 
         let payload = SharePayload::from_node(&dir.as_node(), true, forest, store, rng)
             .await
@@ -556,10 +570,11 @@ mod tests {
 
     #[async_std::test]
     async fn find_latest_share_counter_finds_highest_count() {
+        let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
+        let setup = &AccumulatorSetup::from_rsa_factoring_challenge(rng);
         let sharer_store = &mut MemoryBlockStore::default();
         let recipient_store = &mut MemoryBlockStore::default();
-        let forest = &mut Rc::new(PrivateForest::new());
-        let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
+        let forest = &mut Rc::new(PrivateForest::new(setup.clone()));
 
         let sharer_root_did = "did:key:z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK";
 
@@ -599,7 +614,7 @@ mod tests {
 
         // Create something to share access to.
         let dir = PrivateDirectory::new_and_store(
-            Default::default(),
+            &NameAccumulator::empty(setup),
             Utc::now(),
             forest,
             sharer_store,

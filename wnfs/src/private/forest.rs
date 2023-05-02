@@ -324,7 +324,9 @@ impl<'de> Deserialize<'de> for PrivateForest {
         let Ipld::Map(ipld_map) = ipld else {
             return todo!(); // TODO(matheus23)
         };
-        let Some(accumulator_ipld) = ipld_map.get("accumulator").cloned();
+        let Some(accumulator_ipld) = ipld_map.get("accumulator").cloned() else {
+            return todo!(); // TODO(matheus23)
+        };
         let accumulator =
             AccumulatorSetup::deserialize(accumulator_ipld).map_err(serde::de::Error::custom)?;
 
@@ -355,45 +357,45 @@ mod tests {
         use wnfs_hamt::Hasher;
         use wnfs_nameaccumulator::{AccumulatorSetup, NameAccumulator, NameSegment};
 
-        pub(super) static HASH_KV_PAIRS: Lazy<Vec<(HashOutput, NameAccumulator, Cid)>> =
-            Lazy::new(|| {
-                let setup = AccumulatorSetup::from_rsa_factoring_challenge(&mut thread_rng());
-                vec![
-                    (
-                        utils::to_hash_output(&[0xA0]),
-                        generate_name_accumulator(&setup, &mut thread_rng()),
-                        generate_cid(&mut thread_rng()),
-                    ),
-                    (
-                        utils::to_hash_output(&[0xA3]),
-                        generate_name_accumulator(&setup, &mut thread_rng()),
-                        generate_cid(&mut thread_rng()),
-                    ),
-                    (
-                        utils::to_hash_output(&[0xA7]),
-                        generate_name_accumulator(&setup, &mut thread_rng()),
-                        generate_cid(&mut thread_rng()),
-                    ),
-                    (
-                        utils::to_hash_output(&[0xAC]),
-                        generate_name_accumulator(&setup, &mut thread_rng()),
-                        generate_cid(&mut thread_rng()),
-                    ),
-                    (
-                        utils::to_hash_output(&[0xAE]),
-                        generate_name_accumulator(&setup, &mut thread_rng()),
-                        generate_cid(&mut thread_rng()),
-                    ),
-                ]
-            });
+        pub(super) static HASH_KV_PAIRS: Lazy<Vec<(HashOutput, Vec<u8>, Cid)>> = Lazy::new(|| {
+            let setup = AccumulatorSetup::from_rsa_factoring_challenge(&mut thread_rng());
+            vec![
+                (
+                    utils::to_hash_output(&[0xA0]),
+                    generate_name_accumulator(&setup, &mut thread_rng()),
+                    generate_cid(&mut thread_rng()),
+                ),
+                (
+                    utils::to_hash_output(&[0xA3]),
+                    generate_name_accumulator(&setup, &mut thread_rng()),
+                    generate_cid(&mut thread_rng()),
+                ),
+                (
+                    utils::to_hash_output(&[0xA7]),
+                    generate_name_accumulator(&setup, &mut thread_rng()),
+                    generate_cid(&mut thread_rng()),
+                ),
+                (
+                    utils::to_hash_output(&[0xAC]),
+                    generate_name_accumulator(&setup, &mut thread_rng()),
+                    generate_cid(&mut thread_rng()),
+                ),
+                (
+                    utils::to_hash_output(&[0xAE]),
+                    generate_name_accumulator(&setup, &mut thread_rng()),
+                    generate_cid(&mut thread_rng()),
+                ),
+            ]
+        });
 
         #[derive(Debug, Clone)]
         pub(super) struct MockHasher;
         impl Hasher for MockHasher {
             fn hash<K: AsRef<[u8]>>(key: &K) -> HashOutput {
+                let key_ref = key.as_ref();
                 HASH_KV_PAIRS
                     .iter()
-                    .find(|(_, v, _)| key.as_ref() == v.as_ref())
+                    .find(|(_, v, _)| key_ref == v)
                     .unwrap()
                     .0
             }
@@ -402,10 +404,10 @@ mod tests {
         pub(super) fn generate_name_accumulator(
             setup: &AccumulatorSetup,
             rng: &mut impl RngCore,
-        ) -> NameAccumulator {
+        ) -> Vec<u8> {
             let mut name = NameAccumulator::empty(setup);
             name.add(&NameSegment::new(rng), setup);
-            name
+            name.as_ref().to_vec()
         }
 
         pub(super) fn generate_cid(rng: &mut impl RngCore) -> Cid {
@@ -514,7 +516,7 @@ mod tests {
             other_node
                 .set_value(
                     &mut HashNibbles::new(digest),
-                    k.clone(),
+                    NameAccumulator::parse_bytes(k).unwrap(),
                     BTreeSet::from([*v]),
                     store,
                 )
@@ -527,7 +529,7 @@ mod tests {
         main_node
             .set_value(
                 &mut HashNibbles::new(&HASH_KV_PAIRS[0].0),
-                HASH_KV_PAIRS[0].1.clone(),
+                NameAccumulator::parse_bytes(&HASH_KV_PAIRS[0].1).unwrap(),
                 BTreeSet::from([HASH_KV_PAIRS[0].2]),
                 store,
             )
@@ -538,7 +540,7 @@ mod tests {
         main_node
             .set_value(
                 &mut HashNibbles::new(&HASH_KV_PAIRS[1].0),
-                HASH_KV_PAIRS[1].1.clone(),
+                NameAccumulator::parse_bytes(&HASH_KV_PAIRS[1].1).unwrap(),
                 BTreeSet::from([new_cid]),
                 store,
             )
@@ -549,7 +551,7 @@ mod tests {
             main_node
                 .set_value(
                     &mut HashNibbles::new(digest),
-                    k.clone(),
+                    NameAccumulator::parse_bytes(k).unwrap(),
                     BTreeSet::from([*v]),
                     store,
                 )

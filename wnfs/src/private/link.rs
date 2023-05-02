@@ -144,10 +144,12 @@ impl PartialEq for PrivateLink {
                 l_node == r_node
             }
             (Self::Encrypted { private_ref, cache }, Self::Decrypted { node }) => {
-                Some(node) == cache.get()
+                Some(&private_ref.content_cid) == node.persisted_as().get()
+                    || Some(node) == cache.get()
             }
             (Self::Decrypted { node }, Self::Encrypted { private_ref, cache }) => {
-                Some(node) == cache.get()
+                Some(&private_ref.content_cid) == node.persisted_as().get()
+                    || Some(node) == cache.get()
             }
         }
     }

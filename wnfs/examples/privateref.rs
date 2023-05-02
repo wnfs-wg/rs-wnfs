@@ -6,7 +6,7 @@ use std::rc::Rc;
 use wnfs::private::{AesKey, PrivateDirectory, PrivateForest, RevisionRef};
 use wnfs_common::{dagcbor, utils, MemoryBlockStore};
 use wnfs_hamt::Hasher;
-use wnfs_namefilter::Namefilter;
+use wnfs_nameaccumulator::{AccumulatorSetup, NameAccumulator, NameSegment};
 
 #[tokio::main(flavor = "multi_thread")]
 async fn main() -> anyhow::Result<()> {
@@ -14,7 +14,8 @@ async fn main() -> anyhow::Result<()> {
 
     let store = &mut MemoryBlockStore::default();
     let rng = &mut thread_rng();
-    let forest = &mut Rc::new(PrivateForest::new());
+    let setup = &AccumulatorSetup::trusted(rng);
+    let forest = &mut Rc::new(PrivateForest::new(setup.clone()));
 
     // ----------- Create a private directory -----------
 
@@ -25,14 +26,14 @@ async fn main() -> anyhow::Result<()> {
 
     // Creating ratchet_seed from our user key. And intializing the inumber and namefilter.
     let ratchet_seed = Sha3_256::hash(&some_key.as_bytes());
-    let inumber = utils::get_random_bytes::<32>(rng); // Needs to be random
+    let inumber = NameSegment::new(rng);
 
     // Create a root directory from the ratchet_seed, inumber and namefilter. Directory gets saved in forest.
     let root_dir = &mut PrivateDirectory::new_with_seed_and_store(
-        Namefilter::default(),
+        &NameAccumulator::empty(setup),
         Utc::now(),
         ratchet_seed,
-        inumber,
+        inumber.clone(),
         forest,
         store,
         rng,
@@ -57,7 +58,7 @@ async fn main() -> anyhow::Result<()> {
     // --------- Method 1: Exchange serialized revision ref -----------
 
     // serialize the root_dir's revision_ref.
-    let cbor = dagcbor::encode(&root_dir.header.derive_revision_ref())?;
+    let cbor = dagcbor::encode(&root_dir.header.derive_revision_ref(setup))?;
 
     // We can deserialize the revision_ref on the other end.
     let revision_ref = dagcbor::decode(&cbor)?;
@@ -74,7 +75,8 @@ async fn main() -> anyhow::Result<()> {
     // --------- Method 2: Generate a revision ref from a shared secret -----------
 
     // We can also create a revision ref from scratch if we remember the parameters.
-    let revision_ref = RevisionRef::with_seed(Namefilter::default(), ratchet_seed, inumber);
+    let revision_ref =
+        RevisionRef::with_seed(&NameAccumulator::empty(setup), ratchet_seed, inumber, setup);
 
     // And we can fetch the directory again using the generated revision_ref.
     let fetched_node = forest

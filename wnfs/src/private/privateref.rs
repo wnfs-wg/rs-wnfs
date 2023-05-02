@@ -1,4 +1,4 @@
-use super::{PrivateNodeHeader, SnapshotKey, TemporalKey, KEY_BYTE_SIZE};
+use super::{INumber, PrivateNodeHeader, SnapshotKey, TemporalKey, KEY_BYTE_SIZE};
 use crate::error::{AesError, FsError};
 use aes_kw::KekAes256;
 use anyhow::Result;
@@ -6,7 +6,7 @@ use libipld::Cid;
 use serde::{de::Error as DeError, ser::Error as SerError, Deserialize, Serialize};
 use std::fmt::Debug;
 use wnfs_common::HashOutput;
-use wnfs_namefilter::Namefilter;
+use wnfs_nameaccumulator::{AccumulatorSetup, NameAccumulator};
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
@@ -192,8 +192,13 @@ impl RevisionRef {
     ///
     /// println!("Private ref: {:?}", revision_ref);
     /// ```
-    pub fn with_seed(name: Namefilter, ratchet_seed: HashOutput, inumber: HashOutput) -> Self {
-        PrivateNodeHeader::with_seed(name, ratchet_seed, inumber).derive_revision_ref()
+    pub fn with_seed(
+        name: &NameAccumulator,
+        ratchet_seed: HashOutput,
+        inumber: INumber,
+        setup: &AccumulatorSetup,
+    ) -> Self {
+        PrivateNodeHeader::with_seed(name, ratchet_seed, inumber, setup).derive_revision_ref(setup)
     }
 
     /// Turns a reivison ref into a more specific pointer, a private ref.
@@ -224,27 +229,31 @@ mod tests {
     use proptest::test_runner::{RngAlgorithm, TestRng};
     use std::rc::Rc;
     use wnfs_common::{utils, MemoryBlockStore};
+    use wnfs_nameaccumulator::{AccumulatorSetup, NameAccumulator, NameSegment};
 
     #[async_std::test]
     async fn can_create_revisionref_deterministically_with_user_provided_seeds() {
         let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
+        let setup = &AccumulatorSetup::from_rsa_factoring_challenge(rng);
         let store = &mut MemoryBlockStore::default();
-        let forest = &mut Rc::new(PrivateForest::new());
+        let forest = &mut Rc::new(PrivateForest::new(setup.clone()));
         let ratchet_seed = utils::get_random_bytes::<32>(rng);
-        let inumber = utils::get_random_bytes::<32>(rng);
+        let inumber = NameSegment::new(rng);
 
         let dir = PrivateNode::from(PrivateDirectory::with_seed(
-            Default::default(),
+            &NameAccumulator::empty(setup),
             Utc::now(),
             ratchet_seed,
-            inumber,
+            inumber.clone(),
+            setup,
         ));
 
         // Throwing away the private ref
         dir.store(forest, store, rng).await.unwrap();
 
         // Creating deterministic revision ref and retrieve the content.
-        let revision_ref = RevisionRef::with_seed(Default::default(), ratchet_seed, inumber);
+        let revision_ref =
+            RevisionRef::with_seed(&NameAccumulator::empty(setup), ratchet_seed, inumber, setup);
         let retrieved_node = forest
             .get_multivalue(&revision_ref, store)
             .next()

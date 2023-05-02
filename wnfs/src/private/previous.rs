@@ -121,10 +121,12 @@ impl PrivateNodeHistory {
 
         self.header.ratchet = previous_ratchet;
 
+        let setup = self.forest.get_accumulator_setup();
+
         let previous_node = PrivateNode::load(
             &self
                 .header
-                .derive_revision_ref()
+                .derive_revision_ref(setup)
                 .as_private_ref(previous_cid),
             &self.forest,
             store,
@@ -507,8 +509,7 @@ mod tests {
     use chrono::Utc;
     use proptest::test_runner::{RngAlgorithm, TestRng};
     use wnfs_common::MemoryBlockStore;
-    use wnfs_nameaccumulator::AccumulatorSetup;
-    use wnfs_namefilter::Namefilter;
+    use wnfs_nameaccumulator::{AccumulatorSetup, NameAccumulator};
 
     struct TestSetup {
         rng: TestRng,
@@ -521,13 +522,14 @@ mod tests {
     impl TestSetup {
         fn new() -> Self {
             let mut rng = TestRng::deterministic_rng(RngAlgorithm::ChaCha);
+            let setup = AccumulatorSetup::from_rsa_factoring_challenge(&mut rng);
             let store = MemoryBlockStore::default();
             let root_dir = Rc::new(PrivateDirectory::new(
-                Namefilter::default(),
+                &NameAccumulator::empty(&setup),
                 Utc::now(),
+                &setup,
                 &mut rng,
             ));
-            let setup = AccumulatorSetup::from_rsa_factoring_challenge(&mut rng);
 
             Self {
                 rng,
