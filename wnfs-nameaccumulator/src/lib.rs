@@ -45,13 +45,38 @@ impl NameAccumulator {
         self.add(&NameSegment::from_digest(digest), setup)
     }
 
-    pub fn parse_bytes(bytes: &[u8]) -> Result<Self> {
-        let bytes: [u8; 256] = bytes.try_into()?;
-        let state = BigUint::from_bytes_le(&bytes);
-        Ok(Self {
+    pub fn parse_bytes(byte_buf: impl AsRef<[u8]>) -> Result<Self> {
+        let mut bytes = [0u8; 256];
+        bytes.copy_from_slice(byte_buf.as_ref());
+        Ok(Self::parse_slice(bytes.try_into()?))
+    }
+
+    pub fn parse_slice(slice: [u8; 256]) -> Self {
+        let state = BigUint::from_bytes_le(&slice);
+        Self {
             state,
-            serialized_cache: OnceCell::from(bytes),
-        })
+            serialized_cache: OnceCell::from(slice),
+        }
+    }
+
+    pub fn into_bytes(self) -> [u8; 256] {
+        let cache = self.serialized_cache;
+        let state = self.state;
+        cache
+            .into_inner()
+            .unwrap_or_else(|| Self::to_bytes_helper(&state))
+    }
+
+    pub fn as_bytes(&self) -> &[u8; 256] {
+        self.serialized_cache
+            .get_or_init(|| Self::to_bytes_helper(&self.state))
+    }
+
+    fn to_bytes_helper(state: &BigUint) -> [u8; 256] {
+        let vec = state.to_bytes_le();
+        let mut bytes = [0u8; 256];
+        bytes[..vec.len()].copy_from_slice(&vec);
+        bytes
     }
 }
 
@@ -93,14 +118,7 @@ impl<'de> Deserialize<'de> for NameAccumulator {
         D: serde::Deserializer<'de>,
     {
         let byte_buf = serde_bytes::ByteBuf::deserialize(deserializer)?;
-        let mut bytes = [0u8; 256];
-        bytes.copy_from_slice(&byte_buf);
-        let state = BigUint::from_bytes_le(&bytes);
-
-        Ok(NameAccumulator {
-            state,
-            serialized_cache: OnceCell::from(bytes),
-        })
+        Ok(NameAccumulator::parse_bytes(byte_buf).map_err(|e| serde::de::Error::custom(e))?)
     }
 }
 
@@ -115,12 +133,7 @@ impl Serialize for NameAccumulator {
 
 impl AsRef<[u8]> for NameAccumulator {
     fn as_ref(&self) -> &[u8] {
-        self.serialized_cache.get_or_init(|| {
-            let vec = self.state.to_bytes_le();
-            let mut bytes = [0u8; 256];
-            bytes[..vec.len()].copy_from_slice(&vec);
-            bytes
-        })
+        self.as_bytes()
     }
 }
 
