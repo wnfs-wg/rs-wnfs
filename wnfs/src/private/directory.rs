@@ -1606,6 +1606,87 @@ mod tests {
     }
 
     #[test(async_std::test)]
+    async fn get_node_can_fetch_node_from_root_dir() {
+        let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
+        let root_dir = &mut Rc::new(PrivateDirectory::new(
+            Namefilter::default(),
+            Utc::now(),
+            rng,
+        ));
+        let store = &mut MemoryBlockStore::default();
+        let forest = &mut Rc::new(PrivateForest::new());
+
+        root_dir
+            .mkdir(
+                &["pictures".into(), "dogs".into()],
+                true,
+                Utc::now(),
+                forest,
+                store,
+                rng,
+            )
+            .await
+            .unwrap();
+
+        root_dir
+            .write(
+                &["pictures".into(), "cats".into(), "tabby.jpg".into()],
+                true,
+                Utc::now(),
+                b"file".to_vec(),
+                forest,
+                store,
+                rng,
+            )
+            .await
+            .unwrap();
+
+        assert!(root_dir
+            .get_node(
+                &["pictures".into(), "cats".into(), "tabby.jpg".into()],
+                true,
+                forest,
+                store,
+            )
+            .await
+            .unwrap()
+            .is_some());
+
+        assert!(root_dir
+            .get_node(
+                &["pictures".into(), "cats".into(), "tabby.jpeg".into()],
+                true,
+                forest,
+                store,
+            )
+            .await
+            .unwrap()
+            .is_none());
+
+        assert!(root_dir
+            .get_node(
+                &["images".into(), "parrots".into(), "coco.png".into()],
+                true,
+                forest,
+                store,
+            )
+            .await
+            .unwrap()
+            .is_none());
+
+        assert!(root_dir
+            .get_node(
+                &["pictures".into(), "dogs".into(), "bingo.jpg".into()],
+                true,
+                forest,
+                store,
+            )
+            .await
+            .unwrap()
+            .is_none());
+    }
+
+    #[test(async_std::test)]
     async fn mkdir_can_create_new_directory() {
         let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
         let root_dir = &mut Rc::new(PrivateDirectory::new(

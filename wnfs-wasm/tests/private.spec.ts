@@ -38,6 +38,61 @@ test.describe("PrivateDirectory", () => {
     expect(result).toBeDefined();
   });
 
+  test("getNode can fetch node from root dir", async ({ page }) => {
+    const [result0, result1] = await page.evaluate(async (): Promise<any[]> => {
+      const {
+        wnfs: { PrivateDirectory, PrivateForest, Namefilter },
+        mock: { MemoryBlockStore, Rng },
+      } = await window.setup();
+
+      const initialForest = new PrivateForest();
+      const rng = new Rng();
+      const store = new MemoryBlockStore();
+      const root = new PrivateDirectory(new Namefilter(), new Date(), rng);
+
+      var { rootDir, forest } = await root.mkdir(
+        ["pictures", "dogs"],
+        true,
+        new Date(),
+        initialForest,
+        store,
+        rng
+      );
+
+      var { rootDir, forest } = await rootDir.write(
+        ["pictures", "cats", "tabby.png"],
+        true,
+        new Uint8Array([1, 2, 3, 4, 5]),
+        new Date(),
+        forest,
+        store,
+        rng
+      );
+
+      var result0 = await rootDir.getNode(
+        ["pictures", "cats", "tabby.png"],
+        true,
+        forest,
+        store
+      );
+
+      var result1 = await rootDir.getNode(
+        ["pictures", "dogs", "bingo.png"],
+        true,
+        forest,
+        store
+      );
+
+      console.log(result0);
+      console.log(result1);
+
+      return [result0, result1];
+    });
+
+    expect(result0).toBeDefined();
+    expect(result1).toBeUndefined();
+  });
+
   test("lookupNode cannot fetch file not added to directory", async ({
     page,
   }) => {
@@ -89,14 +144,14 @@ test.describe("PrivateDirectory", () => {
         rng
       );
 
-      var { rootDir } = await rootDir.getNode(
+      var result = await rootDir.getNode(
         ["pictures", "cats", "tabby.png"],
         true,
         forest,
         store
       );
 
-      return rootDir;
+      return result;
     });
 
     expect(result).toBeDefined();
@@ -527,7 +582,13 @@ test.describe("PrivateForest", () => {
   test("merge combines changes in forests", async ({ page }) => {
     const result = await page.evaluate(async () => {
       const {
-        wnfs: { Namefilter, PrivateFile, PrivateDirectory, PrivateForest, PrivateNode },
+        wnfs: {
+          Namefilter,
+          PrivateFile,
+          PrivateDirectory,
+          PrivateForest,
+          PrivateNode,
+        },
         mock: { MemoryBlockStore, Rng },
       } = await window.setup();
 
