@@ -530,11 +530,11 @@ impl PrivateDirectory {
         store: &impl BlockStore,
     ) -> Result<Option<PrivateNode>> {
         let Some((tail, path)) = path_segments.split_last() else {
-            bail!(FsError::InvalidPath);
+            return Ok(None);
         };
 
         let SearchResult::Found(dir) = self.get_leaf_dir(path,  search_latest, forest, store).await? else {
-            bail!(FsError::NotFound);
+            return Ok(None);
         };
 
         dir.lookup_node(tail, search_latest, forest, store).await
