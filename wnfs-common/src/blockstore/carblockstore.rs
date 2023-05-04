@@ -1,8 +1,7 @@
 use crate::BlockStore;
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
-use libipld::{Cid, IpldCodec, cbor::{cbor, DagCbor, DagCborCodec}, prelude::Codec, ipld, Ipld};
-use multihash::{Code, MultihashDigest};
+use libipld::{Cid, IpldCodec, cbor::DagCborCodec, prelude::Codec, ipld, Ipld};
 use serde::{Deserialize, Serialize, Serializer};
 use std::{
     borrow::Cow,
@@ -244,7 +243,7 @@ impl CarHeader {
 
     pub fn to_bytes(&self) -> Vec<u8> {
         let roots = Ipld::List(
-            self.roots.clone().into_iter().map(|r| Ipld::Link(r)).collect()
+            self.roots.clone().into_iter().map(Ipld::Link).collect()
         );
         let header_ipld: Ipld = ipld!({
             "version": self.version,
@@ -253,12 +252,12 @@ impl CarHeader {
         DagCborCodec.encode(&header_ipld).unwrap()
     }
 
-    pub fn from_bytes(bytes: &Vec<u8>) -> Self {
+    pub fn from_bytes(bytes: &[u8]) -> Self {
         let header_ipld: Ipld = DagCborCodec.decode(bytes).unwrap();
         let Ipld::Integer(version) = header_ipld.get("version").unwrap() else { panic!() };
         let Ipld::List(roots) = header_ipld.get("roots").unwrap() else { panic!() };
 
-        let roots: Vec<Cid> = roots.into_iter().map(|ipld| {
+        let roots: Vec<Cid> = roots.iter().map(|ipld| {
             let Ipld::Link(cid) = ipld else { panic!() }; 
             *cid
         })
