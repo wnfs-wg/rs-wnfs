@@ -45,7 +45,7 @@ pub struct PrivateNodeHeader {
     /// A unique identifier of the node.
     pub(crate) inumber: INumber,
     /// Used both for versioning and deriving keys for that enforces privacy.
-    pub ratchet: Ratchet,
+    pub(crate) ratchet: Ratchet,
     /// Used for ancestry checks and as a key for the private forest.
     pub(crate) bare_name: Namefilter,
 }

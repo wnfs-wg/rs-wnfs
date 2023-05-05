@@ -7,7 +7,7 @@ use anyhow::Result;
 use async_once_cell::OnceCell;
 use async_stream::try_stream;
 use chrono::{DateTime, Utc};
-use futures::{future, AsyncRead, Stream, StreamExt};
+use futures::{future, AsyncRead, Stream, StreamExt, TryStreamExt};
 use libipld::{Cid, Ipld, IpldCodec};
 use rand_core::RngCore;
 use semver::Version;
