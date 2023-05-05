@@ -75,7 +75,10 @@ async fn main() {
         .unwrap();
 
     // Reading the file's data will fail when only provided the hot store:
-    // assert!(directory.read(&file_path, true, &forest, &hot_store).await.is_err()); // currently panics for mysterious reasons?
+    assert!(directory
+        .read(&file_path, true, &forest, &hot_store)
+        .await
+        .is_err());
 
     // What we can do instead is construct a 'tiered blockstore' that first
     // tries to fetch from the hot store and if that doesn't work, tries the cold one:
