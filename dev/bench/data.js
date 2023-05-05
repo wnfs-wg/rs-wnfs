@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1682596742033,
+  "lastUpdate": 1683285057847,
   "repoUrl": "https://github.com/wnfs-wg/rs-wnfs",
   "entries": {
     "Rust Benchmark": [
@@ -11874,6 +11874,108 @@ window.BENCHMARK_DATA = {
           {
             "name": "namefilter decode/0",
             "value": 1,
+            "range": "± 0",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "appcypher@outlook.com",
+            "name": "Stephen Akinyemi",
+            "username": "appcypher"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "4c16dcd4725c8b499a01184530e0e95ed8f4a9d5",
+          "message": "fix: propagate missing chunk error (#252)\n\n* Propagate missing chunk error\r\n\r\n* Fix lint errors",
+          "timestamp": "2023-05-05T12:04:49+01:00",
+          "tree_id": "e6cf927fcc960793c78c3853130677a5d6302ce1",
+          "url": "https://github.com/wnfs-wg/rs-wnfs/commit/4c16dcd4725c8b499a01184530e0e95ed8f4a9d5"
+        },
+        "date": 1683285056778,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "node set",
+            "value": 11141,
+            "range": "± 811",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node set 1000 consecutive",
+            "value": 6016614,
+            "range": "± 400847",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and get",
+            "value": 235055,
+            "range": "± 13927",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and remove",
+            "value": 259192,
+            "range": "± 13071",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt load and decode/0",
+            "value": 58867,
+            "range": "± 5490",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt set and encode",
+            "value": 240955,
+            "range": "± 13133",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt diff",
+            "value": 75953,
+            "range": "± 8911",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt merge",
+            "value": 319908,
+            "range": "± 46310",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter add",
+            "value": 14201,
+            "range": "± 729",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter contains",
+            "value": 12899,
+            "range": "± 914",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter saturate",
+            "value": 57901,
+            "range": "± 2509",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter encode",
+            "value": 254,
+            "range": "± 175",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter decode/0",
+            "value": 2,
             "range": "± 0",
             "unit": "ns/iter"
           }
