@@ -166,11 +166,7 @@ impl PrivateDirectory {
                 .await
                 .map_err(error("Cannot get node"))?;
 
-            Ok(utils::create_private_op_result(
-                directory,
-                forest,
-                result.map(PrivateNode),
-            )?)
+            Ok(value!(result.map(PrivateNode)))
         }))
     }
 
