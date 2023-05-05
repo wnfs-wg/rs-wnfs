@@ -7,7 +7,7 @@ use anyhow::Result;
 use async_once_cell::OnceCell;
 use async_stream::try_stream;
 use chrono::{DateTime, Utc};
-use futures::{future, AsyncRead, Stream, StreamExt};
+use futures::{future, AsyncRead, Stream, StreamExt, TryStreamExt};
 use libipld::{Cid, IpldCodec};
 use rand_core::RngCore;
 use semver::Version;
@@ -429,11 +429,11 @@ impl PrivateFile {
     ) -> Result<Vec<u8>> {
         let mut content = Vec::with_capacity(self.get_content_size_upper_bound());
         self.stream_content(0, forest, store)
-            .for_each(|chunk| {
-                content.extend_from_slice(&chunk.unwrap());
-                future::ready(())
+            .try_for_each(|chunk| {
+                content.extend_from_slice(&chunk);
+                future::ready(Ok(()))
             })
-            .await;
+            .await?;
         Ok(content)
     }
 
@@ -627,7 +627,7 @@ impl PrivateFile {
 
         let temporal_key = self.header.derive_temporal_key();
         let previous_link = (1, Encrypted::from_value(previous_cid, &temporal_key)?);
-        let mut cloned = Rc::make_mut(self);
+        let cloned = Rc::make_mut(self);
 
         // We make sure to clear any cached states.
         cloned.content.persisted_as = OnceCell::new();
@@ -941,12 +941,13 @@ mod tests {
 mod proptests {
     use super::MAX_BLOCK_CONTENT_SIZE;
     use crate::private::{PrivateFile, PrivateForest};
+    use async_std::io::Cursor;
     use chrono::Utc;
     use futures::{future, StreamExt};
     use proptest::test_runner::{RngAlgorithm, TestRng};
     use std::rc::Rc;
     use test_strategy::proptest;
-    use wnfs_common::MemoryBlockStore;
+    use wnfs_common::{BlockStoreError, MemoryBlockStore};
     use wnfs_namefilter::Namefilter;
 
     /// Size of the test file at "./test/fixtures/Clara Schumann, Scherzo no. 2, Op. 14.mp3"
@@ -1009,6 +1010,38 @@ mod proptests {
                 .await;
 
             assert_eq!(collected_content, content);
+        })
+    }
+
+    #[proptest(cases = 100)]
+    fn can_propagate_missing_chunk_error(
+        #[strategy(0..(MAX_BLOCK_CONTENT_SIZE * 2))] length: usize,
+    ) {
+        async_std::task::block_on(async {
+            let store = &mut MemoryBlockStore::default();
+            let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
+            let forest = &mut Rc::new(PrivateForest::new());
+
+            let mut file = PrivateFile::new(Namefilter::new(), Utc::now(), rng);
+
+            file.set_content(
+                Utc::now(),
+                &mut Cursor::new(vec![5u8; length]),
+                forest,
+                &mut MemoryBlockStore::default(),
+                rng,
+            )
+            .await
+            .unwrap();
+
+            let error = file
+                .get_content(forest, store)
+                .await
+                .expect_err("Expected error");
+
+            let error = error.downcast_ref::<BlockStoreError>().unwrap();
+
+            assert!(matches!(error, BlockStoreError::CIDNotFound(_)));
         })
     }
 
