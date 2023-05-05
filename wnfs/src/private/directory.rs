@@ -444,7 +444,7 @@ impl PrivateDirectory {
 
         let temporal_key = self.header.derive_temporal_key();
         let previous_link = (1, Encrypted::from_value(previous_cid, &temporal_key)?);
-        let mut cloned = Rc::make_mut(self);
+        let cloned = Rc::make_mut(self);
 
         // We make sure to clear any cached states.
         cloned.content.persisted_as = OnceCell::new();
