@@ -48,6 +48,43 @@ test.describe("PublicDirectory", () => {
     expect(result).toBe(undefined);
   });
 
+  test("getNode can fetch node from root dir", async ({ page }) => {
+    const [result0, result1] = await page.evaluate(async (): Promise<any[]> => {
+      const {
+        wnfs: { PublicDirectory },
+        mock: { MemoryBlockStore, sampleCID },
+      } = await window.setup();
+
+      const time = new Date();
+      const store = new MemoryBlockStore();
+      const root = new PublicDirectory(time);
+
+      var { rootDir } = await root.mkdir(["pictures", "dogs"], time, store);
+
+      var { rootDir } = await rootDir.write(
+        ["pictures", "cats", "tabby.png"],
+        sampleCID,
+        time,
+        store
+      );
+
+      let result0 = await rootDir.getNode(
+        ["pictures", "cats", "tabby.png"],
+        store
+      );
+
+      let result1 = await rootDir.getNode(
+        ["pictures", "dogs", "bingo.png"],
+        store
+      );
+
+      return [result0, result1];
+    });
+
+    expect(result0).toBeDefined();
+    expect(result1).toBeUndefined();
+  });
+
   test("mkdir can create new directory", async ({ page }) => {
     const result = await page.evaluate(async () => {
       const {
@@ -68,10 +105,7 @@ test.describe("PublicDirectory", () => {
         store
       );
 
-      await rootDir.getNode(
-        ["pictures", "cats", "tabby.png"],
-        store
-      );
+      await rootDir.getNode(["pictures", "cats", "tabby.png"], store);
 
       return rootDir;
     });
@@ -208,7 +242,7 @@ test.describe("PublicDirectory", () => {
     const result = await page.evaluate(async () => {
       const {
         wnfs: { PublicFile },
-        mock: { sampleCID }
+        mock: { sampleCID },
       } = await window.setup();
 
       const time = new Date();

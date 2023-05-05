@@ -1,7 +1,7 @@
 use crate::BlockStore;
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
-use libipld::{Cid, IpldCodec, cbor::DagCborCodec, prelude::Codec, ipld, Ipld};
+use libipld::{cbor::DagCborCodec, ipld, prelude::Codec, Cid, Ipld, IpldCodec};
 use serde::{Deserialize, Serialize, Serializer};
 use std::{
     borrow::Cow,
@@ -10,9 +10,9 @@ use std::{
     io::{BufWriter, Read, Seek, SeekFrom, Write},
     path::{Path, PathBuf},
     str::FromStr,
-    sync::RwLock, vec,
+    sync::RwLock,
+    vec,
 };
-
 
 pub struct CarBlockStore {
     /// The version number and list of root dir CIDs
@@ -29,7 +29,7 @@ impl Serialize for CarBlockStore {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
-    {   
+    {
         let header_bytes = self.carhead.to_bytes();
         let mut string_keyed_index: HashMap<String, &LocationInCar> = HashMap::new();
         let binding = self.index.read().unwrap();
@@ -37,7 +37,13 @@ impl Serialize for CarBlockStore {
             string_keyed_index.insert(k.to_string(), v);
         }
 
-        (header_bytes, self.max_size, &string_keyed_index, &self.car_factory).serialize(serializer)
+        (
+            header_bytes,
+            self.max_size,
+            &string_keyed_index,
+            &self.car_factory,
+        )
+            .serialize(serializer)
     }
 }
 
@@ -47,12 +53,13 @@ impl<'de> Deserialize<'de> for CarBlockStore {
         D: serde::Deserializer<'de>,
     {
         // Deserialize the path
-        let (header_bytes, max_size, string_keyed_index, car_factory) = <(
-            Vec<u8>,
-            Option<usize>,
-            HashMap<String, LocationInCar>,
-            RwLock<DiskCarFactory>,
-        )>::deserialize(deserializer)?;
+        let (header_bytes, max_size, string_keyed_index, car_factory) =
+            <(
+                Vec<u8>,
+                Option<usize>,
+                HashMap<String, LocationInCar>,
+                RwLock<DiskCarFactory>,
+            )>::deserialize(deserializer)?;
         let carhead = CarHeader::from_bytes(&header_bytes);
         let mut index: HashMap<Cid, LocationInCar> = HashMap::new();
         for (k, v) in string_keyed_index.into_iter() {
@@ -230,25 +237,23 @@ impl BlockStore for CarBlockStore {
 #[derive(Serialize, Deserialize)]
 struct CarHeader {
     version: i128,
-    roots: Vec<Cid>
+    roots: Vec<Cid>,
 }
 
 impl CarHeader {
     pub fn new() -> Self {
         Self {
             version: 1,
-            roots: Vec::new()
+            roots: Vec::new(),
         }
     }
 
     pub fn to_bytes(&self) -> Vec<u8> {
-        let roots = Ipld::List(
-            self.roots.clone().into_iter().map(Ipld::Link).collect()
-        );
+        let roots = Ipld::List(self.roots.clone().into_iter().map(Ipld::Link).collect());
         let header_ipld: Ipld = ipld!({
-            "version": self.version,
-            "roots": roots,
-          });
+          "version": self.version,
+          "roots": roots,
+        });
         DagCborCodec.encode(&header_ipld).unwrap()
     }
 
@@ -257,13 +262,18 @@ impl CarHeader {
         let Ipld::Integer(version) = header_ipld.get("version").unwrap() else { panic!() };
         let Ipld::List(roots) = header_ipld.get("roots").unwrap() else { panic!() };
 
-        let roots: Vec<Cid> = roots.iter().map(|ipld| {
-            let Ipld::Link(cid) = ipld else { panic!() }; 
-            *cid
-        })
-        .collect();
+        let roots: Vec<Cid> = roots
+            .iter()
+            .map(|ipld| {
+                let Ipld::Link(cid) = ipld else { panic!() };
+                *cid
+            })
+            .collect();
 
-        CarHeader { version: *version, roots }
+        CarHeader {
+            version: *version,
+            roots,
+        }
     }
 }
 

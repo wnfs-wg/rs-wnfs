@@ -247,11 +247,11 @@ impl PublicDirectory {
         store: &impl BlockStore,
     ) -> Result<Option<&'a PublicNode>> {
         let Some((tail, path)) = path_segments.split_last() else {
-            bail!(FsError::InvalidPath);
+            return Ok(None);
         };
 
         let SearchResult::Found(dir) = self.get_leaf_dir(path, store).await? else {
-            bail!(FsError::NotFound);
+            return Ok(None)
         };
 
         dir.lookup_node(tail, store).await
@@ -843,6 +843,64 @@ mod tests {
         assert!(node.is_ok());
 
         assert_eq!(node.unwrap(), None);
+    }
+
+    #[async_std::test]
+    async fn get_node_can_fetch_node_from_root_dir() {
+        let time = Utc::now();
+        let store = MemoryBlockStore::default();
+        let root_dir = &mut Rc::new(PublicDirectory::new(time));
+
+        root_dir
+            .mkdir(&["pictures".into(), "dogs".into()], time, &store)
+            .await
+            .unwrap();
+
+        root_dir
+            .write(
+                &["pictures".into(), "cats".into(), "tabby.jpg".into()],
+                Cid::default(),
+                time,
+                &store,
+            )
+            .await
+            .unwrap();
+
+        assert!(root_dir
+            .get_node(
+                &["pictures".into(), "cats".into(), "tabby.jpg".into()],
+                &store
+            )
+            .await
+            .unwrap()
+            .is_some());
+
+        assert!(root_dir
+            .get_node(
+                &["pictures".into(), "cats".into(), "tabby.jpeg".into()],
+                &store
+            )
+            .await
+            .unwrap()
+            .is_none());
+
+        assert!(root_dir
+            .get_node(
+                &["images".into(), "parrots".into(), "coco.png".into()],
+                &store
+            )
+            .await
+            .unwrap()
+            .is_none());
+
+        assert!(root_dir
+            .get_node(
+                &["pictures".into(), "dogs".into(), "bingo.jpg".into()],
+                &store
+            )
+            .await
+            .unwrap()
+            .is_none());
     }
 
     #[async_std::test]
