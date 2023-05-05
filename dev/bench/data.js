@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1683285057847,
+  "lastUpdate": 1683285151001,
   "repoUrl": "https://github.com/wnfs-wg/rs-wnfs",
   "entries": {
     "Rust Benchmark": [
@@ -11976,6 +11976,108 @@ window.BENCHMARK_DATA = {
           {
             "name": "namefilter decode/0",
             "value": 2,
+            "range": "± 0",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "appcypher@outlook.com",
+            "name": "Stephen Akinyemi",
+            "username": "appcypher"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "5ed87fe6359a19abdea5f34dd0537fd5d62c98a8",
+          "message": "fix!: get_node should return null on missing path (#253)\n\n* Return `Ok(None)` in get_node if node not found\r\n\r\n* Update bindings\r\n\r\n* Fix lint errors",
+          "timestamp": "2023-05-05T12:07:40+01:00",
+          "tree_id": "ff83edce1f6e6837b07c4cec289f2ae44d49c3c4",
+          "url": "https://github.com/wnfs-wg/rs-wnfs/commit/5ed87fe6359a19abdea5f34dd0537fd5d62c98a8"
+        },
+        "date": 1683285150377,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "node set",
+            "value": 7658,
+            "range": "± 157",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node set 1000 consecutive",
+            "value": 4513097,
+            "range": "± 18332",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and get",
+            "value": 172744,
+            "range": "± 139",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and remove",
+            "value": 194379,
+            "range": "± 326",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt load and decode/0",
+            "value": 41705,
+            "range": "± 77",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt set and encode",
+            "value": 184677,
+            "range": "± 370",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt diff",
+            "value": 56513,
+            "range": "± 4616",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt merge",
+            "value": 240072,
+            "range": "± 19228",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter add",
+            "value": 8338,
+            "range": "± 777",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter contains",
+            "value": 12607,
+            "range": "± 10",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter saturate",
+            "value": 45069,
+            "range": "± 126",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter encode",
+            "value": 172,
+            "range": "± 6",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter decode/0",
+            "value": 1,
             "range": "± 0",
             "unit": "ns/iter"
           }
