@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1683285151001,
+  "lastUpdate": 1683291052115,
   "repoUrl": "https://github.com/wnfs-wg/rs-wnfs",
   "entries": {
     "Rust Benchmark": [
@@ -12073,6 +12073,108 @@ window.BENCHMARK_DATA = {
             "name": "namefilter encode",
             "value": 172,
             "range": "± 6",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter decode/0",
+            "value": 1,
+            "range": "± 0",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "philipp.krueger1@gmail.com",
+            "name": "Philipp Krüger",
+            "username": "matheus23"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "b3afbbcea6f2b27e43a6687e64fbd0220382cd53",
+          "message": "chore: Write up an example of how to use tiered blockstores (#223)\n\n* chore: Write up an example of how to use tiered blockstores\r\n\r\n* docs: Uncomment `assert!`",
+          "timestamp": "2023-05-05T14:46:09+02:00",
+          "tree_id": "96b995b1c7fdaebf5c8f200110d089cd554a4436",
+          "url": "https://github.com/wnfs-wg/rs-wnfs/commit/b3afbbcea6f2b27e43a6687e64fbd0220382cd53"
+        },
+        "date": 1683291051101,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "node set",
+            "value": 6797,
+            "range": "± 106",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node set 1000 consecutive",
+            "value": 3989391,
+            "range": "± 16431",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and get",
+            "value": 151534,
+            "range": "± 1395",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and remove",
+            "value": 170966,
+            "range": "± 392",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt load and decode/0",
+            "value": 36988,
+            "range": "± 75",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt set and encode",
+            "value": 162255,
+            "range": "± 264",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt diff",
+            "value": 49771,
+            "range": "± 4089",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt merge",
+            "value": 214042,
+            "range": "± 15231",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter add",
+            "value": 7362,
+            "range": "± 304",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter contains",
+            "value": 11130,
+            "range": "± 12",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter saturate",
+            "value": 39757,
+            "range": "± 37",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter encode",
+            "value": 151,
+            "range": "± 5",
             "unit": "ns/iter"
           },
           {
