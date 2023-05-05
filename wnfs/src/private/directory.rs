@@ -916,6 +916,50 @@ impl PrivateDirectory {
     }
 
     /// Write a Symlink to the filesystem with the reference path at the path segments specified
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use std::rc::Rc;
+    ///
+    /// use chrono::Utc;
+    /// use rand::thread_rng;
+    /// use wnfs::{
+    ///     private::{PrivateForest, PrivateRef, PrivateDirectory},
+    ///     common::{BlockStore, MemoryBlockStore},
+    ///     namefilter::Namefilter,
+    /// };
+    ///
+    /// #[async_std::main]
+    /// async fn main() {
+    ///     let store = &mut MemoryBlockStore::default();
+    ///     let rng = &mut thread_rng();
+    ///     let forest = &mut Rc::new(PrivateForest::new());
+    ///     let root_dir = &mut Rc::new(PrivateDirectory::new(
+    ///         Namefilter::default(),
+    ///         Utc::now(),
+    ///         rng,
+    ///     ));
+    ///     let sym_path = "/pictures/meows".to_string();
+    ///     let path_segments = &["pictures".into(), "cats".into()];
+    ///
+    ///     root_dir
+    ///         .write_symlink(sym_path.clone(), path_segments, true, Utc::now(), forest, store, rng)
+    ///         .await
+    ///         .unwrap();
+    ///
+    ///     let symlink = root_dir.get_node(path_segments, true, forest, store)
+    ///         .await
+    ///         .unwrap()
+    ///         .expect("Symlink should be present")
+    ///         .as_file()
+    ///         .unwrap();
+    ///
+    ///     let path = symlink.symlink_origin();
+    ///     assert!(path.is_some());
+    ///     assert_eq!(path, Some(sym_path));
+    /// }
+    /// ```
     #[allow(clippy::too_many_arguments)]
     pub async fn write_symlink(
         self: &mut Rc<Self>,
@@ -1370,6 +1414,64 @@ impl PrivateDirectory {
     }
 
     /// Copies a file or directory from one path to another without modifying it
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use std::rc::Rc;
+    ///
+    /// use chrono::Utc;
+    /// use rand::thread_rng;
+    ///
+    /// use wnfs::{
+    ///     private::{PrivateForest, PrivateRef, PrivateDirectory},
+    ///     common::{BlockStore, MemoryBlockStore},
+    ///     namefilter::Namefilter,
+    /// };
+    ///
+    /// #[async_std::main]
+    /// async fn main() {
+    ///     let store = &mut MemoryBlockStore::default();
+    ///     let rng = &mut thread_rng();
+    ///     let forest = &mut Rc::new(PrivateForest::new());
+    ///     let root_dir = &mut Rc::new(PrivateDirectory::new(
+    ///         Namefilter::default(),
+    ///         Utc::now(),
+    ///         rng,
+    ///     ));
+    ///
+    ///     root_dir
+    ///         .write(
+    ///             &["code".into(), "python".into(), "hello.py".into()],
+    ///             true,
+    ///             Utc::now(),
+    ///             b"print('hello world')".to_vec(),
+    ///             forest,
+    ///             store,
+    ///             rng
+    ///         )
+    ///         .await
+    ///         .unwrap();
+    ///
+    ///     let result = root_dir
+    ///         .cp_link(
+    ///             &["code".into(), "python".into(), "hello.py".into()],
+    ///             &["code".into(), "hello.py".into()],
+    ///             true,
+    ///             forest,
+    ///             store
+    ///         )
+    ///         .await
+    ///         .unwrap();
+    ///
+    ///     let result = root_dir
+    ///         .ls(&["code".into()], true, forest, store)
+    ///         .await
+    ///         .unwrap();
+    ///
+    ///     assert_eq!(result.len(), 2);
+    /// }
+    /// ```
     #[allow(clippy::too_many_arguments)]
     pub async fn cp_link(
         self: &mut Rc<Self>,
