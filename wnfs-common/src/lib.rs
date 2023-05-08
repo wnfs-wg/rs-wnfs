@@ -23,7 +23,7 @@ pub use pathnodes::*;
 //--------------------------------------------------------------------------------------------------
 
 pub const HASH_BYTE_SIZE: usize = 32;
-pub const MAX_BLOCK_SIZE: usize = usize::pow(2, 16);
+pub const MAX_BLOCK_SIZE: usize = usize::pow(2, 18);
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
