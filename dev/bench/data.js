@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1683568499833,
+  "lastUpdate": 1683627580292,
   "repoUrl": "https://github.com/wnfs-wg/rs-wnfs",
   "entries": {
     "Rust Benchmark": [
@@ -12384,6 +12384,108 @@ window.BENCHMARK_DATA = {
           {
             "name": "namefilter decode/0",
             "value": 2,
+            "range": "± 0",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "49699333+dependabot[bot]@users.noreply.github.com",
+            "name": "dependabot[bot]",
+            "username": "dependabot[bot]"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "fda1ed2f637067be30a46713291f6a2fd1c06776",
+          "message": "chore(npm)(deps-dev): bump webpack-cli from 5.0.2 to 5.1.0 in /wnfs-wasm (#261)\n\nBumps [webpack-cli](https://github.com/webpack/webpack-cli) from 5.0.2 to 5.1.0.\r\n- [Release notes](https://github.com/webpack/webpack-cli/releases)\r\n- [Changelog](https://github.com/webpack/webpack-cli/blob/master/CHANGELOG.md)\r\n- [Commits](https://github.com/webpack/webpack-cli/compare/webpack-cli@5.0.2...webpack-cli@5.1.0)\r\n\r\n---\r\nupdated-dependencies:\r\n- dependency-name: webpack-cli\r\n  dependency-type: direct:development\r\n  update-type: version-update:semver-minor\r\n...\r\n\r\nSigned-off-by: dependabot[bot] <support@github.com>\r\nCo-authored-by: dependabot[bot] <49699333+dependabot[bot]@users.noreply.github.com>",
+          "timestamp": "2023-05-09T11:13:25+01:00",
+          "tree_id": "f76b3163482ae6867382f2b4cf2918ad0bc99378",
+          "url": "https://github.com/wnfs-wg/rs-wnfs/commit/fda1ed2f637067be30a46713291f6a2fd1c06776"
+        },
+        "date": 1683627578765,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "node set",
+            "value": 8260,
+            "range": "± 132",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node set 1000 consecutive",
+            "value": 4501922,
+            "range": "± 17240",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and get",
+            "value": 174453,
+            "range": "± 181",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and remove",
+            "value": 194374,
+            "range": "± 422",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt load and decode/0",
+            "value": 42099,
+            "range": "± 457",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt set and encode",
+            "value": 183810,
+            "range": "± 516",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt diff",
+            "value": 56041,
+            "range": "± 4560",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt merge",
+            "value": 240800,
+            "range": "± 19425",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter add",
+            "value": 8965,
+            "range": "± 27",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter contains",
+            "value": 11696,
+            "range": "± 16",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter saturate",
+            "value": 45564,
+            "range": "± 43",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter encode",
+            "value": 172,
+            "range": "± 7",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter decode/0",
+            "value": 1,
             "range": "± 0",
             "unit": "ns/iter"
           }
