@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1683640057893,
+  "lastUpdate": 1684167697480,
   "repoUrl": "https://github.com/wnfs-wg/rs-wnfs",
   "entries": {
     "Rust Benchmark": [
@@ -12582,6 +12582,108 @@ window.BENCHMARK_DATA = {
           {
             "name": "namefilter encode",
             "value": 171,
+            "range": "± 6",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter decode/0",
+            "value": 1,
+            "range": "± 0",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "me@vera.lgbt",
+            "name": "Vera Gonzalez",
+            "username": "organizedgrime"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "f85ace3474941bed76dba09a63d3a90802456ecf",
+          "message": "PrivateNodeHistory::of & PrivateHistory::of (#264)\n\n* fix: replaced PrivateNodeOnPathHistory function signature\r\n\r\n* fix: replaced PrivateNodeHistory function signature\r\n\r\n* fix: cargo fmt",
+          "timestamp": "2023-05-15T12:15:17-04:00",
+          "tree_id": "e12d2eb7c28cd9675cd3f1119e575df296a79951",
+          "url": "https://github.com/wnfs-wg/rs-wnfs/commit/f85ace3474941bed76dba09a63d3a90802456ecf"
+        },
+        "date": 1684167696511,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "node set",
+            "value": 7735,
+            "range": "± 91",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node set 1000 consecutive",
+            "value": 4747260,
+            "range": "± 19430",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and get",
+            "value": 172383,
+            "range": "± 872",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and remove",
+            "value": 193224,
+            "range": "± 389",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt load and decode/0",
+            "value": 40752,
+            "range": "± 102",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt set and encode",
+            "value": 183991,
+            "range": "± 562",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt diff",
+            "value": 60022,
+            "range": "± 4778",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt merge",
+            "value": 252395,
+            "range": "± 20266",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter add",
+            "value": 8249,
+            "range": "± 181",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter contains",
+            "value": 9839,
+            "range": "± 93",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter saturate",
+            "value": 42771,
+            "range": "± 1444",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter encode",
+            "value": 161,
             "range": "± 6",
             "unit": "ns/iter"
           },
