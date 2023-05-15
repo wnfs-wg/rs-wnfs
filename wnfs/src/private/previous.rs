@@ -64,14 +64,14 @@ impl PrivateNodeHistory {
     /// and prevent infinite looping in case it doesn't exist.
     pub fn of(
         node: &PrivateNode,
-        past_ratchet: &Ratchet,
+        past_node: &PrivateNode,
         discrepancy_budget: usize,
         forest: Rc<PrivateForest>,
     ) -> Result<Self> {
         Self::from_header(
             node.get_header().clone(),
             node.get_previous().clone(),
-            past_ratchet,
+            &past_node.get_header().ratchet,
             discrepancy_budget,
             forest,
         )
@@ -210,9 +210,6 @@ impl PrivateNodeOnPathHistory {
         //
         // Stepping that history forward is then done in `PrivateNodeOnPathHistory#previous`.
 
-        // Extract the past ratchet from the PrivateDirectory
-        let past_ratchet = &past_directory.header.ratchet;
-
         let (target_path, path_segments) = match path_segments.split_last() {
             None => {
                 return Ok(PrivateNodeOnPathHistory {
@@ -221,7 +218,7 @@ impl PrivateNodeOnPathHistory {
                     path: Vec::with_capacity(0),
                     target: PrivateNodeHistory::of(
                         &PrivateNode::Dir(directory),
-                        past_ratchet,
+                        &PrivateNode::Dir(past_directory),
                         discrepancy_budget,
                         Rc::clone(&forest),
                     )?,
@@ -257,7 +254,7 @@ impl PrivateNodeOnPathHistory {
         let new_ratchet = directory.header.ratchet.clone();
 
         previous_iter.path[0].history.ratchets =
-            PreviousIterator::new(past_ratchet, &new_ratchet, discrepancy_budget)
+            PreviousIterator::new(&past_directory.header.ratchet, &new_ratchet, discrepancy_budget)
                 .map_err(FsError::NoIntermediateRatchet)?;
 
         Ok(previous_iter)
@@ -302,7 +299,7 @@ impl PrivateNodeOnPathHistory {
 
         let target_history = PrivateNodeHistory::of(
             &target_latest,
-            &target.get_header().ratchet,
+            &target,
             discrepancy_budget,
             Rc::clone(&forest),
         )?;
@@ -326,7 +323,7 @@ impl PrivateNodeOnPathHistory {
                 dir: Rc::clone(&dir),
                 history: PrivateNodeHistory::of(
                     &PrivateNode::Dir(Rc::clone(&dir)),
-                    &dir.header.ratchet,
+                    &PrivateNode::Dir(Rc::clone(&dir)),
                     discrepancy_budget,
                     Rc::clone(&forest),
                 )?,
@@ -466,7 +463,7 @@ impl PrivateNodeOnPathHistory {
 
             let mut directory_history = match PrivateNodeHistory::of(
                 &PrivateNode::Dir(directory),
-                &older_directory.header.ratchet,
+                &PrivateNode::Dir(older_directory),
                 self.discrepancy_budget,
                 Rc::clone(&self.forest),
             ) {
