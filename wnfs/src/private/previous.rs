@@ -195,7 +195,7 @@ impl PrivateNodeOnPathHistory {
     /// including all in-between versions in the history.
     pub async fn of(
         directory: Rc<PrivateDirectory>,
-        past_ratchet: &Ratchet,
+        past_directory: Rc<PrivateDirectory>,
         discrepancy_budget: usize,
         path_segments: &[String],
         search_latest: bool,
@@ -209,6 +209,9 @@ impl PrivateNodeOnPathHistory {
         // This is what this function is doing, it constructs the `PrivateNodeOnPathHistory`.
         //
         // Stepping that history forward is then done in `PrivateNodeOnPathHistory#previous`.
+
+        // Extract the past ratchet from the PrivateDirectory
+        let past_ratchet = &past_directory.header.ratchet;
 
         let (target_path, path_segments) = match path_segments.split_last() {
             None => {
@@ -550,7 +553,7 @@ mod tests {
 
         root_dir.store(forest, store, rng).await.unwrap();
 
-        let past_ratchet = root_dir.header.ratchet.clone();
+        let past_dir = root_dir.clone();
 
         root_dir
             .write(
@@ -576,7 +579,7 @@ mod tests {
 
         let mut iterator = PrivateNodeOnPathHistory::of(
             root_dir,
-            &past_ratchet,
+            past_dir,
             discrepancy_budget,
             &[],
             true,
@@ -635,7 +638,7 @@ mod tests {
 
         root_dir.store(forest, store, rng).await.unwrap();
 
-        let past_ratchet = root_dir.header.ratchet.clone();
+        let past_dir = root_dir.clone();
 
         let path = ["Docs".into(), "Notes.md".into()];
 
@@ -663,7 +666,7 @@ mod tests {
 
         let mut iterator = PrivateNodeOnPathHistory::of(
             root_dir,
-            &past_ratchet,
+            past_dir,
             discrepancy_budget,
             &path,
             true,
@@ -735,7 +738,7 @@ mod tests {
 
         root_dir.store(forest, store, rng).await.unwrap();
 
-        let past_ratchet = root_dir.header.ratchet.clone();
+        let past_dir = root_dir.clone();
 
         let path = ["Docs".into(), "Notes.md".into()];
 
@@ -770,7 +773,7 @@ mod tests {
 
         let mut iterator = PrivateNodeOnPathHistory::of(
             root_dir,
-            &past_ratchet,
+            past_dir,
             discrepancy_budget,
             &path,
             true,
@@ -857,7 +860,7 @@ mod tests {
 
         root_dir.store(forest, store, rng).await.unwrap();
 
-        let past_ratchet = root_dir.header.ratchet.clone();
+        let past_dir = root_dir.clone();
 
         let docs_dir = root_dir
             .get_node(&["Docs".into()], true, forest, store)
@@ -898,7 +901,7 @@ mod tests {
 
         let mut iterator = PrivateNodeOnPathHistory::of(
             root_dir,
-            &past_ratchet,
+            past_dir,
             discrepancy_budget,
             &path,
             true,
@@ -999,7 +1002,7 @@ mod tests {
 
         root_dir.store(forest, store, rng).await.unwrap();
 
-        let past_ratchet = root_dir.header.ratchet.clone();
+        let past_dir = root_dir.clone();
 
         let mut root_dir = Rc::new(root_dir.prepare_next_revision().unwrap().clone());
 
@@ -1018,14 +1021,9 @@ mod tests {
             .await
             .unwrap();
 
-        assert_eq!(
-            root_dir.header.ratchet.compare(&past_ratchet, 100).unwrap(),
-            2
-        );
-
         let mut iterator = PrivateNodeOnPathHistory::of(
             root_dir,
-            &past_ratchet,
+            past_dir,
             discrepancy_budget,
             &path,
             true,
