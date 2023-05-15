@@ -253,9 +253,12 @@ impl PrivateNodeOnPathHistory {
 
         let new_ratchet = directory.header.ratchet.clone();
 
-        previous_iter.path[0].history.ratchets =
-            PreviousIterator::new(&past_directory.header.ratchet, &new_ratchet, discrepancy_budget)
-                .map_err(FsError::NoIntermediateRatchet)?;
+        previous_iter.path[0].history.ratchets = PreviousIterator::new(
+            &past_directory.header.ratchet,
+            &new_ratchet,
+            discrepancy_budget,
+        )
+        .map_err(FsError::NoIntermediateRatchet)?;
 
         Ok(previous_iter)
     }
