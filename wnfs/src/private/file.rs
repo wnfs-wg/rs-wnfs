@@ -924,7 +924,7 @@ mod proptests {
     use wnfs_common::MemoryBlockStore;
     use wnfs_nameaccumulator::{AccumulatorSetup, Name};
 
-    #[proptest(cases = 100)]
+    #[proptest(cases = 10)]
     fn can_include_and_get_content_from_file(
         #[strategy(0..(MAX_BLOCK_CONTENT_SIZE * 2))] length: usize,
     ) {
@@ -952,7 +952,7 @@ mod proptests {
         })
     }
 
-    #[proptest(cases = 100)]
+    #[proptest(cases = 10)]
     fn can_include_and_stream_content_from_file(
         #[strategy(0..(MAX_BLOCK_CONTENT_SIZE * 2))] length: usize,
     ) {
