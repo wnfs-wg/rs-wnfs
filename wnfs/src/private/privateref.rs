@@ -235,7 +235,7 @@ mod tests {
     async fn can_create_revisionref_deterministically_with_user_provided_seeds() {
         let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
         let store = &mut MemoryBlockStore::default();
-        let forest = &mut Rc::new(PrivateForest::new_trusted(rng));
+        let forest = &mut Rc::new(PrivateForest::new_rsa_2048(rng));
         let ratchet_seed = utils::get_random_bytes::<32>(rng);
         let inumber = NameSegment::new(rng);
 

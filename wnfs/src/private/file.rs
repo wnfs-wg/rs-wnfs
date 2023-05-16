@@ -835,7 +835,7 @@ mod tests {
     async fn can_create_empty_file() {
         let store = &mut MemoryBlockStore::default();
         let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
-        let forest = &Rc::new(PrivateForest::new_trusted(rng));
+        let forest = &Rc::new(PrivateForest::new_rsa_2048(rng));
 
         let file = PrivateFile::new(&Name::empty(), Utc::now(), rng);
         let file_content = file.get_content(forest, store).await.unwrap();
@@ -850,8 +850,7 @@ mod tests {
 
         let store = &mut MemoryBlockStore::default();
         let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
-        let setup = &AccumulatorSetup::from_rsa_factoring_challenge(rng);
-        let forest = &mut Rc::new(PrivateForest::new(setup.clone()));
+        let forest = &mut Rc::new(PrivateForest::new_rsa_2048(rng));
 
         let file = PrivateFile::with_content(
             &Name::empty(),
@@ -892,8 +891,7 @@ mod tests {
 
         let store = &mut MemoryBlockStore::new();
         let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
-        let setup = &AccumulatorSetup::from_rsa_factoring_challenge(rng);
-        let forest = &mut Rc::new(PrivateForest::new(setup.clone()));
+        let forest = &mut Rc::new(PrivateForest::new_rsa_2048(rng));
 
         let file = PrivateFile::with_content_streaming(
             &Name::empty(),
@@ -932,8 +930,7 @@ mod proptests {
             let content = vec![0u8; length];
             let store = &mut MemoryBlockStore::default();
             let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
-            let setup = &AccumulatorSetup::from_rsa_factoring_challenge(rng);
-            let forest = &mut Rc::new(PrivateForest::new(setup.clone()));
+            let forest = &mut Rc::new(PrivateForest::new_rsa_2048(rng));
 
             let file = PrivateFile::with_content(
                 &Name::empty(),
@@ -960,8 +957,7 @@ mod proptests {
             let content = vec![0u8; length];
             let store = &mut MemoryBlockStore::default();
             let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
-            let setup = &AccumulatorSetup::from_rsa_factoring_challenge(rng);
-            let forest = &mut Rc::new(PrivateForest::new(setup.clone()));
+            let forest = &mut Rc::new(PrivateForest::new_rsa_2048(rng));
 
             let file = PrivateFile::with_content(
                 &Name::empty(),

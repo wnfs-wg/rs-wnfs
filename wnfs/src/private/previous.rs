@@ -524,7 +524,7 @@ mod tests {
             let mut rng = TestRng::deterministic_rng(RngAlgorithm::ChaCha);
             let store = MemoryBlockStore::default();
             let root_dir = Rc::new(PrivateDirectory::new(&Name::empty(), Utc::now(), &mut rng));
-            let forest = Rc::new(PrivateForest::new_trusted(&mut rng));
+            let forest = Rc::new(PrivateForest::new_rsa_2048(&mut rng));
 
             Self {
                 rng,

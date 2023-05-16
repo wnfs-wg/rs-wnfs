@@ -593,9 +593,8 @@ mod tests {
     #[async_std::test]
     async fn serialized_private_node_can_be_deserialized() {
         let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
-        let setup = &AccumulatorSetup::from_rsa_factoring_challenge(rng);
         let content = b"Lorem ipsum dolor sit amet";
-        let forest = &mut Rc::new(PrivateForest::new(setup.clone()));
+        let forest = &mut Rc::new(PrivateForest::new_rsa_2048(rng));
         let store = &mut MemoryBlockStore::new();
 
         let file = PrivateFile::with_content(

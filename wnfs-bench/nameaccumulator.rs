@@ -20,7 +20,7 @@ fn name_segment_rng(c: &mut Criterion) {
 }
 
 fn name_accumulator_add(c: &mut Criterion) {
-    let setup = &AccumulatorSetup::from_rsa_factoring_challenge(&mut thread_rng());
+    let setup = &AccumulatorSetup::from_rsa_2048(&mut thread_rng());
     c.bench_function("NameAccumulator::add", |b| {
         b.iter_batched(
             || NameSegment::new(&mut thread_rng()),
@@ -31,7 +31,7 @@ fn name_accumulator_add(c: &mut Criterion) {
 }
 
 fn name_accumulator_serialize(c: &mut Criterion) {
-    let setup = &AccumulatorSetup::from_rsa_factoring_challenge(&mut thread_rng());
+    let setup = &AccumulatorSetup::from_rsa_2048(&mut thread_rng());
     c.bench_function("NameAccumulator serialization", |b| {
         b.iter_batched(
             || {

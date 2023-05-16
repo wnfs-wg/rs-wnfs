@@ -405,7 +405,7 @@ mod tests {
     use proptest::test_runner::{RngAlgorithm, TestRng};
     use std::rc::Rc;
     use wnfs_common::{dagcbor, BlockStore, MemoryBlockStore};
-    use wnfs_nameaccumulator::{AccumulatorSetup, Name};
+    use wnfs_nameaccumulator::Name;
 
     mod helper {
         use crate::{
@@ -467,10 +467,9 @@ mod tests {
     #[async_std::test]
     async fn can_share_and_recieve_share() {
         let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
-        let setup = &AccumulatorSetup::from_rsa_factoring_challenge(rng);
         let recipient_store = &mut MemoryBlockStore::default();
         let sharer_store = &mut MemoryBlockStore::default();
-        let sharer_forest = &mut Rc::new(PrivateForest::new(setup.clone()));
+        let sharer_forest = &mut Rc::new(PrivateForest::new_rsa_2048(rng));
 
         let sharer_root_did = "did:key:z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK";
         // Create directory to share.
@@ -519,7 +518,7 @@ mod tests {
                 .get_public_key()
                 .get_public_key_modulus()
                 .unwrap(),
-            setup,
+            sharer_forest.get_accumulator_setup(),
         );
 
         // Grab node using share label.
@@ -535,9 +534,8 @@ mod tests {
     #[async_std::test]
     async fn serialized_share_payload_can_be_deserialized() {
         let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
-        let setup = &AccumulatorSetup::from_rsa_factoring_challenge(rng);
         let store = &mut MemoryBlockStore::default();
-        let forest = &mut Rc::new(PrivateForest::new(setup.clone()));
+        let forest = &mut Rc::new(PrivateForest::new_rsa_2048(rng));
         let dir = PrivateDirectory::new_and_store(&Name::empty(), Utc::now(), forest, store, rng)
             .await
             .unwrap();
@@ -559,10 +557,9 @@ mod tests {
     #[async_std::test]
     async fn find_latest_share_counter_finds_highest_count() {
         let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
-        let setup = &AccumulatorSetup::from_rsa_factoring_challenge(rng);
         let sharer_store = &mut MemoryBlockStore::default();
         let recipient_store = &mut MemoryBlockStore::default();
-        let forest = &mut Rc::new(PrivateForest::new(setup.clone()));
+        let forest = &mut Rc::new(PrivateForest::new_rsa_2048(rng));
 
         let sharer_root_did = "did:key:z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK";
 

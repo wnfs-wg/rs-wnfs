@@ -53,10 +53,10 @@ impl PrivateForest {
         }
     }
 
-    pub fn new_trusted(rng: &mut impl RngCore) -> Self {
+    pub fn new_rsa_2048(rng: &mut impl RngCore) -> Self {
         Self {
             hamt: Hamt::new(),
-            accumulator: AccumulatorSetup::from_rsa_factoring_challenge(rng),
+            accumulator: AccumulatorSetup::from_rsa_2048(rng),
         }
     }
 
@@ -367,7 +367,7 @@ mod tests {
         use wnfs_nameaccumulator::{AccumulatorSetup, NameAccumulator, NameSegment};
 
         pub(super) static HASH_KV_PAIRS: Lazy<Vec<(HashOutput, Vec<u8>, Cid)>> = Lazy::new(|| {
-            let setup = AccumulatorSetup::from_rsa_factoring_challenge(&mut thread_rng());
+            let setup = AccumulatorSetup::from_rsa_2048(&mut thread_rng());
             vec![
                 (
                     utils::to_hash_output(&[0xA0]),
@@ -436,7 +436,7 @@ mod tests {
     async fn inserted_items_can_be_fetched() {
         let store = &mut MemoryBlockStore::new();
         let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
-        let forest = &mut Rc::new(PrivateForest::new_trusted(rng));
+        let forest = &mut Rc::new(PrivateForest::new_rsa_2048(rng));
 
         let dir = Rc::new(PrivateDirectory::new(&Name::empty(), Utc::now(), rng));
 
@@ -453,7 +453,7 @@ mod tests {
     async fn multivalue_conflict_can_be_fetched_individually() {
         let store = &mut MemoryBlockStore::new();
         let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
-        let forest = &mut Rc::new(PrivateForest::new_trusted(rng));
+        let forest = &mut Rc::new(PrivateForest::new_rsa_2048(rng));
 
         let dir = Rc::new(PrivateDirectory::new(&Name::empty(), Utc::now(), rng));
 
@@ -505,7 +505,7 @@ mod tests {
     async fn can_merge_nodes_with_different_structure_and_modified_changes() {
         let store = &mut MemoryBlockStore::new();
         let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
-        let setup = &AccumulatorSetup::from_rsa_factoring_challenge(rng);
+        let setup = &AccumulatorSetup::from_rsa_2048(rng);
 
         // A node that adds the first 3 pairs of HASH_KV_PAIRS.
         let other_node = &mut Rc::new(Node::<_, _, MockHasher>::default());
