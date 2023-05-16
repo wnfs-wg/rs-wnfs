@@ -558,7 +558,7 @@ impl PrivateFile {
     ) -> NameAccumulator {
         let mut file_revision_name = file_block_name.clone();
         file_revision_name.add(
-            &NameSegment::from_digest(Sha3_256::new().chain_update(&key.0.as_bytes())),
+            &NameSegment::from_digest(Sha3_256::new().chain_update(key.0.as_bytes())),
             setup,
         );
         file_revision_name

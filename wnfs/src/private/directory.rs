@@ -1766,7 +1766,7 @@ mod tests {
         assert_eq!(result.len(), 1);
         assert_eq!(result[0].0, String::from("cats"));
 
-        let result = root_dir
+        let _result = root_dir
             .get_node(&["images".into(), "cats".into()], true, forest, store)
             .await
             .unwrap();
@@ -1860,7 +1860,7 @@ mod tests {
 
         assert_eq!(result.len(), 0);
 
-        let result = root_dir
+        let _result = root_dir
             .get_node(&["images".into(), "cats".into()], true, forest, store)
             .await
             .unwrap();

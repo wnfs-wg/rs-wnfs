@@ -61,7 +61,8 @@ fn node_set_consecutive(c: &mut Criterion) {
             },
             |(mut node, store, kvs)| async move {
                 for (key, value) in kvs {
-                    black_box(node.set(key, value, &store).await.unwrap());
+                    node.set(key, value, &store).await.unwrap();
+                    black_box(());
                 }
             },
             BatchSize::SmallInput,

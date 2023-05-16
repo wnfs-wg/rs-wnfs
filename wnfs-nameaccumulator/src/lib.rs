@@ -118,7 +118,7 @@ impl<'de> Deserialize<'de> for NameAccumulator {
         D: serde::Deserializer<'de>,
     {
         let byte_buf = serde_bytes::ByteBuf::deserialize(deserializer)?;
-        Ok(NameAccumulator::parse_bytes(byte_buf).map_err(|e| serde::de::Error::custom(e))?)
+        NameAccumulator::parse_bytes(byte_buf).map_err(serde::de::Error::custom)
     }
 }
 
@@ -235,14 +235,14 @@ impl PartialEq for Name {
         // TODO(matheus23) this is not ideal.
         // We're special-casing certain constructions of Names to be equal, but not all,
         // just so that all *existing* tests are OK.
-        let left = self.accumulated.get().or_else(|| {
+        let left = self.accumulated.get().or({
             if self.segments.is_empty() {
                 self.relative_to.as_ref()
             } else {
                 None
             }
         });
-        let right = other.accumulated.get().or_else(|| {
+        let right = other.accumulated.get().or({
             if other.segments.is_empty() {
                 other.relative_to.as_ref()
             } else {

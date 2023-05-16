@@ -296,9 +296,9 @@ pub mod sharer {
         setup: &AccumulatorSetup,
     ) -> NameAccumulator {
         let mut label = NameAccumulator::empty(setup);
-        label.add_bytes(&sharer_root_did.as_bytes(), setup);
-        label.add_bytes(&recipient_exchange_key, setup);
-        label.add_bytes(&share_count.to_le_bytes(), setup);
+        label.add_bytes(sharer_root_did.as_bytes(), setup);
+        label.add_bytes(recipient_exchange_key, setup);
+        label.add_bytes(share_count.to_le_bytes(), setup);
         label
     }
 }

@@ -82,7 +82,7 @@ impl PrivateNodeHeader {
         // leaking info about the seed itself (from the ratchet state).
         let seed_hash = Sha3_256::new()
             .chain_update("WNFS ratchet increments")
-            .chain_update(&ratchet_seed)
+            .chain_update(ratchet_seed)
             .finalize();
         Self {
             name: parent_name.with_segments_added(Some(inumber.clone())),
@@ -173,8 +173,8 @@ impl PrivateNodeHeader {
     /// Derives the key that's put into the accumulator.
     pub(crate) fn derive_revision_segment(&self) -> NameSegment {
         let mut hasher = sha3::Sha3_256::new();
-        hasher.update(&"Revision name acc element");
-        hasher.update(&self.derive_temporal_key().0.as_bytes());
+        hasher.update("Revision name acc element");
+        hasher.update(self.derive_temporal_key().0.as_bytes());
         NameSegment::from_digest(hasher)
     }
 
@@ -209,7 +209,7 @@ impl PrivateNodeHeader {
 
     /// TODO(matheus23)
     pub fn get_name_hash(&self, setup: &AccumulatorSetup) -> HashOutput {
-        Sha3_256::hash(&self.get_name(setup).as_ref()).into()
+        Sha3_256::hash(&self.get_name(setup).as_ref())
     }
 
     /// Encrypts this private node header in an block, then stores that in the given

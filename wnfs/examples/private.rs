@@ -32,7 +32,7 @@ async fn main() {
         .unwrap();
 
     // Print the directory.
-    println!("{:#?}", dir);
+    println!("{dir:#?}");
 }
 
 async fn get_forest_cid_and_private_ref(

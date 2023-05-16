@@ -91,7 +91,7 @@ impl PrivateNodeHistory {
         let forest = Rc::clone(&forest);
         let ratchets = header
             .ratchet
-            .previous(&past_ratchet, discrepancy_budget)
+            .previous(past_ratchet, discrepancy_budget)
             .map_err(FsError::NoIntermediateRatchet)?;
 
         Ok(PrivateNodeHistory {
@@ -258,7 +258,7 @@ impl PrivateNodeOnPathHistory {
         let new_ratchet = directory.header.ratchet.clone();
 
         previous_iter.path[0].history.ratchets = new_ratchet
-            .previous(&past_ratchet, discrepancy_budget)
+            .previous(past_ratchet, discrepancy_budget)
             .map_err(FsError::NoIntermediateRatchet)?;
 
         Ok(previous_iter)

@@ -7,7 +7,7 @@ fn name_segment_from_digest(c: &mut Criterion) {
     c.bench_function("NameSegment::from_digest", |b| {
         b.iter_batched(
             || sha3::Sha3_256::new().chain_update(thread_rng().gen::<[u8; 32]>()),
-            |digest| NameSegment::from_digest(digest),
+            NameSegment::from_digest,
             BatchSize::SmallInput,
         );
     });

@@ -70,7 +70,7 @@ async fn main() -> anyhow::Result<()> {
         .await
         .unwrap()?;
 
-    println!("{:#?}", fetched_node);
+    println!("{fetched_node:#?}");
 
     // --------- Method 2: Generate a revision ref from a shared secret -----------
 
@@ -84,13 +84,13 @@ async fn main() -> anyhow::Result<()> {
         .await
         .unwrap()?;
 
-    println!("{:#?}", fetched_node);
+    println!("{fetched_node:#?}");
 
     // The private_ref might point to some old revision of the root_dir.
     // We can do the following to get the latest revision.
     let fetched_dir = fetched_node.search_latest(forest, store).await?.as_dir()?;
 
-    println!("{:#?}", fetched_dir);
+    println!("{fetched_dir:#?}");
 
     Ok(())
 }

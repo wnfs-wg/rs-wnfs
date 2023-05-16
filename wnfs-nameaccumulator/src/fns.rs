@@ -115,7 +115,7 @@ mod proptests {
     #[proptest(cases = 1000)]
     fn test_prime_digest(#[strategy(vec(any::<u8>(), 0..100))] bytes: Vec<u8>) {
         let mut hasher = sha3::Sha3_256::new();
-        hasher.update(&bytes);
+        hasher.update(bytes);
 
         let (prime_hash, inc) = prime_digest(hasher.clone(), 16);
         prop_assert!(probably_prime(&prime_hash, 20));
@@ -138,7 +138,7 @@ mod proptests {
     }
 
     fn multi_exp_naive(bases_and_exponents: &[(BigUint, BigUint)], modulus: &BigUint) -> BigUint {
-        let x_star = nlogn_product(&bases_and_exponents, |(_, x_i)| x_i);
+        let x_star = nlogn_product(bases_and_exponents, |(_, x_i)| x_i);
 
         let mut product = BigUint::one();
         for (alpha_i, x_i) in bases_and_exponents {

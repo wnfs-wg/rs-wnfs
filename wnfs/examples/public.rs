@@ -41,5 +41,5 @@ async fn main() {
     let result = root_dir.ls(&["pictures".into()], &store).await.unwrap();
 
     // Print the result.
-    println!("Files in /pictures: {:#?}", result);
+    println!("Files in /pictures: {result:#?}");
 }
