@@ -17,7 +17,7 @@ use rand_core::{CryptoRngCore, RngCore};
 use skip_ratchet::{JumpSize, RatchetSeeker};
 use std::{cmp::Ordering, collections::BTreeSet, fmt::Debug, rc::Rc};
 use wnfs_common::{dagcbor, BlockStore, NodeType};
-use wnfs_nameaccumulator::{AccumulatorSetup, NameAccumulator};
+use wnfs_nameaccumulator::{AccumulatorSetup, Name};
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
@@ -116,7 +116,7 @@ impl PrivateNode {
     #[async_recursion(?Send)]
     pub(crate) async fn update_ancestry(
         &mut self,
-        parent_name: &NameAccumulator,
+        parent_name: &Name,
         forest: &mut Rc<PrivateForest>,
         store: &mut impl BlockStore,
         rng: &mut impl CryptoRngCore,
@@ -138,7 +138,7 @@ impl PrivateNode {
                     *private_link = PrivateLink::from(node);
                 }
 
-                dir.prepare_key_rotation(parent_name, forest.get_accumulator_setup(), rng);
+                dir.prepare_key_rotation(parent_name, rng);
             }
         }
         Ok(())
@@ -599,7 +599,7 @@ mod tests {
         let store = &mut MemoryBlockStore::new();
 
         let file = PrivateFile::with_content(
-            &NameAccumulator::empty(setup),
+            &Name::empty(),
             Utc::now(),
             content.to_vec(),
             forest,

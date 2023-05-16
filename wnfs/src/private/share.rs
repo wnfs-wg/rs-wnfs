@@ -405,7 +405,7 @@ mod tests {
     use proptest::test_runner::{RngAlgorithm, TestRng};
     use std::rc::Rc;
     use wnfs_common::{dagcbor, BlockStore, MemoryBlockStore};
-    use wnfs_nameaccumulator::{AccumulatorSetup, NameAccumulator};
+    use wnfs_nameaccumulator::{AccumulatorSetup, Name};
 
     mod helper {
         use crate::{
@@ -418,22 +418,16 @@ mod tests {
         use rand_core::RngCore;
         use std::rc::Rc;
         use wnfs_common::BlockStore;
-        use wnfs_nameaccumulator::NameAccumulator;
+        use wnfs_nameaccumulator::Name;
 
         pub(super) async fn create_sharer_dir(
             forest: &mut Rc<PrivateForest>,
             store: &mut impl BlockStore,
             rng: &mut impl RngCore,
         ) -> Result<Rc<PrivateDirectory>> {
-            let setup = forest.get_accumulator_setup();
-            let mut dir = PrivateDirectory::new_and_store(
-                &NameAccumulator::empty(setup),
-                Utc::now(),
-                forest,
-                store,
-                rng,
-            )
-            .await?;
+            let mut dir =
+                PrivateDirectory::new_and_store(&Name::empty(), Utc::now(), forest, store, rng)
+                    .await?;
 
             dir.write(
                 &["text.txt".into()],
@@ -544,15 +538,9 @@ mod tests {
         let setup = &AccumulatorSetup::from_rsa_factoring_challenge(rng);
         let store = &mut MemoryBlockStore::default();
         let forest = &mut Rc::new(PrivateForest::new(setup.clone()));
-        let dir = PrivateDirectory::new_and_store(
-            &NameAccumulator::empty(setup),
-            Utc::now(),
-            forest,
-            store,
-            rng,
-        )
-        .await
-        .unwrap();
+        let dir = PrivateDirectory::new_and_store(&Name::empty(), Utc::now(), forest, store, rng)
+            .await
+            .unwrap();
 
         let payload = SharePayload::from_node(&dir.as_node(), true, forest, store, rng)
             .await
@@ -613,15 +601,10 @@ mod tests {
         assert_eq!(max_share_count_before, None);
 
         // Create something to share access to.
-        let dir = PrivateDirectory::new_and_store(
-            &NameAccumulator::empty(setup),
-            Utc::now(),
-            forest,
-            sharer_store,
-            rng,
-        )
-        .await
-        .unwrap();
+        let dir =
+            PrivateDirectory::new_and_store(&Name::empty(), Utc::now(), forest, sharer_store, rng)
+                .await
+                .unwrap();
 
         // Create the share
         let payload = SharePayload::from_node(&dir.as_node(), true, forest, sharer_store, rng)

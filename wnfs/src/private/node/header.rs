@@ -9,7 +9,7 @@ use skip_ratchet::Ratchet;
 use std::fmt::Debug;
 use wnfs_common::{dagcbor, utils, BlockStore, HashOutput, HASH_BYTE_SIZE};
 use wnfs_hamt::Hasher;
-use wnfs_nameaccumulator::{AccumulatorSetup, NameAccumulator, NameSegment};
+use wnfs_nameaccumulator::{AccumulatorSetup, Name, NameAccumulator, NameSegment};
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
@@ -40,14 +40,24 @@ pub type INumber = NameSegment;
 ///
 /// println!("Header: {:#?}", file.header);
 /// ```
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PrivateNodeHeader {
     /// A unique identifier of the node.
     pub(crate) inumber: INumber,
     /// Used both for versioning and deriving keys for that enforces privacy.
     pub(crate) ratchet: Ratchet,
     /// Stores the name of this node for easier lookup.
-    pub(crate) name: NameAccumulator,
+    pub(crate) name: Name,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct PrivateNodeHeaderSerializable {
+    /// A unique identifier of the node.
+    inumber: INumber,
+    /// Used both for versioning and deriving keys for that enforces privacy.
+    ratchet: Ratchet,
+    /// Stores the name of this node for easier lookup.
+    name: NameAccumulator,
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -56,22 +66,17 @@ pub struct PrivateNodeHeader {
 
 impl PrivateNodeHeader {
     /// Creates a new PrivateNodeHeader.
-    pub(crate) fn new(
-        parent_name: &NameAccumulator,
-        setup: &AccumulatorSetup,
-        rng: &mut impl RngCore,
-    ) -> Self {
+    pub(crate) fn new(parent_name: &Name, rng: &mut impl RngCore) -> Self {
         let inumber = NameSegment::new(rng);
         let ratchet_seed = utils::get_random_bytes::<HASH_BYTE_SIZE>(rng);
-        Self::with_seed(parent_name, ratchet_seed, inumber, setup)
+        Self::with_seed(parent_name, ratchet_seed, inumber)
     }
 
     /// Creates a new PrivateNodeHeader with provided seed.
     pub(crate) fn with_seed(
-        parent_name: &NameAccumulator,
+        parent_name: &Name,
         ratchet_seed: HashOutput,
         inumber: INumber,
-        setup: &AccumulatorSetup,
     ) -> Self {
         // A keyed hash to use for determining the seed increments without
         // leaking info about the seed itself (from the ratchet state).
@@ -80,11 +85,7 @@ impl PrivateNodeHeader {
             .chain_update(&ratchet_seed)
             .finalize();
         Self {
-            name: {
-                let mut name = parent_name.clone();
-                name.add(&inumber, setup);
-                name
-            },
+            name: parent_name.with_segments_added(Some(inumber.clone())),
             ratchet: Ratchet::from_seed(&ratchet_seed, seed_hash[0], seed_hash[1]),
             inumber,
         }
@@ -96,13 +97,9 @@ impl PrivateNodeHeader {
     }
 
     /// Updates the bare name of the node.
-    pub(crate) fn update_bare_name(
-        &mut self,
-        parent_name: &NameAccumulator,
-        setup: &AccumulatorSetup,
-    ) {
+    pub(crate) fn update_bare_name(&mut self, parent_name: &Name) {
         self.name = parent_name.clone();
-        self.name.add(&self.inumber, setup)
+        self.name.add_segments(Some(self.inumber.clone()));
     }
 
     /// Resets the ratchet.
@@ -205,7 +202,7 @@ impl PrivateNodeHeader {
     /// println!("Saturated name: {:?}", saturated_name);
     /// ```
     pub fn get_name(&self, setup: &AccumulatorSetup) -> NameAccumulator {
-        let mut name = self.name.clone();
+        let mut name = self.name.as_accumulator(setup).clone();
         name.add(&self.derive_revision_segment(), setup);
         name
     }
@@ -217,11 +214,36 @@ impl PrivateNodeHeader {
 
     /// Encrypts this private node header in an block, then stores that in the given
     /// BlockStore and returns its CID.
-    pub async fn store(&self, store: &mut impl BlockStore) -> Result<Cid> {
+    pub async fn store(
+        &self,
+        store: &mut impl BlockStore,
+        setup: &AccumulatorSetup,
+    ) -> Result<Cid> {
         let temporal_key = self.derive_temporal_key();
-        let cbor_bytes = dagcbor::encode(self)?;
+        let cbor_bytes = dagcbor::encode(&self.clone().to_serializable(setup))?;
         let ciphertext = temporal_key.key_wrap_encrypt(&cbor_bytes)?;
         store.put_block(ciphertext, IpldCodec::Raw).await
+    }
+
+    pub(crate) fn to_serializable(self, setup: &AccumulatorSetup) -> PrivateNodeHeaderSerializable {
+        let Self {
+            inumber,
+            ratchet,
+            name,
+        } = self;
+        PrivateNodeHeaderSerializable {
+            inumber,
+            ratchet,
+            name: name.into_accumulator(setup),
+        }
+    }
+
+    pub(crate) fn from_serializable(serializable: PrivateNodeHeaderSerializable) -> Self {
+        Self {
+            inumber: serializable.inumber,
+            ratchet: serializable.ratchet,
+            name: Name::new_relative(serializable.name, []),
+        }
     }
 
     /// Loads a private node header from a given CID linking to the ciphertext block
@@ -230,9 +252,11 @@ impl PrivateNodeHeader {
         cid: &Cid,
         temporal_key: &TemporalKey,
         store: &impl BlockStore,
-    ) -> Result<PrivateNodeHeader> {
+    ) -> Result<Self> {
         let ciphertext = store.get_block(cid).await?;
         let cbor_bytes = temporal_key.key_wrap_decrypt(&ciphertext)?;
-        dagcbor::decode(&cbor_bytes)
+        Ok(Self::from_serializable(dagcbor::decode::<
+            PrivateNodeHeaderSerializable,
+        >(&cbor_bytes)?))
     }
 }

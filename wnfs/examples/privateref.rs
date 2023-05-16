@@ -6,7 +6,7 @@ use std::rc::Rc;
 use wnfs::private::{AesKey, PrivateDirectory, PrivateForest, RevisionRef};
 use wnfs_common::{dagcbor, utils, MemoryBlockStore};
 use wnfs_hamt::Hasher;
-use wnfs_nameaccumulator::{AccumulatorSetup, NameAccumulator, NameSegment};
+use wnfs_nameaccumulator::{AccumulatorSetup, Name, NameSegment};
 
 #[tokio::main(flavor = "multi_thread")]
 async fn main() -> anyhow::Result<()> {
@@ -30,7 +30,7 @@ async fn main() -> anyhow::Result<()> {
 
     // Create a root directory from the ratchet_seed, inumber and namefilter. Directory gets saved in forest.
     let root_dir = &mut PrivateDirectory::new_with_seed_and_store(
-        &NameAccumulator::empty(setup),
+        &Name::empty(),
         Utc::now(),
         ratchet_seed,
         inumber.clone(),
@@ -75,8 +75,7 @@ async fn main() -> anyhow::Result<()> {
     // --------- Method 2: Generate a revision ref from a shared secret -----------
 
     // We can also create a revision ref from scratch if we remember the parameters.
-    let revision_ref =
-        RevisionRef::with_seed(&NameAccumulator::empty(setup), ratchet_seed, inumber, setup);
+    let revision_ref = RevisionRef::with_seed(&Name::empty(), ratchet_seed, inumber, setup);
 
     // And we can fetch the directory again using the generated revision_ref.
     let fetched_node = forest

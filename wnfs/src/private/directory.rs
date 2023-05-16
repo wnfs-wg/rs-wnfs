@@ -18,7 +18,7 @@ use std::{
 use wnfs_common::{
     dagcbor, utils::error, BlockStore, HashOutput, Metadata, NodeType, PathNodes, PathNodesResult,
 };
-use wnfs_nameaccumulator::{AccumulatorSetup, NameAccumulator, NameSegment};
+use wnfs_nameaccumulator::{AccumulatorSetup, Name, NameSegment};
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
@@ -93,14 +93,9 @@ impl PrivateDirectory {
     ///
     /// println!("dir = {:?}", dir);
     /// ```
-    pub fn new(
-        parent_name: &NameAccumulator,
-        time: DateTime<Utc>,
-        setup: &AccumulatorSetup,
-        rng: &mut impl RngCore,
-    ) -> Self {
+    pub fn new(parent_name: &Name, time: DateTime<Utc>, rng: &mut impl RngCore) -> Self {
         Self {
-            header: PrivateNodeHeader::new(parent_name, setup, rng),
+            header: PrivateNodeHeader::new(parent_name, rng),
             content: PrivateDirectoryContent {
                 persisted_as: OnceCell::new(),
                 previous: BTreeSet::new(),
@@ -130,14 +125,13 @@ impl PrivateDirectory {
     /// println!("dir = {:?}", dir);
     /// ```
     pub fn with_seed(
-        parent_name: &NameAccumulator,
+        parent_name: &Name,
         time: DateTime<Utc>,
         ratchet_seed: HashOutput,
         inumber: INumber,
-        setup: &AccumulatorSetup,
     ) -> Self {
         Self {
-            header: PrivateNodeHeader::with_seed(parent_name, ratchet_seed, inumber, setup),
+            header: PrivateNodeHeader::with_seed(parent_name, ratchet_seed, inumber),
             content: PrivateDirectoryContent {
                 persisted_as: OnceCell::new(),
                 metadata: Metadata::new(time),
@@ -149,14 +143,13 @@ impl PrivateDirectory {
 
     /// This contstructor creates a new private directory and stores it in a provided `PrivateForest`.
     pub async fn new_and_store(
-        parent_name: &NameAccumulator,
+        parent_name: &Name,
         time: DateTime<Utc>,
         forest: &mut Rc<PrivateForest>,
         store: &mut impl BlockStore,
         rng: &mut impl RngCore,
     ) -> Result<Rc<Self>> {
-        let setup = forest.get_accumulator_setup();
-        let dir = Rc::new(Self::new(parent_name, time, setup, rng));
+        let dir = Rc::new(Self::new(parent_name, time, rng));
         dir.store(forest, store, rng).await?;
         Ok(dir)
     }
@@ -164,7 +157,7 @@ impl PrivateDirectory {
     /// This contstructor creates a new private directory and stores it in a provided `PrivateForest` but
     /// with user-provided ratchet seed and inumber provided.
     pub async fn new_with_seed_and_store<B: BlockStore, R: RngCore>(
-        parent_name: &NameAccumulator,
+        parent_name: &Name,
         time: DateTime<Utc>,
         ratchet_seed: HashOutput,
         inumber: INumber,
@@ -172,14 +165,7 @@ impl PrivateDirectory {
         store: &mut B,
         rng: &mut R,
     ) -> Result<Rc<Self>> {
-        let setup = forest.get_accumulator_setup();
-        let dir = Rc::new(Self::with_seed(
-            parent_name,
-            time,
-            ratchet_seed,
-            inumber,
-            setup,
-        ));
+        let dir = Rc::new(Self::with_seed(parent_name, time, ratchet_seed, inumber));
         dir.store(forest, store, rng).await?;
         Ok(dir)
     }
@@ -416,12 +402,7 @@ impl PrivateDirectory {
                             .entries
                             .entry(segment.to_string())
                             .or_insert_with(|| {
-                                PrivateLink::with_dir(Self::new(
-                                    &dir.header.name,
-                                    time,
-                                    forest.get_accumulator_setup(),
-                                    rng,
-                                ))
+                                PrivateLink::with_dir(Self::new(&dir.header.name, time, rng))
                             })
                             .resolve_node_mut(forest, store)
                             .await
@@ -481,12 +462,11 @@ impl PrivateDirectory {
     /// resets the `persisted_as` pointer.
     pub(crate) fn prepare_key_rotation(
         &mut self,
-        parent_name: &NameAccumulator,
-        setup: &AccumulatorSetup,
+        parent_name: &Name,
         rng: &mut impl CryptoRngCore,
     ) {
         self.header.inumber = NameSegment::new(rng);
-        self.header.update_bare_name(parent_name, setup);
+        self.header.update_bare_name(parent_name);
         self.header.reset_ratchet(rng);
         self.content.persisted_as = OnceCell::new();
     }
@@ -1244,7 +1224,7 @@ impl PrivateDirectory {
         rng: &mut impl RngCore,
     ) -> Result<PrivateRef> {
         let setup = &forest.get_accumulator_setup().clone();
-        let header_cid = self.header.store(store).await?;
+        let header_cid = self.header.store(store, setup).await?;
         let temporal_key = self.header.derive_temporal_key();
         let label = self.header.get_name(setup);
 
@@ -1444,21 +1424,10 @@ mod tests {
         let ratchet_seed = utils::get_random_bytes::<32>(rng);
         let inumber = NameSegment::new(rng);
 
-        let dir1 = PrivateDirectory::with_seed(
-            &NameAccumulator::empty(setup),
-            Utc::now(),
-            ratchet_seed,
-            inumber.clone(),
-            setup,
-        );
+        let dir1 =
+            PrivateDirectory::with_seed(&Name::empty(), Utc::now(), ratchet_seed, inumber.clone());
 
-        let dir2 = PrivateDirectory::with_seed(
-            &NameAccumulator::empty(setup),
-            Utc::now(),
-            ratchet_seed,
-            inumber,
-            setup,
-        );
+        let dir2 = PrivateDirectory::with_seed(&Name::empty(), Utc::now(), ratchet_seed, inumber);
 
         assert_eq!(
             dir1.header.derive_temporal_key(),
@@ -1474,15 +1443,9 @@ mod tests {
     #[test(async_std::test)]
     async fn look_up_can_fetch_file_added_to_directory() {
         let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
-        let setup = &AccumulatorSetup::from_rsa_factoring_challenge(rng);
-        let root_dir = &mut Rc::new(PrivateDirectory::new(
-            &NameAccumulator::empty(setup),
-            Utc::now(),
-            setup,
-            rng,
-        ));
+        let root_dir = &mut Rc::new(PrivateDirectory::new(&Name::empty(), Utc::now(), rng));
         let store = &mut MemoryBlockStore::default();
-        let forest = &mut Rc::new(PrivateForest::new(setup.clone()));
+        let forest = &mut Rc::new(PrivateForest::new_trusted(rng));
 
         let content = b"Hello, World!".to_vec();
 
@@ -1510,15 +1473,9 @@ mod tests {
     #[test(async_std::test)]
     async fn look_up_cannot_fetch_file_not_added_to_directory() {
         let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
-        let setup = &AccumulatorSetup::from_rsa_factoring_challenge(rng);
-        let root_dir = Rc::new(PrivateDirectory::new(
-            &NameAccumulator::empty(setup),
-            Utc::now(),
-            setup,
-            rng,
-        ));
+        let root_dir = Rc::new(PrivateDirectory::new(&Name::empty(), Utc::now(), rng));
         let store = &MemoryBlockStore::default();
-        let forest = &Rc::new(PrivateForest::new(setup.clone()));
+        let forest = &Rc::new(PrivateForest::new_trusted(rng));
 
         let node = root_dir
             .lookup_node("Unknown", true, forest, store)
@@ -1531,15 +1488,9 @@ mod tests {
     #[test(async_std::test)]
     async fn mkdir_can_create_new_directory() {
         let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
-        let setup = &AccumulatorSetup::from_rsa_factoring_challenge(rng);
-        let root_dir = &mut Rc::new(PrivateDirectory::new(
-            &NameAccumulator::empty(setup),
-            Utc::now(),
-            setup,
-            rng,
-        ));
+        let root_dir = &mut Rc::new(PrivateDirectory::new(&Name::empty(), Utc::now(), rng));
         let store = &mut MemoryBlockStore::default();
-        let forest = &mut Rc::new(PrivateForest::new(setup.clone()));
+        let forest = &mut Rc::new(PrivateForest::new_trusted(rng));
 
         root_dir
             .mkdir(
@@ -1564,15 +1515,9 @@ mod tests {
     #[test(async_std::test)]
     async fn ls_can_list_children_under_directory() {
         let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
-        let setup = &AccumulatorSetup::from_rsa_factoring_challenge(rng);
-        let root_dir = &mut Rc::new(PrivateDirectory::new(
-            &NameAccumulator::empty(setup),
-            Utc::now(),
-            setup,
-            rng,
-        ));
+        let root_dir = &mut Rc::new(PrivateDirectory::new(&Name::empty(), Utc::now(), rng));
         let store = &mut MemoryBlockStore::default();
-        let forest = &mut Rc::new(PrivateForest::new(setup.clone()));
+        let forest = &mut Rc::new(PrivateForest::new_trusted(rng));
 
         root_dir
             .mkdir(
@@ -1624,15 +1569,9 @@ mod tests {
     #[test(async_std::test)]
     async fn rm_can_remove_children_from_directory() {
         let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
-        let setup = &AccumulatorSetup::from_rsa_factoring_challenge(rng);
-        let root_dir = &mut Rc::new(PrivateDirectory::new(
-            &NameAccumulator::empty(setup),
-            Utc::now(),
-            setup,
-            rng,
-        ));
+        let root_dir = &mut Rc::new(PrivateDirectory::new(&Name::empty(), Utc::now(), rng));
         let store = &mut MemoryBlockStore::default();
-        let forest = &mut Rc::new(PrivateForest::new(setup.clone()));
+        let forest = &mut Rc::new(PrivateForest::new_trusted(rng));
 
         root_dir
             .mkdir(
@@ -1686,15 +1625,9 @@ mod tests {
     #[async_std::test]
     async fn read_can_fetch_userland_of_file_added_to_directory() {
         let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
-        let setup = &AccumulatorSetup::from_rsa_factoring_challenge(rng);
-        let root_dir = &mut Rc::new(PrivateDirectory::new(
-            &NameAccumulator::empty(setup),
-            Utc::now(),
-            setup,
-            rng,
-        ));
+        let root_dir = &mut Rc::new(PrivateDirectory::new(&Name::empty(), Utc::now(), rng));
         let store = &mut MemoryBlockStore::default();
-        let forest = &mut Rc::new(PrivateForest::new(setup.clone()));
+        let forest = &mut Rc::new(PrivateForest::new_trusted(rng));
 
         root_dir
             .write(
@@ -1720,15 +1653,9 @@ mod tests {
     #[test(async_std::test)]
     async fn search_latest_finds_the_most_recent() {
         let rng = &mut rand::thread_rng();
-        let setup = &AccumulatorSetup::from_rsa_factoring_challenge(rng);
         let store = &mut MemoryBlockStore::default();
-        let forest = &mut Rc::new(PrivateForest::new(setup.clone()));
-        let root_dir = &mut Rc::new(PrivateDirectory::new(
-            &NameAccumulator::empty(setup),
-            Utc::now(),
-            setup,
-            rng,
-        ));
+        let forest = &mut Rc::new(PrivateForest::new_trusted(rng));
+        let root_dir = &mut Rc::new(PrivateDirectory::new(&Name::empty(), Utc::now(), rng));
 
         let path = ["Documents".into(), "file.txt".into()];
 
@@ -1775,15 +1702,9 @@ mod tests {
     #[async_std::test]
     async fn cp_can_copy_sub_directory_to_another_valid_location_with_updated_ancestry() {
         let rng = &mut ChaCha12Rng::seed_from_u64(0);
-        let setup = &AccumulatorSetup::from_rsa_factoring_challenge(rng);
         let store = &mut MemoryBlockStore::default();
-        let forest = &mut Rc::new(PrivateForest::new(setup.clone()));
-        let root_dir = &mut Rc::new(PrivateDirectory::new(
-            &NameAccumulator::empty(setup),
-            Utc::now(),
-            setup,
-            rng,
-        ));
+        let forest = &mut Rc::new(PrivateForest::new_trusted(rng));
+        let root_dir = &mut Rc::new(PrivateDirectory::new(&Name::empty(), Utc::now(), rng));
 
         root_dir
             .write(
@@ -1876,15 +1797,9 @@ mod tests {
     #[async_std::test]
     async fn mv_can_move_sub_directory_to_another_valid_location_with_updated_ancestry() {
         let rng = &mut thread_rng();
-        let setup = &AccumulatorSetup::from_rsa_factoring_challenge(rng);
         let store = &mut MemoryBlockStore::default();
-        let forest = &mut Rc::new(PrivateForest::new(setup.clone()));
-        let root_dir = &mut Rc::new(PrivateDirectory::new(
-            &NameAccumulator::empty(setup),
-            Utc::now(),
-            setup,
-            rng,
-        ));
+        let forest = &mut Rc::new(PrivateForest::new_trusted(rng));
+        let root_dir = &mut Rc::new(PrivateDirectory::new(&Name::empty(), Utc::now(), rng));
 
         root_dir
             .write(
@@ -1976,15 +1891,9 @@ mod tests {
     #[async_std::test]
     async fn mv_cannot_move_sub_directory_to_invalid_location() {
         let rng = &mut thread_rng();
-        let setup = &AccumulatorSetup::from_rsa_factoring_challenge(rng);
         let store = &mut MemoryBlockStore::default();
-        let forest = &mut Rc::new(PrivateForest::new(setup.clone()));
-        let root_dir = &mut Rc::new(PrivateDirectory::new(
-            &NameAccumulator::empty(setup),
-            Utc::now(),
-            setup,
-            rng,
-        ));
+        let forest = &mut Rc::new(PrivateForest::new_trusted(rng));
+        let root_dir = &mut Rc::new(PrivateDirectory::new(&Name::empty(), Utc::now(), rng));
 
         root_dir
             .mkdir(
@@ -2021,15 +1930,9 @@ mod tests {
     #[async_std::test]
     async fn mv_can_rename_directories() {
         let rng = &mut thread_rng();
-        let setup = &AccumulatorSetup::from_rsa_factoring_challenge(rng);
         let store = &mut MemoryBlockStore::default();
-        let forest = &mut Rc::new(PrivateForest::new(setup.clone()));
-        let root_dir = &mut Rc::new(PrivateDirectory::new(
-            &NameAccumulator::empty(setup),
-            Utc::now(),
-            setup,
-            rng,
-        ));
+        let forest = &mut Rc::new(PrivateForest::new_trusted(rng));
+        let root_dir = &mut Rc::new(PrivateDirectory::new(&Name::empty(), Utc::now(), rng));
         let content = b"file".to_vec();
 
         root_dir
@@ -2076,15 +1979,9 @@ mod tests {
     #[async_std::test]
     async fn mv_fails_moving_directories_to_files() {
         let rng = &mut thread_rng();
-        let setup = &AccumulatorSetup::from_rsa_factoring_challenge(rng);
         let store = &mut MemoryBlockStore::default();
-        let forest = &mut Rc::new(PrivateForest::new(setup.clone()));
-        let root_dir = &mut Rc::new(PrivateDirectory::new(
-            &NameAccumulator::empty(setup),
-            Utc::now(),
-            setup,
-            rng,
-        ));
+        let forest = &mut Rc::new(PrivateForest::new_trusted(rng));
+        let root_dir = &mut Rc::new(PrivateDirectory::new(&Name::empty(), Utc::now(), rng));
 
         root_dir
             .mkdir(
@@ -2129,15 +2026,9 @@ mod tests {
     #[async_std::test]
     async fn write_doesnt_generate_previous_link() {
         let rng = &mut thread_rng();
-        let setup = &AccumulatorSetup::from_rsa_factoring_challenge(rng);
         let store = &mut MemoryBlockStore::new();
-        let forest = &mut Rc::new(PrivateForest::new(setup.clone()));
-        let old_dir = &mut Rc::new(PrivateDirectory::new(
-            &NameAccumulator::empty(setup),
-            Utc::now(),
-            setup,
-            rng,
-        ));
+        let forest = &mut Rc::new(PrivateForest::new_trusted(rng));
+        let old_dir = &mut Rc::new(PrivateDirectory::new(&Name::empty(), Utc::now(), rng));
 
         let new_dir = &mut Rc::clone(old_dir);
         new_dir
@@ -2160,15 +2051,9 @@ mod tests {
     #[async_std::test]
     async fn store_before_write_generates_previous_link() {
         let rng = &mut thread_rng();
-        let setup = &AccumulatorSetup::from_rsa_factoring_challenge(rng);
         let store = &mut MemoryBlockStore::new();
-        let forest = &mut Rc::new(PrivateForest::new(setup.clone()));
-        let old_dir = &mut Rc::new(PrivateDirectory::new(
-            &NameAccumulator::empty(setup),
-            Utc::now(),
-            setup,
-            rng,
-        ));
+        let forest = &mut Rc::new(PrivateForest::new_trusted(rng));
+        let old_dir = &mut Rc::new(PrivateDirectory::new(&Name::empty(), Utc::now(), rng));
         old_dir.store(forest, store, rng).await.unwrap();
 
         let new_dir = &mut Rc::clone(old_dir);

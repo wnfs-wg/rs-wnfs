@@ -509,7 +509,7 @@ mod tests {
     use chrono::Utc;
     use proptest::test_runner::{RngAlgorithm, TestRng};
     use wnfs_common::MemoryBlockStore;
-    use wnfs_nameaccumulator::{AccumulatorSetup, NameAccumulator};
+    use wnfs_nameaccumulator::Name;
 
     struct TestSetup {
         rng: TestRng,
@@ -522,19 +522,14 @@ mod tests {
     impl TestSetup {
         fn new() -> Self {
             let mut rng = TestRng::deterministic_rng(RngAlgorithm::ChaCha);
-            let setup = AccumulatorSetup::from_rsa_factoring_challenge(&mut rng);
             let store = MemoryBlockStore::default();
-            let root_dir = Rc::new(PrivateDirectory::new(
-                &NameAccumulator::empty(&setup),
-                Utc::now(),
-                &setup,
-                &mut rng,
-            ));
+            let root_dir = Rc::new(PrivateDirectory::new(&Name::empty(), Utc::now(), &mut rng));
+            let forest = Rc::new(PrivateForest::new_trusted(&mut rng));
 
             Self {
                 rng,
                 store,
-                forest: Rc::new(PrivateForest::new(setup)),
+                forest,
                 root_dir,
                 discrepancy_budget: 1_000_000,
             }

@@ -5,6 +5,7 @@ use async_stream::stream;
 use async_trait::async_trait;
 use futures::Stream;
 use libipld::{Cid, Ipld};
+use rand_core::RngCore;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use sha3::Sha3_256;
 use std::{collections::BTreeSet, rc::Rc};
@@ -49,6 +50,13 @@ impl PrivateForest {
         Self {
             hamt: Hamt::new(),
             accumulator: setup,
+        }
+    }
+
+    pub fn new_trusted(rng: &mut impl RngCore) -> Self {
+        Self {
+            hamt: Hamt::new(),
+            accumulator: AccumulatorSetup::from_rsa_factoring_challenge(rng),
         }
     }
 
@@ -348,6 +356,7 @@ mod tests {
     use std::rc::Rc;
     use wnfs_common::MemoryBlockStore;
     use wnfs_hamt::{HashNibbles, Node};
+    use wnfs_nameaccumulator::Name;
 
     mod helper {
         use libipld::{Cid, Multihash};
@@ -427,15 +436,9 @@ mod tests {
     async fn inserted_items_can_be_fetched() {
         let store = &mut MemoryBlockStore::new();
         let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
-        let setup = &AccumulatorSetup::from_rsa_factoring_challenge(rng);
-        let forest = &mut Rc::new(PrivateForest::new(setup.clone()));
+        let forest = &mut Rc::new(PrivateForest::new_trusted(rng));
 
-        let dir = Rc::new(PrivateDirectory::new(
-            &NameAccumulator::empty(forest.get_accumulator_setup()),
-            Utc::now(),
-            setup,
-            rng,
-        ));
+        let dir = Rc::new(PrivateDirectory::new(&Name::empty(), Utc::now(), rng));
 
         let private_node = PrivateNode::Dir(dir.clone());
         let private_ref = private_node.store(forest, store, rng).await.unwrap();
@@ -450,15 +453,9 @@ mod tests {
     async fn multivalue_conflict_can_be_fetched_individually() {
         let store = &mut MemoryBlockStore::new();
         let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
-        let setup = &AccumulatorSetup::from_rsa_factoring_challenge(rng);
-        let forest = &mut Rc::new(PrivateForest::new(setup.clone()));
+        let forest = &mut Rc::new(PrivateForest::new_trusted(rng));
 
-        let dir = Rc::new(PrivateDirectory::new(
-            &NameAccumulator::empty(setup),
-            Utc::now(),
-            setup,
-            rng,
-        ));
+        let dir = Rc::new(PrivateDirectory::new(&Name::empty(), Utc::now(), rng));
 
         let dir_conflict = {
             let mut dir = (*dir).clone();

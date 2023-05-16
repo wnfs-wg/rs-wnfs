@@ -7,7 +7,7 @@ use rand::{thread_rng, RngCore};
 use std::rc::Rc;
 use wnfs::private::{PrivateDirectory, PrivateForest, PrivateNode, PrivateRef};
 use wnfs_common::{BlockStore, MemoryBlockStore};
-use wnfs_nameaccumulator::{AccumulatorSetup, NameAccumulator};
+use wnfs_nameaccumulator::{AccumulatorSetup, Name};
 
 #[async_std::main]
 async fn main() {
@@ -40,18 +40,13 @@ async fn get_forest_cid_and_private_ref(
     rng: &mut impl RngCore,
 ) -> (Cid, PrivateRef) {
     // Do a trusted setup for WNFS' name accumulators
-    let setup = &AccumulatorSetup::trusted(rng);
+    let setup = AccumulatorSetup::trusted(rng);
 
     // Create the private forest (a HAMT), a map-like structure where file and directory ciphertexts are stored.
-    let forest = &mut Rc::new(PrivateForest::new(setup.clone()));
+    let forest = &mut Rc::new(PrivateForest::new(setup));
 
     // Create a new directory.
-    let dir = &mut Rc::new(PrivateDirectory::new(
-        &NameAccumulator::empty(setup),
-        Utc::now(),
-        setup,
-        rng,
-    ));
+    let dir = &mut Rc::new(PrivateDirectory::new(&Name::empty(), Utc::now(), rng));
 
     // Add a /pictures/cats subdirectory.
     dir.mkdir(
