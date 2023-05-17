@@ -598,8 +598,8 @@ mod tests {
             .await
             .unwrap();
 
-        let file_node = PrivateNode::File(file.clone());
-        let dir_node = PrivateNode::Dir(directory.clone());
+        let file_node = PrivateNode::File(Rc::clone(&file));
+        let dir_node = PrivateNode::Dir(Rc::clone(&directory));
 
         let file_private_ref = file_node.store(forest, store, rng).await.unwrap();
         let dir_private_ref = dir_node.store(forest, store, rng).await.unwrap();
