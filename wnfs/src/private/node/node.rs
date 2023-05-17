@@ -2,8 +2,8 @@ use super::{PrivateNodeHeader, TemporalKey};
 use crate::{
     error::FsError,
     private::{
-        encrypted::Encrypted, link::PrivateLink, PrivateDirectory, PrivateDirectoryContent,
-        PrivateFile, PrivateFileContent, PrivateForest, PrivateRef,
+        encrypted::Encrypted, link::PrivateLink, PrivateDirectory, PrivateFile, PrivateForest,
+        PrivateNodeContentSerializable, PrivateRef,
     },
     traits::Id,
 };
@@ -12,11 +12,11 @@ use async_once_cell::OnceCell;
 use async_recursion::async_recursion;
 use chrono::{DateTime, Utc};
 use futures::StreamExt;
-use libipld::{Cid, Ipld};
+use libipld::Cid;
 use rand_core::RngCore;
 use skip_ratchet::{seek::JumpSize, RatchetSeeker};
 use std::{cmp::Ordering, collections::BTreeSet, fmt::Debug, rc::Rc};
-use wnfs_common::{dagcbor, BlockStore, NodeType};
+use wnfs_common::BlockStore;
 use wnfs_namefilter::Namefilter;
 
 //--------------------------------------------------------------------------------------------------
@@ -51,12 +51,6 @@ use wnfs_namefilter::Namefilter;
 pub enum PrivateNode {
     File(Rc<PrivateFile>),
     Dir(Rc<PrivateDirectory>),
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum PrivateNodeContent {
-    File(PrivateFileContent),
-    Dir(PrivateDirectoryContent),
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -429,18 +423,6 @@ impl PrivateNode {
         }
 
         current_header.ratchet = search.current().clone();
-        // {
-        //     let x = {
-        //         let mut t = search.current().clone();
-        //         t.inc();
-        //         t
-        //     };
-        //     println!(
-        //         "    final ratchet: {:?}\n    inc: {:?}",
-        //         search.current(),
-        //         x
-        //     );
-        // }
 
         Ok(forest
             .get_multivalue(&current_header.derive_revision_ref(), store)
@@ -510,38 +492,20 @@ impl PrivateNode {
         let encrypted_bytes = store.get_block(&cid).await?;
         let snapshot_key = temporal_key.derive_snapshot_key();
         let bytes = snapshot_key.decrypt(&encrypted_bytes)?;
-        let ipld = dagcbor::decode(&bytes)?;
-
-        match ipld {
-            Ipld::Map(map) => {
-                let r#type: NodeType = map
-                    .get("type")
-                    .ok_or(FsError::MissingNodeType)?
-                    .try_into()?;
-
-                Ok(match r#type {
-                    NodeType::PrivateFile => {
-                        let (content, header_cid) =
-                            PrivateFileContent::deserialize(Ipld::Map(map), cid)?;
-                        let header =
-                            PrivateNodeHeader::load(&header_cid, temporal_key, store).await?;
-                        PrivateNode::File(Rc::new(PrivateFile { header, content }))
-                    }
-                    NodeType::PrivateDirectory => {
-                        let (content, header_cid) = PrivateDirectoryContent::deserialize(
-                            Ipld::Map(map),
-                            temporal_key,
-                            cid,
-                        )?;
-                        let header =
-                            PrivateNodeHeader::load(&header_cid, temporal_key, store).await?;
-                        PrivateNode::Dir(Rc::new(PrivateDirectory { header, content }))
-                    }
-                    other => bail!(FsError::UnexpectedNodeType(other)),
-                })
+        let node: PrivateNodeContentSerializable = serde_ipld_dagcbor::from_slice(&bytes)?;
+        let node = match node {
+            PrivateNodeContentSerializable::File(file) => {
+                let file = PrivateFile::from_serializable(file, temporal_key, cid, store).await?;
+                PrivateNode::File(Rc::new(file))
             }
-            other => bail!("Expected `Ipld::Map` got {:#?}", other),
-        }
+            PrivateNodeContentSerializable::Dir(dir) => {
+                let dir =
+                    PrivateDirectory::from_serializable(dir, temporal_key, cid, store).await?;
+                PrivateNode::Dir(Rc::new(dir))
+            }
+        };
+
+        Ok(node)
     }
 
     pub async fn store(
@@ -610,24 +574,45 @@ mod tests {
         let forest = &mut Rc::new(PrivateForest::new());
         let store = &mut MemoryBlockStore::new();
 
-        let file = PrivateFile::with_content(
+        let file = Rc::new(
+            PrivateFile::with_content(
+                Namefilter::default(),
+                Utc::now(),
+                content.to_vec(),
+                forest,
+                store,
+                rng,
+            )
+            .await
+            .unwrap(),
+        );
+
+        let mut directory = Rc::new(PrivateDirectory::new(
             Namefilter::default(),
             Utc::now(),
-            content.to_vec(),
-            forest,
-            store,
             rng,
-        )
-        .await
-        .unwrap();
+        ));
 
-        let file = PrivateNode::File(Rc::new(file));
-        let private_ref = file.store(forest, store, rng).await.unwrap();
-
-        let deserialized_node = PrivateNode::load(&private_ref, forest, store)
+        directory
+            .mkdir(&["music".into()], true, Utc::now(), forest, store, rng)
             .await
             .unwrap();
 
-        assert_eq!(file, deserialized_node);
+        let file_node = PrivateNode::File(Rc::clone(&file));
+        let dir_node = PrivateNode::Dir(Rc::clone(&directory));
+
+        let file_private_ref = file_node.store(forest, store, rng).await.unwrap();
+        let dir_private_ref = dir_node.store(forest, store, rng).await.unwrap();
+
+        let deserialized_file_node = PrivateNode::load(&file_private_ref, forest, store)
+            .await
+            .unwrap();
+
+        let deserialized_dir_node = PrivateNode::load(&dir_private_ref, forest, store)
+            .await
+            .unwrap();
+
+        assert_eq!(file_node, deserialized_file_node);
+        assert_eq!(dir_node, deserialized_dir_node);
     }
 }

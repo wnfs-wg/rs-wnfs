@@ -1,15 +1,19 @@
 //! Public node system in-memory representation.
 
-use super::{PublicDirectory, PublicFile};
-use crate::{error::FsError, traits::Id};
+use super::PublicNodeSerializable;
+use crate::{
+    error::FsError,
+    public::{PublicDirectory, PublicFile},
+    traits::Id,
+};
 use anyhow::{bail, Result};
 use async_once_cell::OnceCell;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
-use libipld::{Cid, Ipld};
-use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
+use libipld::Cid;
+use serde::{de::Error as DeError, Deserialize, Deserializer, Serialize, Serializer};
 use std::{collections::BTreeSet, rc::Rc};
-use wnfs_common::{AsyncSerialize, BlockStore, NodeType, RemembersCid};
+use wnfs_common::{AsyncSerialize, BlockStore, RemembersCid};
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
@@ -190,14 +194,6 @@ impl PublicNode {
         })
     }
 
-    /// Serializes a node to the block store.
-    pub async fn store(&self, store: &mut impl BlockStore) -> Result<Cid> {
-        Ok(match self {
-            Self::File(file) => file.store(store).await?,
-            Self::Dir(dir) => dir.store(store).await?,
-        })
-    }
-
     /// Returns true if underlying node is a directory.
     ///
     /// # Examples
@@ -234,6 +230,20 @@ impl PublicNode {
     pub fn is_file(&self) -> bool {
         matches!(self, Self::File(_))
     }
+
+    /// Serializes a node to the block store and returns its CID.
+    pub async fn store(&self, store: &mut impl BlockStore) -> Result<Cid> {
+        Ok(match self {
+            Self::File(file) => file.store(store).await?,
+            Self::Dir(dir) => dir.store(store).await?,
+        })
+    }
+
+    /// Loads a node from the block store.
+    #[inline]
+    pub async fn load(cid: &Cid, store: &impl BlockStore) -> Result<Self> {
+        store.get_deserializable(cid).await
+    }
 }
 
 impl Id for PublicNode {
@@ -259,41 +269,6 @@ impl PartialEq for PublicNode {
     }
 }
 
-impl<'de> Deserialize<'de> for PublicNode {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        Ipld::deserialize(deserializer).and_then(|ipld| ipld.try_into().map_err(de::Error::custom))
-    }
-}
-
-impl TryFrom<Ipld> for PublicNode {
-    type Error = anyhow::Error;
-
-    fn try_from(ipld: Ipld) -> Result<Self> {
-        match ipld {
-            Ipld::Map(map) => {
-                let r#type: NodeType = map
-                    .get("type")
-                    .ok_or(FsError::MissingNodeType)?
-                    .try_into()?;
-
-                Ok(match r#type {
-                    NodeType::PublicFile => {
-                        PublicNode::from(PublicFile::deserialize(Ipld::Map(map))?)
-                    }
-                    NodeType::PublicDirectory => {
-                        PublicNode::from(PublicDirectory::deserialize(Ipld::Map(map))?)
-                    }
-                    other => bail!(FsError::UnexpectedNodeType(other)),
-                })
-            }
-            other => bail!("Expected `Ipld::Map` got {:#?}", other),
-        }
-    }
-}
-
 impl From<PublicFile> for PublicNode {
     fn from(file: PublicFile) -> Self {
         Self::File(Rc::new(file))
@@ -303,6 +278,24 @@ impl From<PublicFile> for PublicNode {
 impl From<PublicDirectory> for PublicNode {
     fn from(dir: PublicDirectory) -> Self {
         Self::Dir(Rc::new(dir))
+    }
+}
+
+impl<'de> Deserialize<'de> for PublicNode {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        Ok(match PublicNodeSerializable::deserialize(deserializer)? {
+            PublicNodeSerializable::File(file) => {
+                let file = PublicFile::from_serializable(file).map_err(DeError::custom)?;
+                Self::File(Rc::new(file))
+            }
+            PublicNodeSerializable::Dir(dir) => {
+                let dir = PublicDirectory::from_serializable(dir).map_err(DeError::custom)?;
+                Self::Dir(Rc::new(dir))
+            }
+        })
     }
 }
 
@@ -339,37 +332,21 @@ mod tests {
     use crate::public::{PublicDirectory, PublicFile, PublicNode};
     use chrono::Utc;
     use libipld::Cid;
-    use std::rc::Rc;
-    use wnfs_common::{dagcbor, MemoryBlockStore};
+    use wnfs_common::MemoryBlockStore;
 
     #[async_std::test]
-    async fn serialized_public_file_can_be_deserialized() {
+    async fn serialized_public_node_can_be_deserialized() {
         let store = &mut MemoryBlockStore::default();
-        let original_node_file =
-            PublicNode::File(Rc::new(PublicFile::new(Utc::now(), Cid::default())));
+        let dir_node: PublicNode = PublicDirectory::new(Utc::now()).into();
+        let file_node: PublicNode = PublicFile::new(Utc::now(), Cid::default()).into();
 
-        let serialized_node_file = dagcbor::async_encode(&original_node_file, store)
-            .await
-            .unwrap();
+        let dir_cid = dir_node.store(store).await.unwrap();
+        let file_cid = file_node.store(store).await.unwrap();
 
-        let deserialized_node_file: PublicNode =
-            dagcbor::decode(serialized_node_file.as_ref()).unwrap();
+        let loaded_file_node = PublicNode::load(&file_cid, store).await.unwrap();
+        let loaded_dir_node = PublicNode::load(&dir_cid, store).await.unwrap();
 
-        assert_eq!(deserialized_node_file, original_node_file);
-    }
-
-    #[async_std::test]
-    async fn serialized_public_directory_can_be_deserialized() {
-        let store = &mut MemoryBlockStore::default();
-        let original_node_dir = PublicNode::Dir(Rc::new(PublicDirectory::new(Utc::now())));
-
-        let serialized_node_dir = dagcbor::async_encode(&original_node_dir, store)
-            .await
-            .unwrap();
-
-        let deserialized_node_dir: PublicNode =
-            dagcbor::decode(serialized_node_dir.as_ref()).unwrap();
-
-        assert_eq!(deserialized_node_dir, original_node_dir);
+        assert_eq!(loaded_file_node, file_node);
+        assert_eq!(loaded_dir_node, dir_node);
     }
 }

@@ -1,14 +1,14 @@
 //! Public fs file node.
 
-use crate::{error::FsError, traits::Id};
-use anyhow::Result;
+use super::{PublicFileSerializable, PublicNodeSerializable};
+use crate::{error::FsError, traits::Id, WNFS_VERSION};
+use anyhow::{bail, Result};
 use async_once_cell::OnceCell;
 use chrono::{DateTime, Utc};
 use libipld::Cid;
-use semver::Version;
 use serde::{de::Error as DeError, Deserialize, Deserializer, Serialize, Serializer};
 use std::{collections::BTreeSet, rc::Rc};
-use wnfs_common::{BlockStore, Metadata, NodeType, RemembersCid};
+use wnfs_common::{BlockStore, Metadata, RemembersCid};
 
 /// Represents a file in the WNFS public filesystem.
 ///
@@ -29,15 +29,6 @@ pub struct PublicFile {
     pub metadata: Metadata,
     pub userland: Cid,
     pub previous: BTreeSet<Cid>,
-}
-
-#[derive(Serialize, Deserialize)]
-struct PublicFileSerializable {
-    r#type: NodeType,
-    version: Version,
-    metadata: Metadata,
-    userland: Cid,
-    previous: Vec<Cid>,
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -136,6 +127,20 @@ impl PublicFile {
             .get_or_try_init(store.put_serializable(self))
             .await?)
     }
+
+    /// Creates a new file from a serializable.
+    pub(crate) fn from_serializable(serializable: PublicFileSerializable) -> Result<Self> {
+        if serializable.version.major != 0 || serializable.version.minor != 2 {
+            bail!(FsError::UnexpectedVersion(serializable.version))
+        }
+
+        Ok(Self {
+            persisted_as: OnceCell::new(),
+            metadata: serializable.metadata,
+            userland: serializable.userland,
+            previous: serializable.previous.iter().cloned().collect(),
+        })
+    }
 }
 
 impl Serialize for PublicFile {
@@ -143,13 +148,12 @@ impl Serialize for PublicFile {
     where
         S: Serializer,
     {
-        PublicFileSerializable {
-            r#type: NodeType::PublicFile,
-            version: Version::new(0, 2, 0),
+        PublicNodeSerializable::File(PublicFileSerializable {
+            version: WNFS_VERSION,
             metadata: self.metadata.clone(),
             userland: self.userland,
             previous: self.previous.iter().cloned().collect(),
-        }
+        })
         .serialize(serializer)
     }
 }
@@ -159,28 +163,14 @@ impl<'de> Deserialize<'de> for PublicFile {
     where
         D: Deserializer<'de>,
     {
-        let PublicFileSerializable {
-            r#type,
-            version,
-            metadata,
-            userland,
-            previous,
-        } = PublicFileSerializable::deserialize(deserializer)?;
-
-        if version.major != 0 || version.minor != 2 {
-            return Err(DeError::custom(FsError::UnexpectedVersion(version)));
+        match PublicNodeSerializable::deserialize(deserializer)? {
+            PublicNodeSerializable::File(file) => {
+                PublicFile::from_serializable(file).map_err(DeError::custom)
+            }
+            _ => Err(DeError::custom(FsError::InvalidDeserialization(
+                "Expected directory".into(),
+            ))),
         }
-
-        if r#type != NodeType::PublicFile {
-            return Err(DeError::custom(FsError::UnexpectedNodeType(r#type)));
-        }
-
-        Ok(Self {
-            persisted_as: OnceCell::new(),
-            metadata,
-            userland,
-            previous: previous.iter().cloned().collect(),
-        })
     }
 }
 
@@ -223,18 +213,8 @@ impl RemembersCid for PublicFile {
 mod tests {
     use super::*;
     use chrono::Utc;
-    use libipld::{Cid, IpldCodec};
-    use wnfs_common::{dagcbor, MemoryBlockStore};
-
-    #[async_std::test]
-    async fn serialized_public_file_can_be_deserialized() {
-        let original_file = PublicFile::new(Utc::now(), Cid::default());
-
-        let serialized_file = dagcbor::encode(&original_file).unwrap();
-        let deserialized_file: PublicFile = dagcbor::decode(serialized_file.as_ref()).unwrap();
-
-        assert_eq!(deserialized_file, original_file);
-    }
+    use libipld::IpldCodec;
+    use wnfs_common::MemoryBlockStore;
 
     #[async_std::test]
     async fn previous_links_get_set() {

@@ -4,7 +4,7 @@ use rand::thread_rng;
 use sha3::Sha3_256;
 use std::rc::Rc;
 use wnfs::private::{AesKey, PrivateDirectory, PrivateForest, RevisionRef};
-use wnfs_common::{dagcbor, utils, MemoryBlockStore};
+use wnfs_common::{utils, MemoryBlockStore};
 use wnfs_hamt::Hasher;
 use wnfs_namefilter::Namefilter;
 
@@ -57,10 +57,10 @@ async fn main() -> anyhow::Result<()> {
     // --------- Method 1: Exchange serialized revision ref -----------
 
     // serialize the root_dir's revision_ref.
-    let cbor = dagcbor::encode(&root_dir.header.derive_revision_ref())?;
+    let cbor = serde_ipld_dagcbor::to_vec(&root_dir.header.derive_revision_ref())?;
 
     // We can deserialize the revision_ref on the other end.
-    let revision_ref = dagcbor::decode(&cbor)?;
+    let revision_ref = serde_ipld_dagcbor::from_slice(&cbor)?;
 
     // Now we can fetch the directory from the forest using the revision_ref.
     let fetched_node = forest

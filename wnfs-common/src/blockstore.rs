@@ -22,7 +22,7 @@ pub trait BlockStore {
     async fn put_block(&mut self, bytes: Vec<u8>, codec: IpldCodec) -> Result<Cid>;
 
     async fn put_serializable<V: Serialize>(&mut self, value: &V) -> Result<Cid> {
-        let bytes = dagcbor::encode(&ipld_serde::to_ipld(value)?)?;
+        let bytes = dagcbor::encode(&value)?;
         self.put_block(bytes, IpldCodec::DagCbor).await
     }
 
