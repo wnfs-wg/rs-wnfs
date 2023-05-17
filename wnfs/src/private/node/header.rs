@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use sha3::Sha3_256;
 use skip_ratchet::Ratchet;
 use std::fmt::Debug;
-use wnfs_common::{dagcbor, utils, BlockStore, HashOutput, HASH_BYTE_SIZE};
+use wnfs_common::{utils, BlockStore, HashOutput, HASH_BYTE_SIZE};
 use wnfs_hamt::Hasher;
 use wnfs_namefilter::Namefilter;
 
@@ -216,7 +216,7 @@ impl PrivateNodeHeader {
     /// BlockStore and returns its CID.
     pub async fn store(&self, store: &mut impl BlockStore) -> Result<Cid> {
         let temporal_key = self.derive_temporal_key();
-        let cbor_bytes = dagcbor::encode(self)?;
+        let cbor_bytes = serde_ipld_dagcbor::to_vec(self)?;
         let ciphertext = temporal_key.key_wrap_encrypt(&cbor_bytes)?;
         store.put_block(ciphertext, IpldCodec::Raw).await
     }
@@ -230,7 +230,7 @@ impl PrivateNodeHeader {
     ) -> Result<PrivateNodeHeader> {
         let ciphertext = store.get_block(cid).await?;
         let cbor_bytes = temporal_key.key_wrap_decrypt(&ciphertext)?;
-        dagcbor::decode(&cbor_bytes)
+        Ok(serde_ipld_dagcbor::from_slice(&cbor_bytes)?)
     }
 }
 

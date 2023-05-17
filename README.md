@@ -156,13 +156,13 @@ This library is designed with WebAssembly in mind. You can follow instructions o
   Check [REQUIREMENTS](#requirements) on how to set up the `rs-wnfs` command.
 
   ```bash
-  rs-wnfs build --all
+  scripts/rs-wnfs build --all
   ```
 
 - You can also build for specific crates
 
   ```bash
-  rs-wnfs build --wasm
+  scripts/rs-wnfs build --wasm
   ```
 
 ## Usage
@@ -274,19 +274,19 @@ Check the [`wnfs/examples/`][wnfs-examples] folder for more examples.
 - Run all tests
 
   ```bash
-  rs-wnfs test --all
+  scripts/rs-wnfs test --all
   ```
 
 - Show code coverage
 
   ```bash
-  rs-wnfs coverage
+  scripts/rs-wnfs coverage
   ```
 
 - Run benchmarks
 
   ```bash
-  rs-wnfs bench
+  scripts/rs-wnfs bench
   ```
 
   You can also find a nice graph of the CI benchmarks [here][benchmarks].

@@ -36,7 +36,7 @@ pub enum FsError {
     #[error("Missing node type field")]
     MissingNodeType,
 
-    #[error("Found unexpected node type: {0:?}")]
+    #[error("Found unexpected node type, expected {0:?}")]
     UnexpectedNodeType(NodeType),
 
     #[error("Found unexpected version: {0:?}")]

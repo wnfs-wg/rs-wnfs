@@ -1,24 +1,22 @@
 use super::{
-    encrypted::Encrypted, link::PrivateLink, PrivateFile, PrivateForest, PrivateNode,
-    PrivateNodeHeader, PrivateRef, PrivateRefSerializable, TemporalKey,
+    encrypted::Encrypted, link::PrivateLink, PrivateDirectoryContentSerializable, PrivateFile,
+    PrivateForest, PrivateNode, PrivateNodeContentSerializable, PrivateNodeHeader, PrivateRef,
+    TemporalKey,
 };
-use crate::{error::FsError, traits::Id, SearchResult};
+use crate::{error::FsError, traits::Id, SearchResult, WNFS_VERSION};
 use anyhow::{bail, ensure, Result};
 use async_once_cell::OnceCell;
 use chrono::{DateTime, Utc};
 use libipld::Cid;
 use rand_core::RngCore;
-use semver::Version;
-use serde::{de::Error as DeError, ser::Error as SerError, Deserialize, Deserializer, Serialize};
 use std::{
     collections::{BTreeMap, BTreeSet},
     fmt::Debug,
     rc::Rc,
 };
 use wnfs_common::{
-    dagcbor,
     utils::{self, error},
-    BlockStore, HashOutput, Metadata, NodeType, PathNodes, PathNodesResult,
+    BlockStore, HashOutput, Metadata, PathNodes, PathNodesResult,
 };
 use wnfs_namefilter::Namefilter;
 
@@ -59,17 +57,6 @@ pub struct PrivateDirectoryContent {
     pub(crate) previous: BTreeSet<(usize, Encrypted<Cid>)>,
     pub(crate) metadata: Metadata,
     pub(crate) entries: BTreeMap<String, PrivateLink>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct PrivateDirectoryContentSerializable {
-    pub r#type: NodeType,
-    pub version: Version,
-    pub previous: Vec<(usize, Encrypted<Cid>)>,
-    #[serde(rename = "headerCid")]
-    pub header_cid: Cid,
-    pub metadata: Metadata,
-    pub entries: BTreeMap<String, PrivateRefSerializable>,
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -1358,6 +1345,34 @@ impl PrivateDirectory {
             .as_private_ref(content_cid))
     }
 
+    /// Creates a  new [`PrivateDirectory`] from a [`PrivateDirectoryContentSerializable`].
+    pub(crate) async fn from_serializable(
+        serializable: PrivateDirectoryContentSerializable,
+        temporal_key: &TemporalKey,
+        cid: Cid,
+        store: &impl BlockStore,
+    ) -> Result<Self> {
+        if serializable.version.major != 0 || serializable.version.minor != 2 {
+            bail!(FsError::UnexpectedVersion(serializable.version));
+        }
+
+        let mut entries_decrypted = BTreeMap::new();
+        for (name, private_ref_serializable) in serializable.entries {
+            let private_ref =
+                PrivateRef::from_serializable(private_ref_serializable, temporal_key)?;
+            entries_decrypted.insert(name, PrivateLink::from_ref(private_ref));
+        }
+
+        let content = PrivateDirectoryContent {
+            persisted_as: OnceCell::new_with(Some(cid)),
+            metadata: serializable.metadata,
+            previous: serializable.previous.into_iter().collect(),
+            entries: entries_decrypted,
+        };
+
+        let header = PrivateNodeHeader::load(&serializable.header_cid, temporal_key, store).await?;
+        Ok(Self { header, content })
+    }
     /// Wraps the directory in a [`PrivateNode`].
     pub fn as_node(self: &Rc<Self>) -> PrivateNode {
         PrivateNode::Dir(Rc::clone(self))
@@ -1365,85 +1380,34 @@ impl PrivateDirectory {
 }
 
 impl PrivateDirectoryContent {
-    /// Serializes the directory with provided Serde serialilzer.
-    pub(crate) async fn serialize<S>(
+    /// Serializes the directory to dag-cbor.
+    pub(crate) async fn to_dag_cbor(
         &self,
-        serializer: S,
         temporal_key: &TemporalKey,
         header_cid: Cid,
         forest: &mut Rc<PrivateForest>,
         store: &mut impl BlockStore,
         rng: &mut impl RngCore,
-    ) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
+    ) -> Result<Vec<u8>> {
         let mut entries = BTreeMap::new();
 
         for (name, private_link) in self.entries.iter() {
             let private_ref_serializable = private_link
                 .resolve_ref(forest, store, rng)
-                .await
-                .map_err(SerError::custom)?
-                .to_serializable(temporal_key)
-                .map_err(SerError::custom)?;
+                .await?
+                .to_serializable(temporal_key)?;
             entries.insert(name.clone(), private_ref_serializable);
         }
 
-        (PrivateDirectoryContentSerializable {
-            r#type: NodeType::PrivateDirectory,
-            version: Version::new(0, 2, 0),
-            previous: self.previous.iter().cloned().collect(),
-            header_cid,
-            metadata: self.metadata.clone(),
-            entries,
-        })
-        .serialize(serializer)
-    }
-
-    /// Deserializes the directory with provided Serde deserializer and temporal key.
-    pub(crate) fn deserialize<'de, D>(
-        deserializer: D,
-        temporal_key: &TemporalKey,
-        from_cid: Cid,
-    ) -> Result<(Self, Cid), D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let PrivateDirectoryContentSerializable {
-            r#type,
-            version,
-            metadata,
-            previous,
-            header_cid,
-            entries: entries_encrypted,
-        } = PrivateDirectoryContentSerializable::deserialize(deserializer)?;
-
-        if version.major != 0 || version.minor != 2 {
-            return Err(DeError::custom(FsError::UnexpectedVersion(version)));
-        }
-
-        if r#type != NodeType::PrivateDirectory {
-            return Err(DeError::custom(FsError::UnexpectedNodeType(r#type)));
-        }
-
-        let mut entries = BTreeMap::new();
-
-        for (name, private_ref_serializable) in entries_encrypted {
-            let private_ref = PrivateRef::from_serializable(private_ref_serializable, temporal_key)
-                .map_err(DeError::custom)?;
-            entries.insert(name, PrivateLink::from_ref(private_ref));
-        }
-
-        Ok((
-            Self {
-                persisted_as: OnceCell::new_with(Some(from_cid)),
-                metadata,
-                previous: previous.into_iter().collect(),
+        Ok(serde_ipld_dagcbor::to_vec(
+            &PrivateNodeContentSerializable::Dir(PrivateDirectoryContentSerializable {
+                version: WNFS_VERSION,
+                previous: self.previous.iter().cloned().collect(),
+                header_cid,
+                metadata: self.metadata.clone(),
                 entries,
-            },
-            header_cid,
-        ))
+            }),
+        )?)
     }
 
     /// Encrypts the directory contents by
@@ -1456,7 +1420,7 @@ impl PrivateDirectoryContent {
     ///
     /// The header cid is required as it's not stored in the PrivateDirectoryContent itself, but
     /// stored in the serialized format.
-    pub async fn store(
+    pub(crate) async fn store(
         &self,
         header_cid: Cid,
         temporal_key: &TemporalKey,
@@ -1471,17 +1435,9 @@ impl PrivateDirectoryContent {
                 let snapshot_key = temporal_key.derive_snapshot_key();
 
                 // Serialize node to cbor.
-                let ipld = self
-                    .serialize(
-                        libipld::serde::Serializer,
-                        temporal_key,
-                        header_cid,
-                        forest,
-                        store,
-                        rng,
-                    )
+                let bytes = self
+                    .to_dag_cbor(temporal_key, header_cid, forest, store, rng)
                     .await?;
-                let bytes = dagcbor::encode(&ipld)?;
 
                 // Encrypt bytes with snapshot key.
                 let block = snapshot_key.encrypt(&bytes, rng)?;

@@ -1,20 +1,20 @@
 use super::{
-    encrypted::Encrypted, PrivateForest, PrivateNode, PrivateNodeHeader, PrivateRef, SnapshotKey,
+    encrypted::Encrypted, PrivateFileContentSerializable, PrivateForest, PrivateNode,
+    PrivateNodeContentSerializable, PrivateNodeHeader, PrivateRef, SnapshotKey, TemporalKey,
     AUTHENTICATION_TAG_SIZE, NONCE_SIZE,
 };
-use crate::{error::FsError, traits::Id};
-use anyhow::Result;
+use crate::{error::FsError, traits::Id, WNFS_VERSION};
+use anyhow::{bail, Result};
 use async_once_cell::OnceCell;
 use async_stream::try_stream;
 use chrono::{DateTime, Utc};
 use futures::{future, AsyncRead, Stream, StreamExt, TryStreamExt};
 use libipld::{Cid, IpldCodec};
 use rand_core::RngCore;
-use semver::Version;
-use serde::{de::Error as DeError, Deserialize, Deserializer, Serialize};
+use serde::{Deserialize, Serialize};
 use sha3::Sha3_256;
 use std::{collections::BTreeSet, iter, rc::Rc};
-use wnfs_common::{dagcbor, utils, BlockStore, Metadata, NodeType, MAX_BLOCK_SIZE};
+use wnfs_common::{utils, BlockStore, Metadata, MAX_BLOCK_SIZE};
 use wnfs_hamt::Hasher;
 use wnfs_namefilter::Namefilter;
 
@@ -95,17 +95,6 @@ pub(crate) enum FileContent {
         block_count: usize,
         block_content_size: usize,
     },
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct PrivateFileContentSerializable {
-    pub r#type: NodeType,
-    pub version: Version,
-    #[serde(rename = "headerCid")]
-    pub header_cid: Cid,
-    pub previous: Vec<(usize, Encrypted<Cid>)>,
-    pub metadata: Metadata,
-    pub content: FileContent,
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -736,6 +725,28 @@ impl PrivateFile {
             .as_private_ref(content_cid))
     }
 
+    /// Creates a new [`PrivateFile`] from a [`PrivateFileContentSerializable`].
+    pub(crate) async fn from_serializable(
+        serializable: PrivateFileContentSerializable,
+        temporal_key: &TemporalKey,
+        cid: Cid,
+        store: &impl BlockStore,
+    ) -> Result<Self> {
+        if serializable.version.major != 0 || serializable.version.minor != 2 {
+            bail!(FsError::UnexpectedVersion(serializable.version));
+        }
+
+        let content = PrivateFileContent {
+            persisted_as: OnceCell::new_with(Some(cid)),
+            previous: serializable.previous.into_iter().collect(),
+            metadata: serializable.metadata,
+            content: serializable.content,
+        };
+
+        let header = PrivateNodeHeader::load(&serializable.header_cid, temporal_key, store).await?;
+        Ok(Self { header, content })
+    }
+
     /// Wraps the file in a [`PrivateNode`].
     pub fn as_node(self: &Rc<Self>) -> PrivateNode {
         PrivateNode::File(Rc::clone(self))
@@ -743,56 +754,17 @@ impl PrivateFile {
 }
 
 impl PrivateFileContent {
-    /// Serializes the file with provided Serde serialilzer.
-    pub(crate) fn serialize<S>(&self, serializer: S, header_cid: Cid) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        (PrivateFileContentSerializable {
-            r#type: NodeType::PrivateFile,
-            version: Version::new(0, 2, 0),
-            previous: self.previous.iter().cloned().collect(),
-            header_cid,
-            metadata: self.metadata.clone(),
-            content: self.content.clone(),
-        })
-        .serialize(serializer)
-    }
-
-    /// Deserializes the file with provided Serde deserializer and key.
-    pub(crate) fn deserialize<'de, D>(
-        deserializer: D,
-        from_cid: Cid,
-    ) -> Result<(Self, Cid), D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let PrivateFileContentSerializable {
-            r#type,
-            version,
-            metadata,
-            previous,
-            header_cid,
-            content,
-        } = PrivateFileContentSerializable::deserialize(deserializer)?;
-
-        if version.major != 0 || version.minor != 2 {
-            return Err(DeError::custom(FsError::UnexpectedVersion(version)));
-        }
-
-        if r#type != NodeType::PrivateFile {
-            return Err(DeError::custom(FsError::UnexpectedNodeType(r#type)));
-        }
-
-        Ok((
-            Self {
-                persisted_as: OnceCell::new_with(Some(from_cid)),
-                previous: previous.into_iter().collect(),
-                metadata,
-                content,
-            },
-            header_cid,
-        ))
+    /// Serializes the file to a dag-cbor representation.
+    pub(crate) fn to_dag_cbor(&self, header_cid: Cid) -> Result<Vec<u8>> {
+        Ok(serde_ipld_dagcbor::to_vec(
+            &PrivateNodeContentSerializable::File(PrivateFileContentSerializable {
+                version: WNFS_VERSION,
+                previous: self.previous.iter().cloned().collect(),
+                header_cid,
+                metadata: self.metadata.clone(),
+                content: self.content.clone(),
+            }),
+        )?)
     }
 
     pub(crate) async fn store(
@@ -808,8 +780,7 @@ impl PrivateFileContent {
                 // TODO(matheus23) deduplicate when reworking serialization
 
                 // Serialize node to cbor.
-                let ipld = self.serialize(libipld::serde::Serializer, header_cid)?;
-                let bytes = dagcbor::encode(&ipld)?;
+                let bytes = self.to_dag_cbor(header_cid)?;
 
                 // Encrypt bytes with snapshot key.
                 let block = snapshot_key.encrypt(&bytes, rng)?;
