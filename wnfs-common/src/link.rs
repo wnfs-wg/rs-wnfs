@@ -34,7 +34,7 @@ pub enum Link<T> {
 // Implementations
 //--------------------------------------------------------------------------------------------------
 
-impl<'a, T: RemembersCid> Link<T> {
+impl<T: RemembersCid> Link<T> {
     /// Creates a new `Link` that starts out as a Cid.
     pub fn from_cid(cid: Cid) -> Self {
         Self::Encoded {
