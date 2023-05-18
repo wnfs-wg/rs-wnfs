@@ -321,12 +321,12 @@ mod tests {
 
     #[async_std::test]
     async fn link_value_can_be_resolved() {
-        let mut store = MemoryBlockStore::default();
+        let store = &MemoryBlockStore::default();
         let example = Example::new(256);
-        let cid = (&mut store).put_serializable(&example).await.unwrap();
+        let cid = store.put_serializable(&example).await.unwrap();
         let link = Link::<Example>::from_cid(cid);
 
-        let value = link.resolve_value(&store).await.unwrap();
+        let value = link.resolve_value(store).await.unwrap();
         assert_eq!(value, &example);
         assert!(link.has_value());
     }
@@ -334,11 +334,11 @@ mod tests {
     #[async_std::test]
     async fn link_cid_can_be_resolved() {
         let example = Example::new(12_000_500);
-        let store = MemoryBlockStore::default();
+        let store = &MemoryBlockStore::default();
         let link = Link::<Example>::from(example.clone());
 
-        let cid = link.resolve_cid(&store).await.unwrap();
-        let value = (&store).get_deserializable::<Example>(cid).await.unwrap();
+        let cid = link.resolve_cid(store).await.unwrap();
+        let value = store.get_deserializable::<Example>(cid).await.unwrap();
 
         assert_eq!(value, example);
     }
