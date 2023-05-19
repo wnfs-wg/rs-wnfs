@@ -253,7 +253,7 @@ mod tests {
         let setup = forest.get_accumulator_setup();
         let revision_ref = RevisionRef::with_seed(&Name::empty(), ratchet_seed, inumber, setup);
         let retrieved_node = forest
-            .get_multivalue(&revision_ref, store)
+            .get_multivalue(&revision_ref, store, None)
             .next()
             .await
             .unwrap()

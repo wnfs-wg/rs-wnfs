@@ -130,6 +130,7 @@ impl PrivateNodeHistory {
                 .as_private_ref(previous_cid),
             &self.forest,
             store,
+            self.header.name.parent().as_ref(),
         )
         .await?;
 

@@ -11,7 +11,7 @@ use sha3::Sha3_256;
 use std::{collections::BTreeSet, rc::Rc};
 use wnfs_common::{AsyncSerialize, BlockStore, HashOutput, Link};
 use wnfs_hamt::{merge, Hamt, Hasher, KeyValueChange};
-use wnfs_nameaccumulator::{AccumulatorSetup, NameAccumulator};
+use wnfs_nameaccumulator::{AccumulatorSetup, Name, NameAccumulator};
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
@@ -164,6 +164,7 @@ impl PrivateForest {
         &'a self,
         revision: &'a RevisionRef,
         store: &'a impl BlockStore,
+        mounted_relative_to: Option<&'a Name>,
     ) -> impl Stream<Item = Result<PrivateNode>> + 'a {
         Box::pin(stream! {
             match self
@@ -172,7 +173,7 @@ impl PrivateForest {
             {
                 Ok(Some(cids)) => {
                     for cid in cids {
-                        match PrivateNode::from_cid(*cid, &revision.temporal_key, store).await {
+                        match PrivateNode::from_cid(*cid, &revision.temporal_key, store, mounted_relative_to).await {
                             Ok(node) => yield Ok(node),
                             Err(e) if matches!(e.downcast_ref::<AesError>(), Some(_)) => {
                                 // we likely matched a PrivateNodeHeader instead of a PrivateNode.
@@ -442,7 +443,7 @@ mod tests {
 
         let private_node = PrivateNode::Dir(dir.clone());
         let private_ref = private_node.store(forest, store, rng).await.unwrap();
-        let retrieved = PrivateNode::load(&private_ref, forest, store)
+        let retrieved = PrivateNode::load(&private_ref, forest, store, None)
             .await
             .unwrap();
 
@@ -490,10 +491,10 @@ mod tests {
         // Two of these CIDs should be content blocks, one CID should be the header block they share.
         assert_eq!(ciphertext_cids.len(), 3);
 
-        let retrieved = PrivateNode::load(&private_ref, forest, store)
+        let retrieved = PrivateNode::load(&private_ref, forest, store, None)
             .await
             .unwrap();
-        let retrieved_conflict = PrivateNode::load(&private_ref_conflict, forest, store)
+        let retrieved_conflict = PrivateNode::load(&private_ref_conflict, forest, store, None)
             .await
             .unwrap();
 

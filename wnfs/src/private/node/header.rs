@@ -252,11 +252,16 @@ impl PrivateNodeHeader {
         cid: &Cid,
         temporal_key: &TemporalKey,
         store: &impl BlockStore,
+        mounted_relative_to: Option<&Name>,
     ) -> Result<Self> {
         let ciphertext = store.get_block(cid).await?;
         let cbor_bytes = temporal_key.key_wrap_decrypt(&ciphertext)?;
-        Ok(Self::from_serializable(dagcbor::decode::<
-            PrivateNodeHeaderSerializable,
-        >(&cbor_bytes)?))
+        let decoded = dagcbor::decode::<PrivateNodeHeaderSerializable>(&cbor_bytes)?;
+        let mut header = Self::from_serializable(decoded);
+        if let Some(relative_mount) = mounted_relative_to {
+            header.name = relative_mount.clone();
+            header.name.add_segments(Some(header.inumber.clone()));
+        }
+        Ok(header)
     }
 }

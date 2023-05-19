@@ -285,6 +285,25 @@ impl Name {
         }
     }
 
+    pub fn is_root(&self) -> bool {
+        self.segments.len() == 0
+    }
+
+    pub fn up(&mut self) {
+        self.segments.pop();
+        self.accumulated = OnceCell::new();
+    }
+
+    pub fn parent(&self) -> Option<Name> {
+        if self.is_root() {
+            None
+        } else {
+            let mut name = self.clone();
+            name.up();
+            Some(name)
+        }
+    }
+
     pub fn add_segments(&mut self, segments: impl IntoIterator<Item = NameSegment>) {
         self.segments.extend(segments);
         self.accumulated = OnceCell::new();

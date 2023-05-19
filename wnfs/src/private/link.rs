@@ -5,7 +5,7 @@ use async_recursion::async_recursion;
 use rand_core::RngCore;
 use std::rc::Rc;
 use wnfs_common::BlockStore;
-use wnfs_nameaccumulator::AccumulatorSetup;
+use wnfs_nameaccumulator::{AccumulatorSetup, Name};
 
 #[derive(Debug)]
 pub(crate) enum PrivateLink {
@@ -45,11 +45,17 @@ impl PrivateLink {
         &self,
         forest: &PrivateForest,
         store: &impl BlockStore,
+        mounted_relative_to: Option<&Name>,
     ) -> Result<&PrivateNode> {
         match self {
             Self::Encrypted { private_ref, cache } => {
                 cache
-                    .get_or_try_init(PrivateNode::load(private_ref, forest, store))
+                    .get_or_try_init(PrivateNode::load(
+                        private_ref,
+                        forest,
+                        store,
+                        mounted_relative_to,
+                    ))
                     .await
             }
             Self::Decrypted { node, .. } => Ok(node),
@@ -61,12 +67,15 @@ impl PrivateLink {
         &mut self,
         forest: &PrivateForest,
         store: &impl BlockStore,
+        mounted_relative_to: Option<&Name>,
     ) -> Result<&mut PrivateNode> {
         match self {
             Self::Encrypted { private_ref, cache } => {
                 let private_node = match cache.take() {
                     Some(node) => node,
-                    None => PrivateNode::load(private_ref, forest, store).await?,
+                    None => {
+                        PrivateNode::load(private_ref, forest, store, mounted_relative_to).await?
+                    }
                 };
 
                 // We need to switch this PrivateLink to be a `Decrypted` again, since
@@ -90,12 +99,14 @@ impl PrivateLink {
         self,
         forest: &PrivateForest,
         store: &impl BlockStore,
+        mounted_relative_to: Option<&Name>,
     ) -> Result<PrivateNode> {
         match self {
             Self::Encrypted { private_ref, cache } => match cache.into_inner() {
                 Some(cached) => Ok(cached),
                 None => {
-                    let node = PrivateNode::load(&private_ref, forest, store).await?;
+                    let node =
+                        PrivateNode::load(&private_ref, forest, store, mounted_relative_to).await?;
                     node.persisted_as()
                         .get_or_init(async { private_ref.content_cid })
                         .await;

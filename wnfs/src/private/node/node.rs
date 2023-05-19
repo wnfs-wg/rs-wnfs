@@ -132,7 +132,10 @@ impl PrivateNode {
                 let dir = Rc::make_mut(dir_rc);
 
                 for private_link in &mut dir.content.entries.values_mut() {
-                    let mut node = private_link.resolve_node(forest, store).await?.clone();
+                    let mut node = private_link
+                        .resolve_node(forest, store, Some(&dir.header.name))
+                        .await?
+                        .clone();
                     node.update_ancestry(&dir.header.name, forest, store, rng)
                         .await?;
                     *private_link = PrivateLink::from(node);
@@ -397,6 +400,7 @@ impl PrivateNode {
     ) -> Result<Vec<PrivateNode>> {
         let header = self.get_header();
         let setup = forest.get_accumulator_setup();
+        let mountpoint = header.name.parent();
 
         let current_name = &header.get_name(setup);
         if !forest.has(current_name, store).await? {
@@ -430,7 +434,11 @@ impl PrivateNode {
         current_header.ratchet = search.current().clone();
 
         Ok(forest
-            .get_multivalue(&current_header.derive_revision_ref(setup), store)
+            .get_multivalue(
+                &current_header.derive_revision_ref(setup),
+                store,
+                mountpoint.as_ref(),
+            )
             .collect::<Vec<Result<PrivateNode>>>()
             .await
             .into_iter()
@@ -477,6 +485,8 @@ impl PrivateNode {
         private_ref: &PrivateRef,
         forest: &PrivateForest,
         store: &impl BlockStore,
+        // TODO(matheus23) document this
+        mounted_relative_to: Option<&Name>,
     ) -> Result<PrivateNode> {
         let cid = match forest
             .get_encrypted(&private_ref.saturated_name_hash, store)
@@ -486,13 +496,14 @@ impl PrivateNode {
             _ => return Err(FsError::NotFound.into()),
         };
 
-        Self::from_cid(cid, &private_ref.temporal_key, store).await
+        Self::from_cid(cid, &private_ref.temporal_key, store, mounted_relative_to).await
     }
 
     pub(crate) async fn from_cid(
         cid: Cid,
         temporal_key: &TemporalKey,
         store: &impl BlockStore,
+        mounted_relative_to: Option<&Name>,
     ) -> Result<PrivateNode> {
         let encrypted_bytes = store.get_block(&cid).await?;
         let snapshot_key = temporal_key.derive_snapshot_key();
@@ -510,8 +521,13 @@ impl PrivateNode {
                     NodeType::PrivateFile => {
                         let (content, header_cid) =
                             PrivateFileContent::deserialize(Ipld::Map(map), cid)?;
-                        let header =
-                            PrivateNodeHeader::load(&header_cid, temporal_key, store).await?;
+                        let header = PrivateNodeHeader::load(
+                            &header_cid,
+                            temporal_key,
+                            store,
+                            mounted_relative_to,
+                        )
+                        .await?;
                         PrivateNode::File(Rc::new(PrivateFile { header, content }))
                     }
                     NodeType::PrivateDirectory => {
@@ -520,8 +536,13 @@ impl PrivateNode {
                             temporal_key,
                             cid,
                         )?;
-                        let header =
-                            PrivateNodeHeader::load(&header_cid, temporal_key, store).await?;
+                        let header = PrivateNodeHeader::load(
+                            &header_cid,
+                            temporal_key,
+                            store,
+                            mounted_relative_to,
+                        )
+                        .await?;
                         PrivateNode::Dir(Rc::new(PrivateDirectory { header, content }))
                     }
                     other => bail!(FsError::UnexpectedNodeType(other)),
@@ -611,7 +632,7 @@ mod tests {
         let file = PrivateNode::File(Rc::new(file));
         let private_ref = file.store(forest, store, rng).await.unwrap();
 
-        let deserialized_node = PrivateNode::load(&private_ref, forest, store)
+        let deserialized_node = PrivateNode::load(&private_ref, forest, store, None)
             .await
             .unwrap();
 

@@ -383,7 +383,7 @@ pub mod recipient {
 
         // Use decrypted payload to get cid to encrypted node in sharer's forest.
         let private_ref = PrivateRef::with_temporal_key(label, temporal_key, content_cid);
-        PrivateNode::load(&private_ref, sharer_forest, store).await
+        PrivateNode::load(&private_ref, sharer_forest, store, None).await
     }
 }
 
