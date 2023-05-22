@@ -175,7 +175,7 @@ impl PrivateFile {
         time: DateTime<Utc>,
         content: Vec<u8>,
         forest: &mut Rc<PrivateForest>,
-        store: &mut impl BlockStore,
+        store: &impl BlockStore,
         rng: &mut impl RngCore,
     ) -> Result<Self> {
         let header = PrivateNodeHeader::new(parent_bare_name, rng);
@@ -239,7 +239,7 @@ impl PrivateFile {
         time: DateTime<Utc>,
         content: impl AsyncRead + Unpin,
         forest: &mut Rc<PrivateForest>,
-        store: &mut impl BlockStore,
+        store: &impl BlockStore,
         rng: &mut impl RngCore,
     ) -> Result<Self> {
         let header = PrivateNodeHeader::new(parent_bare_name, rng);
@@ -432,7 +432,7 @@ impl PrivateFile {
         time: DateTime<Utc>,
         content: impl AsyncRead + Unpin,
         forest: &mut Rc<PrivateForest>,
-        store: &mut impl BlockStore,
+        store: &impl BlockStore,
         rng: &mut impl RngCore,
     ) -> Result<()> {
         self.content.metadata = Metadata::new(time);
@@ -447,7 +447,7 @@ impl PrivateFile {
         bare_name: &Namefilter,
         content: Vec<u8>,
         forest: &mut Rc<PrivateForest>,
-        store: &mut impl BlockStore,
+        store: &impl BlockStore,
         rng: &mut impl RngCore,
     ) -> Result<FileContent> {
         // TODO(appcypher): Use a better heuristic to determine when to use external storage.
@@ -484,7 +484,7 @@ impl PrivateFile {
         bare_name: &Namefilter,
         mut content: impl AsyncRead + Unpin,
         forest: &mut Rc<PrivateForest>,
-        store: &mut impl BlockStore,
+        store: &impl BlockStore,
         rng: &mut impl RngCore,
     ) -> Result<FileContent> {
         let key = SnapshotKey::from(utils::get_random_bytes(rng));
@@ -648,7 +648,7 @@ impl PrivateFile {
         &mut self,
         parent_bare_name: Namefilter,
         forest: &mut Rc<PrivateForest>,
-        store: &mut impl BlockStore,
+        store: &impl BlockStore,
         rng: &mut impl RngCore,
     ) -> Result<()> {
         let content = self.get_content(forest, store).await?;
@@ -703,7 +703,7 @@ impl PrivateFile {
     pub async fn store(
         &self,
         forest: &mut Rc<PrivateForest>,
-        store: &mut impl BlockStore,
+        store: &impl BlockStore,
         rng: &mut impl RngCore,
     ) -> Result<PrivateRef> {
         let header_cid = self.header.store(store).await?;
@@ -771,7 +771,7 @@ impl PrivateFileContent {
         &self,
         header_cid: Cid,
         snapshot_key: &SnapshotKey,
-        store: &mut impl BlockStore,
+        store: &impl BlockStore,
         rng: &mut impl RngCore,
     ) -> Result<Cid> {
         Ok(*self

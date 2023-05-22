@@ -104,7 +104,7 @@ struct TieredBlockStore<H: BlockStore, C: BlockStore> {
 
 #[async_trait(?Send)]
 impl<H: BlockStore, C: BlockStore> BlockStore for TieredBlockStore<H, C> {
-    async fn get_block<'a>(&'a self, cid: &Cid) -> Result<Cow<'a, Vec<u8>>> {
+    async fn get_block(&self, cid: &Cid) -> Result<Cow<Vec<u8>>> {
         match self.hot.get_block(cid).await {
             Ok(block) => Ok(block),
             // We could technically get better about this
@@ -113,7 +113,7 @@ impl<H: BlockStore, C: BlockStore> BlockStore for TieredBlockStore<H, C> {
         }
     }
 
-    async fn put_block(&mut self, bytes: Vec<u8>, codec: IpldCodec) -> Result<Cid> {
+    async fn put_block(&self, bytes: Vec<u8>, codec: IpldCodec) -> Result<Cid> {
         self.hot.put_block(bytes, codec).await
     }
 }

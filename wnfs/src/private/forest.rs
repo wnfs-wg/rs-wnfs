@@ -97,7 +97,7 @@ impl PrivateForest {
         self: &mut Rc<Self>,
         name: Namefilter,
         values: impl IntoIterator<Item = Cid>,
-        store: &mut impl BlockStore,
+        store: &impl BlockStore,
     ) -> Result<()> {
         // TODO(matheus23): This iterates the path in the HAMT twice.
         // We could consider implementing something like upsert instead.
@@ -130,7 +130,7 @@ impl PrivateForest {
     pub async fn remove_encrypted(
         self: &mut Rc<Self>,
         name_hash: &HashOutput,
-        store: &mut impl BlockStore,
+        store: &impl BlockStore,
     ) -> Result<Option<BTreeSet<Cid>>> {
         let pair = Rc::make_mut(self)
             .0
@@ -179,7 +179,7 @@ impl PrivateForest {
     pub async fn diff(
         &self,
         other: &Self,
-        store: &mut impl BlockStore,
+        store: &impl BlockStore,
     ) -> Result<Vec<KeyValueChange<Namefilter, BTreeSet<Cid>>>> {
         self.0.diff(&other.0, store).await
     }
@@ -252,7 +252,7 @@ where
     ///     );
     /// }
     /// ```
-    pub async fn merge(&self, other: &Self, store: &mut impl BlockStore) -> Result<Self> {
+    pub async fn merge(&self, other: &Self, store: &impl BlockStore) -> Result<Self> {
         let merge_node = merge(
             Link::from(Rc::clone(&self.0.root)),
             Link::from(Rc::clone(&other.0.root)),
@@ -276,7 +276,7 @@ impl Default for PrivateForest {
 
 #[async_trait(?Send)]
 impl AsyncSerialize for PrivateForest {
-    async fn async_serialize<S, B>(&self, serializer: S, store: &mut B) -> Result<S::Ok, S::Error>
+    async fn async_serialize<S, B>(&self, serializer: S, store: &B) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
         B: BlockStore + ?Sized,

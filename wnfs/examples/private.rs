@@ -36,7 +36,7 @@ async fn main() {
 }
 
 async fn get_forest_cid_and_private_ref(
-    store: &mut impl BlockStore,
+    store: &impl BlockStore,
     rng: &mut impl RngCore,
 ) -> (Cid, PrivateRef) {
     // Create the private forest (a HAMT), a map-like structure where file and directory ciphertexts are stored.

@@ -114,7 +114,7 @@ impl<K, V, H: Hasher> Hamt<K, V, H> {
     pub async fn diff(
         &self,
         other: &Self,
-        store: &mut impl BlockStore,
+        store: &impl BlockStore,
     ) -> Result<Vec<KeyValueChange<K, V>>>
     where
         K: DeserializeOwned + Clone + Eq + Hash + AsRef<[u8]>,
@@ -129,7 +129,7 @@ impl<K, V, H: Hasher> Hamt<K, V, H> {
         .await
     }
 
-    async fn to_ipld<B: BlockStore + ?Sized>(&self, store: &mut B) -> Result<Ipld>
+    async fn to_ipld<B: BlockStore + ?Sized>(&self, store: &B) -> Result<Ipld>
     where
         K: Serialize,
         V: Serialize,
@@ -148,7 +148,7 @@ where
     K: Serialize,
     V: Serialize,
 {
-    async fn async_serialize<S, B>(&self, serializer: S, store: &mut B) -> Result<S::Ok, S::Error>
+    async fn async_serialize<S, B>(&self, serializer: S, store: &B) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
         B: BlockStore + ?Sized,

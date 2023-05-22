@@ -232,7 +232,7 @@ impl PublicNode {
     }
 
     /// Serializes a node to the block store and returns its CID.
-    pub async fn store(&self, store: &mut impl BlockStore) -> Result<Cid> {
+    pub async fn store(&self, store: &impl BlockStore) -> Result<Cid> {
         Ok(match self {
             Self::File(file) => file.store(store).await?,
             Self::Dir(dir) => dir.store(store).await?,
@@ -302,7 +302,7 @@ impl<'de> Deserialize<'de> for PublicNode {
 /// Implements async deserialization for serde serializable types.
 #[async_trait(?Send)]
 impl AsyncSerialize for PublicNode {
-    async fn async_serialize<S, B>(&self, serializer: S, store: &mut B) -> Result<S::Ok, S::Error>
+    async fn async_serialize<S, B>(&self, serializer: S, store: &B) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
         B: BlockStore + ?Sized,

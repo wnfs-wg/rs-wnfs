@@ -44,7 +44,7 @@ impl<T: RemembersCid> Link<T> {
     }
 
     /// Gets the Cid stored in type. It attempts to get it from the store if it is not present in type.
-    pub async fn resolve_cid(&self, store: &mut (impl BlockStore + ?Sized)) -> Result<&Cid>
+    pub async fn resolve_cid(&self, store: &impl BlockStore) -> Result<&Cid>
     where
         T: AsyncSerialize,
     {
@@ -60,7 +60,7 @@ impl<T: RemembersCid> Link<T> {
     }
 
     /// Gets the value stored in link. It attempts to get it from the store if it is not present in link.
-    pub async fn resolve_value(&self, store: &(impl BlockStore + ?Sized)) -> Result<&T>
+    pub async fn resolve_value(&self, store: &impl BlockStore) -> Result<&T>
     where
         T: DeserializeOwned,
     {
@@ -79,7 +79,7 @@ impl<T: RemembersCid> Link<T> {
     }
 
     /// Gets mut value stored in link. It attempts to get it from the store if it is not present in link.
-    pub async fn resolve_value_mut(&mut self, store: &(impl BlockStore + ?Sized)) -> Result<&mut T>
+    pub async fn resolve_value_mut(&mut self, store: &impl BlockStore) -> Result<&mut T>
     where
         T: DeserializeOwned,
     {
@@ -126,7 +126,7 @@ impl<T: RemembersCid> Link<T> {
     }
 
     /// Gets an owned value from type. It attempts to it get from the store if it is not present in type.
-    pub async fn resolve_owned_value(self, store: &(impl BlockStore + ?Sized)) -> Result<T>
+    pub async fn resolve_owned_value(self, store: &impl BlockStore) -> Result<T>
     where
         T: DeserializeOwned,
     {
@@ -160,7 +160,7 @@ impl<T: RemembersCid> Link<T> {
     }
 
     /// Compares two links for equality. Attempts to get them from store if they are not already cached.
-    pub async fn deep_eq(&self, other: &Link<T>, store: &mut impl BlockStore) -> Result<bool>
+    pub async fn deep_eq(&self, other: &Link<T>, store: &impl BlockStore) -> Result<bool>
     where
         T: PartialEq + AsyncSerialize,
     {
@@ -174,7 +174,7 @@ impl<T: RemembersCid> Link<T> {
 
 #[async_trait(?Send)]
 impl<T: PartialEq + AsyncSerialize + RemembersCid> IpldEq for Link<T> {
-    async fn eq(&self, other: &Link<T>, store: &mut (impl BlockStore + ?Sized)) -> Result<bool> {
+    async fn eq(&self, other: &Link<T>, store: &impl BlockStore) -> Result<bool> {
         if self == other {
             return Ok(true);
         }
@@ -283,7 +283,7 @@ mod tests {
         async fn async_serialize<S: Serializer, BS: BlockStore + ?Sized>(
             &self,
             serializer: S,
-            _: &mut BS,
+            _: &BS,
         ) -> Result<S::Ok, S::Error> {
             self.serialize(serializer)
         }
@@ -321,7 +321,7 @@ mod tests {
 
     #[async_std::test]
     async fn link_value_can_be_resolved() {
-        let store = &mut MemoryBlockStore::default();
+        let store = &MemoryBlockStore::default();
         let example = Example::new(256);
         let cid = store.put_serializable(&example).await.unwrap();
         let link = Link::<Example>::from_cid(cid);
@@ -334,7 +334,7 @@ mod tests {
     #[async_std::test]
     async fn link_cid_can_be_resolved() {
         let example = Example::new(12_000_500);
-        let store = &mut MemoryBlockStore::default();
+        let store = &MemoryBlockStore::default();
         let link = Link::<Example>::from(example.clone());
 
         let cid = link.resolve_cid(store).await.unwrap();

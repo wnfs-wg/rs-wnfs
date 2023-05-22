@@ -145,7 +145,7 @@ impl SharePayload {
         node: &PrivateNode,
         temporal: bool,
         forest: &mut Rc<PrivateForest>,
-        store: &mut impl BlockStore,
+        store: &impl BlockStore,
         rng: &mut impl RngCore,
     ) -> Result<Self> {
         let payload = if temporal {
@@ -172,7 +172,7 @@ impl TemporalSharePointer {
     pub async fn from_node(
         node: &PrivateNode,
         forest: &mut Rc<PrivateForest>,
-        store: &mut impl BlockStore,
+        store: &impl BlockStore,
         rng: &mut impl RngCore,
     ) -> Result<Self> {
         let private_ref = node.store(forest, store, rng).await?;
@@ -192,7 +192,7 @@ impl SnapshotSharePointer {
     pub async fn from_node(
         node: &PrivateNode,
         forest: &mut Rc<PrivateForest>,
-        store: &mut impl BlockStore,
+        store: &impl BlockStore,
         rng: &mut impl RngCore,
     ) -> Result<Self> {
         let private_ref = node.store(forest, store, rng).await?;
@@ -234,7 +234,7 @@ pub mod sharer {
         share_count: u64,
         sharer_root_did: &str,
         sharer_forest: &mut Rc<PrivateForest>,
-        sharer_store: &mut impl BlockStore,
+        sharer_store: &impl BlockStore,
         recipient_exchange_root: PublicLink,
         recipient_store: &impl BlockStore,
     ) -> Result<()> {
@@ -418,7 +418,7 @@ mod tests {
 
         pub(super) async fn create_sharer_dir(
             forest: &mut Rc<PrivateForest>,
-            store: &mut impl BlockStore,
+            store: &impl BlockStore,
             rng: &mut impl RngCore,
         ) -> Result<Rc<PrivateDirectory>> {
             let mut dir = PrivateDirectory::new_and_store(
@@ -445,7 +445,7 @@ mod tests {
         }
 
         pub(super) async fn create_recipient_exchange_root(
-            store: &mut impl BlockStore,
+            store: &impl BlockStore,
         ) -> Result<(RsaPrivateKey, Rc<PublicDirectory>)> {
             let key = RsaPrivateKey::new()?;
             let exchange_key = key.get_public_key().get_public_key_modulus()?;

@@ -135,7 +135,7 @@ impl PrivateDirectory {
         parent_bare_name: Namefilter,
         time: DateTime<Utc>,
         forest: &mut Rc<PrivateForest>,
-        store: &mut impl BlockStore,
+        store: &impl BlockStore,
         rng: &mut impl RngCore,
     ) -> Result<Rc<Self>> {
         let dir = Rc::new(Self::new(parent_bare_name, time, rng));
@@ -520,7 +520,7 @@ impl PrivateDirectory {
             return Ok(None);
         };
 
-        let SearchResult::Found(dir) = self.get_leaf_dir(path,  search_latest, forest, store).await? else {
+        let SearchResult::Found(dir) = self.get_leaf_dir(path, search_latest, forest, store).await? else {
             return Ok(None);
         };
 
@@ -618,43 +618,49 @@ impl PrivateDirectory {
     /// };
     /// #[async_std::main]
     /// async fn main() {
-    ///    let store = &mut MemoryBlockStore::default();
+    ///    let mut store = MemoryBlockStore::default();
     ///    let rng = &mut thread_rng();
-    ///    let forest = &mut Rc::new(PrivateForest::new());
+    ///    let mut forest = Rc::new(PrivateForest::new());
     ///    let root_dir = &mut Rc::new(PrivateDirectory::new(
     ///         Namefilter::default(),
     ///         Utc::now(),
     ///         rng,
-    ///    ));
-    ///    let content = b"print('hello world')";
-    ///    root_dir
-    ///        .write(
-    ///            &["code".into(), "hello.py".into()],
-    ///            true,
-    ///            Utc::now(),
-    ///            content.to_vec(),
-    ///            forest,
-    ///            store,
-    ///            rng
+    ///     ));
+    ///     // The path to the file /code/hello.py as defined by our standards
+    ///     let hello_py: &[String] = &["code".into(), "hello.py".into()];
+    ///     // The original file content
+    ///     let original_file_content = b"print('hello world')";
+    ///     // Write content to the file
+    ///     root_dir
+    ///         .write(
+    ///             hello_py,
+    ///             true,
+    ///             Utc::now(),
+    ///             original_file_content.to_vec(),
+    ///             &mut forest,
+    ///             &store,
+    ///             rng,
     ///        )
     ///        .await
     ///        .unwrap();
-    ///    let mut file = root_dir
-    ///        .open_file_mut(&["code".into(), "hello.py".into()], true, Utc::now(), forest, store, rng)
-    ///        .await
-    ///        .unwrap();
-    ///    file.set_content(
-    ///        Utc::now(),
-    ///        &b"print('hello world 2')"[..],
-    ///        forest,
-    ///        store,
-    ///        rng,
-    ///    ).await.unwrap();
-    ///    let result = root_dir
-    ///        .read(&["code".into(), "hello.py".into()], true, forest, store)
-    ///        .await
-    ///        .unwrap();
-    ///    assert_eq!(&result, b"print('hello world 2')");
+    ///     // Clone the forest that was used to write the file
+    ///     // Open the file mutably
+    ///     let file = {
+    ///         root_dir
+    ///             .open_file_mut(hello_py, true, Utc::now(), &mut forest, &mut store, rng)
+    ///             .await
+    ///             .unwrap()
+    ///     };
+    ///     // Define the content that will replace what is already in the file
+    ///     let new_file_content = b"print('hello world 2')";
+    ///     // Set the contents of the file, waiting for result and expecting no errors
+    ///     file.set_content(Utc::now(), &new_file_content[..], &mut forest, &store, rng)
+    ///     .await
+    ///     .unwrap();
+    ///     // Read the file again
+    ///     let result = root_dir.read(hello_py, true, &forest, &store).await.unwrap();
+    ///     // Expect that the contents of the file are now different
+    ///     assert_eq!(&result, new_file_content);
     /// }
     /// ```
     pub async fn open_file_mut<'a>(
@@ -745,7 +751,7 @@ impl PrivateDirectory {
         time: DateTime<Utc>,
         content: Vec<u8>,
         forest: &mut Rc<PrivateForest>,
-        store: &mut impl BlockStore,
+        store: &impl BlockStore,
         rng: &mut impl RngCore,
     ) -> Result<()> {
         let (path, filename) = crate::utils::split_last(path_segments)?;
@@ -1086,7 +1092,7 @@ impl PrivateDirectory {
         search_latest: bool,
         time: DateTime<Utc>,
         forest: &mut Rc<PrivateForest>,
-        store: &mut impl BlockStore,
+        store: &impl BlockStore,
         rng: &mut impl RngCore,
     ) -> Result<()> {
         let (path, node_name) = crate::utils::split_last(path_segments)?;
@@ -1178,7 +1184,7 @@ impl PrivateDirectory {
         search_latest: bool,
         time: DateTime<Utc>,
         forest: &mut Rc<PrivateForest>,
-        store: &mut impl BlockStore,
+        store: &impl BlockStore,
         rng: &mut impl RngCore,
     ) -> Result<()> {
         let removed_node = self
@@ -1266,7 +1272,7 @@ impl PrivateDirectory {
         search_latest: bool,
         time: DateTime<Utc>,
         forest: &mut Rc<PrivateForest>,
-        store: &mut impl BlockStore,
+        store: &impl BlockStore,
         rng: &mut impl RngCore,
     ) -> Result<()> {
         let result = self
@@ -1323,7 +1329,7 @@ impl PrivateDirectory {
     pub async fn store(
         &self,
         forest: &mut Rc<PrivateForest>,
-        store: &mut impl BlockStore,
+        store: &impl BlockStore,
         rng: &mut impl RngCore,
     ) -> Result<PrivateRef> {
         let header_cid = self.header.store(store).await?;
@@ -1386,7 +1392,7 @@ impl PrivateDirectoryContent {
         temporal_key: &TemporalKey,
         header_cid: Cid,
         forest: &mut Rc<PrivateForest>,
-        store: &mut impl BlockStore,
+        store: &impl BlockStore,
         rng: &mut impl RngCore,
     ) -> Result<Vec<u8>> {
         let mut entries = BTreeMap::new();
@@ -1425,7 +1431,7 @@ impl PrivateDirectoryContent {
         header_cid: Cid,
         temporal_key: &TemporalKey,
         forest: &mut Rc<PrivateForest>,
-        store: &mut impl BlockStore,
+        store: &impl BlockStore,
         rng: &mut impl RngCore,
     ) -> Result<Cid> {
         Ok(*self
