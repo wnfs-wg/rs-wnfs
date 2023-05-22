@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1684321198595,
+  "lastUpdate": 1684746835729,
   "repoUrl": "https://github.com/wnfs-wg/rs-wnfs",
   "entries": {
     "Rust Benchmark": [
@@ -12991,6 +12991,108 @@ window.BENCHMARK_DATA = {
             "name": "namefilter encode",
             "value": 159,
             "range": "± 12",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter decode/0",
+            "value": 1,
+            "range": "± 0",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "me@vera.lgbt",
+            "name": "Vera Gonzalez",
+            "username": "organizedgrime"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "874030d9b62d16239d192921873e79f4d926d197",
+          "message": "Modified BlockStore trait (#257)\n\n* Modified BlockStore trait; implemented new BlockStores\r\n\r\n* fix lib.rs MAX_BLOCK_SIZE\r\n\r\nSigned-off-by: Vera Gonzalez <me@vera.lgbt>\r\n\r\n* Responding to PR reviews\r\n\r\nSigned-off-by: Vera Gonzalez <me@vera.lgbt>\r\nCo-Authored-By: Stephen Akinyemi <appcypher@outlook.com>\r\n\r\n* fix: Removed all new BlockStore implementations; reverted to old directory structure\r\n\r\n* fix: nits\r\n\r\n* nit: removed rand dev\r\n\r\n* fix: removed wrong rand\r\n\r\n---------\r\n\r\nSigned-off-by: Vera Gonzalez <me@vera.lgbt>\r\nCo-authored-by: Claudia Richoux <c@laudiacay.cool>\r\nCo-authored-by: Stephen Akinyemi <appcypher@outlook.com>\r\nCo-authored-by: Philipp Krüger <philipp.krueger1@gmail.com>",
+          "timestamp": "2023-05-22T11:07:25+02:00",
+          "tree_id": "7c997a3a48954926a4dc9932bd399c812ebdd3b3",
+          "url": "https://github.com/wnfs-wg/rs-wnfs/commit/874030d9b62d16239d192921873e79f4d926d197"
+        },
+        "date": 1684746835104,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "node set",
+            "value": 6779,
+            "range": "± 87",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node set 1000 consecutive",
+            "value": 4458342,
+            "range": "± 18591",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and get",
+            "value": 172406,
+            "range": "± 143",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and remove",
+            "value": 195069,
+            "range": "± 211",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt load and decode/0",
+            "value": 42490,
+            "range": "± 70",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt set and encode",
+            "value": 185675,
+            "range": "± 473",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt diff",
+            "value": 54305,
+            "range": "± 4427",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt merge",
+            "value": 236503,
+            "range": "± 18777",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter add",
+            "value": 8512,
+            "range": "± 9",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter contains",
+            "value": 11723,
+            "range": "± 37",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter saturate",
+            "value": 45554,
+            "range": "± 63",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter encode",
+            "value": 277,
+            "range": "± 5",
             "unit": "ns/iter"
           },
           {
