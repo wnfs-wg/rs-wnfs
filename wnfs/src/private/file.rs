@@ -9,7 +9,7 @@ use async_once_cell::OnceCell;
 use async_stream::try_stream;
 use chrono::{DateTime, Utc};
 use futures::{future, AsyncRead, Stream, StreamExt, TryStreamExt};
-use libipld::{Cid, IpldCodec};
+use libipld::{Cid, Ipld, IpldCodec};
 use rand_core::RngCore;
 use serde::{Deserialize, Serialize};
 use sha3::Sha3_256;
@@ -133,6 +133,46 @@ impl PrivateFile {
                 previous: BTreeSet::new(),
                 content: FileContent::Inline { data: vec![] },
             },
+        }
+    }
+
+    /// Create a new Symlink PrivateFile
+    pub async fn new_symlink(
+        path: String,
+        parent_bare_name: Namefilter,
+        time: DateTime<Utc>,
+        rng: &mut impl RngCore,
+    ) -> Result<Self> {
+        // Header stays the same
+        let header = PrivateNodeHeader::new(parent_bare_name, rng);
+        // Symlinks have no file content
+        let content = FileContent::Inline { data: vec![] };
+        // Create a new Metadata object
+        let mut metadata: Metadata = Metadata::new(time);
+        // Write the original path into the Metadata HashMap
+        metadata
+            .0
+            .insert(String::from("symlink"), Ipld::String(path));
+        // Return self with PrivateFileContent
+        Ok(Self {
+            header,
+            content: PrivateFileContent {
+                persisted_as: OnceCell::new(),
+                metadata,
+                previous: BTreeSet::new(),
+                content,
+            },
+        })
+    }
+
+    /// If the Metadata contains Symlink data, return it
+    pub fn symlink_origin(&self) -> Option<String> {
+        let meta = self.get_metadata();
+        // If the Metadata contains a String key for the symlink
+        if let Some(Ipld::String(path)) = meta.0.get("symlink") {
+            Some(path.to_string())
+        } else {
+            None
         }
     }
 

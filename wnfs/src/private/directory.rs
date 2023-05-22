@@ -7,7 +7,7 @@ use crate::{error::FsError, traits::Id, SearchResult, WNFS_VERSION};
 use anyhow::{bail, ensure, Result};
 use async_once_cell::OnceCell;
 use chrono::{DateTime, Utc};
-use libipld::Cid;
+use libipld::{Cid, Ipld};
 use rand_core::RngCore;
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -1116,6 +1116,33 @@ impl PrivateDirectory {
         Ok(())
     }
 
+    /// Attaches a node to the specified directory without modifying the node.
+    #[allow(clippy::too_many_arguments)]
+    async fn attach_link(
+        self: &mut Rc<Self>,
+        node: PrivateNode,
+        path_segments: &[String],
+        search_latest: bool,
+        forest: &mut Rc<PrivateForest>,
+        store: &impl BlockStore,
+    ) -> Result<()> {
+        let (path, node_name) = crate::utils::split_last(path_segments)?;
+        let SearchResult::Found(dir) = self.get_leaf_dir_mut(path, search_latest, forest, store).await? else {
+            bail!(FsError::NotFound);
+        };
+
+        ensure!(
+            !dir.content.entries.contains_key(node_name),
+            FsError::FileAlreadyExists
+        );
+
+        dir.content
+            .entries
+            .insert(node_name.clone(), PrivateLink::from(node));
+
+        Ok(())
+    }
+
     /// Moves a file or directory from one path to another.
     ///
     /// # Examples
@@ -1289,6 +1316,74 @@ impl PrivateDirectory {
             rng,
         )
         .await
+    }
+
+    /// Copies a file or directory from one path to another without modifying it
+    #[allow(clippy::too_many_arguments)]
+    pub async fn cp_link(
+        self: &mut Rc<Self>,
+        path_segments_from: &[String],
+        path_segments_to: &[String],
+        search_latest: bool,
+        forest: &mut Rc<PrivateForest>,
+        store: &impl BlockStore,
+    ) -> Result<()> {
+        let result = self
+            .get_node(path_segments_from, search_latest, forest, store)
+            .await?;
+
+        self.attach_link(
+            result.ok_or(FsError::NotFound)?,
+            path_segments_to,
+            search_latest,
+            forest,
+            store,
+        )
+        .await
+    }
+
+    /// Write a Symlink to the filesystem with the reference path at the path segments specified
+    #[allow(clippy::too_many_arguments)]
+    pub async fn write_symlink(
+        self: &mut Rc<Self>,
+        path: String,
+        path_segments: &[String],
+        search_latest: bool,
+        time: DateTime<Utc>,
+        forest: &PrivateForest,
+        store: &impl BlockStore,
+        rng: &mut impl RngCore,
+    ) -> Result<()> {
+        let (path_segments, filename) = crate::utils::split_last(path_segments)?;
+
+        let dir = self
+            .get_or_create_leaf_dir_mut(path_segments, time, search_latest, forest, store, rng)
+            .await?;
+
+        match dir
+            .lookup_node_mut(filename, search_latest, forest, store)
+            .await?
+        {
+            Some(PrivateNode::File(file)) => {
+                let file = file.prepare_next_revision()?;
+                file.content.content = super::FileContent::Inline { data: vec![] };
+                file.content.metadata.upsert_mtime(time);
+                // Write the path into the Metadata HashMap
+                file.content
+                    .metadata
+                    .0
+                    .insert(String::from("symlink"), Ipld::String(path));
+            }
+            Some(PrivateNode::Dir(_)) => bail!(FsError::DirectoryAlreadyExists),
+            None => {
+                let file =
+                    PrivateFile::new_symlink(path, dir.header.bare_name.clone(), time, rng).await?;
+                let link = PrivateLink::with_file(file);
+                dir.content.entries.insert(filename.to_string(), link);
+            }
+        };
+
+        Ok(())
     }
 
     /// Stores this PrivateDirectory in the PrivateForest.
