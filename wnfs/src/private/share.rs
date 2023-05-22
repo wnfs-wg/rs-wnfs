@@ -222,9 +222,10 @@ pub mod sharer {
     use futures::{Stream, StreamExt};
     use libipld::IpldCodec;
     use std::rc::Rc;
-    use wnfs_common::{dagcbor, BlockStore};
+    use wnfs_common::BlockStore;
     use wnfs_namefilter::Namefilter;
 
+    // TODO(appcypher): When ref mut is eliminated in BlockStore trait, make this into one BlockStore argument.
     /// Encrypts and shares a payload with multiple recipients using their
     /// exchange keys and stores the shares in the sharer's private forest.
     #[allow(clippy::too_many_arguments)]
@@ -238,7 +239,7 @@ pub mod sharer {
         recipient_store: &impl BlockStore,
     ) -> Result<()> {
         let mut exchange_keys = fetch_exchange_keys(recipient_exchange_root, recipient_store).await;
-        let encoded_payload = &dagcbor::encode(share_payload)?;
+        let encoded_payload = &serde_ipld_dagcbor::to_vec(share_payload)?;
 
         while let Some(result) = exchange_keys.next().await {
             let public_key_modulus = result?;
@@ -309,7 +310,7 @@ pub mod recipient {
     };
     use anyhow::{bail, Result};
     use sha3::Sha3_256;
-    use wnfs_common::{dagcbor, BlockStore};
+    use wnfs_common::BlockStore;
     use wnfs_hamt::Hasher;
     use wnfs_namefilter::Namefilter;
 
@@ -366,7 +367,7 @@ pub mod recipient {
 
         // Decrypt payload using recipient's private key and decode it.
         let payload: SharePayload =
-            dagcbor::decode(&recipient_key.decrypt(&encrypted_payload).await?)?;
+            serde_ipld_dagcbor::from_slice(&recipient_key.decrypt(&encrypted_payload).await?)?;
 
         let SharePayload::Temporal(TemporalSharePointer {
             label,
@@ -400,7 +401,7 @@ mod tests {
     use chrono::Utc;
     use proptest::test_runner::{RngAlgorithm, TestRng};
     use std::rc::Rc;
-    use wnfs_common::{dagcbor, BlockStore, MemoryBlockStore};
+    use wnfs_common::{BlockStore, MemoryBlockStore};
 
     mod helper {
         use crate::{
@@ -544,12 +545,12 @@ mod tests {
             .await
             .unwrap();
 
-        let serialized = dagcbor::encode(&payload).unwrap();
+        let serialized = serde_ipld_dagcbor::to_vec(&payload).unwrap();
 
         // Must be smaller than 190 bytes to fit within RSAES-OAEP limits
         assert!(serialized.len() <= 190);
 
-        let deserialized: SharePayload = dagcbor::decode(&serialized).unwrap();
+        let deserialized: SharePayload = serde_ipld_dagcbor::from_slice(&serialized).unwrap();
 
         assert_eq!(payload, deserialized);
     }
