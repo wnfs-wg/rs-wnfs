@@ -7,7 +7,7 @@ use rand::{thread_rng, RngCore};
 use std::rc::Rc;
 use wnfs::private::{PrivateDirectory, PrivateForest, PrivateNode, PrivateRef};
 use wnfs_common::{BlockStore, MemoryBlockStore};
-use wnfs_nameaccumulator::{AccumulatorSetup, Name};
+use wnfs_nameaccumulator::AccumulatorSetup;
 
 #[async_std::main]
 async fn main() {
@@ -27,7 +27,7 @@ async fn main() {
         .unwrap();
 
     // Fetch and decrypt a directory from the private forest using provided private ref.
-    let dir = PrivateNode::load(&private_ref, &forest, store, None)
+    let dir = PrivateNode::load(&private_ref, &forest, store, &forest.empty_name())
         .await
         .unwrap();
 
@@ -46,7 +46,7 @@ async fn get_forest_cid_and_private_ref(
     let forest = &mut Rc::new(PrivateForest::new(setup));
 
     // Create a new directory.
-    let dir = &mut Rc::new(PrivateDirectory::new(&Name::empty(), Utc::now(), rng));
+    let dir = &mut Rc::new(PrivateDirectory::new(&forest.empty_name(), Utc::now(), rng));
 
     // Add a /pictures/cats subdirectory.
     dir.mkdir(

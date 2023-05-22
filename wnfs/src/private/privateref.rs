@@ -229,7 +229,7 @@ mod tests {
     use proptest::test_runner::{RngAlgorithm, TestRng};
     use std::rc::Rc;
     use wnfs_common::{utils, MemoryBlockStore};
-    use wnfs_nameaccumulator::{Name, NameSegment};
+    use wnfs_nameaccumulator::NameSegment;
 
     #[async_std::test]
     async fn can_create_revisionref_deterministically_with_user_provided_seeds() {
@@ -240,7 +240,7 @@ mod tests {
         let inumber = NameSegment::new(rng);
 
         let dir = PrivateNode::from(PrivateDirectory::with_seed(
-            &Name::empty(),
+            &forest.empty_name(),
             Utc::now(),
             ratchet_seed,
             inumber.clone(),
@@ -251,9 +251,10 @@ mod tests {
 
         // Creating deterministic revision ref and retrieve the content.
         let setup = forest.get_accumulator_setup();
-        let revision_ref = RevisionRef::with_seed(&Name::empty(), ratchet_seed, inumber, setup);
+        let revision_ref =
+            RevisionRef::with_seed(&forest.empty_name(), ratchet_seed, inumber, setup);
         let retrieved_node = forest
-            .get_multivalue(&revision_ref, store, None)
+            .get_multivalue(&revision_ref, store, &forest.empty_name())
             .next()
             .await
             .unwrap()

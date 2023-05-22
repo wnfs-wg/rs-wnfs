@@ -133,7 +133,7 @@ impl PrivateNode {
 
                 for private_link in &mut dir.content.entries.values_mut() {
                     let mut node = private_link
-                        .resolve_node(forest, store, Some(&dir.header.name))
+                        .resolve_node(forest, store, &dir.header.name)
                         .await?
                         .clone();
                     node.update_ancestry(&dir.header.name, forest, store, rng)
@@ -400,9 +400,9 @@ impl PrivateNode {
     ) -> Result<Vec<PrivateNode>> {
         let header = self.get_header();
         let setup = forest.get_accumulator_setup();
-        let mountpoint = header.name.parent();
+        let mountpoint = header.name.parent().unwrap_or_else(|| forest.empty_name());
 
-        let current_name = &header.get_name(setup);
+        let current_name = &header.get_name();
         if !forest.has(current_name, store).await? {
             return Ok(vec![self.clone()]);
         }
@@ -418,7 +418,7 @@ impl PrivateNode {
             let current = search.current();
             current_header.ratchet = current.clone();
 
-            let has_curr = forest.has(&current_header.get_name(setup), store).await?;
+            let has_curr = forest.has(&current_header.get_name(), store).await?;
 
             let ord = if has_curr {
                 Ordering::Less
@@ -437,7 +437,7 @@ impl PrivateNode {
             .get_multivalue(
                 &current_header.derive_revision_ref(setup),
                 store,
-                mountpoint.as_ref(),
+                &mountpoint,
             )
             .collect::<Vec<Result<PrivateNode>>>()
             .await
@@ -486,7 +486,7 @@ impl PrivateNode {
         forest: &PrivateForest,
         store: &impl BlockStore,
         // TODO(matheus23) document this
-        mounted_relative_to: Option<&Name>,
+        mounted_relative_to: &Name,
     ) -> Result<PrivateNode> {
         let cid = match forest
             .get_encrypted(&private_ref.saturated_name_hash, store)
@@ -503,7 +503,7 @@ impl PrivateNode {
         cid: Cid,
         temporal_key: &TemporalKey,
         store: &impl BlockStore,
-        mounted_relative_to: Option<&Name>,
+        mounted_relative_to: &Name,
     ) -> Result<PrivateNode> {
         let encrypted_bytes = store.get_block(&cid).await?;
         let snapshot_key = temporal_key.derive_snapshot_key();
@@ -619,7 +619,7 @@ mod tests {
         let store = &mut MemoryBlockStore::new();
 
         let file = PrivateFile::with_content(
-            &Name::empty(),
+            &forest.empty_name(),
             Utc::now(),
             content.to_vec(),
             forest,
@@ -632,9 +632,10 @@ mod tests {
         let file = PrivateNode::File(Rc::new(file));
         let private_ref = file.store(forest, store, rng).await.unwrap();
 
-        let deserialized_node = PrivateNode::load(&private_ref, forest, store, None)
-            .await
-            .unwrap();
+        let deserialized_node =
+            PrivateNode::load(&private_ref, forest, store, &forest.empty_name())
+                .await
+                .unwrap();
 
         assert_eq!(file, deserialized_node);
     }

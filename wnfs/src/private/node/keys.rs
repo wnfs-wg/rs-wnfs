@@ -10,10 +10,11 @@ use aes_kw::KekAes256;
 use anyhow::Result;
 use rand_core::RngCore;
 use serde::{Deserialize, Serialize};
-use sha3::Sha3_256;
+use sha3::{Digest, Sha3_256};
 use skip_ratchet::Ratchet;
 use std::fmt::Debug;
 use wnfs_hamt::Hasher;
+use wnfs_nameaccumulator::NameSegment;
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
@@ -61,6 +62,15 @@ impl TemporalKey {
         Ok(KekAes256::from(self.0.clone().bytes())
             .unwrap_with_padding_vec(ciphertext)
             .map_err(|e| AesError::UnableToEncrypt(format!("{e}")))?)
+    }
+
+    /// TODO(matheus23)
+    pub(crate) fn to_revision_segment(&self) -> NameSegment {
+        let mut hasher = Sha3_256::new();
+        // TODO(matheus23): Specification?
+        hasher.update("Revision name acc element");
+        hasher.update(self.0.as_bytes());
+        NameSegment::from_digest(hasher)
     }
 }
 
@@ -170,7 +180,6 @@ impl From<[u8; KEY_BYTE_SIZE]> for TemporalKey {
 
 impl From<&Ratchet> for TemporalKey {
     fn from(ratchet: &Ratchet) -> Self {
-        use sha3::Digest;
         Self::from(AesKey::new(
             ratchet
                 .derive_key("WNFS temporal key derivation")

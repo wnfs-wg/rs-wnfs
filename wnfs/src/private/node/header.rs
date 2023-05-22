@@ -170,14 +170,6 @@ impl PrivateNodeHeader {
         TemporalKey::from(&self.ratchet)
     }
 
-    /// Derives the key that's put into the accumulator.
-    pub(crate) fn derive_revision_segment(&self) -> NameSegment {
-        let mut hasher = sha3::Sha3_256::new();
-        hasher.update("Revision name acc element");
-        hasher.update(self.derive_temporal_key().0.as_bytes());
-        NameSegment::from_digest(hasher)
-    }
-
     /// Gets the saturated namefilter for this node.
     ///
     /// # Examples
@@ -201,15 +193,14 @@ impl PrivateNodeHeader {
     ///
     /// println!("Saturated name: {:?}", saturated_name);
     /// ```
-    pub fn get_name(&self, setup: &AccumulatorSetup) -> NameAccumulator {
-        let mut name = self.name.as_accumulator(setup).clone();
-        name.add(&self.derive_revision_segment(), setup);
-        name
+    pub fn get_name(&self) -> Name {
+        self.name
+            .with_segments_added(Some(self.derive_temporal_key().to_revision_segment()))
     }
 
     /// TODO(matheus23)
     pub fn get_name_hash(&self, setup: &AccumulatorSetup) -> HashOutput {
-        Sha3_256::hash(&self.get_name(setup).as_ref())
+        Sha3_256::hash(&self.get_name().into_accumulator(setup))
     }
 
     /// Encrypts this private node header in an block, then stores that in the given
@@ -242,7 +233,7 @@ impl PrivateNodeHeader {
         Self {
             inumber: serializable.inumber,
             ratchet: serializable.ratchet,
-            name: Name::new_relative(serializable.name, []),
+            name: Name::new(serializable.name, []),
         }
     }
 
@@ -252,16 +243,17 @@ impl PrivateNodeHeader {
         cid: &Cid,
         temporal_key: &TemporalKey,
         store: &impl BlockStore,
-        mounted_relative_to: Option<&Name>,
+        mounted_relative_to: &Name,
     ) -> Result<Self> {
         let ciphertext = store.get_block(cid).await?;
         let cbor_bytes = temporal_key.key_wrap_decrypt(&ciphertext)?;
         let decoded = dagcbor::decode::<PrivateNodeHeaderSerializable>(&cbor_bytes)?;
         let mut header = Self::from_serializable(decoded);
-        if let Some(relative_mount) = mounted_relative_to {
-            header.name = relative_mount.clone();
-            header.name.add_segments(Some(header.inumber.clone()));
-        }
+        let name = mounted_relative_to
+            .clone()
+            .with_segments_added([header.inumber.clone()]);
+        // TODO(matheus23): Test name.as_accumulator() == header.name.as_accumulator() ?
+        header.name = name;
         Ok(header)
     }
 }

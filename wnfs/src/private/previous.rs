@@ -130,7 +130,11 @@ impl PrivateNodeHistory {
                 .as_private_ref(previous_cid),
             &self.forest,
             store,
-            self.header.name.parent().as_ref(),
+            &self
+                .header
+                .name
+                .parent()
+                .unwrap_or_else(|| self.forest.empty_name()),
         )
         .await?;
 
@@ -510,7 +514,6 @@ mod tests {
     use chrono::Utc;
     use proptest::test_runner::{RngAlgorithm, TestRng};
     use wnfs_common::MemoryBlockStore;
-    use wnfs_nameaccumulator::Name;
 
     struct TestSetup {
         rng: TestRng,
@@ -524,8 +527,12 @@ mod tests {
         fn new() -> Self {
             let mut rng = TestRng::deterministic_rng(RngAlgorithm::ChaCha);
             let store = MemoryBlockStore::default();
-            let root_dir = Rc::new(PrivateDirectory::new(&Name::empty(), Utc::now(), &mut rng));
             let forest = Rc::new(PrivateForest::new_rsa_2048(&mut rng));
+            let root_dir = Rc::new(PrivateDirectory::new(
+                &forest.empty_name(),
+                Utc::now(),
+                &mut rng,
+            ));
 
             Self {
                 rng,

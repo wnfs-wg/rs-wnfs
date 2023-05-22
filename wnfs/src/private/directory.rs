@@ -292,7 +292,7 @@ impl PrivateDirectory {
         Ok(match self.content.entries.get(path_segment) {
             Some(private_link) => {
                 let private_node = private_link
-                    .resolve_node(forest, store, Some(&self.header.name))
+                    .resolve_node(forest, store, &self.header.name)
                     .await?;
                 if search_latest {
                     Some(private_node.search_latest(forest, store).await?)
@@ -315,7 +315,7 @@ impl PrivateDirectory {
         Ok(match self.content.entries.get_mut(path_segment) {
             Some(private_link) => {
                 let private_node = private_link
-                    .resolve_node_mut(forest, store, Some(&self.header.name))
+                    .resolve_node_mut(forest, store, &self.header.name)
                     .await?;
                 if search_latest {
                     *private_node = private_node.search_latest(forest, store).await?;
@@ -408,7 +408,7 @@ impl PrivateDirectory {
                             .or_insert_with(|| {
                                 PrivateLink::with_dir(Self::new(&dir.header.name, time, rng))
                             })
-                            .resolve_node_mut(forest, store, Some(&dir.header.name))
+                            .resolve_node_mut(forest, store, &dir.header.name)
                             .await
                             .unwrap()
                             .as_dir_mut()
@@ -882,10 +882,7 @@ impl PrivateDirectory {
             SearchResult::Found(dir) => {
                 let mut result = vec![];
                 for (name, link) in dir.content.entries.iter() {
-                    match link
-                        .resolve_node(forest, store, Some(&dir.header.name))
-                        .await?
-                    {
+                    match link.resolve_node(forest, store, &dir.header.name).await? {
                         PrivateNode::File(file) => {
                             result.push((name.clone(), file.content.metadata.clone()));
                         }
@@ -973,7 +970,7 @@ impl PrivateDirectory {
 
         let removed_node = match dir.content.entries.remove(node_name) {
             Some(link) => {
-                link.resolve_owned_node(forest, store, Some(&dir.header.name))
+                link.resolve_owned_node(forest, store, &dir.header.name)
                     .await?
             }
             None => bail!(FsError::NotFound),
@@ -1236,7 +1233,7 @@ impl PrivateDirectory {
         let setup = &forest.get_accumulator_setup().clone();
         let header_cid = self.header.store(store, setup).await?;
         let temporal_key = self.header.derive_temporal_key();
-        let label = self.header.get_name(setup);
+        let name_with_revision = self.header.get_name();
 
         let content_cid = self
             .content
@@ -1244,7 +1241,7 @@ impl PrivateDirectory {
             .await?;
 
         forest
-            .put_encrypted(label, [header_cid, content_cid], store)
+            .put_encrypted(&name_with_revision, [header_cid, content_cid], store)
             .await?;
 
         Ok(self
@@ -1434,10 +1431,15 @@ mod tests {
         let ratchet_seed = utils::get_random_bytes::<32>(rng);
         let inumber = NameSegment::new(rng);
 
-        let dir1 =
-            PrivateDirectory::with_seed(&Name::empty(), Utc::now(), ratchet_seed, inumber.clone());
+        let dir1 = PrivateDirectory::with_seed(
+            &Name::empty(setup),
+            Utc::now(),
+            ratchet_seed,
+            inumber.clone(),
+        );
 
-        let dir2 = PrivateDirectory::with_seed(&Name::empty(), Utc::now(), ratchet_seed, inumber);
+        let dir2 =
+            PrivateDirectory::with_seed(&Name::empty(setup), Utc::now(), ratchet_seed, inumber);
 
         assert_eq!(
             dir1.header.derive_temporal_key(),
@@ -1453,9 +1455,9 @@ mod tests {
     #[test(async_std::test)]
     async fn look_up_can_fetch_file_added_to_directory() {
         let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
-        let root_dir = &mut Rc::new(PrivateDirectory::new(&Name::empty(), Utc::now(), rng));
         let store = &mut MemoryBlockStore::default();
         let forest = &mut Rc::new(PrivateForest::new_rsa_2048(rng));
+        let root_dir = &mut Rc::new(PrivateDirectory::new(&forest.empty_name(), Utc::now(), rng));
 
         let content = b"Hello, World!".to_vec();
 
@@ -1483,9 +1485,9 @@ mod tests {
     #[test(async_std::test)]
     async fn look_up_cannot_fetch_file_not_added_to_directory() {
         let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
-        let root_dir = Rc::new(PrivateDirectory::new(&Name::empty(), Utc::now(), rng));
         let store = &MemoryBlockStore::default();
         let forest = &Rc::new(PrivateForest::new_rsa_2048(rng));
+        let root_dir = Rc::new(PrivateDirectory::new(&forest.empty_name(), Utc::now(), rng));
 
         let node = root_dir
             .lookup_node("Unknown", true, forest, store)
@@ -1498,9 +1500,9 @@ mod tests {
     #[test(async_std::test)]
     async fn mkdir_can_create_new_directory() {
         let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
-        let root_dir = &mut Rc::new(PrivateDirectory::new(&Name::empty(), Utc::now(), rng));
         let store = &mut MemoryBlockStore::default();
         let forest = &mut Rc::new(PrivateForest::new_rsa_2048(rng));
+        let root_dir = &mut Rc::new(PrivateDirectory::new(&forest.empty_name(), Utc::now(), rng));
 
         root_dir
             .mkdir(
@@ -1525,9 +1527,9 @@ mod tests {
     #[test(async_std::test)]
     async fn ls_can_list_children_under_directory() {
         let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
-        let root_dir = &mut Rc::new(PrivateDirectory::new(&Name::empty(), Utc::now(), rng));
         let store = &mut MemoryBlockStore::default();
         let forest = &mut Rc::new(PrivateForest::new_rsa_2048(rng));
+        let root_dir = &mut Rc::new(PrivateDirectory::new(&forest.empty_name(), Utc::now(), rng));
 
         root_dir
             .mkdir(
@@ -1579,9 +1581,9 @@ mod tests {
     #[test(async_std::test)]
     async fn rm_can_remove_children_from_directory() {
         let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
-        let root_dir = &mut Rc::new(PrivateDirectory::new(&Name::empty(), Utc::now(), rng));
         let store = &mut MemoryBlockStore::default();
         let forest = &mut Rc::new(PrivateForest::new_rsa_2048(rng));
+        let root_dir = &mut Rc::new(PrivateDirectory::new(&forest.empty_name(), Utc::now(), rng));
 
         root_dir
             .mkdir(
@@ -1635,9 +1637,9 @@ mod tests {
     #[async_std::test]
     async fn read_can_fetch_userland_of_file_added_to_directory() {
         let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
-        let root_dir = &mut Rc::new(PrivateDirectory::new(&Name::empty(), Utc::now(), rng));
         let store = &mut MemoryBlockStore::default();
         let forest = &mut Rc::new(PrivateForest::new_rsa_2048(rng));
+        let root_dir = &mut Rc::new(PrivateDirectory::new(&forest.empty_name(), Utc::now(), rng));
 
         root_dir
             .write(
@@ -1665,7 +1667,7 @@ mod tests {
         let rng = &mut rand::thread_rng();
         let store = &mut MemoryBlockStore::default();
         let forest = &mut Rc::new(PrivateForest::new_rsa_2048(rng));
-        let root_dir = &mut Rc::new(PrivateDirectory::new(&Name::empty(), Utc::now(), rng));
+        let root_dir = &mut Rc::new(PrivateDirectory::new(&forest.empty_name(), Utc::now(), rng));
 
         let path = ["Documents".into(), "file.txt".into()];
 
@@ -1714,7 +1716,7 @@ mod tests {
         let rng = &mut ChaCha12Rng::seed_from_u64(0);
         let store = &mut MemoryBlockStore::default();
         let forest = &mut Rc::new(PrivateForest::new_rsa_2048(rng));
-        let root_dir = &mut Rc::new(PrivateDirectory::new(&Name::empty(), Utc::now(), rng));
+        let root_dir = &mut Rc::new(PrivateDirectory::new(&forest.empty_name(), Utc::now(), rng));
 
         root_dir
             .write(
@@ -1809,7 +1811,7 @@ mod tests {
         let rng = &mut thread_rng();
         let store = &mut MemoryBlockStore::default();
         let forest = &mut Rc::new(PrivateForest::new_rsa_2048(rng));
-        let root_dir = &mut Rc::new(PrivateDirectory::new(&Name::empty(), Utc::now(), rng));
+        let root_dir = &mut Rc::new(PrivateDirectory::new(&forest.empty_name(), Utc::now(), rng));
 
         root_dir
             .write(
@@ -1903,7 +1905,7 @@ mod tests {
         let rng = &mut thread_rng();
         let store = &mut MemoryBlockStore::default();
         let forest = &mut Rc::new(PrivateForest::new_rsa_2048(rng));
-        let root_dir = &mut Rc::new(PrivateDirectory::new(&Name::empty(), Utc::now(), rng));
+        let root_dir = &mut Rc::new(PrivateDirectory::new(&forest.empty_name(), Utc::now(), rng));
 
         root_dir
             .mkdir(
@@ -1942,7 +1944,7 @@ mod tests {
         let rng = &mut thread_rng();
         let store = &mut MemoryBlockStore::default();
         let forest = &mut Rc::new(PrivateForest::new_rsa_2048(rng));
-        let root_dir = &mut Rc::new(PrivateDirectory::new(&Name::empty(), Utc::now(), rng));
+        let root_dir = &mut Rc::new(PrivateDirectory::new(&forest.empty_name(), Utc::now(), rng));
         let content = b"file".to_vec();
 
         root_dir
@@ -1991,7 +1993,7 @@ mod tests {
         let rng = &mut thread_rng();
         let store = &mut MemoryBlockStore::default();
         let forest = &mut Rc::new(PrivateForest::new_rsa_2048(rng));
-        let root_dir = &mut Rc::new(PrivateDirectory::new(&Name::empty(), Utc::now(), rng));
+        let root_dir = &mut Rc::new(PrivateDirectory::new(&forest.empty_name(), Utc::now(), rng));
 
         root_dir
             .mkdir(
@@ -2038,7 +2040,7 @@ mod tests {
         let rng = &mut thread_rng();
         let store = &mut MemoryBlockStore::new();
         let forest = &mut Rc::new(PrivateForest::new_rsa_2048(rng));
-        let old_dir = &mut Rc::new(PrivateDirectory::new(&Name::empty(), Utc::now(), rng));
+        let old_dir = &mut Rc::new(PrivateDirectory::new(&forest.empty_name(), Utc::now(), rng));
 
         let new_dir = &mut Rc::clone(old_dir);
         new_dir
@@ -2063,7 +2065,7 @@ mod tests {
         let rng = &mut thread_rng();
         let store = &mut MemoryBlockStore::new();
         let forest = &mut Rc::new(PrivateForest::new_rsa_2048(rng));
-        let old_dir = &mut Rc::new(PrivateDirectory::new(&Name::empty(), Utc::now(), rng));
+        let old_dir = &mut Rc::new(PrivateDirectory::new(&forest.empty_name(), Utc::now(), rng));
         old_dir.store(forest, store, rng).await.unwrap();
 
         let new_dir = &mut Rc::clone(old_dir);

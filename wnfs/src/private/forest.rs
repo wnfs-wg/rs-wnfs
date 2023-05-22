@@ -60,6 +60,10 @@ impl PrivateForest {
         }
     }
 
+    pub fn empty_name(&self) -> Name {
+        Name::empty(&self.accumulator)
+    }
+
     /// Checks that a value with the given saturated name hash key exists.
     ///
     /// # Examples
@@ -103,17 +107,23 @@ impl PrivateForest {
     }
 
     /// TODO(matheus23) docs
-    pub async fn has(&self, name: &NameAccumulator, store: &impl BlockStore) -> Result<bool> {
-        self.has_hash(&Sha3_256::hash(&name.as_ref()), store).await
+    pub async fn has(&self, name: &Name, store: &impl BlockStore) -> Result<bool> {
+        self.has_hash(
+            &Sha3_256::hash(name.as_accumulator(&self.accumulator)),
+            store,
+        )
+        .await
     }
 
     /// Adds new encrypted values at the given key.
-    pub async fn put_encrypted(
+    pub async fn put_encrypted<'a>(
         self: &mut Rc<Self>,
-        name: NameAccumulator,
+        name: &'a Name,
         values: impl IntoIterator<Item = Cid>,
         store: &mut impl BlockStore,
-    ) -> Result<()> {
+    ) -> Result<&'a NameAccumulator> {
+        let name = name.as_accumulator(&self.accumulator);
+        println!("Put {:02x?}", Sha3_256::hash(name));
         // TODO(matheus23): This iterates the path in the HAMT twice.
         // We could consider implementing something like upsert instead.
         // Or some kind of "cursor".
@@ -127,8 +137,13 @@ impl PrivateForest {
 
         cids.extend(values);
 
-        Rc::make_mut(self).hamt.root.set(name, cids, store).await?;
-        Ok(())
+        Rc::make_mut(self)
+            .hamt
+            .root
+            .set(name.clone(), cids, store)
+            .await?;
+
+        Ok(name)
     }
 
     /// Gets the encrypted values at the given key.
@@ -138,6 +153,7 @@ impl PrivateForest {
         name_hash: &HashOutput,
         store: &impl BlockStore,
     ) -> Result<Option<&'b BTreeSet<Cid>>> {
+        println!("Get {:02x?}", name_hash);
         self.hamt.root.get_by_hash(name_hash, store).await
     }
 
@@ -164,7 +180,7 @@ impl PrivateForest {
         &'a self,
         revision: &'a RevisionRef,
         store: &'a impl BlockStore,
-        mounted_relative_to: Option<&'a Name>,
+        mounted_relative_to: &'a Name,
     ) -> impl Stream<Item = Result<PrivateNode>> + 'a {
         Box::pin(stream! {
             match self
@@ -200,7 +216,7 @@ impl PrivateForest {
         self.hamt.diff(&other.hamt, store).await
     }
 
-    pub(crate) fn get_accumulator_setup(&self) -> &AccumulatorSetup {
+    pub fn get_accumulator_setup(&self) -> &AccumulatorSetup {
         &self.accumulator
     }
 }
@@ -357,7 +373,7 @@ mod tests {
     use std::rc::Rc;
     use wnfs_common::MemoryBlockStore;
     use wnfs_hamt::{HashNibbles, Node};
-    use wnfs_nameaccumulator::Name;
+    use wnfs_nameaccumulator::NameSegment;
 
     mod helper {
         use libipld::{Cid, Multihash};
@@ -434,16 +450,40 @@ mod tests {
     }
 
     #[async_std::test]
+    async fn test_put_get() {
+        let store = &mut MemoryBlockStore::new();
+        let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
+        let forest = &mut Rc::new(PrivateForest::new_rsa_2048(rng));
+
+        let cid = Cid::default();
+        let name = forest.empty_name().with_segments_added([
+            NameSegment::from_seed(b"one"),
+            NameSegment::from_seed(b"two"),
+        ]);
+
+        forest.put_encrypted(&name, [cid], store).await.unwrap();
+        let result = forest
+            .get_encrypted(
+                &Sha3_256::hash(name.as_accumulator(forest.get_accumulator_setup())),
+                store,
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(result, Some(&BTreeSet::from([cid])));
+    }
+
+    #[async_std::test]
     async fn inserted_items_can_be_fetched() {
         let store = &mut MemoryBlockStore::new();
         let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
         let forest = &mut Rc::new(PrivateForest::new_rsa_2048(rng));
 
-        let dir = Rc::new(PrivateDirectory::new(&Name::empty(), Utc::now(), rng));
+        let dir = Rc::new(PrivateDirectory::new(&forest.empty_name(), Utc::now(), rng));
 
         let private_node = PrivateNode::Dir(dir.clone());
         let private_ref = private_node.store(forest, store, rng).await.unwrap();
-        let retrieved = PrivateNode::load(&private_ref, forest, store, None)
+        let retrieved = PrivateNode::load(&private_ref, forest, store, &forest.empty_name())
             .await
             .unwrap();
 
@@ -456,7 +496,7 @@ mod tests {
         let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
         let forest = &mut Rc::new(PrivateForest::new_rsa_2048(rng));
 
-        let dir = Rc::new(PrivateDirectory::new(&Name::empty(), Utc::now(), rng));
+        let dir = Rc::new(PrivateDirectory::new(&forest.empty_name(), Utc::now(), rng));
 
         let dir_conflict = {
             let mut dir = (*dir).clone();
@@ -491,12 +531,13 @@ mod tests {
         // Two of these CIDs should be content blocks, one CID should be the header block they share.
         assert_eq!(ciphertext_cids.len(), 3);
 
-        let retrieved = PrivateNode::load(&private_ref, forest, store, None)
+        let retrieved = PrivateNode::load(&private_ref, forest, store, &forest.empty_name())
             .await
             .unwrap();
-        let retrieved_conflict = PrivateNode::load(&private_ref_conflict, forest, store, None)
-            .await
-            .unwrap();
+        let retrieved_conflict =
+            PrivateNode::load(&private_ref_conflict, forest, store, &forest.empty_name())
+                .await
+                .unwrap();
 
         assert_eq!(retrieved, private_node);
         assert_eq!(retrieved_conflict, private_node_conflict);

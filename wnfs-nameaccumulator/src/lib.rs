@@ -221,11 +221,15 @@ impl NameSegment {
     pub fn from_digest(digest: impl Digest + Clone) -> Self {
         Self(prime_digest(digest, 32).0)
     }
+
+    pub fn from_seed(seed: impl AsRef<[u8]>) -> Self {
+        Self::from_digest(Sha3_256::new().chain_update(seed))
+    }
 }
 
 #[derive(Clone, Debug, Eq)]
 pub struct Name {
-    relative_to: Option<NameAccumulator>,
+    relative_to: NameAccumulator,
     segments: Vec<NameSegment>,
     accumulated: OnceCell<NameAccumulator>,
 }
@@ -235,20 +239,15 @@ impl PartialEq for Name {
         // TODO(matheus23) this is not ideal.
         // We're special-casing certain constructions of Names to be equal, but not all,
         // just so that all *existing* tests are OK.
-        let left = self.accumulated.get().or({
-            if self.segments.is_empty() {
-                self.relative_to.as_ref()
-            } else {
-                None
-            }
-        });
-        let right = other.accumulated.get().or({
-            if other.segments.is_empty() {
-                other.relative_to.as_ref()
-            } else {
-                None
-            }
-        });
+        let left = self
+            .accumulated
+            .get()
+            .or(self.segments.is_empty().then(|| &self.relative_to));
+        let right = other
+            .accumulated
+            .get()
+            .or(other.segments.is_empty().then(|| &other.relative_to));
+
         if let (Some(left), Some(right)) = (left, right) {
             return left == right;
         }
@@ -258,28 +257,16 @@ impl PartialEq for Name {
 }
 
 impl Name {
-    pub fn empty() -> Self {
-        Self {
-            relative_to: None,
-            segments: Vec::new(),
-            accumulated: OnceCell::new(),
-        }
+    pub fn empty(setup: &AccumulatorSetup) -> Self {
+        Self::new(NameAccumulator::empty(setup), None)
     }
 
-    pub fn new_relative(
-        to: NameAccumulator,
+    pub fn new(
+        relative_to: NameAccumulator,
         segments: impl IntoIterator<Item = NameSegment>,
     ) -> Self {
         Self {
-            relative_to: Some(to),
-            segments: segments.into_iter().collect(),
-            accumulated: OnceCell::new(),
-        }
-    }
-
-    pub fn new_absolute(segments: impl IntoIterator<Item = NameSegment>) -> Self {
-        Self {
-            relative_to: None,
+            relative_to,
             segments: segments.into_iter().collect(),
             accumulated: OnceCell::new(),
         }
@@ -317,10 +304,7 @@ impl Name {
 
     pub fn as_accumulator(&self, setup: &AccumulatorSetup) -> &NameAccumulator {
         self.accumulated.get_or_init(|| {
-            let mut name = self
-                .relative_to
-                .clone()
-                .unwrap_or_else(|| NameAccumulator::empty(setup));
+            let mut name = self.relative_to.clone();
             for segment in self.segments.iter() {
                 name.add(segment, setup);
             }
@@ -334,14 +318,12 @@ impl Name {
             mut relative_to,
             segments,
         } = self;
+
         accumulated.take().unwrap_or_else(|| {
-            let mut name = relative_to
-                .take()
-                .unwrap_or_else(|| NameAccumulator::empty(setup));
             for segment in segments.iter() {
-                name.add(segment, setup);
+                relative_to.add(segment, setup);
             }
-            name
+            relative_to
         })
     }
 }
