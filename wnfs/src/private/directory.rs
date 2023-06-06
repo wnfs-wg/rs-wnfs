@@ -669,7 +669,7 @@ impl PrivateDirectory {
         search_latest: bool,
         time: DateTime<Utc>,
         forest: &mut Rc<PrivateForest>,
-        store: &mut impl BlockStore,
+        store: &impl BlockStore,
         rng: &mut impl RngCore,
     ) -> Result<&'a mut PrivateFile> {
         let (path, filename) = crate::utils::split_last(path_segments)?;
