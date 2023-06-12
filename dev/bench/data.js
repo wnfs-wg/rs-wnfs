@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1684746835729,
+  "lastUpdate": 1686577431887,
   "repoUrl": "https://github.com/wnfs-wg/rs-wnfs",
   "entries": {
     "Rust Benchmark": [
@@ -13093,6 +13093,108 @@ window.BENCHMARK_DATA = {
             "name": "namefilter encode",
             "value": 277,
             "range": "± 5",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter decode/0",
+            "value": 1,
+            "range": "± 0",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "49699333+dependabot[bot]@users.noreply.github.com",
+            "name": "dependabot[bot]",
+            "username": "dependabot[bot]"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "f27afe26e268cd8ddb3e8e6d4eb48c6c3f8857e5",
+          "message": "chore(npm)(deps-dev): bump style-loader in /wnfs-wasm (#269)\n\nBumps [style-loader](https://github.com/webpack-contrib/style-loader) from 3.3.2 to 3.3.3.\r\n- [Release notes](https://github.com/webpack-contrib/style-loader/releases)\r\n- [Changelog](https://github.com/webpack-contrib/style-loader/blob/master/CHANGELOG.md)\r\n- [Commits](https://github.com/webpack-contrib/style-loader/compare/v3.3.2...v3.3.3)\r\n\r\n---\r\nupdated-dependencies:\r\n- dependency-name: style-loader\r\n  dependency-type: direct:development\r\n  update-type: version-update:semver-patch\r\n...\r\n\r\nSigned-off-by: dependabot[bot] <support@github.com>\r\nCo-authored-by: dependabot[bot] <49699333+dependabot[bot]@users.noreply.github.com>",
+          "timestamp": "2023-06-12T14:38:09+01:00",
+          "tree_id": "1bbe91ad4a20a711011167737038de7ff5b8a19a",
+          "url": "https://github.com/wnfs-wg/rs-wnfs/commit/f27afe26e268cd8ddb3e8e6d4eb48c6c3f8857e5"
+        },
+        "date": 1686577430578,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "node set",
+            "value": 8607,
+            "range": "± 222",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node set 1000 consecutive",
+            "value": 5203865,
+            "range": "± 130266",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and get",
+            "value": 202930,
+            "range": "± 3917",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and remove",
+            "value": 226324,
+            "range": "± 4042",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt load and decode/0",
+            "value": 49846,
+            "range": "± 1477",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt set and encode",
+            "value": 214634,
+            "range": "± 2447",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt diff",
+            "value": 63959,
+            "range": "± 5255",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt merge",
+            "value": 279637,
+            "range": "± 22776",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter add",
+            "value": 9939,
+            "range": "± 944",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter contains",
+            "value": 12636,
+            "range": "± 417",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter saturate",
+            "value": 47641,
+            "range": "± 940",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter encode",
+            "value": 205,
+            "range": "± 12",
             "unit": "ns/iter"
           },
           {
