@@ -76,7 +76,7 @@ impl<K, V, H: Hasher> Pointer<K, V, H> {
                     1 if matches!(node.pointers[0], Pointer::Values(_)) => {
                         Ok(Some(node.pointers[0].clone()))
                     }
-                    2..=HAMT_VALUES_BUCKET_SIZE if matches!(node.count_values(), Ok(_)) => {
+                    2..=HAMT_VALUES_BUCKET_SIZE if node.count_values().is_ok() => {
                         // Collect all the values of the node.
                         let mut values = node
                             .pointers
