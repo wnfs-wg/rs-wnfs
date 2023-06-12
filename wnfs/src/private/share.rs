@@ -362,7 +362,7 @@ pub mod recipient {
         let setup = sharer_forest.get_accumulator_setup();
         // Get cid to encrypted payload from sharer's forest using share_label
         let payload_cid = sharer_forest
-            .get_encrypted(&Sha3_256::hash(&share_label.as_accumulator(setup)), store)
+            .get_encrypted_by_hash(&Sha3_256::hash(&share_label.as_accumulator(setup)), store)
             .await?
             .ok_or(ShareError::SharePayloadNotFound)?
             .first()

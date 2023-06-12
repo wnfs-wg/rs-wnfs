@@ -15,7 +15,6 @@ use serde::{de::Error as DeError, Deserialize, Deserializer, Serialize};
 use sha3::{Digest, Sha3_256};
 use std::{collections::BTreeSet, iter, rc::Rc};
 use wnfs_common::{dagcbor, utils, BlockStore, Metadata, NodeType, MAX_BLOCK_SIZE};
-use wnfs_hamt::Hasher;
 use wnfs_nameaccumulator::{AccumulatorSetup, Name, NameSegment};
 
 //--------------------------------------------------------------------------------------------------
@@ -507,11 +506,8 @@ impl PrivateFile {
         forest: &PrivateForest,
         store: &impl BlockStore,
     ) -> Result<Vec<u8>> {
-        let setup = forest.get_accumulator_setup();
-        let label_hash = &Sha3_256::hash(&name.as_accumulator(setup).as_ref());
-
         let cids = forest
-            .get_encrypted(label_hash, store)
+            .get_encrypted(name, store)
             .await?
             .ok_or(FsError::FileShardNotFound)?;
 

@@ -489,7 +489,7 @@ impl PrivateNode {
         mounted_relative_to: &Name,
     ) -> Result<PrivateNode> {
         let cid = match forest
-            .get_encrypted(&private_ref.saturated_name_hash, store)
+            .get_encrypted_by_hash(&private_ref.saturated_name_hash, store)
             .await?
         {
             Some(cids) if cids.contains(&private_ref.content_cid) => private_ref.content_cid,

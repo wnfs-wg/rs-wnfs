@@ -97,7 +97,11 @@ impl PrivateForest {
     ///     assert!(forest.has(&private_ref.saturated_name_hash, store).await.unwrap());
     /// }
     /// ```
-    pub async fn has_hash(&self, name_hash: &HashOutput, store: &impl BlockStore) -> Result<bool> {
+    pub async fn has_by_hash(
+        &self,
+        name_hash: &HashOutput,
+        store: &impl BlockStore,
+    ) -> Result<bool> {
         Ok(self
             .hamt
             .root
@@ -108,7 +112,7 @@ impl PrivateForest {
 
     /// TODO(matheus23) docs
     pub async fn has(&self, name: &Name, store: &impl BlockStore) -> Result<bool> {
-        self.has_hash(
+        self.has_by_hash(
             &Sha3_256::hash(name.as_accumulator(&self.accumulator)),
             store,
         )
@@ -148,13 +152,22 @@ impl PrivateForest {
 
     /// Gets the encrypted values at the given key.
     #[inline]
-    pub async fn get_encrypted<'b>(
+    pub async fn get_encrypted_by_hash<'b>(
         &'b self,
         name_hash: &HashOutput,
         store: &impl BlockStore,
     ) -> Result<Option<&'b BTreeSet<Cid>>> {
         println!("Get {:02x?}", name_hash);
         self.hamt.root.get_by_hash(name_hash, store).await
+    }
+
+    pub async fn get_encrypted(
+        &self,
+        name: &Name,
+        store: &impl BlockStore,
+    ) -> Result<Option<&BTreeSet<Cid>>> {
+        let name_hash = &Sha3_256::hash(&name.as_accumulator(&self.accumulator).as_ref());
+        self.get_encrypted_by_hash(name_hash, store).await
     }
 
     /// Removes the encrypted value at the given key.
@@ -184,7 +197,7 @@ impl PrivateForest {
     ) -> impl Stream<Item = Result<PrivateNode>> + 'a {
         Box::pin(stream! {
             match self
-                .get_encrypted(&revision.saturated_name_hash, store)
+                .get_encrypted_by_hash(&revision.saturated_name_hash, store)
                 .await
             {
                 Ok(Some(cids)) => {
@@ -463,7 +476,7 @@ mod tests {
 
         forest.put_encrypted(&name, [cid], store).await.unwrap();
         let result = forest
-            .get_encrypted(
+            .get_encrypted_by_hash(
                 &Sha3_256::hash(name.as_accumulator(forest.get_accumulator_setup())),
                 store,
             )
@@ -522,7 +535,7 @@ mod tests {
         );
 
         let ciphertext_cids = forest
-            .get_encrypted(&private_ref.saturated_name_hash, store)
+            .get_encrypted_by_hash(&private_ref.saturated_name_hash, store)
             .await
             .unwrap()
             .unwrap();
