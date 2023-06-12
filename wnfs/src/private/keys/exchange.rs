@@ -5,7 +5,7 @@ use anyhow::anyhow;
 use anyhow::Result;
 use async_trait::async_trait;
 #[cfg(test)]
-use rsa::{BigUint, Oaep, traits::PublicKeyParts};
+use rsa::{traits::PublicKeyParts, BigUint, Oaep};
 #[cfg(test)]
 use sha2::Sha256;
 
