@@ -8,7 +8,7 @@
     "multiformats": "^11.0.2",
     "style-loader": "^3.3.3",
     "text-encoding": "^0.7.0",
-    "ts-loader": "^9.4.2",
+    "ts-loader": "^9.4.3",
     "typescript": "^5.0.4",
     "uint8arrays": "^4.0.3",
     "webpack": "^5.82.1",
