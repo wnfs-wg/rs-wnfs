@@ -13,7 +13,6 @@ pub use directory::*;
 pub use file::*;
 pub use forest::*;
 pub use keys::*;
-pub(crate) use link::*;
 pub use node::*;
 pub use previous::*;
 pub use privateref::*;

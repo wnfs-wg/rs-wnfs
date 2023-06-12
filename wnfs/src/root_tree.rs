@@ -1,14 +1,15 @@
 //! TODO(appcypher): Add private API for now, but remove it later.
 
+#![allow(dead_code)]
+
 use crate::{
     error::FsError,
     private::{PrivateDirectory, PrivateForest},
     public::PublicDirectory,
-    traits::Time,
     VERSION,
 };
 use anyhow::{bail, Result};
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 use libipld::{Cid, IpldCodec};
 #[cfg(test)]
 use rand::rngs::ThreadRng;
@@ -25,14 +26,13 @@ use wnfs_common::{BlockStore, Metadata};
 //--------------------------------------------------------------------------------------------------
 
 #[derive(Debug)]
-pub struct RootTree<B: BlockStore, R: RngCore, T: Time = Utc> {
+pub struct RootTree<B: BlockStore, R: RngCore> {
     pub store: B, // TODO(appcypher): Making put_block &self will remove the need for *RootMut types
     pub rng: R,
     pub forest: Rc<PrivateForest>,
     pub public_root: Rc<PublicDirectory>,
     pub exchange_root: Rc<PublicDirectory>,
     pub private_map: HashMap<Vec<String>, Rc<PrivateDirectory>>,
-    phantom: std::marker::PhantomData<T>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -47,26 +47,25 @@ pub struct RootTreeSerializable {
 // Implementations
 //--------------------------------------------------------------------------------------------------
 
-impl<B, R, T> RootTree<B, R, T>
+impl<B, R> RootTree<B, R>
 where
     B: BlockStore,
     R: RngCore,
-    T: Time,
 {
     pub async fn new(
         forest: Rc<PrivateForest>,
         store: B,
         rng: R,
+        time: DateTime<Utc>,
         private_map: HashMap<Vec<String>, Rc<PrivateDirectory>>,
-    ) -> RootTree<B, R, T> {
+    ) -> RootTree<B, R> {
         Self {
             store,
             rng,
             forest,
-            public_root: Rc::new(PublicDirectory::new(T::now())),
-            exchange_root: Rc::new(PublicDirectory::new(T::now())),
+            public_root: Rc::new(PublicDirectory::new(time)),
+            exchange_root: Rc::new(PublicDirectory::new(time)),
             private_map,
-            phantom: std::marker::PhantomData,
         }
     }
 
@@ -144,6 +143,7 @@ where
         root_segments: &[String],
         path_segments: &[String],
         content: Vec<u8>,
+        time: DateTime<Utc>,
     ) -> Result<()> {
         let Some(first) = root_segments.first() else {
             bail!(FsError::InvalidPath)
@@ -153,13 +153,13 @@ where
             "public" => {
                 let cid = self.store.put_block(content, IpldCodec::Raw).await?;
                 self.public_root
-                    .write(path_segments, cid, T::now(), &self.store)
+                    .write(path_segments, cid, time, &self.store)
                     .await
             }
             "exchange" => {
                 let cid = self.store.put_block(content, IpldCodec::Raw).await?;
                 self.exchange_root
-                    .write(path_segments, cid, T::now(), &self.store)
+                    .write(path_segments, cid, time, &self.store)
                     .await
             }
             _ => {
@@ -171,7 +171,7 @@ where
                 root.write(
                     path_segments,
                     true,
-                    T::now(),
+                    time,
                     content,
                     &mut self.forest,
                     &mut self.store,
@@ -186,6 +186,7 @@ where
         &mut self,
         root_segments: &[String],
         path_segments: &[String],
+        time: DateTime<Utc>,
     ) -> Result<()> {
         let Some(first) = root_segments.first() else {
             bail!(FsError::InvalidPath)
@@ -194,12 +195,12 @@ where
         match first.as_str() {
             "public" => {
                 self.public_root
-                    .mkdir(path_segments, T::now(), &self.store)
+                    .mkdir(path_segments, time, &self.store)
                     .await
             }
             "exchange" => {
                 self.exchange_root
-                    .mkdir(path_segments, T::now(), &self.store)
+                    .mkdir(path_segments, time, &self.store)
                     .await
             }
             _ => {
@@ -211,7 +212,7 @@ where
                 root.mkdir(
                     path_segments,
                     true,
-                    T::now(),
+                    time,
                     &self.forest,
                     &self.store,
                     &mut self.rng,
@@ -258,6 +259,7 @@ where
         root_segments: &[String],
         path_segments_from: &[String],
         path_segments_to: &[String],
+        time: DateTime<Utc>,
     ) -> Result<()> {
         let Some(first) = root_segments.first() else {
             bail!(FsError::InvalidPath)
@@ -266,12 +268,12 @@ where
         match first.as_str() {
             "public" => {
                 self.public_root
-                    .basic_mv(path_segments_from, path_segments_to, T::now(), &self.store)
+                    .basic_mv(path_segments_from, path_segments_to, time, &self.store)
                     .await
             }
             "exchange" => {
                 self.exchange_root
-                    .basic_mv(path_segments_from, path_segments_to, T::now(), &self.store)
+                    .basic_mv(path_segments_from, path_segments_to, time, &self.store)
                     .await
             }
             _ => {
@@ -284,7 +286,7 @@ where
                     path_segments_from,
                     path_segments_to,
                     true,
-                    T::now(),
+                    time,
                     &mut self.forest,
                     &mut self.store,
                     &mut self.rng,
@@ -323,7 +325,6 @@ where
             public_root,
             exchange_root,
             private_map,
-            phantom: std::marker::PhantomData,
         })
     }
 }
@@ -338,7 +339,6 @@ impl Default for RootTree<MemoryBlockStore, ThreadRng> {
             public_root: Rc::new(PublicDirectory::new(Utc::now())),
             exchange_root: Rc::new(PublicDirectory::new(Utc::now())),
             private_map: HashMap::default(),
-            phantom: std::marker::PhantomData,
         }
     }
 }
@@ -363,6 +363,7 @@ mod tests {
                 &["public".into()],
                 &["test".into(), "file".into()],
                 b"hello world".to_vec(),
+                Utc::now(),
             )
             .await
             .unwrap();
@@ -381,6 +382,7 @@ mod tests {
                 &["exchange".into()],
                 &["test".into(), "file".into()],
                 b"hello world".to_vec(),
+                Utc::now(),
             )
             .await
             .unwrap();
@@ -399,6 +401,7 @@ mod tests {
                 &["private".into()],
                 &["test".into(), "file".into()],
                 b"hello world".to_vec(),
+                Utc::now(),
             )
             .await
             .unwrap();
