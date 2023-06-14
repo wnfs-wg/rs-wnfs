@@ -1,6 +1,6 @@
 [package]
 name = "wnfs"
-version = "0.1.20"
+version = "0.1.21"
 description = "WebNative filesystem core implementation"
 keywords = ["wnfs", "webnative", "ipfs", "decentralisation"]
 categories = [
@@ -37,9 +37,9 @@ serde_ipld_dagcbor = "0.3.0"
 sha3 = "0.10"
 skip_ratchet = { version = "0.1", features = ["serde"] }
 thiserror = "1.0"
-wnfs-common = { path = "../wnfs-common", version = "0.1.20" }
-wnfs-hamt = { path = "../wnfs-hamt", version = "0.1.20" }
-wnfs-namefilter = { path = "../wnfs-namefilter", version = "0.1.20" }
+wnfs-common = { path = "../wnfs-common", version = "0.1.21" }
+wnfs-hamt = { path = "../wnfs-hamt", version = "0.1.21" }
+wnfs-namefilter = { path = "../wnfs-namefilter", version = "0.1.21" }
 xxhash-rust = { version = "0.8", features = ["xxh3"] }
 
 [dev-dependencies]

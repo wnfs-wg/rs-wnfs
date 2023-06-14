@@ -1,6 +1,6 @@
 [package]
 name = "wnfs-namefilter"
-version = "0.1.20"
+version = "0.1.21"
 description = "Bloom filter for the Webnative Filesystem"
 keywords = ["wnfs", "webnative", "ipfs", "decentralisation"]
 categories = [
@@ -30,7 +30,7 @@ rand_core = "0.6"
 serde = { version = "1.0", features = ["rc"] }
 sha3 = "0.10"
 thiserror = "1.0"
-wnfs-common = { path = "../wnfs-common", version = "0.1.20" }
+wnfs-common = { path = "../wnfs-common", version = "0.1.21" }
 xxhash-rust = { version = "0.8", features = ["xxh3"] }
 
 [dev-dependencies]
