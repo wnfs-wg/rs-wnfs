@@ -24,7 +24,7 @@ fn name_accumulator_add(c: &mut Criterion) {
     c.bench_function("NameAccumulator::add", |b| {
         b.iter_batched(
             || NameSegment::new(&mut thread_rng()),
-            |segment| NameAccumulator::empty(setup).add(&segment, setup),
+            |segment| NameAccumulator::empty(setup).add(Some(&segment), setup),
             BatchSize::SmallInput,
         )
     });
@@ -37,7 +37,7 @@ fn name_accumulator_serialize(c: &mut Criterion) {
             || {
                 let segment = NameSegment::new(&mut thread_rng());
                 let mut name = NameAccumulator::empty(setup);
-                name.add(&segment, setup);
+                name.add(Some(&segment), setup);
                 name
             },
             |name| name.into_bytes(),

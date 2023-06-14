@@ -4,6 +4,8 @@
 use anyhow::Result;
 use fns::prime_digest;
 use num_bigint_dig::{BigUint, RandBigInt, RandPrime};
+use num_integer::Integer;
+use num_traits::One;
 use rand_core::RngCore;
 use serde::{Deserialize, Serialize};
 use sha3::{Digest, Sha3_256};
@@ -35,14 +37,47 @@ impl NameAccumulator {
         }
     }
 
-    pub fn add(&mut self, segment: &NameSegment, setup: &AccumulatorSetup) {
-        self.state = self.state.modpow(&segment.0, &setup.modulus);
+    pub fn add<'a>(
+        &mut self,
+        segments: impl IntoIterator<Item = &'a NameSegment>,
+        setup: &AccumulatorSetup,
+    ) -> ElementsProof {
+        // Reset the serialized state
         self.serialized_cache = OnceCell::new();
+
+        let mut product = BigUint::one();
+        for segment in segments {
+            product *= &segment.0;
+        }
+
+        let witness = self.state.clone();
+        self.state = self.state.modpow(&product, &setup.modulus);
+
+        let mut hasher = sha3::Sha3_256::new();
+        hasher.update(&setup.modulus.to_bytes_le());
+        hasher.update(&witness.to_bytes_le());
+        hasher.update(&self.state.to_bytes_le());
+        let (l, l_nonce) = prime_digest(hasher, 16);
+
+        let (q, r) = product.div_mod_floor(&l);
+
+        let big_q = witness.modpow(&q, &setup.modulus);
+
+        ElementsProof {
+            witness,
+            l_nonce,
+            big_q,
+            r,
+        }
     }
 
-    pub fn add_bytes(&mut self, bytes: impl AsRef<[u8]>, setup: &AccumulatorSetup) {
+    pub fn add_bytes(
+        &mut self,
+        bytes: impl AsRef<[u8]>,
+        setup: &AccumulatorSetup,
+    ) -> ElementsProof {
         let digest = Sha3_256::new().chain_update(bytes.as_ref());
-        self.add(&NameSegment::from_digest(digest), setup)
+        self.add(Some(&NameSegment::from_digest(digest)), setup)
     }
 
     pub fn parse_bytes(byte_buf: impl AsRef<[u8]>) -> Result<Self> {
@@ -78,6 +113,20 @@ impl NameAccumulator {
         bytes[..vec.len()].copy_from_slice(&vec);
         bytes
     }
+}
+/// PoKE* (Proof of Knowledge of Exponent),
+/// assuming that the base is trusted
+/// (e.g. part of a common reference string, CRS).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ElementsProof {
+    /// The accumulator's base, $u$
+    witness: BigUint,
+    /// A nonce that helps to more quickly generate/verify a hash-to-prime. Helps generate the prime number $l$
+    l_nonce: u32,
+    /// A part of the proof, $Q = u^q$, where $element = q*l + r$
+    big_q: BigUint,
+    /// A part of the proof, the residue of the element that's proven, i.e. $r$ in $element = q*l + r$
+    r: BigUint,
 }
 
 impl Ord for NameAccumulator {
@@ -231,7 +280,7 @@ impl NameSegment {
 pub struct Name {
     relative_to: NameAccumulator,
     segments: Vec<NameSegment>,
-    accumulated: OnceCell<NameAccumulator>,
+    accumulated: OnceCell<(NameAccumulator, ElementsProof)>,
 }
 
 impl PartialEq for Name {
@@ -242,10 +291,12 @@ impl PartialEq for Name {
         let left = self
             .accumulated
             .get()
+            .map(|x| &x.0)
             .or(self.segments.is_empty().then(|| &self.relative_to));
         let right = other
             .accumulated
             .get()
+            .map(|x| &x.0)
             .or(other.segments.is_empty().then(|| &other.relative_to));
 
         if let (Some(left), Some(right)) = (left, right) {
@@ -302,17 +353,25 @@ impl Name {
         clone
     }
 
-    pub fn as_accumulator(&self, setup: &AccumulatorSetup) -> &NameAccumulator {
+    pub fn as_proven_accumulator(
+        &self,
+        setup: &AccumulatorSetup,
+    ) -> &(NameAccumulator, ElementsProof) {
         self.accumulated.get_or_init(|| {
             let mut name = self.relative_to.clone();
-            for segment in self.segments.iter() {
-                name.add(segment, setup);
-            }
-            name
+            let proof = name.add(self.segments.iter(), setup);
+            (name, proof)
         })
     }
 
-    pub fn into_accumulator(self, setup: &AccumulatorSetup) -> NameAccumulator {
+    pub fn as_accumulator(&self, setup: &AccumulatorSetup) -> &NameAccumulator {
+        &self.as_proven_accumulator(setup).0
+    }
+
+    pub fn into_proven_accumulator(
+        self,
+        setup: &AccumulatorSetup,
+    ) -> (NameAccumulator, ElementsProof) {
         let Self {
             mut accumulated,
             mut relative_to,
@@ -320,11 +379,13 @@ impl Name {
         } = self;
 
         accumulated.take().unwrap_or_else(|| {
-            for segment in segments.iter() {
-                relative_to.add(segment, setup);
-            }
-            relative_to
+            let proof = relative_to.add(segments.iter(), setup);
+            (relative_to, proof)
         })
+    }
+
+    pub fn into_accumulator(self, setup: &AccumulatorSetup) -> NameAccumulator {
+        self.into_proven_accumulator(setup).0
     }
 }
 
@@ -360,9 +421,14 @@ mod tests {
         let setup = &AccumulatorSetup::from_rsa_2048(rng);
         let mut acc = NameAccumulator::empty(setup);
 
-        acc.add(&NameSegment::new(rng), setup);
-        acc.add(&NameSegment::new(rng), setup);
-        acc.add(&NameSegment::new(rng), setup);
+        acc.add(
+            &[
+                NameSegment::new(rng),
+                NameSegment::new(rng),
+                NameSegment::new(rng),
+            ],
+            setup,
+        );
 
         let ipld = libipld::serde::to_ipld(&acc).unwrap();
         let mut bytes = Vec::new();

@@ -445,7 +445,7 @@ mod tests {
             rng: &mut impl RngCore,
         ) -> Vec<u8> {
             let mut name = NameAccumulator::empty(setup);
-            name.add(&NameSegment::new(rng), setup);
+            name.add(Some(&NameSegment::new(rng)), setup);
             name.as_ref().to_vec()
         }
 
