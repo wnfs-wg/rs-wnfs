@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1686733865432,
+  "lastUpdate": 1686742204565,
   "repoUrl": "https://github.com/wnfs-wg/rs-wnfs",
   "entries": {
     "Rust Benchmark": [
@@ -13506,6 +13506,108 @@ window.BENCHMARK_DATA = {
           {
             "name": "namefilter decode/0",
             "value": 1,
+            "range": "± 0",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "49699333+dependabot[bot]@users.noreply.github.com",
+            "name": "dependabot[bot]",
+            "username": "dependabot[bot]"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "878218d6db5e1d82e9d462c5488d3068c777b6ca",
+          "message": "chore(npm)(deps-dev): bump ts-loader from 9.4.2 to 9.4.3 in /wnfs-wasm (#273)\n\nBumps [ts-loader](https://github.com/TypeStrong/ts-loader) from 9.4.2 to 9.4.3.\r\n- [Release notes](https://github.com/TypeStrong/ts-loader/releases)\r\n- [Changelog](https://github.com/TypeStrong/ts-loader/blob/main/CHANGELOG.md)\r\n- [Commits](https://github.com/TypeStrong/ts-loader/compare/v9.4.2...v9.4.3)\r\n\r\n---\r\nupdated-dependencies:\r\n- dependency-name: ts-loader\r\n  dependency-type: direct:development\r\n  update-type: version-update:semver-patch\r\n...\r\n\r\nSigned-off-by: dependabot[bot] <support@github.com>\r\nCo-authored-by: dependabot[bot] <49699333+dependabot[bot]@users.noreply.github.com>",
+          "timestamp": "2023-06-14T12:26:48+01:00",
+          "tree_id": "25da1ec745e40b0c67012b0275ac3f8ccffb9902",
+          "url": "https://github.com/wnfs-wg/rs-wnfs/commit/878218d6db5e1d82e9d462c5488d3068c777b6ca"
+        },
+        "date": 1686742203321,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "node set",
+            "value": 8507,
+            "range": "± 613",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node set 1000 consecutive",
+            "value": 4987780,
+            "range": "± 309590",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and get",
+            "value": 195778,
+            "range": "± 15921",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and remove",
+            "value": 220441,
+            "range": "± 12869",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt load and decode/0",
+            "value": 51349,
+            "range": "± 4062",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt set and encode",
+            "value": 197381,
+            "range": "± 12053",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt diff",
+            "value": 61245,
+            "range": "± 8188",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt merge",
+            "value": 268317,
+            "range": "± 30403",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter add",
+            "value": 11451,
+            "range": "± 829",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter contains",
+            "value": 11814,
+            "range": "± 939",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter saturate",
+            "value": 54432,
+            "range": "± 4892",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter encode",
+            "value": 337,
+            "range": "± 73",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter decode/0",
+            "value": 2,
             "range": "± 0",
             "unit": "ns/iter"
           }
