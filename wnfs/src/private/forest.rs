@@ -185,7 +185,7 @@ impl PrivateForest {
     }
 
     /// Serializes the forest and stores it in the given block store.
-    pub async fn store(&self, store: &mut impl BlockStore) -> Result<Cid> {
+    pub async fn store(&self, store: &impl BlockStore) -> Result<Cid> {
         store.put_async_serializable(&self.0).await
     }
 

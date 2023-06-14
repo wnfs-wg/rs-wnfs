@@ -26,8 +26,8 @@ use wnfs_common::{BlockStore, Metadata};
 //--------------------------------------------------------------------------------------------------
 
 #[derive(Debug)]
-pub struct RootTree<B: BlockStore, R: RngCore> {
-    pub store: B, // TODO(appcypher): Making put_block &self will remove the need for *RootMut types
+pub struct RootTree<'a, B: BlockStore, R: RngCore> {
+    pub store: &'a B,
     pub rng: R,
     pub forest: Rc<PrivateForest>,
     pub public_root: Rc<PublicDirectory>,
@@ -47,18 +47,18 @@ pub struct RootTreeSerializable {
 // Implementations
 //--------------------------------------------------------------------------------------------------
 
-impl<B, R> RootTree<B, R>
+impl<'a, B, R> RootTree<'a, B, R>
 where
     B: BlockStore,
     R: RngCore,
 {
     pub async fn new(
         forest: Rc<PrivateForest>,
-        store: B,
+        store: &'a B,
         rng: R,
         time: DateTime<Utc>,
         private_map: HashMap<Vec<String>, Rc<PrivateDirectory>>,
-    ) -> RootTree<B, R> {
+    ) -> RootTree<'a, B, R> {
         Self {
             store,
             rng,
@@ -74,7 +74,7 @@ where
             Default::default(),
             Utc::now(),
             &mut self.forest,
-            &self.store,
+            self.store,
             &mut self.rng,
         )
         .await?;
@@ -94,16 +94,15 @@ where
         };
 
         match first.as_str() {
-            "public" => self.public_root.ls(path_segments, &self.store).await,
-            "exchange" => self.exchange_root.ls(path_segments, &self.store).await,
+            "public" => self.public_root.ls(path_segments, self.store).await,
+            "exchange" => self.exchange_root.ls(path_segments, self.store).await,
             _ => {
                 let root = self
                     .private_map
                     .get(root_segments)
                     .ok_or(FsError::PrivateRefNotFound)?;
 
-                root.ls(path_segments, true, &self.forest, &self.store)
-                    .await
+                root.ls(path_segments, true, &self.forest, self.store).await
             }
         }
     }
@@ -119,11 +118,11 @@ where
 
         match first.as_str() {
             "public" => {
-                let cid = self.public_root.read(path_segments, &self.store).await?;
+                let cid = self.public_root.read(path_segments, self.store).await?;
                 self.store.get_block(&cid).await.map(|b| b.to_vec())
             }
             "exchange" => {
-                let cid = self.exchange_root.read(path_segments, &self.store).await?;
+                let cid = self.exchange_root.read(path_segments, self.store).await?;
                 self.store.get_block(&cid).await.map(|b| b.to_vec())
             }
             _ => {
@@ -132,7 +131,7 @@ where
                     .get(root_segments)
                     .ok_or(FsError::PrivateRefNotFound)?;
 
-                root.read(path_segments, true, &self.forest, &self.store)
+                root.read(path_segments, true, &self.forest, self.store)
                     .await
             }
         }
@@ -153,13 +152,13 @@ where
             "public" => {
                 let cid = self.store.put_block(content, IpldCodec::Raw).await?;
                 self.public_root
-                    .write(path_segments, cid, time, &self.store)
+                    .write(path_segments, cid, time, self.store)
                     .await
             }
             "exchange" => {
                 let cid = self.store.put_block(content, IpldCodec::Raw).await?;
                 self.exchange_root
-                    .write(path_segments, cid, time, &self.store)
+                    .write(path_segments, cid, time, self.store)
                     .await
             }
             _ => {
@@ -174,7 +173,7 @@ where
                     time,
                     content,
                     &mut self.forest,
-                    &self.store,
+                    self.store,
                     &mut self.rng,
                 )
                 .await
@@ -195,12 +194,12 @@ where
         match first.as_str() {
             "public" => {
                 self.public_root
-                    .mkdir(path_segments, time, &self.store)
+                    .mkdir(path_segments, time, self.store)
                     .await
             }
             "exchange" => {
                 self.exchange_root
-                    .mkdir(path_segments, time, &self.store)
+                    .mkdir(path_segments, time, self.store)
                     .await
             }
             _ => {
@@ -214,7 +213,7 @@ where
                     true,
                     time,
                     &self.forest,
-                    &self.store,
+                    self.store,
                     &mut self.rng,
                 )
                 .await
@@ -231,12 +230,12 @@ where
         match first.as_str() {
             "public" => self
                 .public_root
-                .rm(path_segments, &self.store)
+                .rm(path_segments, self.store)
                 .await
                 .map(|_| ()),
             "exchange" => self
                 .exchange_root
-                .rm(path_segments, &self.store)
+                .rm(path_segments, self.store)
                 .await
                 .map(|_| ()),
             _ => {
@@ -246,7 +245,7 @@ where
                     .ok_or(FsError::PrivateRefNotFound)?;
 
                 let _ = root
-                    .rm(path_segments, true, &self.forest, &self.store)
+                    .rm(path_segments, true, &self.forest, self.store)
                     .await?;
 
                 Ok(())
@@ -268,12 +267,12 @@ where
         match first.as_str() {
             "public" => {
                 self.public_root
-                    .basic_mv(path_segments_from, path_segments_to, time, &self.store)
+                    .basic_mv(path_segments_from, path_segments_to, time, self.store)
                     .await
             }
             "exchange" => {
                 self.exchange_root
-                    .basic_mv(path_segments_from, path_segments_to, time, &self.store)
+                    .basic_mv(path_segments_from, path_segments_to, time, self.store)
                     .await
             }
             _ => {
@@ -288,7 +287,7 @@ where
                     true,
                     time,
                     &mut self.forest,
-                    &self.store,
+                    self.store,
                     &mut self.rng,
                 )
                 .await
@@ -296,7 +295,7 @@ where
         }
     }
 
-    pub async fn store(&self, store: &mut B) -> Result<Cid> {
+    pub async fn store(&self, store: &B) -> Result<Cid> {
         let serializable = RootTreeSerializable {
             public: self.public_root.store(store).await?,
             exchange: self.exchange_root.store(store).await?,
@@ -309,12 +308,12 @@ where
 
     pub async fn load(
         cid: &Cid,
-        store: B,
+        store: &'a B,
         rng: R,
         private_map: HashMap<Vec<String>, Rc<PrivateDirectory>>,
-    ) -> Result<Self> {
+    ) -> Result<RootTree<'a, B, R>> {
         let deserialized: RootTreeSerializable = store.get_deserializable(cid).await?;
-        let forest = Rc::new(PrivateForest::load(&deserialized.forest, &store).await?);
+        let forest = Rc::new(PrivateForest::load(&deserialized.forest, store).await?);
         let public_root = Rc::new(store.get_deserializable(&deserialized.public).await?);
         let exchange_root = Rc::new(store.get_deserializable(&deserialized.exchange).await?);
 
@@ -330,10 +329,10 @@ where
 }
 
 #[cfg(test)]
-impl Default for RootTree<MemoryBlockStore, ThreadRng> {
-    fn default() -> Self {
+impl<'a, B: BlockStore> RootTree<'a, B, ThreadRng> {
+    pub fn with_store(store: &'a B) -> RootTree<'a, B, ThreadRng> {
         Self {
-            store: MemoryBlockStore::default(),
+            store,
             rng: rand::thread_rng(),
             forest: Rc::new(PrivateForest::default()),
             public_root: Rc::new(PublicDirectory::new(Utc::now())),
@@ -353,7 +352,8 @@ mod tests {
 
     #[async_std::test]
     async fn test_roots_read_write() {
-        let mut root_tree = RootTree::default();
+        let store = MemoryBlockStore::default();
+        let mut root_tree = RootTree::with_store(&store);
         root_tree.create_private_root("private").await.unwrap();
 
         // Public root
