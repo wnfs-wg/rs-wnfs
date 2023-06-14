@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1686743920517,
+  "lastUpdate": 1686747061745,
   "repoUrl": "https://github.com/wnfs-wg/rs-wnfs",
   "entries": {
     "Rust Benchmark": [
@@ -14011,6 +14011,108 @@ window.BENCHMARK_DATA = {
             "name": "namefilter encode",
             "value": 174,
             "range": "± 5",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter decode/0",
+            "value": 1,
+            "range": "± 0",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "appcypher@outlook.com",
+            "name": "Stephen Akinyemi",
+            "username": "appcypher"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "24bf412b16b56c2d5cae966d728889361dee08fe",
+          "message": "chore(api): mutable API preliminary work (#229)\n\n* Add mutable dirs\r\n\r\n* Refactor roottree\r\n\r\n* Fix fmt\r\n\r\n* Expose roottree api\r\n\r\n* Add store and load fns\r\n\r\n* Remove T time generic param\r\n\r\n* Fix lint\r\n\r\n* Take ref blockstore instead",
+          "timestamp": "2023-06-14T13:47:35+01:00",
+          "tree_id": "3ce0d2dcb64ac0b2c52f8c3a3630642496ac7603",
+          "url": "https://github.com/wnfs-wg/rs-wnfs/commit/24bf412b16b56c2d5cae966d728889361dee08fe"
+        },
+        "date": 1686747060489,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "node set",
+            "value": 7187,
+            "range": "± 166",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node set 1000 consecutive",
+            "value": 4552702,
+            "range": "± 19096",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and get",
+            "value": 169627,
+            "range": "± 774",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and remove",
+            "value": 191984,
+            "range": "± 398",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt load and decode/0",
+            "value": 42835,
+            "range": "± 74",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt set and encode",
+            "value": 179296,
+            "range": "± 590",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt diff",
+            "value": 59205,
+            "range": "± 4695",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt merge",
+            "value": 244999,
+            "range": "± 19783",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter add",
+            "value": 7601,
+            "range": "± 25",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter contains",
+            "value": 8682,
+            "range": "± 45",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter saturate",
+            "value": 41880,
+            "range": "± 119",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter encode",
+            "value": 284,
+            "range": "± 7",
             "unit": "ns/iter"
           },
           {
