@@ -74,7 +74,7 @@ where
             Default::default(),
             Utc::now(),
             &mut self.forest,
-            &mut self.store,
+            &self.store,
             &mut self.rng,
         )
         .await?;
@@ -174,7 +174,7 @@ where
                     time,
                     content,
                     &mut self.forest,
-                    &mut self.store,
+                    &self.store,
                     &mut self.rng,
                 )
                 .await
@@ -288,7 +288,7 @@ where
                     true,
                     time,
                     &mut self.forest,
-                    &mut self.store,
+                    &self.store,
                     &mut self.rng,
                 )
                 .await
