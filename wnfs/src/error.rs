@@ -47,6 +47,9 @@ pub enum FsError {
 
     #[error("Cannot find shard for file content")]
     FileShardNotFound,
+
+    #[error("Cannot find private ref with specified root path")]
+    PrivateRefNotFound,
 }
 
 /// Data sharing related errors

@@ -183,6 +183,17 @@ impl PrivateForest {
     ) -> Result<Vec<KeyValueChange<Namefilter, BTreeSet<Cid>>>> {
         self.0.diff(&other.0, store).await
     }
+
+    /// Serializes the forest and stores it in the given block store.
+    pub async fn store(&self, store: &impl BlockStore) -> Result<Cid> {
+        store.put_async_serializable(&self.0).await
+    }
+
+    /// Deserializes a forest from the given block store.
+    pub async fn load(cid: &Cid, store: &impl BlockStore) -> Result<Self> {
+        let hamt = store.get_deserializable(cid).await?;
+        Ok(Self(hamt))
+    }
 }
 
 impl<H> PrivateForest<H>
