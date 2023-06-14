@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1686730972297,
+  "lastUpdate": 1686733865432,
   "repoUrl": "https://github.com/wnfs-wg/rs-wnfs",
   "entries": {
     "Rust Benchmark": [
@@ -13404,6 +13404,108 @@ window.BENCHMARK_DATA = {
           {
             "name": "namefilter decode/0",
             "value": 2,
+            "range": "± 0",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "49699333+dependabot[bot]@users.noreply.github.com",
+            "name": "dependabot[bot]",
+            "username": "dependabot[bot]"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "2f8ad3f1456edc26be4c9a54319983fb65ae2a6a",
+          "message": "chore(rust)(deps): update rsa requirement from 0.8 to 0.9 in /wnfs (#244)\n\n* chore(rust)(deps): update rsa requirement from 0.8 to 0.9 in /wnfs\r\n\r\nUpdates the requirements on [rsa](https://github.com/RustCrypto/RSA) to permit the latest version.\r\n- [Release notes](https://github.com/RustCrypto/RSA/releases)\r\n- [Changelog](https://github.com/RustCrypto/RSA/blob/master/CHANGELOG.md)\r\n- [Commits](https://github.com/RustCrypto/RSA/compare/v0.8.0...v0.9.0)\r\n\r\n---\r\nupdated-dependencies:\r\n- dependency-name: rsa\r\n  dependency-type: direct:production\r\n...\r\n\r\nSigned-off-by: dependabot[bot] <support@github.com>\r\n\r\n* Fix import\r\n\r\n* Fromat\r\n\r\n* Fix lint\r\n\r\n* Fix lint\r\n\r\n---------\r\n\r\nSigned-off-by: dependabot[bot] <support@github.com>\r\nCo-authored-by: dependabot[bot] <49699333+dependabot[bot]@users.noreply.github.com>\r\nCo-authored-by: Stephen Akinyemi <appcypher@outlook.com>",
+          "timestamp": "2023-06-14T10:07:40+01:00",
+          "tree_id": "a744da5b77b0de7e609ab30280a1a22dd682816b",
+          "url": "https://github.com/wnfs-wg/rs-wnfs/commit/2f8ad3f1456edc26be4c9a54319983fb65ae2a6a"
+        },
+        "date": 1686733864650,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "node set",
+            "value": 7569,
+            "range": "± 182",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node set 1000 consecutive",
+            "value": 4390354,
+            "range": "± 17343",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and get",
+            "value": 170128,
+            "range": "± 187",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and remove",
+            "value": 193226,
+            "range": "± 269",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt load and decode/0",
+            "value": 42797,
+            "range": "± 59",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt set and encode",
+            "value": 180098,
+            "range": "± 343",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt diff",
+            "value": 53634,
+            "range": "± 4425",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt merge",
+            "value": 233770,
+            "range": "± 18764",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter add",
+            "value": 8485,
+            "range": "± 10",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter contains",
+            "value": 10722,
+            "range": "± 23",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter saturate",
+            "value": 39908,
+            "range": "± 47",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter encode",
+            "value": 170,
+            "range": "± 6",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter decode/0",
+            "value": 1,
             "range": "± 0",
             "unit": "ns/iter"
           }
