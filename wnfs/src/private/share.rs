@@ -117,7 +117,7 @@ impl<'a, K: ExchangeKey, S: BlockStore> Share<'a, K, S> {
     /// It takes the payload, sharer, and recipients, and performs the share operation,
     /// encrypts the payload and stores it in the sharer's private forest.
     pub async fn finish(&mut self) -> Result<()> {
-        if matches!(&self.sharer, None) || matches!(self.recipients.len(), 0) {
+        if self.sharer.is_none() || self.recipients.is_empty() {
             bail!(ShareError::NoSharerOrRecipients);
         }
 

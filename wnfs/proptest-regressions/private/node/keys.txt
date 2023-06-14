@@ -1,0 +1,7 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 6ba0cb50393b8f9e2947ba64659d6edd0906697b63ce9c1980cceb7445e1c840 # shrinks to input = _SnapshotKeyCanEncryptAndDecryptDataArgs { data: [0], rng_seed: [173, 88, 150, 200, 189, 241, 82, 9, 239, 218, 115, 161, 54, 26, 156, 216, 83, 85, 41, 26, 168, 187, 142, 109, 219, 4, 201, 178, 179, 233, 183, 142], key_bytes: [100, 126, 245, 183, 90, 213, 195, 94, 41, 118, 51, 182, 17, 154, 65, 220, 154, 0, 65, 178, 232, 238, 164, 89, 132, 215, 153, 221, 120, 193, 136, 91] }

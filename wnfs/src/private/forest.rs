@@ -260,7 +260,7 @@ impl PrivateForest {
                     for cid in cids {
                         match PrivateNode::load(&revision.clone().as_private_ref(*cid), store).await {
                             Ok(node) => yield Ok(node),
-                            Err(e) if matches!(e.downcast_ref::<AesError>(), Some(_)) => {
+                            Err(e) if e.downcast_ref::<AesError>().is_some() => {
                                 // we likely matched a PrivateNodeHeader instead of a PrivateNode.
                                 // we skip it
                             }
