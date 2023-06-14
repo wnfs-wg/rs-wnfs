@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1686742461985,
+  "lastUpdate": 1686743750543,
   "repoUrl": "https://github.com/wnfs-wg/rs-wnfs",
   "entries": {
     "Rust Benchmark": [
@@ -13705,6 +13705,108 @@ window.BENCHMARK_DATA = {
             "name": "namefilter encode",
             "value": 202,
             "range": "± 9",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter decode/0",
+            "value": 1,
+            "range": "± 0",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "49699333+dependabot[bot]@users.noreply.github.com",
+            "name": "dependabot[bot]",
+            "username": "dependabot[bot]"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "c18a00c8e0db860b79d1c73b13f67ecd87cc3d2b",
+          "message": "chore(rust)(deps): update multihash requirement in /wnfs (#276)\n\nUpdates the requirements on [multihash](https://github.com/multiformats/rust-multihash) to permit the latest version.\r\n- [Changelog](https://github.com/multiformats/rust-multihash/blob/master/CHANGELOG.md)\r\n- [Commits](https://github.com/multiformats/rust-multihash/compare/v0.18.0...v0.19.0)\r\n\r\n---\r\nupdated-dependencies:\r\n- dependency-name: multihash\r\n  dependency-type: direct:production\r\n...\r\n\r\nSigned-off-by: dependabot[bot] <support@github.com>\r\nCo-authored-by: dependabot[bot] <49699333+dependabot[bot]@users.noreply.github.com>",
+          "timestamp": "2023-06-14T12:52:23+01:00",
+          "tree_id": "e9420b44eac863cadfecf2ec84c57cf633fab061",
+          "url": "https://github.com/wnfs-wg/rs-wnfs/commit/c18a00c8e0db860b79d1c73b13f67ecd87cc3d2b"
+        },
+        "date": 1686743749142,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "node set",
+            "value": 7129,
+            "range": "± 85",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node set 1000 consecutive",
+            "value": 4563733,
+            "range": "± 18847",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and get",
+            "value": 170285,
+            "range": "± 599",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and remove",
+            "value": 192536,
+            "range": "± 576",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt load and decode/0",
+            "value": 42983,
+            "range": "± 44",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt set and encode",
+            "value": 178648,
+            "range": "± 463",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt diff",
+            "value": 59596,
+            "range": "± 4743",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt merge",
+            "value": 244966,
+            "range": "± 19585",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter add",
+            "value": 7551,
+            "range": "± 47",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter contains",
+            "value": 8817,
+            "range": "± 28",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter saturate",
+            "value": 41893,
+            "range": "± 122",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter encode",
+            "value": 167,
+            "range": "± 5",
             "unit": "ns/iter"
           },
           {
