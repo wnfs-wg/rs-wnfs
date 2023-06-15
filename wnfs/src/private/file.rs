@@ -506,12 +506,13 @@ impl PrivateFile {
         forest: &PrivateForest,
         store: &impl BlockStore,
     ) -> Result<Vec<u8>> {
-        let cids = forest
+        let entry = forest
             .get_encrypted(name, store)
             .await?
             .ok_or(FsError::FileShardNotFound)?;
 
-        let cid = cids
+        let cid = entry
+            .blocks
             .iter()
             .next()
             .expect("Expected set with at least a Cid");

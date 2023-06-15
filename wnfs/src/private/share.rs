@@ -365,6 +365,7 @@ pub mod recipient {
             .get_encrypted_by_hash(&Sha3_256::hash(&share_label.as_accumulator(setup)), store)
             .await?
             .ok_or(ShareError::SharePayloadNotFound)?
+            .blocks
             .first()
             .ok_or(ShareError::SharePayloadNotFound)?;
 

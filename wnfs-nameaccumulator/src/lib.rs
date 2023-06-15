@@ -65,7 +65,7 @@ impl NameAccumulator {
 
         ElementsProof {
             witness,
-            l_nonce,
+            l_hash_nonce: l_nonce,
             big_q,
             r,
         }
@@ -120,13 +120,13 @@ impl NameAccumulator {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ElementsProof {
     /// The accumulator's base, $u$
-    witness: BigUint,
+    pub witness: BigUint,
     /// A nonce that helps to more quickly generate/verify a hash-to-prime. Helps generate the prime number $l$
-    l_nonce: u32,
+    pub l_hash_nonce: u32,
     /// A part of the proof, $Q = u^q$, where $element = q*l + r$
-    big_q: BigUint,
+    pub big_q: BigUint,
     /// A part of the proof, the residue of the element that's proven, i.e. $r$ in $element = q*l + r$
-    r: BigUint,
+    pub r: BigUint,
 }
 
 impl Ord for NameAccumulator {

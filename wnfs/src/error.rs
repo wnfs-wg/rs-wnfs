@@ -50,6 +50,9 @@ pub enum FsError {
 
     #[error("Cannot merge forests, incompatible accumulator setups")]
     IncompatibleAccumulatorSetups,
+
+    #[error("Cannot merge forests, invalid entry proofs")]
+    InvalidEntryProofs,
 }
 
 /// Data sharing related errors

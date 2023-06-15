@@ -10,8 +10,8 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use sha3::Sha3_256;
 use std::{collections::BTreeSet, rc::Rc};
 use wnfs_common::{AsyncSerialize, BlockStore, HashOutput, Link};
-use wnfs_hamt::{merge, Hamt, Hasher, KeyValueChange};
-use wnfs_nameaccumulator::{AccumulatorSetup, Name, NameAccumulator};
+use wnfs_hamt::{merge, Hamt, Hasher, KeyValueChange, Pair};
+use wnfs_nameaccumulator::{AccumulatorSetup, ElementsProof, Name, NameAccumulator};
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
@@ -36,8 +36,47 @@ use wnfs_nameaccumulator::{AccumulatorSetup, Name, NameAccumulator};
 /// ```
 #[derive(Debug, Clone)]
 pub struct PrivateForest<H: Hasher = Sha3_256> {
-    hamt: Hamt<NameAccumulator, BTreeSet<Cid>, H>,
+    hamt: Hamt<NameAccumulator, Entry, H>,
     accumulator: AccumulatorSetup,
+}
+
+/// Representation of an opaque data entry in the forest.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct Entry {
+    /// The CIDs to the ciphertext blocks
+    pub blocks: BTreeSet<Cid>,
+    /// A helper number for faster prime-hash verification
+    pub l_hash_nonce: u32,
+    /// The 128-bit residue of r used for proving name accumulator validity.
+    pub residue: [u8; 16],
+}
+
+impl Entry {
+    pub(crate) fn new(blocks: BTreeSet<Cid>, proof: &ElementsProof) -> Self {
+        let mut residue = [0u8; 16];
+        let encoded = proof.r.to_bytes_le();
+        residue[..encoded.len()].copy_from_slice(&encoded);
+
+        Self {
+            blocks,
+            l_hash_nonce: proof.l_hash_nonce,
+            residue,
+        }
+    }
+
+    pub(crate) fn merge(&self, b: &Entry) -> Result<Entry> {
+        if self.l_hash_nonce != b.l_hash_nonce || self.residue != b.residue {
+            return Err(FsError::InvalidEntryProofs.into());
+        }
+
+        let blocks = self.blocks.union(&b.blocks).cloned().collect();
+
+        return Ok(Self {
+            blocks,
+            l_hash_nonce: self.l_hash_nonce,
+            residue: self.residue,
+        });
+    }
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -126,7 +165,7 @@ impl PrivateForest {
         values: impl IntoIterator<Item = Cid>,
         store: &mut impl BlockStore,
     ) -> Result<&'a NameAccumulator> {
-        let name = name.as_accumulator(&self.accumulator);
+        let (name, proof) = name.as_proven_accumulator(&self.accumulator);
         println!("Put {:02x?}", Sha3_256::hash(name));
         // TODO(matheus23): This iterates the path in the HAMT twice.
         // We could consider implementing something like upsert instead.
@@ -136,15 +175,19 @@ impl PrivateForest {
             .root
             .get(&name, store)
             .await?
+            .map(|entry| &entry.blocks)
             .cloned()
             .unwrap_or_default();
 
         cids.extend(values);
 
+        // TODO(matheus23): also accumulate big_q
+        let entry = Entry::new(cids, proof);
+
         Rc::make_mut(self)
             .hamt
             .root
-            .set(name.clone(), cids, store)
+            .set(name.clone(), entry, store)
             .await?;
 
         Ok(name)
@@ -156,7 +199,7 @@ impl PrivateForest {
         &'b self,
         name_hash: &HashOutput,
         store: &impl BlockStore,
-    ) -> Result<Option<&'b BTreeSet<Cid>>> {
+    ) -> Result<Option<&'b Entry>> {
         println!("Get {:02x?}", name_hash);
         self.hamt.root.get_by_hash(name_hash, store).await
     }
@@ -165,23 +208,22 @@ impl PrivateForest {
         &self,
         name: &Name,
         store: &impl BlockStore,
-    ) -> Result<Option<&BTreeSet<Cid>>> {
+    ) -> Result<Option<&Entry>> {
         let name_hash = &Sha3_256::hash(&name.as_accumulator(&self.accumulator).as_ref());
         self.get_encrypted_by_hash(name_hash, store).await
     }
 
-    /// Removes the encrypted value at the given key.
+    /// Removes the encrypted values at the given key.
     pub async fn remove_encrypted(
         self: &mut Rc<Self>,
         name_hash: &HashOutput,
         store: &mut impl BlockStore,
-    ) -> Result<Option<BTreeSet<Cid>>> {
-        let pair = Rc::make_mut(self)
+    ) -> Result<Option<Pair<NameAccumulator, Entry>>> {
+        Rc::make_mut(self)
             .hamt
             .root
             .remove_by_hash(name_hash, store)
-            .await?;
-        Ok(pair.map(|p| p.value))
+            .await
     }
 
     /// Returns a stream of all private nodes that could be decrypted at given revision.
@@ -200,8 +242,8 @@ impl PrivateForest {
                 .get_encrypted_by_hash(&revision.saturated_name_hash, store)
                 .await
             {
-                Ok(Some(cids)) => {
-                    for cid in cids {
+                Ok(Some(entry)) => {
+                    for cid in &entry.blocks {
                         match PrivateNode::from_cid(*cid, &revision.temporal_key, store, mounted_relative_to).await {
                             Ok(node) => yield Ok(node),
                             Err(e) if matches!(e.downcast_ref::<AesError>(), Some(_)) => {
@@ -225,7 +267,7 @@ impl PrivateForest {
         &self,
         other: &Self,
         store: &mut impl BlockStore,
-    ) -> Result<Vec<KeyValueChange<NameAccumulator, BTreeSet<Cid>>>> {
+    ) -> Result<Vec<KeyValueChange<NameAccumulator, Entry>>> {
         self.hamt.diff(&other.hamt, store).await
     }
 
@@ -309,7 +351,7 @@ where
         let merged_root = merge(
             Link::from(Rc::clone(&self.hamt.root)),
             Link::from(Rc::clone(&other.hamt.root)),
-            |a, b| Ok(a.union(b).cloned().collect()),
+            |a, b| a.merge(b),
             store,
         )
         .await?;
@@ -369,6 +411,29 @@ impl<'de> Deserialize<'de> for PrivateForest {
             AccumulatorSetup::deserialize(accumulator_ipld).map_err(serde::de::Error::custom)?;
 
         Ok(Self { hamt, accumulator })
+    }
+}
+
+impl<'de> Deserialize<'de> for Entry {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let (blocks, l_hash_nonce, residue) = Deserialize::deserialize(deserializer)?;
+        Ok(Self {
+            blocks,
+            l_hash_nonce,
+            residue,
+        })
+    }
+}
+
+impl Serialize for Entry {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        (&self.blocks, self.l_hash_nonce, self.residue).serialize(serializer)
     }
 }
 
@@ -475,15 +540,9 @@ mod tests {
         ]);
 
         forest.put_encrypted(&name, [cid], store).await.unwrap();
-        let result = forest
-            .get_encrypted_by_hash(
-                &Sha3_256::hash(name.as_accumulator(forest.get_accumulator_setup())),
-                store,
-            )
-            .await
-            .unwrap();
+        let result = forest.get_encrypted(&name, store).await.unwrap();
 
-        assert_eq!(result, Some(&BTreeSet::from([cid])));
+        assert_eq!(result.map(|e| &e.blocks), Some(&BTreeSet::from([cid])));
     }
 
     #[async_std::test]
@@ -542,7 +601,7 @@ mod tests {
 
         // We expect there to be a conflict, a multivalue
         // Two of these CIDs should be content blocks, one CID should be the header block they share.
-        assert_eq!(ciphertext_cids.len(), 3);
+        assert_eq!(ciphertext_cids.blocks.len(), 3);
 
         let retrieved = PrivateNode::load(&private_ref, forest, store, &forest.empty_name())
             .await
@@ -562,6 +621,14 @@ mod tests {
         let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
         let setup = &AccumulatorSetup::from_rsa_2048(rng);
 
+        // We don't need anything specific for this test.
+        let bogus_proof = ElementsProof {
+            big_q: Default::default(),
+            r: Default::default(),
+            witness: Default::default(),
+            l_hash_nonce: Default::default(),
+        };
+
         // A node that adds the first 3 pairs of HASH_KV_PAIRS.
         let other_node = &mut Rc::new(Node::<_, _, MockHasher>::default());
         for (digest, k, v) in HASH_KV_PAIRS.iter().take(3) {
@@ -569,7 +636,7 @@ mod tests {
                 .set_value(
                     &mut HashNibbles::new(digest),
                     NameAccumulator::parse_bytes(k).unwrap(),
-                    BTreeSet::from([*v]),
+                    Entry::new(BTreeSet::from([*v]), &bogus_proof),
                     store,
                 )
                 .await
@@ -582,7 +649,7 @@ mod tests {
             .set_value(
                 &mut HashNibbles::new(&HASH_KV_PAIRS[0].0),
                 NameAccumulator::parse_bytes(&HASH_KV_PAIRS[0].1).unwrap(),
-                BTreeSet::from([HASH_KV_PAIRS[0].2]),
+                Entry::new(BTreeSet::from([HASH_KV_PAIRS[0].2]), &bogus_proof),
                 store,
             )
             .await
@@ -593,7 +660,7 @@ mod tests {
             .set_value(
                 &mut HashNibbles::new(&HASH_KV_PAIRS[1].0),
                 NameAccumulator::parse_bytes(&HASH_KV_PAIRS[1].1).unwrap(),
-                BTreeSet::from([new_cid]),
+                Entry::new(BTreeSet::from([new_cid]), &bogus_proof),
                 store,
             )
             .await
@@ -604,7 +671,7 @@ mod tests {
                 .set_value(
                     &mut HashNibbles::new(digest),
                     NameAccumulator::parse_bytes(k).unwrap(),
-                    BTreeSet::from([*v]),
+                    Entry::new(BTreeSet::from([*v]), &bogus_proof),
                     store,
                 )
                 .await
@@ -612,12 +679,12 @@ mod tests {
         }
 
         let main_forest = PrivateForest {
-            hamt: Hamt::<NameAccumulator, BTreeSet<Cid>, _>::with_root(Rc::clone(main_node)),
+            hamt: Hamt::<NameAccumulator, Entry, _>::with_root(Rc::clone(main_node)),
             accumulator: setup.clone(),
         };
 
         let other_forest = PrivateForest {
-            hamt: Hamt::<NameAccumulator, BTreeSet<Cid>, _>::with_root(Rc::clone(other_node)),
+            hamt: Hamt::<NameAccumulator, Entry, _>::with_root(Rc::clone(other_node)),
             accumulator: setup.clone(),
         };
 
@@ -631,11 +698,11 @@ mod tests {
                 .await
                 .unwrap();
             if i != 1 {
-                assert_eq!(retrieved.unwrap(), &BTreeSet::from([*v]));
+                assert_eq!(&retrieved.unwrap().blocks, &BTreeSet::from([*v]));
             } else {
                 // The second pair should contain two merged Cids.
-                assert!(retrieved.unwrap().contains(&new_cid));
-                assert!(retrieved.unwrap().contains(&HASH_KV_PAIRS[1].2));
+                assert!(retrieved.unwrap().blocks.contains(&new_cid));
+                assert!(retrieved.unwrap().blocks.contains(&HASH_KV_PAIRS[1].2));
             }
         }
     }
