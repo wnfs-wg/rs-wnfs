@@ -492,7 +492,12 @@ impl PrivateNode {
             .get_encrypted_by_hash(&private_ref.saturated_name_hash, store)
             .await?
         {
-            Some(entry) if entry.blocks.contains(&private_ref.content_cid) => {
+            Some(entries)
+                if entries
+                    .iter()
+                    .find(|entry| entry.block == private_ref.content_cid)
+                    .is_some() =>
+            {
                 private_ref.content_cid
             }
             _ => return Err(FsError::NotFound.into()),

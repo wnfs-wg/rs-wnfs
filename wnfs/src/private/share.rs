@@ -365,12 +365,12 @@ pub mod recipient {
             .get_encrypted_by_hash(&Sha3_256::hash(&share_label.as_accumulator(setup)), store)
             .await?
             .ok_or(ShareError::SharePayloadNotFound)?
-            .blocks
             .first()
-            .ok_or(ShareError::SharePayloadNotFound)?;
+            .ok_or(ShareError::SharePayloadNotFound)?
+            .block;
 
         // Get encrypted payload from store using cid
-        let encrypted_payload = store.get_block(payload_cid).await?.to_vec();
+        let encrypted_payload = store.get_block(&payload_cid).await?.to_vec();
 
         // Decrypt payload using recipient's private key and decode it.
         let payload: SharePayload =
