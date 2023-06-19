@@ -36,7 +36,7 @@ use wnfs_nameaccumulator::{AccumulatorSetup, ElementsProof, Name, NameAccumulato
 /// ```
 #[derive(Debug, Clone)]
 pub struct PrivateForest<H: Hasher = Sha3_256> {
-    hamt: Hamt<NameAccumulator, BTreeSet<Entry>, H>,
+    hamt: Hamt<NameAccumulator, BTreeSet<Cid>, H>,
     accumulator: AccumulatorSetup,
 }
 
@@ -152,11 +152,10 @@ impl PrivateForest {
         store: &mut impl BlockStore,
     ) -> Result<&'a NameAccumulator> {
         let (name, proof) = name.as_proven_accumulator(&self.accumulator);
-        println!("Put {:02x?}", Sha3_256::hash(name));
         // TODO(matheus23): This iterates the path in the HAMT twice.
         // We could consider implementing something like upsert instead.
         // Or some kind of "cursor".
-        let mut entries = self
+        let mut cids = self
             .hamt
             .root
             .get(&name, store)
@@ -164,13 +163,12 @@ impl PrivateForest {
             .cloned()
             .unwrap_or_default();
 
-        // TODO(matheus23): also accumulate big_q
-        entries.extend(values.into_iter().map(|value| Entry::new(value, &proof)));
+        cids.extend(values);
 
         Rc::make_mut(self)
             .hamt
             .root
-            .set(name.clone(), entries, store)
+            .set(name.clone(), cids, store)
             .await?;
 
         Ok(name)
@@ -182,8 +180,7 @@ impl PrivateForest {
         &'b self,
         name_hash: &HashOutput,
         store: &impl BlockStore,
-    ) -> Result<Option<&'b BTreeSet<Entry>>> {
-        println!("Get {:02x?}", name_hash);
+    ) -> Result<Option<&'b BTreeSet<Cid>>> {
         self.hamt.root.get_by_hash(name_hash, store).await
     }
 
@@ -191,7 +188,7 @@ impl PrivateForest {
         &self,
         name: &Name,
         store: &impl BlockStore,
-    ) -> Result<Option<&BTreeSet<Entry>>> {
+    ) -> Result<Option<&BTreeSet<Cid>>> {
         let name_hash = &Sha3_256::hash(&name.as_accumulator(&self.accumulator).as_ref());
         self.get_encrypted_by_hash(name_hash, store).await
     }
@@ -201,7 +198,7 @@ impl PrivateForest {
         self: &mut Rc<Self>,
         name_hash: &HashOutput,
         store: &mut impl BlockStore,
-    ) -> Result<Option<Pair<NameAccumulator, BTreeSet<Entry>>>> {
+    ) -> Result<Option<Pair<NameAccumulator, BTreeSet<Cid>>>> {
         Rc::make_mut(self)
             .hamt
             .root
@@ -225,9 +222,9 @@ impl PrivateForest {
                 .get_encrypted_by_hash(&revision.saturated_name_hash, store)
                 .await
             {
-                Ok(Some(entries)) => {
-                    for entry in entries {
-                        match PrivateNode::from_cid(entry.block, &revision.temporal_key, store, mounted_relative_to).await {
+                Ok(Some(cids)) => {
+                    for cid in cids {
+                        match PrivateNode::from_cid(*cid, &revision.temporal_key, store, mounted_relative_to).await {
                             Ok(node) => yield Ok(node),
                             Err(e) if matches!(e.downcast_ref::<AesError>(), Some(_)) => {
                                 // we likely matched a PrivateNodeHeader instead of a PrivateNode.
@@ -250,7 +247,7 @@ impl PrivateForest {
         &self,
         other: &Self,
         store: &mut impl BlockStore,
-    ) -> Result<Vec<KeyValueChange<NameAccumulator, BTreeSet<Entry>>>> {
+    ) -> Result<Vec<KeyValueChange<NameAccumulator, BTreeSet<Cid>>>> {
         if self.accumulator != other.accumulator {
             return Err(FsError::IncompatibleAccumulatorSetups.into());
         }
@@ -529,13 +526,7 @@ mod tests {
         forest.put_encrypted(&name, [cid], store).await.unwrap();
         let result = forest.get_encrypted(&name, store).await.unwrap();
 
-        let cids: Vec<Cid> = result
-            .into_iter()
-            .flat_map(|x| x)
-            .map(|entry| entry.block)
-            .collect();
-
-        assert_eq!(cids, vec![cid]);
+        assert_eq!(result, Some(&BTreeSet::from([cid])));
     }
 
     #[async_std::test]
@@ -629,7 +620,7 @@ mod tests {
                 .set_value(
                     &mut HashNibbles::new(digest),
                     NameAccumulator::parse_bytes(k).unwrap(),
-                    BTreeSet::from([Entry::new(*v, &bogus_proof)]),
+                    BTreeSet::from([*v]),
                     store,
                 )
                 .await
@@ -642,7 +633,7 @@ mod tests {
             .set_value(
                 &mut HashNibbles::new(&HASH_KV_PAIRS[0].0),
                 NameAccumulator::parse_bytes(&HASH_KV_PAIRS[0].1).unwrap(),
-                BTreeSet::from([Entry::new(HASH_KV_PAIRS[0].2, &bogus_proof)]),
+                BTreeSet::from([HASH_KV_PAIRS[0].2]),
                 store,
             )
             .await
@@ -653,7 +644,7 @@ mod tests {
             .set_value(
                 &mut HashNibbles::new(&HASH_KV_PAIRS[1].0),
                 NameAccumulator::parse_bytes(&HASH_KV_PAIRS[1].1).unwrap(),
-                BTreeSet::from([Entry::new(new_cid, &bogus_proof)]),
+                BTreeSet::from([new_cid]),
                 store,
             )
             .await
@@ -664,7 +655,7 @@ mod tests {
                 .set_value(
                     &mut HashNibbles::new(digest),
                     NameAccumulator::parse_bytes(k).unwrap(),
-                    BTreeSet::from([Entry::new(*v, &bogus_proof)]),
+                    BTreeSet::from([*v]),
                     store,
                 )
                 .await
@@ -672,12 +663,12 @@ mod tests {
         }
 
         let main_forest = PrivateForest {
-            hamt: Hamt::<NameAccumulator, BTreeSet<Entry>, _>::with_root(Rc::clone(main_node)),
+            hamt: Hamt::<NameAccumulator, BTreeSet<Cid>, _>::with_root(Rc::clone(main_node)),
             accumulator: setup.clone(),
         };
 
         let other_forest = PrivateForest {
-            hamt: Hamt::<NameAccumulator, BTreeSet<Entry>, _>::with_root(Rc::clone(other_node)),
+            hamt: Hamt::<NameAccumulator, BTreeSet<Cid>, _>::with_root(Rc::clone(other_node)),
             accumulator: setup.clone(),
         };
 
@@ -691,15 +682,12 @@ mod tests {
                 .await
                 .unwrap();
 
-            let retrieved_cids: Vec<Cid> =
-                retrieved.unwrap().into_iter().map(|e| e.block).collect();
-
             if i != 1 {
-                assert_eq!(retrieved_cids, vec![*v]);
+                assert_eq!(retrieved.unwrap(), &BTreeSet::from([*v]));
             } else {
                 // The second pair should contain two merged Cids.
-                assert!(retrieved_cids.contains(&new_cid));
-                assert!(retrieved_cids.contains(&HASH_KV_PAIRS[1].2));
+                assert!(retrieved.unwrap().contains(&new_cid));
+                assert!(retrieved.unwrap().contains(&HASH_KV_PAIRS[1].2));
             }
         }
     }

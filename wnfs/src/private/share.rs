@@ -366,8 +366,7 @@ pub mod recipient {
             .await?
             .ok_or(ShareError::SharePayloadNotFound)?
             .first()
-            .ok_or(ShareError::SharePayloadNotFound)?
-            .block;
+            .ok_or(ShareError::SharePayloadNotFound)?;
 
         // Get encrypted payload from store using cid
         let encrypted_payload = store.get_block(&payload_cid).await?.to_vec();
