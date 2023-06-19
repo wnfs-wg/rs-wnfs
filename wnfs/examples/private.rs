@@ -5,7 +5,10 @@ use chrono::Utc;
 use libipld::Cid;
 use rand::{thread_rng, RngCore};
 use std::rc::Rc;
-use wnfs::private::{PrivateDirectory, PrivateForest, PrivateNode, PrivateRef};
+use wnfs::{
+    private::{HamtForest, PrivateDirectory, PrivateNode, PrivateRef},
+    traits::PrivateForest,
+};
 use wnfs_common::{BlockStore, MemoryBlockStore};
 use wnfs_nameaccumulator::AccumulatorSetup;
 
@@ -22,7 +25,7 @@ async fn main() {
 
     // Fetch CBOR bytes of private forest from the blockstore.
     let forest = store
-        .get_deserializable::<PrivateForest>(&forest_cid)
+        .get_deserializable::<HamtForest>(&forest_cid)
         .await
         .unwrap();
 
@@ -43,7 +46,7 @@ async fn get_forest_cid_and_private_ref(
     let setup = AccumulatorSetup::trusted(rng);
 
     // Create the private forest (a HAMT), a map-like structure where file and directory ciphertexts are stored.
-    let forest = &mut Rc::new(PrivateForest::new(setup));
+    let forest = &mut Rc::new(HamtForest::new(setup));
 
     // Create a new directory.
     let dir = &mut Rc::new(PrivateDirectory::new(&forest.empty_name(), Utc::now(), rng));
@@ -53,7 +56,7 @@ async fn get_forest_cid_and_private_ref(
         &["pictures".into(), "cats".into()],
         true,
         Utc::now(),
-        forest,
+        &**forest,
         store,
         rng,
     )

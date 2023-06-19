@@ -2,10 +2,10 @@ use super::{PrivateNodeHeader, TemporalKey};
 use crate::{
     error::FsError,
     private::{
-        encrypted::Encrypted, link::PrivateLink, PrivateDirectory, PrivateDirectoryContent,
-        PrivateFile, PrivateFileContent, PrivateForest, PrivateRef,
+        encrypted::Encrypted, link::PrivateLink, HamtForest, PrivateDirectory,
+        PrivateDirectoryContent, PrivateFile, PrivateFileContent, PrivateRef,
     },
-    traits::Id,
+    traits::{Id, PrivateForest},
 };
 use anyhow::{bail, Result};
 use async_once_cell::OnceCell;
@@ -117,7 +117,7 @@ impl PrivateNode {
     pub(crate) async fn update_ancestry(
         &mut self,
         parent_name: &Name,
-        forest: &mut Rc<PrivateForest>,
+        forest: &mut Rc<impl PrivateForest>,
         store: &mut impl BlockStore,
         rng: &mut impl CryptoRngCore,
     ) -> Result<()> {
@@ -133,7 +133,7 @@ impl PrivateNode {
 
                 for private_link in &mut dir.content.entries.values_mut() {
                     let mut node = private_link
-                        .resolve_node(forest, store, &dir.header.name)
+                        .resolve_node(&**forest, store, &dir.header.name)
                         .await?
                         .clone();
                     node.update_ancestry(&dir.header.name, forest, store, rng)
@@ -376,7 +376,7 @@ impl PrivateNode {
     /// ```
     pub async fn search_latest(
         &self,
-        forest: &PrivateForest,
+        forest: &impl PrivateForest,
         store: &impl BlockStore,
     ) -> Result<PrivateNode> {
         self.search_latest_nodes(forest, store)
@@ -395,7 +395,7 @@ impl PrivateNode {
     /// representing an instance of a concurrent write.
     pub async fn search_latest_nodes(
         &self,
-        forest: &PrivateForest,
+        forest: &impl PrivateForest,
         store: &impl BlockStore,
     ) -> Result<Vec<PrivateNode>> {
         let header = self.get_header();
@@ -483,7 +483,7 @@ impl PrivateNode {
     /// ```
     pub async fn load(
         private_ref: &PrivateRef,
-        forest: &PrivateForest,
+        forest: &impl PrivateForest,
         store: &impl BlockStore,
         // TODO(matheus23) document this
         mounted_relative_to: &Name,
@@ -554,7 +554,7 @@ impl PrivateNode {
 
     pub async fn store(
         &self,
-        forest: &mut Rc<PrivateForest>,
+        forest: &mut Rc<impl PrivateForest>,
         store: &mut impl BlockStore,
         rng: &mut impl RngCore,
     ) -> Result<PrivateRef> {
@@ -615,7 +615,7 @@ mod tests {
     async fn serialized_private_node_can_be_deserialized() {
         let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
         let content = b"Lorem ipsum dolor sit amet";
-        let forest = &mut Rc::new(PrivateForest::new_rsa_2048(rng));
+        let forest = &mut Rc::new(HamtForest::new_rsa_2048(rng));
         let store = &mut MemoryBlockStore::new();
 
         let file = PrivateFile::with_content(
@@ -633,7 +633,7 @@ mod tests {
         let private_ref = file.store(forest, store, rng).await.unwrap();
 
         let deserialized_node =
-            PrivateNode::load(&private_ref, forest, store, &forest.empty_name())
+            PrivateNode::load(&private_ref, &**forest, store, &forest.empty_name())
                 .await
                 .unwrap();
 

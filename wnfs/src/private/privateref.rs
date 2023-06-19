@@ -223,7 +223,10 @@ impl RevisionRef {
 #[cfg(test)]
 mod tests {
     use super::RevisionRef;
-    use crate::private::{PrivateDirectory, PrivateForest, PrivateNode};
+    use crate::{
+        private::{HamtForest, PrivateDirectory, PrivateNode},
+        traits::PrivateForest,
+    };
     use chrono::Utc;
     use futures::StreamExt;
     use proptest::test_runner::{RngAlgorithm, TestRng};
@@ -235,7 +238,7 @@ mod tests {
     async fn can_create_revisionref_deterministically_with_user_provided_seeds() {
         let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
         let store = &mut MemoryBlockStore::default();
-        let forest = &mut Rc::new(PrivateForest::new_rsa_2048(rng));
+        let forest = &mut Rc::new(HamtForest::new_rsa_2048(rng));
         let ratchet_seed = utils::get_random_bytes::<32>(rng);
         let inumber = NameSegment::new(rng);
 

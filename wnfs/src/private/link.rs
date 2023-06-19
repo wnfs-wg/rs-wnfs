@@ -1,4 +1,5 @@
-use super::{PrivateDirectory, PrivateFile, PrivateForest, PrivateNode, PrivateRef};
+use super::{HamtForest, PrivateDirectory, PrivateFile, PrivateNode, PrivateRef};
+use crate::traits::PrivateForest;
 use anyhow::Result;
 use async_once_cell::OnceCell;
 use async_recursion::async_recursion;
@@ -31,7 +32,7 @@ impl PrivateLink {
     #[async_recursion(?Send)]
     pub(crate) async fn resolve_ref(
         &self,
-        forest: &mut Rc<PrivateForest>,
+        forest: &mut Rc<impl PrivateForest>,
         store: &mut impl BlockStore,
         rng: &mut impl RngCore,
     ) -> Result<PrivateRef> {
@@ -43,7 +44,7 @@ impl PrivateLink {
 
     pub(crate) async fn resolve_node(
         &self,
-        forest: &PrivateForest,
+        forest: &impl PrivateForest,
         store: &impl BlockStore,
         mounted_relative_to: &Name,
     ) -> Result<&PrivateNode> {
@@ -65,7 +66,7 @@ impl PrivateLink {
     /// Gets mut value stored in link. It attempts to get it from the store if it is not present in link.
     pub(crate) async fn resolve_node_mut(
         &mut self,
-        forest: &PrivateForest,
+        forest: &impl PrivateForest,
         store: &impl BlockStore,
         mounted_relative_to: &Name,
     ) -> Result<&mut PrivateNode> {
@@ -97,7 +98,7 @@ impl PrivateLink {
     /// Gets an owned value from type. It attempts to it get from the store if it is not present in type.
     pub(crate) async fn resolve_owned_node(
         self,
-        forest: &PrivateForest,
+        forest: &impl PrivateForest,
         store: &impl BlockStore,
         mounted_relative_to: &Name,
     ) -> Result<PrivateNode> {

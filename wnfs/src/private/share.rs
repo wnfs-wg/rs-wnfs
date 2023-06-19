@@ -7,7 +7,7 @@
 
 use self::sharer::share;
 use super::{ExchangeKey, PrivateNode, SnapshotKey, TemporalKey};
-use crate::{error::ShareError, private::PrivateForest, public::PublicLink};
+use crate::{error::ShareError, public::PublicLink, traits::PrivateForest};
 use anyhow::{bail, Result};
 use libipld::Cid;
 use rand_core::RngCore;
@@ -26,18 +26,18 @@ const EXCHANGE_KEY_NAME: &str = "v1.exchange_key";
 //--------------------------------------------------------------------------------------------------
 
 #[derive(Debug)]
-pub struct Share<'a, K: ExchangeKey, S: BlockStore> {
+pub struct Share<'a, K: ExchangeKey, S: BlockStore, F: PrivateForest> {
     payload: &'a SharePayload,
     count: u64,
-    sharer: Option<Sharer<'a, S>>,
+    sharer: Option<Sharer<'a, S, F>>,
     recipients: Vec<Recipient<'a, S>>,
     phantom: PhantomData<K>,
 }
 
 #[derive(Debug)]
-pub struct Sharer<'a, S: BlockStore> {
+pub struct Sharer<'a, S: BlockStore, F: PrivateForest> {
     pub root_did: String,
-    pub forest: &'a mut Rc<PrivateForest>,
+    pub forest: &'a mut Rc<F>,
     pub store: &'a mut S,
 }
 
@@ -81,7 +81,7 @@ pub struct SnapshotSharePointer {
 // Implementations
 //--------------------------------------------------------------------------------------------------
 
-impl<'a, K: ExchangeKey, S: BlockStore> Share<'a, K, S> {
+impl<'a, K: ExchangeKey, S: BlockStore, F: PrivateForest> Share<'a, K, S, F> {
     ///  Creates a new instance of the Share with the given payload and count, and initializes the other fields as "None".
     pub fn new(payload: &'a SharePayload, count: u64) -> Self {
         Self {
@@ -94,7 +94,7 @@ impl<'a, K: ExchangeKey, S: BlockStore> Share<'a, K, S> {
     }
 
     /// Sets the sharer field.
-    pub fn by(&mut self, sharer: Sharer<'a, S>) -> &mut Self {
+    pub fn by(&mut self, sharer: Sharer<'a, S, F>) -> &mut Self {
         self.sharer = Some(sharer);
         self
     }
@@ -144,7 +144,7 @@ impl SharePayload {
     pub async fn from_node(
         node: &PrivateNode,
         temporal: bool,
-        forest: &mut Rc<PrivateForest>,
+        forest: &mut Rc<impl PrivateForest>,
         store: &mut impl BlockStore,
         rng: &mut impl RngCore,
     ) -> Result<Self> {
@@ -171,7 +171,7 @@ impl TemporalSharePointer {
     /// Create a temporal share pointer from a private fs node.
     pub async fn from_node(
         node: &PrivateNode,
-        forest: &mut Rc<PrivateForest>,
+        forest: &mut Rc<impl PrivateForest>,
         store: &mut impl BlockStore,
         rng: &mut impl RngCore,
     ) -> Result<Self> {
@@ -191,7 +191,7 @@ impl SnapshotSharePointer {
     /// Create a snapshot share pointer from a private fs node.
     pub async fn from_node(
         node: &PrivateNode,
-        forest: &mut Rc<PrivateForest>,
+        forest: &mut Rc<impl PrivateForest>,
         store: &mut impl BlockStore,
         rng: &mut impl RngCore,
     ) -> Result<Self> {
@@ -214,8 +214,9 @@ impl SnapshotSharePointer {
 pub mod sharer {
     use super::{SharePayload, EXCHANGE_KEY_NAME};
     use crate::{
-        private::{ExchangeKey, PrivateForest, PublicKeyModulus},
+        private::{ExchangeKey, PublicKeyModulus},
         public::PublicLink,
+        traits::PrivateForest,
     };
     use anyhow::Result;
     use async_stream::try_stream;
@@ -232,7 +233,7 @@ pub mod sharer {
         share_payload: &SharePayload,
         share_count: u64,
         sharer_root_did: &str,
-        sharer_forest: &mut Rc<PrivateForest>,
+        sharer_forest: &mut Rc<impl PrivateForest>,
         sharer_store: &mut impl BlockStore,
         recipient_exchange_root: PublicLink,
         recipient_store: &impl BlockStore,
@@ -248,7 +249,7 @@ pub mod sharer {
                 share_count,
                 sharer_root_did,
                 &public_key_modulus,
-                sharer_forest,
+                &**sharer_forest,
             );
 
             let payload_cid = sharer_store
@@ -296,7 +297,7 @@ pub mod sharer {
         share_count: u64,
         sharer_root_did: &str,
         recipient_exchange_key: &[u8],
-        sharer_forest: &PrivateForest,
+        sharer_forest: &impl PrivateForest,
     ) -> Name {
         sharer_forest.empty_name().with_segments_added([
             NameSegment::from_seed(sharer_root_did.as_bytes()),
@@ -310,7 +311,8 @@ pub mod recipient {
     use super::{sharer, SharePayload, TemporalSharePointer};
     use crate::{
         error::ShareError,
-        private::{PrivateForest, PrivateKey, PrivateNode, PrivateRef},
+        private::{PrivateKey, PrivateNode, PrivateRef},
+        traits::PrivateForest,
     };
     use anyhow::{bail, Result};
     use sha3::Sha3_256;
@@ -324,7 +326,7 @@ pub mod recipient {
         limit: u64,
         recipient_exchange_key: &[u8],
         sharer_root_did: &str,
-        sharer_forest: &PrivateForest,
+        sharer_forest: &impl PrivateForest,
         store: &impl BlockStore,
     ) -> Result<Option<u64>> {
         for share_count in share_count_start..share_count_start + limit {
@@ -356,7 +358,7 @@ pub mod recipient {
     pub async fn receive_share(
         share_label: &Name,
         recipient_key: &impl PrivateKey,
-        sharer_forest: &PrivateForest,
+        sharer_forest: &impl PrivateForest,
         store: &impl BlockStore,
     ) -> Result<PrivateNode> {
         let setup = sharer_forest.get_accumulator_setup();
@@ -407,8 +409,9 @@ mod tests {
         sharer, Recipient, Share, SharePayload, Sharer, EXCHANGE_KEY_NAME,
     };
     use crate::{
-        private::{PrivateDirectory, PrivateForest, RsaPublicKey},
+        private::{HamtForest, PrivateDirectory, RsaPublicKey},
         public::{PublicLink, PublicNode},
+        traits::PrivateForest,
     };
     use chrono::Utc;
     use proptest::test_runner::{RngAlgorithm, TestRng};
@@ -417,8 +420,9 @@ mod tests {
 
     mod helper {
         use crate::{
-            private::{share::EXCHANGE_KEY_NAME, PrivateDirectory, PrivateForest, RsaPrivateKey},
+            private::{share::EXCHANGE_KEY_NAME, PrivateDirectory, RsaPrivateKey},
             public::PublicDirectory,
+            traits::PrivateForest,
         };
         use anyhow::Result;
         use chrono::Utc;
@@ -428,7 +432,7 @@ mod tests {
         use wnfs_common::BlockStore;
 
         pub(super) async fn create_sharer_dir(
-            forest: &mut Rc<PrivateForest>,
+            forest: &mut Rc<impl PrivateForest>,
             store: &mut impl BlockStore,
             rng: &mut impl RngCore,
         ) -> Result<Rc<PrivateDirectory>> {
@@ -481,7 +485,7 @@ mod tests {
         let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
         let recipient_store = &mut MemoryBlockStore::default();
         let sharer_store = &mut MemoryBlockStore::default();
-        let sharer_forest = &mut Rc::new(PrivateForest::new_rsa_2048(rng));
+        let sharer_forest = &mut Rc::new(HamtForest::new_rsa_2048(rng));
 
         let sharer_root_did = "did:key:z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK";
         // Create directory to share.
@@ -508,7 +512,7 @@ mod tests {
         .unwrap();
 
         // Share payload with recipient.
-        Share::<RsaPublicKey, _>::new(&sharer_payload, 0)
+        Share::<RsaPublicKey, _, _>::new(&sharer_payload, 0)
             .by(Sharer {
                 root_did: sharer_root_did.into(),
                 store: sharer_store,
@@ -530,12 +534,12 @@ mod tests {
                 .get_public_key()
                 .get_public_key_modulus()
                 .unwrap(),
-            sharer_forest,
+            &**sharer_forest,
         );
 
         // Grab node using share label.
         let node =
-            recipient::receive_share(&share_label, &recipient_key, sharer_forest, sharer_store)
+            recipient::receive_share(&share_label, &recipient_key, &**sharer_forest, sharer_store)
                 .await
                 .unwrap();
 
@@ -547,7 +551,7 @@ mod tests {
     async fn serialized_share_payload_can_be_deserialized() {
         let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
         let store = &mut MemoryBlockStore::default();
-        let forest = &mut Rc::new(PrivateForest::new_rsa_2048(rng));
+        let forest = &mut Rc::new(HamtForest::new_rsa_2048(rng));
         let dir =
             PrivateDirectory::new_and_store(&forest.empty_name(), Utc::now(), forest, store, rng)
                 .await
@@ -572,7 +576,7 @@ mod tests {
         let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
         let sharer_store = &mut MemoryBlockStore::default();
         let recipient_store = &mut MemoryBlockStore::default();
-        let forest = &mut Rc::new(PrivateForest::new_rsa_2048(rng));
+        let forest = &mut Rc::new(HamtForest::new_rsa_2048(rng));
 
         let sharer_root_did = "did:key:z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK";
 
@@ -601,7 +605,7 @@ mod tests {
             100,
             recipient_exchange_key.as_ref(),
             sharer_root_did,
-            forest,
+            &**forest,
             sharer_store,
         )
         .await
@@ -647,7 +651,7 @@ mod tests {
             100,
             recipient_exchange_key.as_ref(),
             sharer_root_did,
-            forest,
+            &**forest,
             sharer_store,
         )
         .await

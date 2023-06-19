@@ -1,8 +1,11 @@
 use super::{
-    encrypted::Encrypted, PrivateForest, PrivateNode, PrivateNodeHeader, PrivateRef, SnapshotKey,
+    encrypted::Encrypted, PrivateNode, PrivateNodeHeader, PrivateRef, SnapshotKey,
     AUTHENTICATION_TAG_SIZE, NONCE_SIZE,
 };
-use crate::{error::FsError, traits::Id};
+use crate::{
+    error::FsError,
+    traits::{Id, PrivateForest},
+};
 use anyhow::Result;
 use async_once_cell::OnceCell;
 use async_stream::try_stream;
@@ -184,7 +187,7 @@ impl PrivateFile {
         parent_name: &Name,
         time: DateTime<Utc>,
         content: Vec<u8>,
-        forest: &mut Rc<PrivateForest>,
+        forest: &mut Rc<impl PrivateForest>,
         store: &mut impl BlockStore,
         rng: &mut impl RngCore,
     ) -> Result<Self> {
@@ -248,7 +251,7 @@ impl PrivateFile {
         parent_name: &Name,
         time: DateTime<Utc>,
         content: impl AsyncRead + Unpin,
-        forest: &mut Rc<PrivateForest>,
+        forest: &mut Rc<impl PrivateForest>,
         store: &mut impl BlockStore,
         rng: &mut impl RngCore,
     ) -> Result<Self> {
@@ -314,7 +317,7 @@ impl PrivateFile {
     pub fn stream_content<'a>(
         &'a self,
         index: usize,
-        forest: &'a PrivateForest,
+        forest: &'a impl PrivateForest,
         store: &'a impl BlockStore,
     ) -> impl Stream<Item = Result<Vec<u8>>> + 'a {
         Box::pin(try_stream! {
@@ -385,7 +388,7 @@ impl PrivateFile {
     /// ```
     pub async fn get_content(
         &self,
-        forest: &PrivateForest,
+        forest: &impl PrivateForest,
         store: &impl BlockStore,
     ) -> Result<Vec<u8>> {
         let mut content = Vec::with_capacity(self.get_content_size_upper_bound());
@@ -402,7 +405,7 @@ impl PrivateFile {
     pub(super) async fn prepare_content(
         file_name: &Name,
         content: Vec<u8>,
-        forest: &mut Rc<PrivateForest>,
+        forest: &mut Rc<impl PrivateForest>,
         store: &mut impl BlockStore,
         rng: &mut impl RngCore,
     ) -> Result<FileContent> {
@@ -439,7 +442,7 @@ impl PrivateFile {
     pub(super) async fn prepare_content_streaming(
         file_name: &Name,
         mut content: impl AsyncRead + Unpin,
-        forest: &mut Rc<PrivateForest>,
+        forest: &mut Rc<impl PrivateForest>,
         store: &mut impl BlockStore,
         rng: &mut impl RngCore,
     ) -> Result<FileContent> {
@@ -503,7 +506,7 @@ impl PrivateFile {
     async fn decrypt_block(
         key: &SnapshotKey,
         name: &Name,
-        forest: &PrivateForest,
+        forest: &impl PrivateForest,
         store: &impl BlockStore,
     ) -> Result<Vec<u8>> {
         let cid = forest
@@ -604,11 +607,11 @@ impl PrivateFile {
     pub(crate) async fn prepare_key_rotation(
         &mut self,
         parent_name: &Name,
-        forest: &mut Rc<PrivateForest>,
+        forest: &mut Rc<impl PrivateForest>,
         store: &mut impl BlockStore,
         rng: &mut impl CryptoRngCore,
     ) -> Result<()> {
-        let content = self.get_content(forest, store).await?;
+        let content = self.get_content(&**forest, store).await?;
 
         self.header.inumber = NameSegment::new(rng);
         self.header.update_bare_name(parent_name);
@@ -658,7 +661,7 @@ impl PrivateFile {
     /// ```
     pub async fn store(
         &self,
-        forest: &mut Rc<PrivateForest>,
+        forest: &mut Rc<impl PrivateForest>,
         store: &mut impl BlockStore,
         rng: &mut impl RngCore,
     ) -> Result<PrivateRef> {
@@ -800,6 +803,7 @@ impl Id for PrivateFile {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::private::HamtForest;
     use async_std::fs::File;
     use proptest::test_runner::{RngAlgorithm, TestRng};
     use rand::Rng;
@@ -809,10 +813,10 @@ mod tests {
     async fn can_create_empty_file() {
         let store = &mut MemoryBlockStore::default();
         let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
-        let forest = &Rc::new(PrivateForest::new_rsa_2048(rng));
+        let forest = &Rc::new(HamtForest::new_rsa_2048(rng));
 
         let file = PrivateFile::new(&forest.empty_name(), Utc::now(), rng);
-        let file_content = file.get_content(forest, store).await.unwrap();
+        let file_content = file.get_content(&**forest, store).await.unwrap();
 
         assert!(file_content.is_empty());
     }
@@ -824,7 +828,7 @@ mod tests {
 
         let store = &mut MemoryBlockStore::default();
         let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
-        let forest = &mut Rc::new(PrivateForest::new_rsa_2048(rng));
+        let forest = &mut Rc::new(HamtForest::new_rsa_2048(rng));
 
         let file = PrivateFile::with_content(
             &forest.empty_name(),
@@ -839,7 +843,7 @@ mod tests {
 
         let mut collected_content = Vec::new();
         let mut block_limit = 2;
-        file.stream_content(2, forest, store)
+        file.stream_content(2, &**forest, store)
             .for_each(|chunk| {
                 if block_limit == 0 {
                     return future::ready(());
@@ -865,7 +869,7 @@ mod tests {
 
         let store = &mut MemoryBlockStore::new();
         let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
-        let forest = &mut Rc::new(PrivateForest::new_rsa_2048(rng));
+        let forest = &mut Rc::new(HamtForest::new_rsa_2048(rng));
 
         let file = PrivateFile::with_content_streaming(
             &forest.empty_name(),
@@ -887,7 +891,10 @@ mod tests {
 #[cfg(test)]
 mod proptests {
     use super::MAX_BLOCK_CONTENT_SIZE;
-    use crate::private::{PrivateFile, PrivateForest};
+    use crate::{
+        private::{HamtForest, PrivateFile},
+        traits::PrivateForest,
+    };
     use chrono::Utc;
     use futures::{future, StreamExt};
     use proptest::test_runner::{RngAlgorithm, TestRng};
@@ -903,7 +910,7 @@ mod proptests {
             let content = vec![0u8; length];
             let store = &mut MemoryBlockStore::default();
             let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
-            let forest = &mut Rc::new(PrivateForest::new_rsa_2048(rng));
+            let forest = &mut Rc::new(HamtForest::new_rsa_2048(rng));
 
             let file = PrivateFile::with_content(
                 &forest.empty_name(),
@@ -916,7 +923,7 @@ mod proptests {
             .await
             .unwrap();
 
-            let collected_content = file.get_content(forest, store).await.unwrap();
+            let collected_content = file.get_content(&**forest, store).await.unwrap();
 
             assert_eq!(collected_content, content);
         })
@@ -930,7 +937,7 @@ mod proptests {
             let content = vec![0u8; length];
             let store = &mut MemoryBlockStore::default();
             let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
-            let forest = &mut Rc::new(PrivateForest::new_rsa_2048(rng));
+            let forest = &mut Rc::new(HamtForest::new_rsa_2048(rng));
 
             let file = PrivateFile::with_content(
                 &forest.empty_name(),
@@ -944,7 +951,7 @@ mod proptests {
             .unwrap();
 
             let mut collected_content = Vec::new();
-            file.stream_content(0, forest, store)
+            file.stream_content(0, &**forest, store)
                 .for_each(|chunk| {
                     collected_content.extend_from_slice(&chunk.unwrap());
                     future::ready(())
