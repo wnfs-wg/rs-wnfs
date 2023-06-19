@@ -52,7 +52,7 @@ async fn main() -> anyhow::Result<()> {
             &["movies".into(), "anime".into()],
             true,
             Utc::now(),
-            &**forest,
+            forest,
             store,
             rng,
         )
@@ -91,10 +91,7 @@ async fn main() -> anyhow::Result<()> {
 
     // The private_ref might point to some old revision of the root_dir.
     // We can do the following to get the latest revision.
-    let fetched_dir = fetched_node
-        .search_latest(&**forest, store)
-        .await?
-        .as_dir()?;
+    let fetched_dir = fetched_node.search_latest(forest, store).await?.as_dir()?;
 
     println!("{fetched_dir:#?}");
 

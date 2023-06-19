@@ -24,10 +24,12 @@ async fn main() {
     let (forest_cid, private_ref) = get_forest_cid_and_private_ref(store, rng).await;
 
     // Fetch CBOR bytes of private forest from the blockstore.
-    let forest = store
-        .get_deserializable::<HamtForest>(&forest_cid)
-        .await
-        .unwrap();
+    let forest = Rc::new(
+        store
+            .get_deserializable::<HamtForest>(&forest_cid)
+            .await
+            .unwrap(),
+    );
 
     // Fetch and decrypt a directory from the private forest using provided private ref.
     let dir = PrivateNode::load(&private_ref, &forest, store, &forest.empty_name())
@@ -56,7 +58,7 @@ async fn get_forest_cid_and_private_ref(
         &["pictures".into(), "cats".into()],
         true,
         Utc::now(),
-        &**forest,
+        forest,
         store,
         rng,
     )

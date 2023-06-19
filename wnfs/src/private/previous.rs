@@ -1,6 +1,6 @@
 use super::{
-    encrypted::Encrypted, HamtForest, PrivateDirectory, PrivateFile, PrivateNode,
-    PrivateNodeHeader, TemporalKey,
+    encrypted::Encrypted, PrivateDirectory, PrivateFile, PrivateNode, PrivateNodeHeader,
+    TemporalKey,
 };
 use crate::{error::FsError, traits::PrivateForest};
 use anyhow::{bail, Result};
@@ -15,11 +15,11 @@ use wnfs_common::{BlockStore, PathNodes, PathNodesResult};
 
 /// Represents the state of an iterator through the history
 /// of a private node on a path relative to a root directory.
-pub struct PrivateNodeOnPathHistory<F: PrivateForest> {
+pub struct PrivateNodeOnPathHistory<F: PrivateForest + Clone> {
     /// Keep a reference to the version of the forest used upon construction.
     /// It could *technically* change what's behind a certain key in between
     /// previous node requests, this forces it to be consistent.
-    forest: Rc<F>,
+    forest: F,
     /// Keep the original discrepancy budget for consistency & ease of use.
     discrepancy_budget: usize,
     /// The history of each path segment leading up to the final node
@@ -44,7 +44,7 @@ pub struct PrivateNodeHistory<F: PrivateForest> {
     /// Keep a reference to the version of the forest used upon construction.
     /// It could *technically* change what's behind a certain key in between
     /// previous node requests, this forces it to be consistent.
-    forest: Rc<F>,
+    forest: F,
     /// The private node header is all we need to look up private nodes in the forest.
     /// This will always be the header of the *next* version after what's retrieved from
     /// the `ratchets` iterator.
@@ -66,7 +66,7 @@ impl<F: PrivateForest> PrivateNodeHistory<F> {
         node: &PrivateNode,
         past_ratchet: &Ratchet,
         discrepancy_budget: usize,
-        forest: Rc<F>,
+        forest: F,
     ) -> Result<Self> {
         Self::from_header(
             node.get_header().clone(),
@@ -86,9 +86,8 @@ impl<F: PrivateForest> PrivateNodeHistory<F> {
         previous: BTreeSet<(usize, Encrypted<Cid>)>,
         past_ratchet: &Ratchet,
         discrepancy_budget: usize,
-        forest: Rc<F>,
+        forest: F,
     ) -> Result<Self> {
-        let forest = Rc::clone(&forest);
         let ratchets = header
             .ratchet
             .previous(past_ratchet, discrepancy_budget)
@@ -128,7 +127,7 @@ impl<F: PrivateForest> PrivateNodeHistory<F> {
                 .header
                 .derive_revision_ref(setup)
                 .as_private_ref(previous_cid),
-            &*self.forest,
+            &self.forest,
             store,
             &self
                 .header
@@ -191,7 +190,7 @@ impl<F: PrivateForest> PrivateNodeHistory<F> {
     }
 }
 
-impl<F: PrivateForest> PrivateNodeOnPathHistory<F> {
+impl<F: PrivateForest + Clone> PrivateNodeOnPathHistory<F> {
     /// Construct a history iterator for a private node at some path relative
     /// to some root directory.
     ///
@@ -208,7 +207,7 @@ impl<F: PrivateForest> PrivateNodeOnPathHistory<F> {
         discrepancy_budget: usize,
         path_segments: &[String],
         search_latest: bool,
-        forest: Rc<F>,
+        forest: F,
         store: &impl BlockStore,
     ) -> Result<PrivateNodeOnPathHistory<F>> {
         // To get the history on a node on a path from a given directory that we
@@ -222,14 +221,14 @@ impl<F: PrivateForest> PrivateNodeOnPathHistory<F> {
         let (target_path, path_segments) = match path_segments.split_last() {
             None => {
                 return Ok(PrivateNodeOnPathHistory {
-                    forest: Rc::clone(&forest),
+                    forest: forest.clone(),
                     discrepancy_budget,
                     path: Vec::with_capacity(0),
                     target: PrivateNodeHistory::of(
                         &PrivateNode::Dir(directory),
                         past_ratchet,
                         discrepancy_budget,
-                        Rc::clone(&forest),
+                        forest.clone(),
                     )?,
                 });
             }
@@ -242,16 +241,15 @@ impl<F: PrivateForest> PrivateNodeOnPathHistory<F> {
             path_segments,
             target_path,
             search_latest,
-            Rc::clone(&forest),
+            forest.clone(),
             store,
         )
         .await?;
 
-        let path =
-            Self::path_segment_empty_histories(path, Rc::clone(&forest), discrepancy_budget)?;
+        let path = Self::path_segment_empty_histories(path, forest.clone(), discrepancy_budget)?;
 
         let mut previous_iter = PrivateNodeOnPathHistory {
-            forest: Rc::clone(&forest),
+            forest: forest.clone(),
             discrepancy_budget,
             path,
             target: target_history,
@@ -281,13 +279,13 @@ impl<F: PrivateForest> PrivateNodeOnPathHistory<F> {
         path_segments: &[String],
         target_path_segment: &String,
         search_latest: bool,
-        forest: Rc<F>,
+        forest: F,
         store: &impl BlockStore,
     ) -> Result<(Vec<(Rc<PrivateDirectory>, String)>, PrivateNodeHistory<F>)> {
         // We only search for the latest revision in the private node.
         // It may have been deleted in future versions of its ancestor directories.
         let path_nodes = match dir
-            .get_path_nodes(path_segments, false, &*forest, store)
+            .get_path_nodes(path_segments, false, &forest, store)
             .await?
         {
             PathNodesResult::Complete(path_nodes) => path_nodes,
@@ -295,13 +293,13 @@ impl<F: PrivateForest> PrivateNodeOnPathHistory<F> {
             PathNodesResult::NotADirectory(_, _) => bail!(FsError::NotADirectory),
         };
 
-        let Some(target) = (*path_nodes.tail).lookup_node(target_path_segment, false, &*forest, store).await?
+        let Some(target) = (*path_nodes.tail).lookup_node(target_path_segment, false, &forest, store).await?
         else {
             bail!(FsError::NotFound);
         };
 
         let target_latest = if search_latest {
-            target.search_latest(&*forest, store).await?
+            target.search_latest(&forest, store).await?
         } else {
             target.clone()
         };
@@ -310,7 +308,7 @@ impl<F: PrivateForest> PrivateNodeOnPathHistory<F> {
             &target_latest,
             &target.get_header().ratchet,
             discrepancy_budget,
-            Rc::clone(&forest),
+            forest.clone(),
         )?;
 
         let PathNodes { mut path, tail } = path_nodes;
@@ -323,7 +321,7 @@ impl<F: PrivateForest> PrivateNodeOnPathHistory<F> {
     /// Takes a path of directories and initializes each path segment with an empty history.
     fn path_segment_empty_histories(
         path: Vec<(Rc<PrivateDirectory>, String)>,
-        forest: Rc<F>,
+        forest: F,
         discrepancy_budget: usize,
     ) -> Result<Vec<PathSegmentHistory<F>>> {
         let mut segments = Vec::new();
@@ -334,7 +332,7 @@ impl<F: PrivateForest> PrivateNodeOnPathHistory<F> {
                     &PrivateNode::Dir(Rc::clone(&dir)),
                     &dir.header.ratchet,
                     discrepancy_budget,
-                    Rc::clone(&forest),
+                    forest.clone(),
                 )?,
                 path_segment,
             });
@@ -379,7 +377,7 @@ impl<F: PrivateForest> PrivateNodeOnPathHistory<F> {
 
         let Some(older_node) = ancestor
             .dir
-            .lookup_node(&ancestor.path_segment, false, &*self.forest, store)
+            .lookup_node(&ancestor.path_segment, false, &self.forest, store)
             .await?
         else {
             return Ok(None);
@@ -390,7 +388,7 @@ impl<F: PrivateForest> PrivateNodeOnPathHistory<F> {
             self.target.previous.clone(),
             &older_node.get_header().ratchet,
             self.discrepancy_budget,
-            Rc::clone(&self.forest),
+            self.forest.clone(),
         ) {
             Ok(history) => history,
             // NoIntermediateRatchet error
@@ -464,7 +462,7 @@ impl<F: PrivateForest> PrivateNodeOnPathHistory<F> {
             // Go down from the older ancestor directory parallel to the new revision's path
             let Some(PrivateNode::Dir(older_directory)) = ancestor
                 .dir
-                .lookup_node(&ancestor.path_segment, false, &*self.forest, store)
+                .lookup_node(&ancestor.path_segment, false, &self.forest, store)
                 .await?
             else {
                 return Ok(false);
@@ -474,7 +472,7 @@ impl<F: PrivateForest> PrivateNodeOnPathHistory<F> {
                 &PrivateNode::Dir(directory),
                 &older_directory.header.ratchet,
                 self.discrepancy_budget,
-                Rc::clone(&self.forest),
+                self.forest.clone(),
             ) {
                 Ok(history) => history,
                 // NoIntermediateRatchet error
@@ -510,7 +508,10 @@ impl<F: PrivateForest> PrivateNodeOnPathHistory<F> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{private::PrivateDirectory, traits::PrivateForest};
+    use crate::{
+        private::{HamtForest, PrivateDirectory},
+        traits::PrivateForest,
+    };
     use chrono::Utc;
     use proptest::test_runner::{RngAlgorithm, TestRng};
     use wnfs_common::MemoryBlockStore;
@@ -577,7 +578,7 @@ mod tests {
         root_dir.store(forest, store, rng).await.unwrap();
 
         root_dir
-            .mkdir(&["docs".into()], true, Utc::now(), &**forest, store, rng)
+            .mkdir(&["docs".into()], true, Utc::now(), forest, store, rng)
             .await
             .unwrap();
 
@@ -690,7 +691,7 @@ mod tests {
                 .unwrap()
                 .as_file()
                 .unwrap()
-                .get_content(&**forest, store)
+                .get_content(forest, store)
                 .await
                 .unwrap(),
             b"Hi".to_vec()
@@ -756,7 +757,7 @@ mod tests {
         root_dir.store(forest, store, rng).await.unwrap();
 
         let docs_dir = root_dir
-            .get_node(&["Docs".into()], true, &**forest, store)
+            .get_node(&["Docs".into()], true, forest, store)
             .await
             .unwrap();
 
@@ -797,7 +798,7 @@ mod tests {
                 .unwrap()
                 .as_file()
                 .unwrap()
-                .get_content(&**forest, store)
+                .get_content(forest, store)
                 .await
                 .unwrap(),
             b"Hi".to_vec()
@@ -869,7 +870,7 @@ mod tests {
         let past_ratchet = root_dir.header.ratchet.clone();
 
         let docs_dir = root_dir
-            .get_node(&["Docs".into()], true, &**forest, store)
+            .get_node(&["Docs".into()], true, forest, store)
             .await
             .unwrap();
 
@@ -925,7 +926,7 @@ mod tests {
                 .unwrap()
                 .as_file()
                 .unwrap()
-                .get_content(&**forest, store)
+                .get_content(forest, store)
                 .await
                 .unwrap(),
             b"rev 1".to_vec()
@@ -939,7 +940,7 @@ mod tests {
                 .unwrap()
                 .as_file()
                 .unwrap()
-                .get_content(&**forest, store)
+                .get_content(forest, store)
                 .await
                 .unwrap(),
             b"rev 0".to_vec()
@@ -1052,7 +1053,7 @@ mod tests {
                 .unwrap()
                 .as_file()
                 .unwrap()
-                .get_content(&**forest, store)
+                .get_content(forest, store)
                 .await
                 .unwrap(),
             b"rev 0".to_vec()

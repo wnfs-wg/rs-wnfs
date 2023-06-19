@@ -1,4 +1,4 @@
-use super::{HamtForest, PrivateDirectory, PrivateFile, PrivateNode, PrivateRef};
+use super::{PrivateDirectory, PrivateFile, PrivateNode, PrivateRef};
 use crate::traits::PrivateForest;
 use anyhow::Result;
 use async_once_cell::OnceCell;
@@ -32,7 +32,7 @@ impl PrivateLink {
     #[async_recursion(?Send)]
     pub(crate) async fn resolve_ref(
         &self,
-        forest: &mut Rc<impl PrivateForest>,
+        forest: &mut impl PrivateForest,
         store: &mut impl BlockStore,
         rng: &mut impl RngCore,
     ) -> Result<PrivateRef> {

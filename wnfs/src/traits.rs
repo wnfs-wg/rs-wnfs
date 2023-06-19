@@ -7,7 +7,7 @@ use async_stream::stream;
 use async_trait::async_trait;
 use futures::stream::LocalBoxStream;
 use libipld::Cid;
-use std::{collections::BTreeSet, rc::Rc};
+use std::collections::BTreeSet;
 use wnfs_common::{BlockStore, HashOutput};
 use wnfs_hamt::Pair;
 use wnfs_nameaccumulator::{AccumulatorSetup, Name, NameAccumulator};
@@ -33,7 +33,7 @@ pub trait PrivateForest {
     async fn has(&self, name: &Name, store: &impl BlockStore) -> Result<bool>;
 
     async fn put_encrypted<'a>(
-        self: &mut Rc<Self>,
+        self: &mut Self,
         name: &'a Name,
         values: impl IntoIterator<Item = Cid>,
         store: &mut impl BlockStore,
@@ -52,7 +52,7 @@ pub trait PrivateForest {
     ) -> Result<Option<&BTreeSet<Cid>>>;
 
     async fn remove_encrypted(
-        self: &mut Rc<Self>,
+        self: &mut Self,
         name_hash: &HashOutput,
         store: &mut impl BlockStore,
     ) -> Result<Option<Pair<NameAccumulator, BTreeSet<Cid>>>>;

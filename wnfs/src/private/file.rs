@@ -187,7 +187,7 @@ impl PrivateFile {
         parent_name: &Name,
         time: DateTime<Utc>,
         content: Vec<u8>,
-        forest: &mut Rc<impl PrivateForest>,
+        forest: &mut impl PrivateForest,
         store: &mut impl BlockStore,
         rng: &mut impl RngCore,
     ) -> Result<Self> {
@@ -251,7 +251,7 @@ impl PrivateFile {
         parent_name: &Name,
         time: DateTime<Utc>,
         content: impl AsyncRead + Unpin,
-        forest: &mut Rc<impl PrivateForest>,
+        forest: &mut impl PrivateForest,
         store: &mut impl BlockStore,
         rng: &mut impl RngCore,
     ) -> Result<Self> {
@@ -405,7 +405,7 @@ impl PrivateFile {
     pub(super) async fn prepare_content(
         file_name: &Name,
         content: Vec<u8>,
-        forest: &mut Rc<impl PrivateForest>,
+        forest: &mut impl PrivateForest,
         store: &mut impl BlockStore,
         rng: &mut impl RngCore,
     ) -> Result<FileContent> {
@@ -442,7 +442,7 @@ impl PrivateFile {
     pub(super) async fn prepare_content_streaming(
         file_name: &Name,
         mut content: impl AsyncRead + Unpin,
-        forest: &mut Rc<impl PrivateForest>,
+        forest: &mut impl PrivateForest,
         store: &mut impl BlockStore,
         rng: &mut impl RngCore,
     ) -> Result<FileContent> {
@@ -607,11 +607,11 @@ impl PrivateFile {
     pub(crate) async fn prepare_key_rotation(
         &mut self,
         parent_name: &Name,
-        forest: &mut Rc<impl PrivateForest>,
+        forest: &mut impl PrivateForest,
         store: &mut impl BlockStore,
         rng: &mut impl CryptoRngCore,
     ) -> Result<()> {
-        let content = self.get_content(&**forest, store).await?;
+        let content = self.get_content(forest, store).await?;
 
         self.header.inumber = NameSegment::new(rng);
         self.header.update_bare_name(parent_name);
@@ -661,7 +661,7 @@ impl PrivateFile {
     /// ```
     pub async fn store(
         &self,
-        forest: &mut Rc<impl PrivateForest>,
+        forest: &mut impl PrivateForest,
         store: &mut impl BlockStore,
         rng: &mut impl RngCore,
     ) -> Result<PrivateRef> {
@@ -816,7 +816,7 @@ mod tests {
         let forest = &Rc::new(HamtForest::new_rsa_2048(rng));
 
         let file = PrivateFile::new(&forest.empty_name(), Utc::now(), rng);
-        let file_content = file.get_content(&**forest, store).await.unwrap();
+        let file_content = file.get_content(forest, store).await.unwrap();
 
         assert!(file_content.is_empty());
     }
@@ -843,7 +843,7 @@ mod tests {
 
         let mut collected_content = Vec::new();
         let mut block_limit = 2;
-        file.stream_content(2, &**forest, store)
+        file.stream_content(2, forest, store)
             .for_each(|chunk| {
                 if block_limit == 0 {
                     return future::ready(());
@@ -923,7 +923,7 @@ mod proptests {
             .await
             .unwrap();
 
-            let collected_content = file.get_content(&**forest, store).await.unwrap();
+            let collected_content = file.get_content(forest, store).await.unwrap();
 
             assert_eq!(collected_content, content);
         })
@@ -951,7 +951,7 @@ mod proptests {
             .unwrap();
 
             let mut collected_content = Vec::new();
-            file.stream_content(0, &**forest, store)
+            file.stream_content(0, forest, store)
                 .for_each(|chunk| {
                     collected_content.extend_from_slice(&chunk.unwrap());
                     future::ready(())

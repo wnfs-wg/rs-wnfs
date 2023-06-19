@@ -2,8 +2,8 @@ use super::{PrivateNodeHeader, TemporalKey};
 use crate::{
     error::FsError,
     private::{
-        encrypted::Encrypted, link::PrivateLink, HamtForest, PrivateDirectory,
-        PrivateDirectoryContent, PrivateFile, PrivateFileContent, PrivateRef,
+        encrypted::Encrypted, link::PrivateLink, PrivateDirectory, PrivateDirectoryContent,
+        PrivateFile, PrivateFileContent, PrivateRef,
     },
     traits::{Id, PrivateForest},
 };
@@ -117,7 +117,7 @@ impl PrivateNode {
     pub(crate) async fn update_ancestry(
         &mut self,
         parent_name: &Name,
-        forest: &mut Rc<impl PrivateForest>,
+        forest: &mut impl PrivateForest,
         store: &mut impl BlockStore,
         rng: &mut impl CryptoRngCore,
     ) -> Result<()> {
@@ -133,7 +133,7 @@ impl PrivateNode {
 
                 for private_link in &mut dir.content.entries.values_mut() {
                     let mut node = private_link
-                        .resolve_node(&**forest, store, &dir.header.name)
+                        .resolve_node(forest, store, &dir.header.name)
                         .await?
                         .clone();
                     node.update_ancestry(&dir.header.name, forest, store, rng)
@@ -554,7 +554,7 @@ impl PrivateNode {
 
     pub async fn store(
         &self,
-        forest: &mut Rc<impl PrivateForest>,
+        forest: &mut impl PrivateForest,
         store: &mut impl BlockStore,
         rng: &mut impl RngCore,
     ) -> Result<PrivateRef> {
@@ -608,6 +608,7 @@ impl From<PrivateDirectory> for PrivateNode {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::private::HamtForest;
     use proptest::test_runner::{RngAlgorithm, TestRng};
     use wnfs_common::MemoryBlockStore;
 
@@ -633,7 +634,7 @@ mod tests {
         let private_ref = file.store(forest, store, rng).await.unwrap();
 
         let deserialized_node =
-            PrivateNode::load(&private_ref, &**forest, store, &forest.empty_name())
+            PrivateNode::load(&private_ref, forest, store, &forest.empty_name())
                 .await
                 .unwrap();
 

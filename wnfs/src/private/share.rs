@@ -12,7 +12,7 @@ use anyhow::{bail, Result};
 use libipld::Cid;
 use rand_core::RngCore;
 use serde::{Deserialize, Serialize};
-use std::{marker::PhantomData, rc::Rc};
+use std::marker::PhantomData;
 use wnfs_common::{BlockStore, HashOutput};
 
 //--------------------------------------------------------------------------------------------------
@@ -37,7 +37,7 @@ pub struct Share<'a, K: ExchangeKey, S: BlockStore, F: PrivateForest> {
 #[derive(Debug)]
 pub struct Sharer<'a, S: BlockStore, F: PrivateForest> {
     pub root_did: String,
-    pub forest: &'a mut Rc<F>,
+    pub forest: &'a mut F,
     pub store: &'a mut S,
 }
 
@@ -144,7 +144,7 @@ impl SharePayload {
     pub async fn from_node(
         node: &PrivateNode,
         temporal: bool,
-        forest: &mut Rc<impl PrivateForest>,
+        forest: &mut impl PrivateForest,
         store: &mut impl BlockStore,
         rng: &mut impl RngCore,
     ) -> Result<Self> {
@@ -171,7 +171,7 @@ impl TemporalSharePointer {
     /// Create a temporal share pointer from a private fs node.
     pub async fn from_node(
         node: &PrivateNode,
-        forest: &mut Rc<impl PrivateForest>,
+        forest: &mut impl PrivateForest,
         store: &mut impl BlockStore,
         rng: &mut impl RngCore,
     ) -> Result<Self> {
@@ -191,7 +191,7 @@ impl SnapshotSharePointer {
     /// Create a snapshot share pointer from a private fs node.
     pub async fn from_node(
         node: &PrivateNode,
-        forest: &mut Rc<impl PrivateForest>,
+        forest: &mut impl PrivateForest,
         store: &mut impl BlockStore,
         rng: &mut impl RngCore,
     ) -> Result<Self> {
@@ -222,7 +222,6 @@ pub mod sharer {
     use async_stream::try_stream;
     use futures::{Stream, StreamExt};
     use libipld::IpldCodec;
-    use std::rc::Rc;
     use wnfs_common::{dagcbor, BlockStore};
     use wnfs_nameaccumulator::{Name, NameSegment};
 
@@ -233,7 +232,7 @@ pub mod sharer {
         share_payload: &SharePayload,
         share_count: u64,
         sharer_root_did: &str,
-        sharer_forest: &mut Rc<impl PrivateForest>,
+        sharer_forest: &mut impl PrivateForest,
         sharer_store: &mut impl BlockStore,
         recipient_exchange_root: PublicLink,
         recipient_store: &impl BlockStore,
@@ -249,7 +248,7 @@ pub mod sharer {
                 share_count,
                 sharer_root_did,
                 &public_key_modulus,
-                &**sharer_forest,
+                sharer_forest,
             );
 
             let payload_cid = sharer_store
@@ -432,7 +431,7 @@ mod tests {
         use wnfs_common::BlockStore;
 
         pub(super) async fn create_sharer_dir(
-            forest: &mut Rc<impl PrivateForest>,
+            forest: &mut impl PrivateForest,
             store: &mut impl BlockStore,
             rng: &mut impl RngCore,
         ) -> Result<Rc<PrivateDirectory>> {
@@ -534,12 +533,12 @@ mod tests {
                 .get_public_key()
                 .get_public_key_modulus()
                 .unwrap(),
-            &**sharer_forest,
+            sharer_forest,
         );
 
         // Grab node using share label.
         let node =
-            recipient::receive_share(&share_label, &recipient_key, &**sharer_forest, sharer_store)
+            recipient::receive_share(&share_label, &recipient_key, sharer_forest, sharer_store)
                 .await
                 .unwrap();
 
@@ -605,7 +604,7 @@ mod tests {
             100,
             recipient_exchange_key.as_ref(),
             sharer_root_did,
-            &**forest,
+            forest,
             sharer_store,
         )
         .await
@@ -651,7 +650,7 @@ mod tests {
             100,
             recipient_exchange_key.as_ref(),
             sharer_root_did,
-            &**forest,
+            forest,
             sharer_store,
         )
         .await
