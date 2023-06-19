@@ -2,8 +2,9 @@
 //! TODO(matheus23)
 
 use anyhow::Result;
-use fns::prime_digest;
-use num_bigint_dig::{BigUint, RandBigInt, RandPrime};
+use error::VerificationError;
+use fns::{multi_exp, nlogn_product, prime_digest, prime_digest_fast};
+use num_bigint_dig::{BigUint, ModInverse, RandBigInt, RandPrime};
 use num_integer::Integer;
 use num_traits::One;
 use rand_core::RngCore;
@@ -11,8 +12,9 @@ use serde::{Deserialize, Serialize};
 use sha3::{Digest, Sha3_256};
 use std::{cell::OnceCell, hash::Hash, str::FromStr};
 
-mod biguint_serde_le;
+mod error;
 mod fns;
+mod uint256_serde_le;
 
 #[derive(Clone, Eq)]
 pub struct NameAccumulator {
@@ -22,12 +24,29 @@ pub struct NameAccumulator {
     serialized_cache: OnceCell<[u8; 256]>,
 }
 
+fn prepare_l_hash(modulus: &BigUint, base: &BigUint, commitment: &BigUint) -> Sha3_256 {
+    let mut hasher = sha3::Sha3_256::new();
+    hasher.update(&modulus.to_bytes_le());
+    hasher.update(&base.to_bytes_le());
+    hasher.update(&commitment.to_bytes_le());
+    hasher
+}
+
 impl NameAccumulator {
     pub fn empty(setup: &AccumulatorSetup) -> Self {
         Self {
             state: setup.generator.clone(),
             serialized_cache: OnceCell::new(),
         }
+    }
+
+    pub fn with_segments<'a>(
+        segments: impl IntoIterator<Item = &'a NameSegment>,
+        setup: &AccumulatorSetup,
+    ) -> Self {
+        let mut acc = Self::empty(setup);
+        acc.add(segments, setup); // ignore proof
+        acc
     }
 
     pub fn from_state(state: BigUint) -> Self {
@@ -53,19 +72,16 @@ impl NameAccumulator {
         let witness = self.state.clone();
         self.state = self.state.modpow(&product, &setup.modulus);
 
-        let mut hasher = sha3::Sha3_256::new();
-        hasher.update(&setup.modulus.to_bytes_le());
-        hasher.update(&witness.to_bytes_le());
-        hasher.update(&self.state.to_bytes_le());
-        let (l, l_nonce) = prime_digest(hasher, 16);
+        let hasher = prepare_l_hash(&setup.modulus, &witness, &self.state);
+        let (l, l_hash_inc) = prime_digest(hasher, 16);
 
         let (q, r) = product.div_mod_floor(&l);
 
         let big_q = witness.modpow(&q, &setup.modulus);
 
         ElementsProof {
-            witness,
-            l_hash_nonce: l_nonce,
+            base: witness,
+            l_hash_inc,
             big_q,
             r,
         }
@@ -99,19 +115,12 @@ impl NameAccumulator {
         let state = self.state;
         cache
             .into_inner()
-            .unwrap_or_else(|| Self::to_bytes_helper(&state))
+            .unwrap_or_else(|| uint256_serde_le::to_bytes_helper(&state))
     }
 
     pub fn as_bytes(&self) -> &[u8; 256] {
         self.serialized_cache
-            .get_or_init(|| Self::to_bytes_helper(&self.state))
-    }
-
-    fn to_bytes_helper(state: &BigUint) -> [u8; 256] {
-        let vec = state.to_bytes_le();
-        let mut bytes = [0u8; 256];
-        bytes[..vec.len()].copy_from_slice(&vec);
-        bytes
+            .get_or_init(|| uint256_serde_le::to_bytes_helper(&self.state))
     }
 }
 /// PoKE* (Proof of Knowledge of Exponent),
@@ -120,9 +129,10 @@ impl NameAccumulator {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ElementsProof {
     /// The accumulator's base, $u$
-    pub witness: BigUint,
-    /// A nonce that helps to more quickly generate/verify a hash-to-prime. Helps generate the prime number $l$
-    pub l_hash_nonce: u32,
+    pub base: BigUint,
+    /// The number to increase a hash by to land on the next prime.
+    /// Helps to more quickly generate/verify the prime number $l$.
+    pub l_hash_inc: u32,
     /// A part of the proof, $Q = u^q$, where $element = q*l + r$
     pub big_q: BigUint,
     /// A part of the proof, the residue of the element that's proven, i.e. $r$ in $element = q*l + r$
@@ -186,11 +196,84 @@ impl AsRef<[u8]> for NameAccumulator {
     }
 }
 
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub struct BatchedProofPart {
+    big_q_product: BigUint,
+}
+
+impl BatchedProofPart {
+    pub fn new() -> Self {
+        Self {
+            big_q_product: BigUint::one(),
+        }
+    }
+
+    pub fn add(&mut self, proof: &ElementsProof) {
+        self.big_q_product *= &proof.big_q;
+    }
+}
+
+pub struct BatchedProofVerification<'a> {
+    bases_and_exponents: Vec<(BigUint, BigUint)>,
+    setup: &'a AccumulatorSetup,
+}
+
+impl<'a> BatchedProofVerification<'a> {
+    pub fn new(setup: &'a AccumulatorSetup) -> Self {
+        Self {
+            bases_and_exponents: Vec::new(),
+            setup,
+        }
+    }
+
+    pub fn add(
+        &mut self,
+        base: &NameAccumulator,
+        commitment: &NameAccumulator,
+        proof: &ElementsProof,
+    ) -> Result<()> {
+        let hasher = prepare_l_hash(&self.setup.modulus, &base.state, &commitment.state);
+        let l = prime_digest_fast(hasher, 16, proof.l_hash_inc)
+            .ok_or(VerificationError::LHashNonPrime)?;
+
+        if proof.r >= l {
+            Err(VerificationError::ResidueOutsideRange)?;
+        }
+
+        let proof_kcr_base = (&commitment.state
+            * (&base.state)
+                .mod_inverse(&self.setup.modulus)
+                .unwrap()
+                .to_biguint()
+                .unwrap()
+                .modpow(&proof.r, &self.setup.modulus))
+            % &self.setup.modulus;
+
+        self.bases_and_exponents.push((proof_kcr_base, l));
+
+        Ok(())
+    }
+
+    pub fn verify(&self, batched_proof: &BatchedProofPart) -> Result<()> {
+        let l_star = nlogn_product(&self.bases_and_exponents, |(_, l)| l);
+
+        if batched_proof
+            .big_q_product
+            .modpow(&l_star, &self.setup.modulus)
+            != multi_exp(&self.bases_and_exponents, &self.setup.modulus)
+        {
+            return Err(VerificationError::ValidationFailed.into());
+        }
+
+        Ok(())
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Deserialize, Serialize)]
 pub struct AccumulatorSetup {
-    #[serde(with = "biguint_serde_le")]
+    #[serde(with = "uint256_serde_le")]
     modulus: BigUint,
-    #[serde(with = "biguint_serde_le")]
+    #[serde(with = "uint256_serde_le")]
     generator: BigUint,
 }
 
@@ -199,7 +282,7 @@ impl AccumulatorSetup {
     /// This requires generating two 1024-bit primes, so it's fairly slow.
     pub fn trusted(rng: &mut impl RngCore) -> Self {
         // This is a trusted setup.
-        // The prime factors are so-called "toxic waste", they need to be
+        // The prime factors are "toxic waste", they need to be
         // disposed immediately.
         let modulus = rng.gen_prime(1024) * rng.gen_prime(1024);
         // The generator is just some random quadratic residue.
@@ -391,14 +474,18 @@ impl Name {
 
 #[cfg(test)]
 mod tests {
-    use crate::{AccumulatorSetup, NameAccumulator, NameSegment};
+    use crate::{
+        AccumulatorSetup, BatchedProofPart, BatchedProofVerification, NameAccumulator, NameSegment,
+    };
     use libipld::{
         cbor::DagCborCodec,
         prelude::{Decode, Encode},
         Ipld,
     };
+    use proptest::{prop_assert, prop_assert_eq};
     use rand::thread_rng;
     use std::io::Cursor;
+    use test_strategy::proptest;
 
     #[test]
     fn name_segment_serialize_roundtrip() {
@@ -438,5 +525,70 @@ mod tests {
         let acc_back = libipld::serde::from_ipld::<NameAccumulator>(ipld).unwrap();
 
         assert_eq!(acc_back, acc);
+    }
+
+    #[proptest(cases = 256)]
+    fn batch_proofs(do_batch_step: [bool; 4], do_verify_step: [bool; 4]) {
+        let rng = &mut thread_rng();
+        let setup = &AccumulatorSetup::from_rsa_2048(rng);
+        let base_a = NameAccumulator::with_segments(&[NameSegment::new(rng)], setup);
+        let base_b = NameAccumulator::with_segments(&[NameSegment::new(rng)], setup);
+
+        let mut acc_a_one = base_a.clone();
+        let mut acc_a_two = base_a.clone();
+        let mut acc_b_one = base_b.clone();
+        let mut acc_b_two = base_b.clone();
+
+        let proof_a_one = acc_a_one.add(&[NameSegment::new(rng), NameSegment::new(rng)], setup);
+        let proof_a_two = acc_a_two.add(&[NameSegment::new(rng), NameSegment::new(rng)], setup);
+        let proof_b_one = acc_b_one.add(&[NameSegment::new(rng), NameSegment::new(rng)], setup);
+        let proof_b_two = acc_b_two.add(&[NameSegment::new(rng), NameSegment::new(rng)], setup);
+
+        let mut batched_proof = BatchedProofPart::new();
+        if do_batch_step[0] {
+            batched_proof.add(&proof_a_one);
+        }
+        if do_batch_step[1] {
+            batched_proof.add(&proof_a_two);
+        }
+        if do_batch_step[2] {
+            batched_proof.add(&proof_b_one);
+        }
+        if do_batch_step[3] {
+            batched_proof.add(&proof_b_two);
+        }
+
+        let mut verify = BatchedProofVerification::new(setup);
+
+        if do_verify_step[0] {
+            verify.add(&base_a, &acc_a_one, &proof_a_one).unwrap();
+        }
+        if do_verify_step[1] {
+            verify.add(&base_a, &acc_a_two, &proof_a_two).unwrap();
+        }
+        if do_verify_step[2] {
+            verify.add(&base_b, &acc_b_one, &proof_b_one).unwrap();
+        }
+        if do_verify_step[3] {
+            verify.add(&base_b, &acc_b_two, &proof_b_two).unwrap();
+        }
+
+        let result = verify.verify(&batched_proof);
+
+        // If we end up only batching "step 3", but also verify only step 3, then that's fine.
+        // If we end up batching step 3, but verifying step 2, then that should fail.
+        let matching_batch_and_verify = do_batch_step
+            .into_iter()
+            .zip(do_verify_step.into_iter())
+            .all(|(did_batch, did_verify)| did_batch == did_verify);
+
+        if !matching_batch_and_verify {
+            prop_assert!(result.is_err());
+        } else {
+            match result {
+                Ok(_) => (),
+                Err(e) => prop_assert_eq!("no error", format!("{e}")),
+            }
+        }
     }
 }

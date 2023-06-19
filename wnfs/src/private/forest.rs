@@ -46,7 +46,7 @@ pub struct Entry {
     /// CID to the ciphertext block
     pub block: Cid,
     /// A helper number for faster prime-hash verification
-    pub l_hash_nonce: u32,
+    pub l_hash_inc: u32,
     /// The 128-bit residue of r used for proving name accumulator validity.
     pub residue: [u8; 16],
 }
@@ -59,7 +59,7 @@ impl Entry {
 
         Self {
             block,
-            l_hash_nonce: proof.l_hash_nonce,
+            l_hash_inc: proof.l_hash_inc,
             residue,
         }
     }
@@ -406,10 +406,10 @@ impl<'de> Deserialize<'de> for Entry {
     where
         D: Deserializer<'de>,
     {
-        let (block, l_hash_nonce, residue) = Deserialize::deserialize(deserializer)?;
+        let (block, l_hash_inc, residue) = Deserialize::deserialize(deserializer)?;
         Ok(Self {
             block,
-            l_hash_nonce,
+            l_hash_inc,
             residue,
         })
     }
@@ -420,7 +420,7 @@ impl Serialize for Entry {
     where
         S: Serializer,
     {
-        (&self.block, self.l_hash_nonce, self.residue).serialize(serializer)
+        (&self.block, self.l_hash_inc, self.residue).serialize(serializer)
     }
 }
 
@@ -618,8 +618,8 @@ mod tests {
         let bogus_proof = ElementsProof {
             big_q: Default::default(),
             r: Default::default(),
-            witness: Default::default(),
-            l_hash_nonce: Default::default(),
+            base: Default::default(),
+            l_hash_inc: Default::default(),
         };
 
         // A node that adds the first 3 pairs of HASH_KV_PAIRS.
