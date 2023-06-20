@@ -106,21 +106,17 @@ impl PrivateForest for HamtForest {
         values: impl IntoIterator<Item = Cid>,
         store: &mut impl BlockStore,
     ) -> Result<&'a NameAccumulator> {
-        let (name, proof) = name.as_proven_accumulator(&self.accumulator);
-        // TODO(matheus23): This iterates the path in the HAMT twice.
-        // We could consider implementing something like upsert instead.
-        // Or some kind of "cursor".
-        let mut cids = self
-            .hamt
-            .root
-            .get(&name, store)
-            .await?
-            .cloned()
-            .unwrap_or_default();
+        let name = name.as_accumulator(&self.accumulator);
 
-        cids.extend(values);
-
-        self.hamt.root.set(name.clone(), cids, store).await?;
+        match self.hamt.root.get_mut(&name, store).await? {
+            Some(cids) => cids.extend(values),
+            None => {
+                self.hamt
+                    .root
+                    .set(name.clone(), values.into_iter().collect(), store)
+                    .await?;
+            }
+        }
 
         Ok(name)
     }

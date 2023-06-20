@@ -8,7 +8,7 @@ use num_bigint_dig::{BigUint, ModInverse, RandBigInt, RandPrime};
 use num_integer::Integer;
 use num_traits::One;
 use rand_core::RngCore;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use sha3::{Digest, Sha3_256};
 use std::{cell::OnceCell, hash::Hash, str::FromStr};
 
@@ -81,9 +81,8 @@ impl NameAccumulator {
 
         ElementsProof {
             base: witness,
-            l_hash_inc,
             big_q,
-            r,
+            part: UnbatchableProofPart { l_hash_inc, r },
         }
     }
 
@@ -130,13 +129,45 @@ impl NameAccumulator {
 pub struct ElementsProof {
     /// The accumulator's base, $u$
     pub base: BigUint,
+    /// A part of the proof, $Q = u^q$, where $element = q*l + r$
+    pub big_q: BigUint,
+    /// Part of the proof that can't be batched
+    pub part: UnbatchableProofPart,
+}
+
+/// The part of PoKE* (Proof of Knowledge of Exponent) proofs that can't be batched.
+/// This is very small (typically <20 bytes, most likely just 17 bytes).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct UnbatchableProofPart {
     /// The number to increase a hash by to land on the next prime.
     /// Helps to more quickly generate/verify the prime number $l$.
     pub l_hash_inc: u32,
-    /// A part of the proof, $Q = u^q$, where $element = q*l + r$
-    pub big_q: BigUint,
     /// A part of the proof, the residue of the element that's proven, i.e. $r$ in $element = q*l + r$
     pub r: BigUint,
+}
+
+impl<'de> Deserialize<'de> for UnbatchableProofPart {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let (l_hash_inc, r): (u32, &serde_bytes::Bytes) = Deserialize::deserialize(deserializer)?;
+        let r = BigUint::from_bytes_le(r);
+        Ok(Self { l_hash_inc, r })
+    }
+}
+
+impl Serialize for UnbatchableProofPart {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut residue = [0u8; 16];
+        let encoded = self.r.to_bytes_le();
+        residue[..encoded.len()].copy_from_slice(&encoded);
+        let r = serde_bytes::Bytes::new(&residue);
+        (self.l_hash_inc, r).serialize(serializer)
+    }
 }
 
 impl Ord for NameAccumulator {
@@ -230,13 +261,13 @@ impl<'a> BatchedProofVerification<'a> {
         &mut self,
         base: &NameAccumulator,
         commitment: &NameAccumulator,
-        proof: &ElementsProof,
+        proof_part: &UnbatchableProofPart,
     ) -> Result<()> {
         let hasher = prepare_l_hash(&self.setup.modulus, &base.state, &commitment.state);
-        let l = prime_digest_fast(hasher, 16, proof.l_hash_inc)
+        let l = prime_digest_fast(hasher, 16, proof_part.l_hash_inc)
             .ok_or(VerificationError::LHashNonPrime)?;
 
-        if proof.r >= l {
+        if proof_part.r >= l {
             Err(VerificationError::ResidueOutsideRange)?;
         }
 
@@ -246,7 +277,7 @@ impl<'a> BatchedProofVerification<'a> {
                 .unwrap()
                 .to_biguint()
                 .unwrap()
-                .modpow(&proof.r, &self.setup.modulus))
+                .modpow(&proof_part.r, &self.setup.modulus))
             % &self.setup.modulus;
 
         self.bases_and_exponents.push((proof_kcr_base, l));
@@ -561,16 +592,16 @@ mod tests {
         let mut verify = BatchedProofVerification::new(setup);
 
         if do_verify_step[0] {
-            verify.add(&base_a, &acc_a_one, &proof_a_one).unwrap();
+            verify.add(&base_a, &acc_a_one, &proof_a_one.part).unwrap();
         }
         if do_verify_step[1] {
-            verify.add(&base_a, &acc_a_two, &proof_a_two).unwrap();
+            verify.add(&base_a, &acc_a_two, &proof_a_two.part).unwrap();
         }
         if do_verify_step[2] {
-            verify.add(&base_b, &acc_b_one, &proof_b_one).unwrap();
+            verify.add(&base_b, &acc_b_one, &proof_b_one.part).unwrap();
         }
         if do_verify_step[3] {
-            verify.add(&base_b, &acc_b_two, &proof_b_two).unwrap();
+            verify.add(&base_b, &acc_b_two, &proof_b_two.part).unwrap();
         }
 
         let result = verify.verify(&batched_proof);

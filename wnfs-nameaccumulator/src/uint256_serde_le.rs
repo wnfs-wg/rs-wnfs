@@ -1,12 +1,11 @@
 use num_bigint_dig::BigUint;
-use serde::{Deserialize, Deserializer, Serializer};
+use serde::{Deserializer, Serializer};
 
 pub(crate) fn deserialize<'de, D>(deserializer: D) -> Result<BigUint, D::Error>
 where
     D: Deserializer<'de>,
 {
-    // TODO(matheus23): Pad to 256 bytes
-    let bytes: Vec<u8> = Vec::deserialize(deserializer)?;
+    let bytes: Vec<u8> = serde_bytes::deserialize(deserializer)?;
     Ok(BigUint::from_bytes_le(&bytes))
 }
 
@@ -14,7 +13,7 @@ pub(crate) fn serialize<S>(uint: &BigUint, serializer: S) -> Result<S::Ok, S::Er
 where
     S: Serializer,
 {
-    serializer.serialize_bytes(&to_bytes_helper(uint))
+    serde_bytes::serialize(to_bytes_helper(uint).as_ref(), serializer)
 }
 
 pub(crate) fn to_bytes_helper(state: &BigUint) -> [u8; 256] {

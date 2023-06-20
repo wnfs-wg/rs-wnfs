@@ -326,7 +326,7 @@ where
         } else {
             BitArray::ZERO
         };
-        assert_eq!(mask.count_ones(), bit_index);
+        debug_assert_eq!(mask.count_ones(), bit_index);
         (mask & self.bitmask).count_ones()
     }
 

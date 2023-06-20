@@ -3,7 +3,7 @@
 use semver::Version;
 use skip_ratchet::PreviousErr;
 use thiserror::Error;
-use wnfs_common::NodeType;
+use wnfs_common::{HashOutput, NodeType};
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
@@ -48,7 +48,7 @@ pub enum FsError {
     #[error("Cannot find shard for file content")]
     FileShardNotFound,
 
-    #[error("Cannot merge forests, incompatible accumulator setups")]
+    #[error("Cannot merge or compare forests, incompatible accumulator setups")]
     IncompatibleAccumulatorSetups,
 }
 
@@ -87,4 +87,10 @@ pub enum RsaError {
 
     #[error("Decryption failed: {0}")]
     DecryptionFailed(anyhow::Error),
+}
+
+#[derive(Debug, Error)]
+pub enum VerificationError {
+    #[error("Couldn't verify write for label {0:?}")]
+    UnverifiedWrite(HashOutput),
 }
