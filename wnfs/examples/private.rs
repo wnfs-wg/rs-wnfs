@@ -5,9 +5,9 @@ use chrono::Utc;
 use libipld::Cid;
 use rand::{thread_rng, RngCore};
 use std::rc::Rc;
-use wnfs::{
-    private::{HamtForest, PrivateDirectory, PrivateNode, PrivateRef},
-    traits::PrivateForest,
+use wnfs::private::{
+    forest::{hamt::HamtForest, traits::PrivateForest},
+    PrivateDirectory, PrivateNode, PrivateRef,
 };
 use wnfs_common::{BlockStore, MemoryBlockStore};
 use wnfs_nameaccumulator::AccumulatorSetup;

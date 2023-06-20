@@ -608,7 +608,7 @@ impl From<PrivateDirectory> for PrivateNode {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::private::HamtForest;
+    use crate::private::forest::hamt::HamtForest;
     use proptest::test_runner::{RngAlgorithm, TestRng};
     use wnfs_common::MemoryBlockStore;
 

@@ -9,7 +9,7 @@ use sha3::Sha3_256;
 use std::{collections::BTreeSet, rc::Rc};
 use wnfs_common::{AsyncSerialize, BlockStore, HashOutput, Link};
 use wnfs_hamt::{merge, Hamt, Hasher, KeyValueChange, Pair};
-use wnfs_nameaccumulator::{AccumulatorSetup, ElementsProof, Name, NameAccumulator};
+use wnfs_nameaccumulator::{AccumulatorSetup, Name, NameAccumulator};
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
@@ -36,31 +36,6 @@ use wnfs_nameaccumulator::{AccumulatorSetup, ElementsProof, Name, NameAccumulato
 pub struct HamtForest<H: Hasher = Sha3_256> {
     hamt: Hamt<NameAccumulator, BTreeSet<Cid>, H>,
     accumulator: AccumulatorSetup,
-}
-
-/// Representation of an opaque data entry in the forest.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub struct Entry {
-    /// CID to the ciphertext block
-    pub block: Cid,
-    /// A helper number for faster prime-hash verification
-    pub l_hash_inc: u32,
-    /// The 128-bit residue of r used for proving name accumulator validity.
-    pub residue: [u8; 16],
-}
-
-impl Entry {
-    pub(crate) fn new(block: Cid, proof: &ElementsProof) -> Self {
-        let mut residue = [0u8; 16];
-        let encoded = proof.r.to_bytes_le();
-        residue[..encoded.len()].copy_from_slice(&encoded);
-
-        Self {
-            block,
-            l_hash_inc: proof.l_hash_inc,
-            residue,
-        }
-    }
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -99,7 +74,7 @@ impl HamtForest {
 }
 
 #[async_trait(?Send)]
-impl PrivateForest for Rc<HamtForest> {
+impl PrivateForest for HamtForest {
     fn empty_name(&self) -> Name {
         Name::empty(&self.accumulator)
     }
@@ -108,39 +83,6 @@ impl PrivateForest for Rc<HamtForest> {
         &self.accumulator
     }
 
-    /// Checks that a value with the given saturated name hash key exists.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use std::rc::Rc;
-    /// use chrono::Utc;
-    /// use rand::thread_rng;
-    /// use sha3::Sha3_256;
-    /// use wnfs::{
-    ///     private::{PrivateForest, PrivateRef, PrivateDirectory, PrivateNode},
-    ///     common::{BlockStore, MemoryBlockStore},
-    ///     hamt::Hasher,
-    ///     namefilter::Namefilter,
-    /// };
-    ///
-    /// #[async_std::main]
-    /// async fn main() {
-    ///     let store = &mut MemoryBlockStore::default();
-    ///     let rng = &mut thread_rng();
-    ///     let forest = &mut Rc::new(PrivateForest::new());
-    ///     let dir = Rc::new(PrivateDirectory::new(
-    ///         Namefilter::default(),
-    ///         Utc::now(),
-    ///         rng,
-    ///     ));
-    ///
-    ///     let node = PrivateNode::Dir(dir);
-    ///     let private_ref = node.store(forest, store, rng).await.unwrap();
-    ///
-    ///     assert!(forest.has(&private_ref.saturated_name_hash, store).await.unwrap());
-    /// }
-    /// ```
     async fn has_by_hash(&self, name_hash: &HashOutput, store: &impl BlockStore) -> Result<bool> {
         Ok(self
             .hamt
@@ -150,7 +92,6 @@ impl PrivateForest for Rc<HamtForest> {
             .is_some())
     }
 
-    /// TODO(matheus23) docs
     async fn has(&self, name: &Name, store: &impl BlockStore) -> Result<bool> {
         self.has_by_hash(
             &Sha3_256::hash(name.as_accumulator(&self.accumulator)),
@@ -159,7 +100,6 @@ impl PrivateForest for Rc<HamtForest> {
         .await
     }
 
-    /// Adds new encrypted values at the given key.
     async fn put_encrypted<'a>(
         self: &mut Self,
         name: &'a Name,
@@ -180,16 +120,11 @@ impl PrivateForest for Rc<HamtForest> {
 
         cids.extend(values);
 
-        Rc::make_mut(self)
-            .hamt
-            .root
-            .set(name.clone(), cids, store)
-            .await?;
+        self.hamt.root.set(name.clone(), cids, store).await?;
 
         Ok(name)
     }
 
-    /// Gets the encrypted values at the given key.
     #[inline]
     async fn get_encrypted_by_hash<'b>(
         &'b self,
@@ -208,17 +143,64 @@ impl PrivateForest for Rc<HamtForest> {
         self.get_encrypted_by_hash(name_hash, store).await
     }
 
-    /// Removes the encrypted values at the given key.
     async fn remove_encrypted(
         self: &mut Self,
         name_hash: &HashOutput,
         store: &mut impl BlockStore,
     ) -> Result<Option<Pair<NameAccumulator, BTreeSet<Cid>>>> {
-        Rc::make_mut(self)
-            .hamt
-            .root
-            .remove_by_hash(name_hash, store)
-            .await
+        self.hamt.root.remove_by_hash(name_hash, store).await
+    }
+}
+
+#[async_trait(?Send)]
+impl PrivateForest for Rc<HamtForest> {
+    fn empty_name(&self) -> Name {
+        (&**self).empty_name()
+    }
+
+    fn get_accumulator_setup(&self) -> &AccumulatorSetup {
+        (&**self).get_accumulator_setup()
+    }
+
+    async fn has_by_hash(&self, name_hash: &HashOutput, store: &impl BlockStore) -> Result<bool> {
+        (&**self).has_by_hash(name_hash, store).await
+    }
+
+    async fn has(&self, name: &Name, store: &impl BlockStore) -> Result<bool> {
+        (&**self).has(name, store).await
+    }
+
+    async fn put_encrypted<'a>(
+        self: &mut Self,
+        name: &'a Name,
+        values: impl IntoIterator<Item = Cid>,
+        store: &mut impl BlockStore,
+    ) -> Result<&'a NameAccumulator> {
+        Rc::make_mut(self).put_encrypted(name, values, store).await
+    }
+
+    async fn get_encrypted_by_hash<'b>(
+        &'b self,
+        name_hash: &HashOutput,
+        store: &impl BlockStore,
+    ) -> Result<Option<&'b BTreeSet<Cid>>> {
+        (&**self).get_encrypted_by_hash(name_hash, store).await
+    }
+
+    async fn get_encrypted(
+        &self,
+        name: &Name,
+        store: &impl BlockStore,
+    ) -> Result<Option<&BTreeSet<Cid>>> {
+        (&**self).get_encrypted(name, store).await
+    }
+
+    async fn remove_encrypted(
+        self: &mut Self,
+        name_hash: &HashOutput,
+        store: &mut impl BlockStore,
+    ) -> Result<Option<Pair<NameAccumulator, BTreeSet<Cid>>>> {
+        Rc::make_mut(self).remove_encrypted(name_hash, store).await
     }
 }
 
@@ -357,29 +339,6 @@ impl<'de> Deserialize<'de> for HamtForest {
             AccumulatorSetup::deserialize(accumulator_ipld).map_err(serde::de::Error::custom)?;
 
         Ok(Self { hamt, accumulator })
-    }
-}
-
-impl<'de> Deserialize<'de> for Entry {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let (block, l_hash_inc, residue) = Deserialize::deserialize(deserializer)?;
-        Ok(Self {
-            block,
-            l_hash_inc,
-            residue,
-        })
-    }
-}
-
-impl Serialize for Entry {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        (&self.block, self.l_hash_inc, self.residue).serialize(serializer)
     }
 }
 

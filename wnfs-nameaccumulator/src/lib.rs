@@ -196,7 +196,7 @@ impl AsRef<[u8]> for NameAccumulator {
     }
 }
 
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct BatchedProofPart {
     big_q_product: BigUint,
 }

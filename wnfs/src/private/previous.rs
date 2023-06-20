@@ -508,7 +508,7 @@ impl<F: PrivateForest + Clone> PrivateNodeOnPathHistory<F> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::private::{HamtForest, PrivateDirectory};
+    use crate::private::{forest::hamt::HamtForest, PrivateDirectory};
     use chrono::Utc;
     use proptest::test_runner::{RngAlgorithm, TestRng};
     use wnfs_common::MemoryBlockStore;

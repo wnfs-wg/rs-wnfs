@@ -1417,7 +1417,7 @@ impl Id for PrivateDirectory {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::private::HamtForest;
+    use crate::private::forest::hamt::HamtForest;
     use proptest::test_runner::{RngAlgorithm, TestRng};
     use rand::thread_rng;
     use rand_chacha::ChaCha12Rng;

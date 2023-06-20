@@ -3,9 +3,9 @@ use futures::StreamExt;
 use rand::thread_rng;
 use sha3::Sha3_256;
 use std::rc::Rc;
-use wnfs::{
-    private::{AesKey, HamtForest, PrivateDirectory, RevisionRef},
-    traits::PrivateForest,
+use wnfs::private::{
+    forest::{hamt::HamtForest, traits::PrivateForest},
+    AesKey, PrivateDirectory, RevisionRef,
 };
 use wnfs_common::{dagcbor, utils, MemoryBlockStore};
 use wnfs_hamt::Hasher;

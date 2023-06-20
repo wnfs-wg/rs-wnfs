@@ -224,7 +224,8 @@ impl RevisionRef {
 mod tests {
     use super::RevisionRef;
     use crate::private::{
-        forest::traits::PrivateForest, HamtForest, PrivateDirectory, PrivateNode,
+        forest::{hamt::HamtForest, traits::PrivateForest},
+        PrivateDirectory, PrivateNode,
     };
     use chrono::Utc;
     use futures::StreamExt;

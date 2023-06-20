@@ -800,7 +800,7 @@ impl Id for PrivateFile {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::private::HamtForest;
+    use crate::private::forest::hamt::HamtForest;
     use async_std::fs::File;
     use proptest::test_runner::{RngAlgorithm, TestRng};
     use rand::Rng;
@@ -888,7 +888,10 @@ mod tests {
 #[cfg(test)]
 mod proptests {
     use super::MAX_BLOCK_CONTENT_SIZE;
-    use crate::private::{forest::traits::PrivateForest, HamtForest, PrivateFile};
+    use crate::private::{
+        forest::{hamt::HamtForest, traits::PrivateForest},
+        PrivateFile,
+    };
     use chrono::Utc;
     use futures::{future, StreamExt};
     use proptest::test_runner::{RngAlgorithm, TestRng};

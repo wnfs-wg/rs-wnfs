@@ -406,7 +406,10 @@ mod tests {
         sharer, Recipient, Share, SharePayload, Sharer, EXCHANGE_KEY_NAME,
     };
     use crate::{
-        private::{forest::traits::PrivateForest, HamtForest, PrivateDirectory, RsaPublicKey},
+        private::{
+            forest::{hamt::HamtForest, traits::PrivateForest},
+            PrivateDirectory, RsaPublicKey,
+        },
         public::{PublicLink, PublicNode},
     };
     use chrono::Utc;
