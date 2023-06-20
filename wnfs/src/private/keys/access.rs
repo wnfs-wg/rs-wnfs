@@ -68,7 +68,7 @@ impl AccessKey {
     }
 
     pub(crate) fn derive_private_ref(&self) -> Result<PrivateRef> {
-        // TODO(appcypher): SnapshottAccessKey currently not supported for PrivateRef.
+        // TODO(appcypher): SnapshotAccessKey currently not supported for PrivateRef.
         let Self::Temporal(key) = self else {
             bail!(AccessKeyError::UnsupportedSnapshotPrivateRefDerive)
         };

@@ -184,21 +184,6 @@ impl PrivateForest {
         Ok(Box::pin(stream))
     }
 
-    // /// Returns a stream of all private nodes that could be decrypted at given revision.
-    // ///
-    // /// The stream of results is ordered by CID.
-    // ///
-    // /// Each item in the resulting stream represents an instance of a concurrent write.
-    // pub fn get_multivalue<'a>(
-    //     &'a self,
-    //     access_key: &'a AccessKey,
-    //     store: &'a impl BlockStore,
-    // ) -> Result<Box> {
-    //     let revision_ref = access_key.derive_private_ref()?.into_revision_ref();
-    //     let stream = self.get_multivalue_with_revision_ref(revision_ref, store);
-    //     todo!("implement stream ordering")
-    // }
-
     /// Gets the difference in changes between two forests.
     #[inline]
     pub async fn diff(

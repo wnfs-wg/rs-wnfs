@@ -57,7 +57,6 @@ pub(crate) struct RevisionRef {
 impl PrivateRef {
     /// Creates a PrivateRef from provided saturated name and temporal key.
     pub(crate) fn with_temporal_key(
-        // TODO(appcypher): Make this private
         saturated_name_hash: HashOutput,
         temporal_key: TemporalKey,
         content_cid: Cid,
@@ -115,21 +114,27 @@ impl PrivateRef {
         })
     }
 
-    pub fn serialize<S>(&self, serializer: S, temporal_key: &TemporalKey) -> Result<S::Ok, S::Error>
+    #[allow(unused)]
+    pub(crate) fn serialize<S>(
+        &self,
+        serializer: S,
+        temporal_key: &TemporalKey,
+    ) -> Result<S::Ok, S::Error>
     where
-        S: serde::Serializer, // TODO(appcypher): Make this private
+        S: serde::Serializer,
     {
         self.to_serializable(temporal_key)
             .map_err(SerError::custom)?
             .serialize(serializer)
     }
 
-    pub fn deserialize<'de, D>(
+    #[allow(unused)]
+    pub(crate) fn deserialize<'de, D>(
         deserializer: D,
         temporal_key: &TemporalKey,
     ) -> Result<Self, D::Error>
     where
-        D: serde::Deserializer<'de>, // TODO(appcypher): Make this private
+        D: serde::Deserializer<'de>,
     {
         let private_ref = PrivateRefSerializable::deserialize(deserializer)?;
         PrivateRef::from_serializable(private_ref, temporal_key).map_err(DeError::custom)
@@ -168,7 +173,6 @@ impl RevisionRef {
     ///
     /// The resulting private ref refers to the given CID in the multivalue.
     pub(crate) fn into_private_ref(self, content_cid: Cid) -> PrivateRef {
-        // TODO(appcypher): Make this private
         PrivateRef {
             saturated_name_hash: self.saturated_name_hash,
             temporal_key: self.temporal_key,
