@@ -6,8 +6,8 @@
 //! as well as a counter.
 
 use self::sharer::share;
-use super::{ExchangeKey, PrivateNode, SnapshotKey, TemporalKey};
-use crate::{error::ShareError, public::PublicLink, traits::PrivateForest};
+use super::{forest::traits::PrivateForest, ExchangeKey, PrivateNode, SnapshotKey, TemporalKey};
+use crate::{error::ShareError, public::PublicLink};
 use anyhow::{bail, Result};
 use libipld::Cid;
 use rand_core::RngCore;
@@ -214,9 +214,8 @@ impl SnapshotSharePointer {
 pub mod sharer {
     use super::{SharePayload, EXCHANGE_KEY_NAME};
     use crate::{
-        private::{ExchangeKey, PublicKeyModulus},
+        private::{forest::traits::PrivateForest, ExchangeKey, PublicKeyModulus},
         public::PublicLink,
-        traits::PrivateForest,
     };
     use anyhow::Result;
     use async_stream::try_stream;
@@ -310,8 +309,7 @@ pub mod recipient {
     use super::{sharer, SharePayload, TemporalSharePointer};
     use crate::{
         error::ShareError,
-        private::{PrivateKey, PrivateNode, PrivateRef},
-        traits::PrivateForest,
+        private::{forest::traits::PrivateForest, PrivateKey, PrivateNode, PrivateRef},
     };
     use anyhow::{bail, Result};
     use sha3::Sha3_256;
@@ -408,9 +406,8 @@ mod tests {
         sharer, Recipient, Share, SharePayload, Sharer, EXCHANGE_KEY_NAME,
     };
     use crate::{
-        private::{HamtForest, PrivateDirectory, RsaPublicKey},
+        private::{forest::traits::PrivateForest, HamtForest, PrivateDirectory, RsaPublicKey},
         public::{PublicLink, PublicNode},
-        traits::PrivateForest,
     };
     use chrono::Utc;
     use proptest::test_runner::{RngAlgorithm, TestRng};
@@ -419,9 +416,11 @@ mod tests {
 
     mod helper {
         use crate::{
-            private::{share::EXCHANGE_KEY_NAME, PrivateDirectory, RsaPrivateKey},
+            private::{
+                forest::traits::PrivateForest, share::EXCHANGE_KEY_NAME, PrivateDirectory,
+                RsaPrivateKey,
+            },
             public::PublicDirectory,
-            traits::PrivateForest,
         };
         use anyhow::Result;
         use chrono::Utc;

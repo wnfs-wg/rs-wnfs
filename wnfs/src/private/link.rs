@@ -1,5 +1,6 @@
-use super::{PrivateDirectory, PrivateFile, PrivateNode, PrivateRef};
-use crate::traits::PrivateForest;
+use super::{
+    forest::traits::PrivateForest, PrivateDirectory, PrivateFile, PrivateNode, PrivateRef,
+};
 use anyhow::Result;
 use async_once_cell::OnceCell;
 use async_recursion::async_recursion;

@@ -1,4 +1,5 @@
-use crate::{error::FsError, traits::PrivateForest};
+use super::traits::PrivateForest;
+use crate::error::FsError;
 use anyhow::Result;
 use async_trait::async_trait;
 use libipld::{Cid, Ipld};
@@ -389,10 +390,7 @@ impl Serialize for Entry {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        private::{PrivateDirectory, PrivateNode},
-        traits::PrivateForest,
-    };
+    use crate::private::{PrivateDirectory, PrivateNode};
     use chrono::Utc;
     use helper::*;
     use proptest::test_runner::{RngAlgorithm, TestRng};

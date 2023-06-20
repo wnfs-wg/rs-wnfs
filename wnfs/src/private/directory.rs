@@ -1,12 +1,8 @@
 use super::{
-    encrypted::Encrypted, link::PrivateLink, INumber, PrivateFile, PrivateNode, PrivateNodeHeader,
-    PrivateRef, PrivateRefSerializable, TemporalKey,
+    encrypted::Encrypted, forest::traits::PrivateForest, link::PrivateLink, INumber, PrivateFile,
+    PrivateNode, PrivateNodeHeader, PrivateRef, PrivateRefSerializable, TemporalKey,
 };
-use crate::{
-    error::FsError,
-    traits::{Id, PrivateForest},
-    SearchResult,
-};
+use crate::{error::FsError, traits::Id, SearchResult};
 use anyhow::{bail, ensure, Result};
 use async_once_cell::OnceCell;
 use chrono::{DateTime, Utc};

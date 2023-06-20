@@ -1,8 +1,8 @@
 use super::{
-    encrypted::Encrypted, PrivateDirectory, PrivateFile, PrivateNode, PrivateNodeHeader,
-    TemporalKey,
+    encrypted::Encrypted, forest::traits::PrivateForest, PrivateDirectory, PrivateFile,
+    PrivateNode, PrivateNodeHeader, TemporalKey,
 };
-use crate::{error::FsError, traits::PrivateForest};
+use crate::error::FsError;
 use anyhow::{bail, Result};
 use libipld::Cid;
 use skip_ratchet::{PreviousIterator, Ratchet};
@@ -508,10 +508,7 @@ impl<F: PrivateForest + Clone> PrivateNodeOnPathHistory<F> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        private::{HamtForest, PrivateDirectory},
-        traits::PrivateForest,
-    };
+    use crate::private::{HamtForest, PrivateDirectory};
     use chrono::Utc;
     use proptest::test_runner::{RngAlgorithm, TestRng};
     use wnfs_common::MemoryBlockStore;

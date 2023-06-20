@@ -2,10 +2,10 @@ use super::{PrivateNodeHeader, TemporalKey};
 use crate::{
     error::FsError,
     private::{
-        encrypted::Encrypted, link::PrivateLink, PrivateDirectory, PrivateDirectoryContent,
-        PrivateFile, PrivateFileContent, PrivateRef,
+        encrypted::Encrypted, forest::traits::PrivateForest, link::PrivateLink, PrivateDirectory,
+        PrivateDirectoryContent, PrivateFile, PrivateFileContent, PrivateRef,
     },
-    traits::{Id, PrivateForest},
+    traits::Id,
 };
 use anyhow::{bail, Result};
 use async_once_cell::OnceCell;

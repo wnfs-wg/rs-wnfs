@@ -11,7 +11,7 @@ pub mod share;
 
 pub use directory::*;
 pub use file::*;
-pub use forest::*;
+pub use forest::hamt::*;
 pub use keys::*;
 pub use node::*;
 pub use previous::*;

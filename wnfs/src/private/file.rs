@@ -1,11 +1,8 @@
 use super::{
-    encrypted::Encrypted, PrivateNode, PrivateNodeHeader, PrivateRef, SnapshotKey,
-    AUTHENTICATION_TAG_SIZE, NONCE_SIZE,
+    encrypted::Encrypted, forest::traits::PrivateForest, PrivateNode, PrivateNodeHeader,
+    PrivateRef, SnapshotKey, AUTHENTICATION_TAG_SIZE, NONCE_SIZE,
 };
-use crate::{
-    error::FsError,
-    traits::{Id, PrivateForest},
-};
+use crate::{error::FsError, traits::Id};
 use anyhow::Result;
 use async_once_cell::OnceCell;
 use async_stream::try_stream;
@@ -891,10 +888,7 @@ mod tests {
 #[cfg(test)]
 mod proptests {
     use super::MAX_BLOCK_CONTENT_SIZE;
-    use crate::{
-        private::{HamtForest, PrivateFile},
-        traits::PrivateForest,
-    };
+    use crate::private::{forest::traits::PrivateForest, HamtForest, PrivateFile};
     use chrono::Utc;
     use futures::{future, StreamExt};
     use proptest::test_runner::{RngAlgorithm, TestRng};
