@@ -134,6 +134,49 @@ where
             .map(|pair| &pair.value))
     }
 
+    /// Obtain a mutable reference to a given key.
+    ///
+    /// Will copy parts of the tree to prepare for changes, if necessary.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use std::rc::Rc;
+    /// use wnfs_hamt::Node;
+    /// use wnfs_common::MemoryBlockStore;
+    ///
+    /// #[async_std::main]
+    /// async fn main() {
+    ///     let store = &mut MemoryBlockStore::new();
+    ///     let mut node = Rc::new(Node::<String, usize>::default());
+    ///     node.set("key".into(), 40, store).await.unwrap();
+    ///
+    ///     let value = node.get_mut(&String::from("key"), store).await.unwrap().unwrap();
+    ///     *value += 2;
+    ///
+    ///     assert_eq!(node.get(&String::from("key"), store).await.unwrap(), Some(&42));
+    /// }
+    /// ```
+    pub async fn get_mut<'a>(
+        self: &'a mut Rc<Self>,
+        key: &K,
+        store: &'a impl BlockStore,
+    ) -> Result<Option<&'a mut V>>
+    where
+        K: DeserializeOwned + AsRef<[u8]> + Clone,
+        V: DeserializeOwned + Clone,
+    {
+        let hash = &H::hash(key);
+
+        #[cfg(feature = "log")]
+        debug!("get_mut: hash = {:02x?}", hash);
+
+        Ok(self
+            .get_value_mut(&mut HashNibbles::new(hash), store)
+            .await?
+            .map(|pair| &mut pair.value))
+    }
+
     /// Removes the value at the given key.
     ///
     /// # Examples
@@ -394,6 +437,37 @@ where
             Pointer::Link(link) => {
                 let child = link.resolve_value(store).await?;
                 child.get_value(hashnibbles, store).await
+            }
+        }
+    }
+
+    #[async_recursion(?Send)]
+    pub async fn get_value_mut<'a>(
+        self: &'a mut Rc<Self>,
+        hashnibbles: &mut HashNibbles,
+        store: &'a impl BlockStore,
+    ) -> Result<Option<&'a mut Pair<K, V>>>
+    where
+        K: DeserializeOwned + AsRef<[u8]> + Clone,
+        V: DeserializeOwned + Clone,
+    {
+        let bit_index = hashnibbles.try_next()?;
+
+        // If the bit is not set yet, return None.
+        if !self.bitmask[bit_index] {
+            return Ok(None);
+        }
+
+        let value_index = self.get_value_index(bit_index);
+        match &mut Rc::make_mut(self).pointers[value_index] {
+            Pointer::Values(values) => Ok({
+                values
+                    .iter_mut()
+                    .find(|p| &H::hash(&p.key) == hashnibbles.digest)
+            }),
+            Pointer::Link(link) => {
+                let child = link.resolve_value_mut(store).await?;
+                child.get_value_mut(hashnibbles, store).await
             }
         }
     }
