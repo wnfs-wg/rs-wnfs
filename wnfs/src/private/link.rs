@@ -36,7 +36,9 @@ impl PrivateLink {
     ) -> Result<PrivateRef> {
         match self {
             Self::Encrypted { private_ref, .. } => Ok(private_ref.clone()),
-            Self::Decrypted { node } => Ok(node.store(forest, store, rng).await?),
+            Self::Decrypted { node } => {
+                Ok(node.store_and_get_private_ref(forest, store, rng).await?)
+            }
         }
     }
 
@@ -48,7 +50,7 @@ impl PrivateLink {
         match self {
             Self::Encrypted { private_ref, cache } => {
                 cache
-                    .get_or_try_init(PrivateNode::load(private_ref, forest, store))
+                    .get_or_try_init(PrivateNode::from_private_ref(private_ref, forest, store))
                     .await
             }
             Self::Decrypted { node, .. } => Ok(node),
@@ -65,7 +67,7 @@ impl PrivateLink {
             Self::Encrypted { private_ref, cache } => {
                 let private_node = match cache.take() {
                     Some(node) => node,
-                    None => PrivateNode::load(private_ref, forest, store).await?,
+                    None => PrivateNode::from_private_ref(private_ref, forest, store).await?,
                 };
 
                 // We need to switch this PrivateLink to be a `Decrypted` again, since
@@ -94,8 +96,8 @@ impl PrivateLink {
             Self::Encrypted { private_ref, cache } => match cache.into_inner() {
                 Some(cached) => Ok(cached),
                 None => {
-                    let node = PrivateNode::load(&private_ref, forest, store).await?;
-                    node.persisted_as()
+                    let node = PrivateNode::from_private_ref(&private_ref, forest, store).await?;
+                    node.get_persisted_as()
                         .get_or_init(async { private_ref.content_cid })
                         .await;
                     Ok(node)
@@ -121,7 +123,7 @@ impl PrivateLink {
     pub(crate) fn get_ref(&self) -> Option<PrivateRef> {
         match self {
             Self::Encrypted { private_ref, .. } => Some(private_ref.clone()),
-            Self::Decrypted { node } => node.get_private_ref(),
+            Self::Decrypted { node } => node.derive_private_ref(),
         }
     }
 }
@@ -143,10 +145,10 @@ impl PartialEq for PrivateLink {
                 l_node == r_node
             }
             (Self::Encrypted { private_ref, cache }, Self::Decrypted { node }) => {
-                Some(private_ref) == node.get_private_ref().as_ref() || Some(node) == cache.get()
+                Some(private_ref) == node.derive_private_ref().as_ref() || Some(node) == cache.get()
             }
             (Self::Decrypted { node }, Self::Encrypted { private_ref, cache }) => {
-                Some(private_ref) == node.get_private_ref().as_ref() || Some(node) == cache.get()
+                Some(private_ref) == node.derive_private_ref().as_ref() || Some(node) == cache.get()
             }
         }
     }

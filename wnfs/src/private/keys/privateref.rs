@@ -1,12 +1,14 @@
-use super::{PrivateNodeHeader, SnapshotKey, TemporalKey, KEY_BYTE_SIZE};
-use crate::error::{AesError, FsError};
+use super::KEY_BYTE_SIZE;
+use crate::{
+    error::{AesError, FsError},
+    private::{SnapshotKey, TemporalKey},
+};
 use aes_kw::KekAes256;
 use anyhow::Result;
 use libipld_core::cid::Cid;
 use serde::{de::Error as DeError, ser::Error as SerError, Deserialize, Serialize};
 use std::fmt::Debug;
 use wnfs_common::HashOutput;
-use wnfs_namefilter::Namefilter;
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
@@ -41,7 +43,7 @@ pub(crate) struct PrivateRefSerializable {
 /// together with the TemporalKey to decrypt any of these
 /// revisions.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct RevisionRef {
+pub(crate) struct RevisionRef {
     /// Sha3-256 hash of saturated namefilter. Used as the label for private nodes in the private forest.
     pub saturated_name_hash: HashOutput,
     /// Skip-ratchet-derived key. Gives read access to the revision pointed to and any newer revisions.
@@ -54,24 +56,8 @@ pub struct RevisionRef {
 
 impl PrivateRef {
     /// Creates a PrivateRef from provided saturated name and temporal key.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use wnfs::{private::{PrivateRef, TemporalKey}, private::AesKey};
-    /// use rand::{thread_rng, Rng};
-    ///
-    /// let content_cid = Default::default();
-    /// let rng = &mut thread_rng();
-    /// let private_ref = PrivateRef::with_temporal_key(
-    ///     rng.gen::<[u8; 32]>(),
-    ///     TemporalKey::from(AesKey::new(rng.gen::<[u8; 32]>())),
-    ///     content_cid,
-    /// );
-    ///
-    /// println!("Private ref: {:?}", private_ref);
-    /// ```
-    pub fn with_temporal_key(
+    pub(crate) fn with_temporal_key(
+        // TODO(appcypher): Make this private
         saturated_name_hash: HashOutput,
         temporal_key: TemporalKey,
         content_cid: Cid,
@@ -131,7 +117,7 @@ impl PrivateRef {
 
     pub fn serialize<S>(&self, serializer: S, temporal_key: &TemporalKey) -> Result<S::Ok, S::Error>
     where
-        S: serde::Serializer,
+        S: serde::Serializer, // TODO(appcypher): Make this private
     {
         self.to_serializable(temporal_key)
             .map_err(SerError::custom)?
@@ -143,7 +129,7 @@ impl PrivateRef {
         temporal_key: &TemporalKey,
     ) -> Result<Self, D::Error>
     where
-        D: serde::Deserializer<'de>,
+        D: serde::Deserializer<'de>, // TODO(appcypher): Make this private
     {
         let private_ref = PrivateRefSerializable::deserialize(deserializer)?;
         PrivateRef::from_serializable(private_ref, temporal_key).map_err(DeError::custom)
@@ -151,7 +137,7 @@ impl PrivateRef {
 
     /// Returns a revision ref that refers to all other multivalues
     /// next to this private ref's value.
-    pub fn as_revision_ref(self) -> RevisionRef {
+    pub(crate) fn into_revision_ref(self) -> RevisionRef {
         RevisionRef {
             saturated_name_hash: self.saturated_name_hash,
             temporal_key: self.temporal_key,
@@ -175,83 +161,18 @@ impl Debug for PrivateRef {
 }
 
 impl RevisionRef {
-    /// Creates a RevisionRef from provided namefilter, ratchet seed and inumber.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use wnfs::{private::RevisionRef, namefilter::Namefilter};
-    /// use rand::{thread_rng, Rng};
-    ///
-    /// let rng = &mut thread_rng();
-    /// let revision_ref = RevisionRef::with_seed(
-    ///     Namefilter::default(),
-    ///     rng.gen::<[u8; 32]>(),
-    ///     rng.gen::<[u8; 32]>(),
-    /// );
-    ///
-    /// println!("Private ref: {:?}", revision_ref);
-    /// ```
-    pub fn with_seed(name: Namefilter, ratchet_seed: HashOutput, inumber: HashOutput) -> Self {
-        PrivateNodeHeader::with_seed(name, ratchet_seed, inumber).derive_revision_ref()
-    }
-
     /// Turns a reivison ref into a more specific pointer, a private ref.
     ///
     /// The revision ref refers to a whole multivalue that may or may not exist
     /// or may refer to multiple private nodes.
     ///
     /// The resulting private ref refers to the given CID in the multivalue.
-    pub fn as_private_ref(self, content_cid: Cid) -> PrivateRef {
+    pub(crate) fn into_private_ref(self, content_cid: Cid) -> PrivateRef {
+        // TODO(appcypher): Make this private
         PrivateRef {
             saturated_name_hash: self.saturated_name_hash,
             temporal_key: self.temporal_key,
             content_cid,
         }
-    }
-}
-
-//--------------------------------------------------------------------------------------------------
-// Tests
-//--------------------------------------------------------------------------------------------------
-
-#[cfg(test)]
-mod tests {
-    use super::RevisionRef;
-    use crate::private::{PrivateDirectory, PrivateForest, PrivateNode};
-    use chrono::Utc;
-    use futures::StreamExt;
-    use proptest::test_runner::{RngAlgorithm, TestRng};
-    use std::rc::Rc;
-    use wnfs_common::{utils, MemoryBlockStore};
-
-    #[async_std::test]
-    async fn can_create_revisionref_deterministically_with_user_provided_seeds() {
-        let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
-        let store = &MemoryBlockStore::default();
-        let forest = &mut Rc::new(PrivateForest::new());
-        let ratchet_seed = utils::get_random_bytes::<32>(rng);
-        let inumber = utils::get_random_bytes::<32>(rng);
-
-        let dir = PrivateNode::from(PrivateDirectory::with_seed(
-            Default::default(),
-            Utc::now(),
-            ratchet_seed,
-            inumber,
-        ));
-
-        // Throwing away the private ref
-        dir.store(forest, store, rng).await.unwrap();
-
-        // Creating deterministic revision ref and retrieve the content.
-        let revision_ref = RevisionRef::with_seed(Default::default(), ratchet_seed, inumber);
-        let retrieved_node = forest
-            .get_multivalue(&revision_ref, store)
-            .next()
-            .await
-            .unwrap()
-            .unwrap();
-
-        assert_eq!(retrieved_node, dir);
     }
 }

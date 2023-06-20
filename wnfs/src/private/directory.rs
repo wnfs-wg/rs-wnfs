@@ -248,7 +248,7 @@ impl PrivateDirectory {
     /// use rand::thread_rng;
     ///
     /// use wnfs::{
-    ///     private::{PrivateForest, PrivateRef, PrivateDirectory},
+    ///     private::{PrivateForest, PrivateDirectory},
     ///     common::{BlockStore, MemoryBlockStore},
     ///     namefilter::Namefilter,
     /// };
@@ -442,11 +442,11 @@ impl PrivateDirectory {
     }
 
     /// Returns the private ref, if this directory has been `.store()`ed before.
-    pub(crate) fn get_private_ref(&self) -> Option<PrivateRef> {
+    pub(crate) fn derive_private_ref(&self) -> Option<PrivateRef> {
         self.content.persisted_as.get().map(|content_cid| {
             self.header
                 .derive_revision_ref()
-                .as_private_ref(*content_cid)
+                .into_private_ref(*content_cid)
         })
     }
 
@@ -480,7 +480,7 @@ impl PrivateDirectory {
     /// use rand::thread_rng;
     ///
     /// use wnfs::{
-    ///     private::{PrivateForest, PrivateRef, PrivateDirectory},
+    ///     private::{PrivateForest, PrivateDirectory},
     ///     common::{BlockStore, MemoryBlockStore},
     ///     namefilter::Namefilter,
     /// };
@@ -538,7 +538,7 @@ impl PrivateDirectory {
     /// use rand::thread_rng;
     ///
     /// use wnfs::{
-    ///     private::{PrivateForest, PrivateRef, PrivateDirectory},
+    ///     private::{PrivateForest, PrivateDirectory},
     ///     common::{BlockStore, MemoryBlockStore},
     ///     namefilter::Namefilter,
     /// };
@@ -612,7 +612,7 @@ impl PrivateDirectory {
     /// use chrono::Utc;
     /// use rand::thread_rng;
     /// use wnfs::{
-    ///    private::{PrivateForest, PrivateRef, PrivateDirectory},
+    ///    private::{PrivateForest, PrivateDirectory},
     ///    common::{BlockStore, MemoryBlockStore},
     ///    namefilter::Namefilter,
     /// };
@@ -669,7 +669,7 @@ impl PrivateDirectory {
         search_latest: bool,
         time: DateTime<Utc>,
         forest: &mut Rc<PrivateForest>,
-        store: &mut impl BlockStore,
+        store: &impl BlockStore,
         rng: &mut impl RngCore,
     ) -> Result<&'a mut PrivateFile> {
         let (path, filename) = crate::utils::split_last(path_segments)?;
@@ -704,7 +704,7 @@ impl PrivateDirectory {
     /// use chrono::Utc;
     /// use rand::thread_rng;
     /// use wnfs::{
-    ///     private::{PrivateForest, PrivateRef, PrivateDirectory},
+    ///     private::{PrivateForest, PrivateDirectory},
     ///     common::{BlockStore, MemoryBlockStore},
     ///     namefilter::Namefilter,
     /// };
@@ -804,7 +804,7 @@ impl PrivateDirectory {
     /// use chrono::Utc;
     /// use rand::thread_rng;
     /// use wnfs::{
-    ///     private::{PrivateForest, PrivateRef, PrivateNode, PrivateDirectory},
+    ///     private::{PrivateForest, PrivateNode, PrivateDirectory},
     ///     common::{BlockStore, MemoryBlockStore},
     ///     namefilter::Namefilter,
     /// };
@@ -829,7 +829,7 @@ impl PrivateDirectory {
     ///         .await
     ///         .unwrap();
     ///
-    ///     dir_clone.store(forest, store, rng).await.unwrap();
+    ///     dir_clone.as_node().store(forest, store, rng).await.unwrap();
     ///
     ///     let latest_dir = init_dir.search_latest(forest, store).await.unwrap();
     ///
@@ -864,7 +864,7 @@ impl PrivateDirectory {
     /// use rand::thread_rng;
     ///
     /// use wnfs::{
-    ///     private::{PrivateForest, PrivateRef, PrivateDirectory},
+    ///     private::{PrivateForest, PrivateDirectory},
     ///     common::{BlockStore, MemoryBlockStore},
     ///     namefilter::Namefilter,
     /// };
@@ -919,7 +919,7 @@ impl PrivateDirectory {
     /// use rand::thread_rng;
     ///
     /// use wnfs::{
-    ///     private::{PrivateForest, PrivateRef, PrivateDirectory},
+    ///     private::{PrivateForest, PrivateDirectory},
     ///     common::{BlockStore, MemoryBlockStore},
     ///     namefilter::Namefilter,
     /// };
@@ -1012,7 +1012,7 @@ impl PrivateDirectory {
     /// use chrono::Utc;
     /// use rand::thread_rng;
     /// use wnfs::{
-    ///     private::{PrivateForest, PrivateRef, PrivateDirectory},
+    ///     private::{PrivateForest, PrivateDirectory},
     ///     common::{BlockStore, MemoryBlockStore},
     ///     namefilter::Namefilter,
     /// };
@@ -1126,7 +1126,7 @@ impl PrivateDirectory {
     /// use rand::thread_rng;
     ///
     /// use wnfs::{
-    ///     private::{PrivateForest, PrivateRef, PrivateDirectory},
+    ///     private::{PrivateForest, PrivateDirectory},
     ///     common::{BlockStore, MemoryBlockStore},
     ///     namefilter::Namefilter,
     /// };
@@ -1214,7 +1214,7 @@ impl PrivateDirectory {
     /// use rand::thread_rng;
     ///
     /// use wnfs::{
-    ///     private::{PrivateForest, PrivateRef, PrivateDirectory},
+    ///     private::{PrivateForest, PrivateDirectory},
     ///     common::{BlockStore, MemoryBlockStore},
     ///     namefilter::Namefilter,
     /// };
@@ -1292,41 +1292,7 @@ impl PrivateDirectory {
     }
 
     /// Stores this PrivateDirectory in the PrivateForest.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use std::rc::Rc;
-    /// use chrono::Utc;
-    /// use rand::thread_rng;
-    /// use wnfs::{
-    ///     private::{PrivateForest, PrivateRef, PrivateNode, PrivateDirectory},
-    ///     common::{BlockStore, MemoryBlockStore},
-    ///     namefilter::Namefilter,
-    /// };
-    ///
-    /// #[async_std::main]
-    /// async fn main() {
-    ///     let store = &MemoryBlockStore::default();
-    ///     let rng = &mut thread_rng();
-    ///     let forest = &mut Rc::new(PrivateForest::new());
-    ///     let dir = &mut Rc::new(PrivateDirectory::new(
-    ///         Namefilter::default(),
-    ///         Utc::now(),
-    ///         rng,
-    ///     ));
-    ///
-    ///     let private_ref = dir.store(forest, store, rng).await.unwrap();
-    ///
-    ///     let node = PrivateNode::Dir(Rc::clone(&dir));
-    ///
-    ///     assert_eq!(
-    ///         PrivateNode::load(&private_ref, forest, store).await.unwrap(),
-    ///         node
-    ///     );
-    /// }
-    /// ```
-    pub async fn store(
+    pub(crate) async fn store(
         &self,
         forest: &mut Rc<PrivateForest>,
         store: &impl BlockStore,
@@ -1348,7 +1314,7 @@ impl PrivateDirectory {
         Ok(self
             .header
             .derive_revision_ref()
-            .as_private_ref(content_cid))
+            .into_private_ref(content_cid))
     }
 
     /// Creates a  new [`PrivateDirectory`] from a [`PrivateDirectoryContentSerializable`].

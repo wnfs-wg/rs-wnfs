@@ -15,7 +15,6 @@ test.describe("Share", () => {
       const {
         wnfs: {
           PrivateForest,
-          SharePayload,
           share,
           createShareLabel,
           receiveShare,
@@ -33,55 +32,47 @@ test.describe("Share", () => {
       globalThis.ExchangeKey = ExchangeKey;
 
       var sharerForest = new PrivateForest();
-      const sharerStore = new MemoryBlockStore();
+      const store = new MemoryBlockStore();
       const sharerRootDid = "did:key:z6MkqZjY";
-      const recipientStore = new MemoryBlockStore();
       const rng = new Rng();
 
       var { rootDir: sharerDir, forest: sharerForest } = await createSharerDir(
         sharerForest,
-        sharerStore,
+        store,
         rng
       );
 
       const [recipientKey, recipientExchRoot] =
-        await createRecipientExchangeRoot(recipientStore);
+        await createRecipientExchangeRoot(store);
 
-      const recipientExchRootCid = await recipientExchRoot.store(
-        recipientStore
-      );
+      const recipientExchRootCid = await recipientExchRoot.store(store);
 
-      var [sharerPayload, sharerForest2] = await SharePayload.fromNode(
-        sharerDir.asNode(),
-        true,
-        sharerForest,
-        sharerStore,
-        rng
-      );
+      var [accessKey, sharerForest2] = await sharerDir
+        .asNode()
+        .store(sharerForest, store, rng);
 
       var sharerForest2 = await share(
-        sharerPayload,
+        accessKey,
         0,
         sharerRootDid,
         sharerForest2,
-        sharerStore,
         recipientExchRootCid,
-        recipientStore
+        store
       );
 
       const modulus = await recipientKey.getPublicKey().getPublicKeyModulus();
       const shareLabel = createShareLabel(0, sharerRootDid, modulus);
 
-      const recipientPayload = await receiveShare(
+      const sharedNode = await receiveShare(
         shareLabel,
         recipientKey,
         sharerForest2,
-        sharerStore
+        store
       );
 
-      console.log("recipientPayload", recipientPayload);
+      console.log("sharedNode", sharedNode);
 
-      return recipientPayload;
+      return sharedNode;
     });
 
     expect(result).toBeDefined();

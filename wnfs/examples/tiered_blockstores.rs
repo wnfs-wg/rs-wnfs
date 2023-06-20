@@ -17,12 +17,12 @@ use wnfs_namefilter::Namefilter;
 #[async_std::main]
 async fn main() -> Result<()> {
     // Create a block store that holds all 'hot' data:
-    let mut hot_store = MemoryBlockStore::default();
+    let hot_store = MemoryBlockStore::default();
 
     // Create a block store that holds all 'cold' data.
     // In reality this would probably be something that's accessible
     // with very high latency, but with a lot of bandwidth & storage.
-    let mut cold_store = MemoryBlockStore::default();
+    let cold_store = MemoryBlockStore::default();
 
     // Create a random number generator for randomized encryption.
     let rng = &mut thread_rng();
@@ -44,16 +44,20 @@ async fn main() -> Result<()> {
     // When 'opening' a file, we use the hot store to fetch any directories
     // on the path we may have already created before.
     let file = directory
-        .open_file_mut(&file_path, true, Utc::now(), forest, &mut hot_store, rng)
+        .open_file_mut(&file_path, true, Utc::now(), forest, &hot_store, rng)
         .await?;
 
     // `set_content` actually writes the data blocks to the blockstore in chunks,
     // so for this we provide the `cold_store`.
-    file.set_content(Utc::now(), &video[..], forest, &mut cold_store, rng)
+    file.set_content(Utc::now(), &video[..], forest, &cold_store, rng)
         .await?;
 
     // When storing the hierarchy data blocks, we use the `hot_store`:
-    let private_ref = directory.store(forest, &mut hot_store, rng).await.unwrap();
+    let access_key = directory
+        .as_node()
+        .store(forest, &hot_store, rng)
+        .await
+        .unwrap();
 
     // Same thing for the forest. Doing this will give us a single root CID
     // for all of the data, but parts separated into `hot_store` and `cold_store`:
@@ -62,7 +66,7 @@ async fn main() -> Result<()> {
     // We can now read out our data back:
     let forest: Rc<PrivateForest> = Rc::new(hot_store.get_deserializable(&private_root_cid).await?);
 
-    let directory = PrivateNode::load(&private_ref, &forest, &hot_store)
+    let directory = PrivateNode::load(&access_key, &forest, &hot_store)
         .await?
         .as_dir()?;
 

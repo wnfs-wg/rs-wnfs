@@ -108,30 +108,8 @@ impl PrivateNodeHeader {
     }
 
     /// Derives the revision ref of the current header.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use std::rc::Rc;
-    /// use wnfs::{
-    ///     private::PrivateFile,
-    ///     namefilter::Namefilter,
-    ///     traits::Id
-    /// };
-    /// use chrono::Utc;
-    /// use rand::thread_rng;
-    ///
-    /// let rng = &mut thread_rng();
-    /// let file = Rc::new(PrivateFile::new(
-    ///     Namefilter::default(),
-    ///     Utc::now(),
-    ///     rng,
-    /// ));
-    /// let revision_ref = file.header.derive_revision_ref();
-    ///
-    /// println!("Private ref: {:?}", revision_ref);
-    /// ```
-    pub fn derive_revision_ref(&self) -> RevisionRef {
+    pub(crate) fn derive_revision_ref(&self) -> RevisionRef {
+        // TODO(appcypher): Make this private
         let temporal_key = self.derive_temporal_key();
         let saturated_name_hash = self.get_saturated_name_hash();
 
@@ -173,6 +151,7 @@ impl PrivateNodeHeader {
     /// ```
     #[inline]
     pub fn derive_temporal_key(&self) -> TemporalKey {
+        // TODO(appcypher): Make this private
         TemporalKey::from(&self.ratchet)
     }
 

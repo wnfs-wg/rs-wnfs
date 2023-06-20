@@ -58,11 +58,8 @@ pub enum ShareError {
     #[error("No sharer or recipients")]
     NoSharerOrRecipients,
 
-    #[error("Share payload not found")]
-    SharePayloadNotFound,
-
-    #[error("Unsupported share receipt type")]
-    UnsupportedSnapshotShareReceipt,
+    #[error("Access key not found")]
+    AccessKeyNotFound,
 }
 
 /// AES-GCM errors.
@@ -87,4 +84,11 @@ pub enum RsaError {
 
     #[error("Decryption failed: {0}")]
     DecryptionFailed(anyhow::Error),
+}
+
+/// AccessKey related errors.
+#[derive(Debug, Error)]
+pub enum AccessKeyError {
+    #[error("Snapshot access keys cannot be used to derive private refs")]
+    UnsupportedSnapshotPrivateRefDerive,
 }

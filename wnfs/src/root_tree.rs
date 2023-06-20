@@ -221,7 +221,6 @@ where
         }
     }
 
-    /// TODO(appcypher): Fix return type.
     pub async fn rm(&mut self, root_segments: &[String], path_segments: &[String]) -> Result<()> {
         let Some(first) = root_segments.first() else {
             bail!(FsError::InvalidPath)

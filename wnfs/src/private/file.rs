@@ -44,7 +44,7 @@ pub const MAX_BLOCK_CONTENT_SIZE: usize = MAX_BLOCK_SIZE - NONCE_SIZE - AUTHENTI
 /// use chrono::Utc;
 /// use rand::thread_rng;
 /// use wnfs::{
-///     private::{PrivateForest, PrivateRef, PrivateFile},
+///     private::{PrivateForest, PrivateFile},
 ///     common::{MemoryBlockStore, utils::get_random_bytes},
 ///     namefilter::Namefilter,
 /// };
@@ -145,7 +145,7 @@ impl PrivateFile {
     /// use chrono::Utc;
     /// use rand::thread_rng;
     /// use wnfs::{
-    ///     private::{PrivateForest, PrivateRef, PrivateFile},
+    ///     private::{PrivateForest, PrivateFile},
     ///     common::{MemoryBlockStore, utils::get_random_bytes, MAX_BLOCK_SIZE},
     ///     namefilter::Namefilter,
     /// };
@@ -205,7 +205,7 @@ impl PrivateFile {
     /// use chrono::Utc;
     /// use rand::thread_rng;
     /// use wnfs::{
-    ///     private::{PrivateForest, PrivateRef, PrivateFile},
+    ///     private::{PrivateForest, PrivateFile},
     ///     common::{MemoryBlockStore, MAX_BLOCK_SIZE},
     ///     namefilter::Namefilter,
     /// };
@@ -266,7 +266,7 @@ impl PrivateFile {
     /// use chrono::Utc;
     /// use rand::thread_rng;
     /// use wnfs::{
-    ///     private::{PrivateForest, PrivateRef, PrivateFile},
+    ///     private::{PrivateForest, PrivateFile},
     ///     common::{MemoryBlockStore, utils::get_random_bytes},
     ///     namefilter::Namefilter,
     /// };
@@ -383,7 +383,7 @@ impl PrivateFile {
     /// use chrono::Utc;
     /// use rand::thread_rng;
     /// use wnfs::{
-    ///     private::{PrivateFile, PrivateForest, PrivateRef},
+    ///     private::{PrivateFile, PrivateForest},
     ///     common::{MemoryBlockStore, utils::get_random_bytes},
     ///     namefilter::Namefilter,
     /// };
@@ -627,11 +627,11 @@ impl PrivateFile {
     }
 
     /// Returns the private ref, if this file has been `.store()`ed before.
-    pub(crate) fn get_private_ref(&self) -> Option<PrivateRef> {
+    pub(crate) fn derive_private_ref(&self) -> Option<PrivateRef> {
         self.content.persisted_as.get().map(|content_cid| {
             self.header
                 .derive_revision_ref()
-                .as_private_ref(*content_cid)
+                .into_private_ref(*content_cid)
         })
     }
 
@@ -666,41 +666,7 @@ impl PrivateFile {
     }
 
     /// Stores this PrivateFile in the PrivateForest.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use std::rc::Rc;
-    /// use chrono::Utc;
-    /// use rand::thread_rng;
-    /// use wnfs::{
-    ///     private::{PrivateForest, PrivateRef, PrivateFile, PrivateNode},
-    ///     common::{BlockStore, MemoryBlockStore},
-    ///     namefilter::Namefilter,
-    /// };
-    ///
-    /// #[async_std::main]
-    /// async fn main() {
-    ///     let store = &MemoryBlockStore::default();
-    ///     let rng = &mut thread_rng();
-    ///     let forest = &mut Rc::new(PrivateForest::new());
-    ///     let file = Rc::new(PrivateFile::new(
-    ///         Namefilter::default(),
-    ///         Utc::now(),
-    ///         rng,
-    ///     ));
-    ///
-    ///     let private_ref = file.store(forest, store, rng).await.unwrap();
-    ///
-    ///     let node = PrivateNode::File(Rc::clone(&file));
-    ///
-    ///     assert_eq!(
-    ///         PrivateNode::load(&private_ref, forest, store).await.unwrap(),
-    ///         node
-    ///     );
-    /// }
-    /// ```
-    pub async fn store(
+    pub(crate) async fn store(
         &self,
         forest: &mut Rc<PrivateForest>,
         store: &impl BlockStore,
@@ -722,7 +688,7 @@ impl PrivateFile {
         Ok(self
             .header
             .derive_revision_ref()
-            .as_private_ref(content_cid))
+            .into_private_ref(content_cid))
     }
 
     /// Creates a new [`PrivateFile`] from a [`PrivateFileContentSerializable`].
