@@ -1,7 +1,7 @@
 [package]
 name = "wnfs-nameaccumulator"
-version = "0.1.19"
-description = "Name accumulators for the Webnative Filesystem"
+version = "0.1.21"
+description = "Cryptographic accumulators for the Webnative Filesystem"
 keywords = ["wnfs", "webnative", "ipfs", "decentralisation"]
 categories = [
   "filesystem",

@@ -132,7 +132,7 @@ impl PrivateForest for ProvingHamtForest {
         self: &mut Self,
         name: &'a Name,
         values: impl IntoIterator<Item = Cid>,
-        store: &mut impl BlockStore,
+        store: &impl BlockStore,
     ) -> Result<&'a NameAccumulator> {
         let ProvingHamtForest { forest, proofs } = self;
 
@@ -162,7 +162,7 @@ impl PrivateForest for ProvingHamtForest {
     async fn remove_encrypted(
         self: &mut Self,
         name_hash: &HashOutput,
-        store: &mut impl BlockStore,
+        store: &impl BlockStore,
     ) -> Result<Option<Pair<NameAccumulator, BTreeSet<Cid>>>> {
         // TODO(matheus23) implement proofs for removal
         // Would need a refactor though:

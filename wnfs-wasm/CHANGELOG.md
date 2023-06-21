@@ -8,6 +8,33 @@
   * dependencies
     * wnfs bumped from 0.1.12 to 0.1.13
 
+* The following workspace dependencies were updated
+  * dependencies
+    * wnfs bumped from 0.1.19 to 0.1.20
+
+## [0.1.21](https://github.com/wnfs-wg/rs-wnfs/compare/wnfs-wasm-v0.1.20...wnfs-wasm-v0.1.21) (2023-05-22)
+
+
+### ⚠ BREAKING CHANGES
+
+* get_node should return null on missing path ([#253](https://github.com/wnfs-wg/rs-wnfs/issues/253))
+
+### Bug Fixes
+
+* get_node should return null on missing path ([#253](https://github.com/wnfs-wg/rs-wnfs/issues/253)) ([5ed87fe](https://github.com/wnfs-wg/rs-wnfs/commit/5ed87fe6359a19abdea5f34dd0537fd5d62c98a8))
+
+
+### Miscellaneous Chores
+
+* release 0.1.21 ([#255](https://github.com/wnfs-wg/rs-wnfs/issues/255)) ([2be9f49](https://github.com/wnfs-wg/rs-wnfs/commit/2be9f4999d279acccfcda3b690d69dcbcdf8e60b))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * wnfs bumped from 0.1.20 to 0.1.21
+
 ## [0.1.19](https://github.com/wnfs-wg/rs-wnfs/compare/wnfs-wasm-v0.1.18...wnfs-wasm-v0.1.19) (2023-03-23)
 
 

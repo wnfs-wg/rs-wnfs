@@ -752,7 +752,7 @@ impl<K, V, H: Hasher> Node<K, V, H> {
 
     // TODO(appcypher): Do we really need this? Why not use PublicDirectorySerializable style instead.
     /// Converts a Node to an IPLD object.
-    pub async fn to_ipld<B: BlockStore + ?Sized>(&self, store: &mut B) -> Result<Ipld>
+    pub async fn to_ipld<B: BlockStore + ?Sized>(&self, store: &B) -> Result<Ipld>
     where
         K: Serialize,
         V: Serialize,
@@ -805,7 +805,7 @@ where
     V: Serialize,
     H: Hasher,
 {
-    async fn async_serialize<S, B>(&self, serializer: S, store: &mut B) -> Result<S::Ok, S::Error>
+    async fn async_serialize<S, B>(&self, serializer: S, store: &B) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
         B: BlockStore + ?Sized,

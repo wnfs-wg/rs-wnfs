@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use sha3::{Digest, Sha3_256};
 use skip_ratchet::Ratchet;
 use std::fmt::Debug;
-use wnfs_common::{dagcbor, utils, BlockStore, HashOutput, HASH_BYTE_SIZE};
+use wnfs_common::{utils, BlockStore, HashOutput, HASH_BYTE_SIZE};
 use wnfs_hamt::Hasher;
 use wnfs_nameaccumulator::{AccumulatorSetup, Name, NameAccumulator, NameSegment};
 
@@ -205,13 +205,9 @@ impl PrivateNodeHeader {
 
     /// Encrypts this private node header in an block, then stores that in the given
     /// BlockStore and returns its CID.
-    pub async fn store(
-        &self,
-        store: &mut impl BlockStore,
-        setup: &AccumulatorSetup,
-    ) -> Result<Cid> {
+    pub async fn store(&self, store: &impl BlockStore, setup: &AccumulatorSetup) -> Result<Cid> {
         let temporal_key = self.derive_temporal_key();
-        let cbor_bytes = dagcbor::encode(&self.to_serializable(setup))?;
+        let cbor_bytes = serde_ipld_dagcbor::to_vec(&self.to_serializable(setup))?;
         let ciphertext = temporal_key.key_wrap_encrypt(&cbor_bytes)?;
         store.put_block(ciphertext, IpldCodec::Raw).await
     }
@@ -246,7 +242,7 @@ impl PrivateNodeHeader {
     ) -> Result<Self> {
         let ciphertext = store.get_block(cid).await?;
         let cbor_bytes = temporal_key.key_wrap_decrypt(&ciphertext)?;
-        let decoded = dagcbor::decode::<PrivateNodeHeaderSerializable>(&cbor_bytes)?;
+        let decoded: PrivateNodeHeaderSerializable = serde_ipld_dagcbor::from_slice(&cbor_bytes)?;
         let mut header = Self::from_serializable(decoded);
         if let Some(parent_name) = mounted_relative_to {
             let name = parent_name.with_segments_added([header.inumber.clone()]);

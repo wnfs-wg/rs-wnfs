@@ -3,10 +3,8 @@
 * The following workspace dependencies were updated
   * dependencies
     * wnfs-common bumped from 0.1.19 to 0.1.20
-  * dev-dependencies
-    * wnfs-common bumped from 0.1.19 to 0.1.20
 
-## [0.1.21](https://github.com/wnfs-wg/rs-wnfs/compare/wnfs-hamt-v0.1.20...wnfs-hamt-v0.1.21) (2023-05-22)
+## [0.1.21](https://github.com/wnfs-wg/rs-wnfs/compare/wnfs-namefilter-v0.1.20...wnfs-namefilter-v0.1.21) (2023-05-22)
 
 
 ### Miscellaneous Chores
@@ -19,10 +17,8 @@
 * The following workspace dependencies were updated
   * dependencies
     * wnfs-common bumped from 0.1.20 to 0.1.21
-  * dev-dependencies
-    * wnfs-common bumped from 0.1.20 to 0.1.21
 
-## [0.1.19](https://github.com/wnfs-wg/rs-wnfs/compare/wnfs-hamt-v0.1.18...wnfs-hamt-v0.1.19) (2023-03-23)
+## [0.1.19](https://github.com/wnfs-wg/rs-wnfs/compare/wnfs-namefilter-v0.1.18...wnfs-namefilter-v0.1.19) (2023-03-23)
 
 
 ### Miscellaneous Chores
@@ -34,6 +30,4 @@
 
 * The following workspace dependencies were updated
   * dependencies
-    * wnfs-common bumped from 0.1.18 to 0.1.19
-  * dev-dependencies
     * wnfs-common bumped from 0.1.18 to 0.1.19

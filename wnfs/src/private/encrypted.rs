@@ -1,9 +1,7 @@
 use super::TemporalKey;
-use crate::error::FsError;
 use anyhow::Result;
 use once_cell::sync::OnceCell;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
-use wnfs_common::dagcbor;
 
 /// A wrapper for AES-KWP deterministically encrypted (key-wrapped) data.
 ///
@@ -36,8 +34,7 @@ impl<T> Encrypted<T> {
     where
         T: Serialize,
     {
-        let ipld = value.serialize(libipld::serde::Serializer)?;
-        let bytes = dagcbor::encode(&ipld)?;
+        let bytes = serde_ipld_dagcbor::to_vec(&value)?;
         let ciphertext = temporal_key.key_wrap_encrypt(&bytes)?;
 
         Ok(Self {
@@ -68,9 +65,7 @@ impl<T> Encrypted<T> {
     {
         self.value_cache.get_or_try_init(|| {
             let bytes = temporal_key.key_wrap_decrypt(&self.ciphertext)?;
-            let ipld = dagcbor::decode(&bytes)?;
-            libipld::serde::from_ipld::<T>(ipld)
-                .map_err(|e| FsError::InvalidDeserialization(e.to_string()).into())
+            Ok(serde_ipld_dagcbor::from_slice(&bytes)?)
         })
     }
 

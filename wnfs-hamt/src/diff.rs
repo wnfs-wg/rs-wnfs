@@ -77,7 +77,7 @@ pub struct KeyValueChange<K, V> {
 pub async fn diff<K, V, H>(
     main_link: Link<Rc<Node<K, V, H>>>,
     other_link: Link<Rc<Node<K, V, H>>>,
-    store: &mut impl BlockStore,
+    store: &impl BlockStore,
 ) -> Result<Vec<KeyValueChange<K, V>>>
 where
     K: DeserializeOwned + Clone + Eq + Hash + AsRef<[u8]>,
@@ -92,7 +92,7 @@ pub async fn diff_helper<K, V, H>(
     main_link: Link<Rc<Node<K, V, H>>>,
     other_link: Link<Rc<Node<K, V, H>>>,
     depth: usize,
-    store: &mut impl BlockStore,
+    store: &impl BlockStore,
 ) -> Result<Vec<KeyValueChange<K, V>>>
 where
     K: DeserializeOwned + Clone + Eq + Hash + AsRef<[u8]>,
@@ -166,7 +166,7 @@ where
 async fn generate_add_or_remove_changes<K, V, H>(
     node_pointer: &Pointer<K, V, H>,
     r#type: ChangeType,
-    store: &mut impl BlockStore,
+    store: &impl BlockStore,
 ) -> Result<Vec<KeyValueChange<K, V>>>
 where
     K: DeserializeOwned + Clone + Eq + Hash + AsRef<[u8]>,
@@ -206,7 +206,7 @@ async fn pointers_diff<K, V, H>(
     main_pointer: Pointer<K, V, H>,
     other_pointer: Pointer<K, V, H>,
     depth: usize,
-    store: &mut impl BlockStore,
+    store: &impl BlockStore,
 ) -> Result<Vec<KeyValueChange<K, V>>>
 where
     K: DeserializeOwned + Clone + Eq + Hash + AsRef<[u8]>,
@@ -250,7 +250,7 @@ where
             }
 
             for Pair { key, value } in &other_values {
-                if matches!(main_map.get(key), None) {
+                if main_map.get(key).is_none() {
                     changes.push(KeyValueChange {
                         r#type: ChangeType::Remove,
                         key: key.clone(),

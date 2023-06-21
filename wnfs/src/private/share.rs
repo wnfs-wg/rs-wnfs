@@ -115,7 +115,7 @@ impl<'a, K: ExchangeKey, S: BlockStore, F: PrivateForest> Share<'a, K, S, F> {
     /// It takes the payload, sharer, and recipients, and performs the share operation,
     /// encrypts the payload and stores it in the sharer's private forest.
     pub async fn finish(&mut self) -> Result<()> {
-        if matches!(&self.sharer, None) || matches!(self.recipients.len(), 0) {
+        if self.sharer.is_none() || self.recipients.is_empty() {
             bail!(ShareError::NoSharerOrRecipients);
         }
 
@@ -145,7 +145,7 @@ impl SharePayload {
         node: &PrivateNode,
         temporal: bool,
         forest: &mut impl PrivateForest,
-        store: &mut impl BlockStore,
+        store: &impl BlockStore,
         rng: &mut impl RngCore,
     ) -> Result<Self> {
         let payload = if temporal {
@@ -172,7 +172,7 @@ impl TemporalSharePointer {
     pub async fn from_node(
         node: &PrivateNode,
         forest: &mut impl PrivateForest,
-        store: &mut impl BlockStore,
+        store: &impl BlockStore,
         rng: &mut impl RngCore,
     ) -> Result<Self> {
         let private_ref = node.store(forest, store, rng).await?;
@@ -192,7 +192,7 @@ impl SnapshotSharePointer {
     pub async fn from_node(
         node: &PrivateNode,
         forest: &mut impl PrivateForest,
-        store: &mut impl BlockStore,
+        store: &impl BlockStore,
         rng: &mut impl RngCore,
     ) -> Result<Self> {
         let private_ref = node.store(forest, store, rng).await?;
@@ -221,9 +221,10 @@ pub mod sharer {
     use async_stream::try_stream;
     use futures::{Stream, StreamExt};
     use libipld::IpldCodec;
-    use wnfs_common::{dagcbor, BlockStore};
+    use wnfs_common::BlockStore;
     use wnfs_nameaccumulator::{Name, NameSegment};
 
+    // TODO(appcypher): When ref mut is eliminated in BlockStore trait, make this into one BlockStore argument.
     /// Encrypts and shares a payload with multiple recipients using their
     /// exchange keys and stores the shares in the sharer's private forest.
     #[allow(clippy::too_many_arguments)]
@@ -232,12 +233,12 @@ pub mod sharer {
         share_count: u64,
         sharer_root_did: &str,
         sharer_forest: &mut impl PrivateForest,
-        sharer_store: &mut impl BlockStore,
+        sharer_store: &impl BlockStore,
         recipient_exchange_root: PublicLink,
         recipient_store: &impl BlockStore,
     ) -> Result<()> {
         let mut exchange_keys = fetch_exchange_keys(recipient_exchange_root, recipient_store).await;
-        let encoded_payload = &dagcbor::encode(share_payload)?;
+        let encoded_payload = &serde_ipld_dagcbor::to_vec(share_payload)?;
 
         while let Some(result) = exchange_keys.next().await {
             let public_key_modulus = result?;
@@ -313,7 +314,7 @@ pub mod recipient {
     };
     use anyhow::{bail, Result};
     use sha3::Sha3_256;
-    use wnfs_common::{dagcbor, BlockStore};
+    use wnfs_common::BlockStore;
     use wnfs_hamt::Hasher;
     use wnfs_nameaccumulator::Name;
 
@@ -372,7 +373,7 @@ pub mod recipient {
 
         // Decrypt payload using recipient's private key and decode it.
         let payload: SharePayload =
-            dagcbor::decode(&recipient_key.decrypt(&encrypted_payload).await?)?;
+            serde_ipld_dagcbor::from_slice(&recipient_key.decrypt(&encrypted_payload).await?)?;
 
         let SharePayload::Temporal(TemporalSharePointer {
             label,
@@ -409,7 +410,7 @@ mod tests {
     use chrono::Utc;
     use proptest::test_runner::{RngAlgorithm, TestRng};
     use std::rc::Rc;
-    use wnfs_common::{dagcbor, BlockStore, MemoryBlockStore};
+    use wnfs_common::{BlockStore, MemoryBlockStore};
 
     mod helper {
         use crate::{
@@ -428,7 +429,7 @@ mod tests {
 
         pub(super) async fn create_sharer_dir(
             forest: &mut impl PrivateForest,
-            store: &mut impl BlockStore,
+            store: &impl BlockStore,
             rng: &mut impl RngCore,
         ) -> Result<Rc<PrivateDirectory>> {
             let mut dir = PrivateDirectory::new_and_store(
@@ -455,7 +456,7 @@ mod tests {
         }
 
         pub(super) async fn create_recipient_exchange_root(
-            store: &mut impl BlockStore,
+            store: &impl BlockStore,
         ) -> Result<(RsaPrivateKey, Rc<PublicDirectory>)> {
             let key = RsaPrivateKey::new()?;
             let exchange_key = key.get_public_key().get_public_key_modulus()?;
@@ -556,12 +557,12 @@ mod tests {
             .await
             .unwrap();
 
-        let serialized = dagcbor::encode(&payload).unwrap();
+        let serialized = serde_ipld_dagcbor::to_vec(&payload).unwrap();
 
         // Must be smaller than 190 bytes to fit within RSAES-OAEP limits
         assert!(serialized.len() <= 190);
 
-        let deserialized: SharePayload = dagcbor::decode(&serialized).unwrap();
+        let deserialized: SharePayload = serde_ipld_dagcbor::from_slice(&serialized).unwrap();
 
         assert_eq!(payload, deserialized);
     }

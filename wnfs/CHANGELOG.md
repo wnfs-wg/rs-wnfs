@@ -1,5 +1,52 @@
 # Changelog
 
+## [0.1.21](https://github.com/wnfs-wg/rs-wnfs/compare/wnfs-v0.1.20...wnfs-v0.1.21) (2023-05-22)
+
+
+### ⚠ BREAKING CHANGES
+
+* get_node should return null on missing path ([#253](https://github.com/wnfs-wg/rs-wnfs/issues/253))
+
+### Features
+
+* Add `PrivateDirectory::entires`, `PrivateFile::read_at` and make `PrivateFile::get_content_size_upper_bound` public ([#237](https://github.com/wnfs-wg/rs-wnfs/issues/237)) ([1572f43](https://github.com/wnfs-wg/rs-wnfs/commit/1572f432b6ae5366436cdefda7defd71c23b0ca7))
+
+
+### Bug Fixes
+
+* get_node should return null on missing path ([#253](https://github.com/wnfs-wg/rs-wnfs/issues/253)) ([5ed87fe](https://github.com/wnfs-wg/rs-wnfs/commit/5ed87fe6359a19abdea5f34dd0537fd5d62c98a8))
+* propagate missing chunk error ([#252](https://github.com/wnfs-wg/rs-wnfs/issues/252)) ([4c16dcd](https://github.com/wnfs-wg/rs-wnfs/commit/4c16dcd4725c8b499a01184530e0e95ed8f4a9d5))
+
+
+### Miscellaneous Chores
+
+* release 0.1.21 ([#255](https://github.com/wnfs-wg/rs-wnfs/issues/255)) ([2be9f49](https://github.com/wnfs-wg/rs-wnfs/commit/2be9f4999d279acccfcda3b690d69dcbcdf8e60b))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * wnfs-common bumped from 0.1.20 to 0.1.21
+    * wnfs-hamt bumped from 0.1.20 to 0.1.21
+    * wnfs-namefilter bumped from 0.1.20 to 0.1.21
+
+## [0.1.20](https://github.com/wnfs-wg/rs-wnfs/compare/wnfs-v0.1.19...wnfs-v0.1.20) (2023-03-30)
+
+
+### Features
+
+* `open_file_mut` function for getting `&mut PrivateFile` references ([#218](https://github.com/wnfs-wg/rs-wnfs/issues/218)) ([f80dbb1](https://github.com/wnfs-wg/rs-wnfs/commit/f80dbb19cee471447145245b8c0285608a25ebcc))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * wnfs-common bumped from 0.1.19 to 0.1.20
+    * wnfs-hamt bumped from 0.1.19 to 0.1.20
+    * wnfs-namefilter bumped from 0.1.19 to 0.1.20
+
 ## [0.1.19](https://github.com/wnfs-wg/rs-wnfs/compare/wnfs-v0.1.18...wnfs-v0.1.19) (2023-03-23)
 
 

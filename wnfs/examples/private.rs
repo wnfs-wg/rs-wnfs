@@ -21,15 +21,10 @@ async fn main() {
     let rng = &mut thread_rng();
 
     // Create a new private forest and get the cid to it.
-    let (forest_cid, private_ref) = get_forest_cid_and_private_ref(store, rng).await;
+    let (forest_cid, private_ref) = create_forest_and_add_directory(store, rng).await;
 
-    // Fetch CBOR bytes of private forest from the blockstore.
-    let forest = Rc::new(
-        store
-            .get_deserializable::<HamtForest>(&forest_cid)
-            .await
-            .unwrap(),
-    );
+    // Deserialize private forest from the blockstore.
+    let forest = Rc::new(HamtForest::load(&forest_cid, store).await.unwrap());
 
     // Fetch and decrypt a directory from the private forest using provided private ref.
     let dir = PrivateNode::load(&private_ref, &forest, store, None)
@@ -40,8 +35,8 @@ async fn main() {
     println!("{dir:#?}");
 }
 
-async fn get_forest_cid_and_private_ref(
-    store: &mut impl BlockStore,
+async fn create_forest_and_add_directory(
+    store: &impl BlockStore,
     rng: &mut impl RngCore,
 ) -> (Cid, PrivateRef) {
     // Do a trusted setup for WNFS' name accumulators

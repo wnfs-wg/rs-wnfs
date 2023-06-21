@@ -178,7 +178,7 @@ where
 /// ```
 pub async fn node_from_operations<K, V>(
     operations: &Operations<K, V>,
-    store: &mut impl BlockStore,
+    store: &impl BlockStore,
 ) -> Result<Rc<Node<K, V>>>
 where
     K: DeserializeOwned + Serialize + Clone + Debug + AsRef<[u8]>,

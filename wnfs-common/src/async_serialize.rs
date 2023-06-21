@@ -13,10 +13,10 @@ macro_rules! impl_async_serialize {
         $(
             #[async_trait(?Send)]
             impl $( < $( $generics ),+ > )? AsyncSerialize for $ty $( where $( $generics: Serialize ),+  )? {
-                async fn async_serialize<S: Serializer, BS: BlockStore + ?Sized>(
+                async fn async_serialize<S: Serializer, BS: BlockStore>(
                     &self,
                     serializer: S,
-                    _: &mut BS,
+                    _: &BS,
                 ) -> Result<S::Ok, S::Error> {
                     self.serialize(serializer)
                 }
@@ -41,13 +41,13 @@ macro_rules! impl_async_serialize {
 #[async_trait(?Send)]
 pub trait AsyncSerialize {
     /// Serializes the type.
-    async fn async_serialize<S, B>(&self, serializer: S, store: &mut B) -> Result<S::Ok, S::Error>
+    async fn async_serialize<S, B>(&self, serializer: S, store: &B) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
         B: BlockStore + ?Sized;
 
     /// Serialize with an IPLD serializer.
-    async fn async_serialize_ipld<B>(&self, store: &mut B) -> Result<Ipld, SerdeError>
+    async fn async_serialize_ipld<B>(&self, store: &B) -> Result<Ipld, SerdeError>
     where
         B: BlockStore + ?Sized,
     {
@@ -61,7 +61,7 @@ pub trait AsyncSerialize {
 
 #[async_trait(?Send)]
 impl<T: AsyncSerialize> AsyncSerialize for Rc<T> {
-    async fn async_serialize<S, B>(&self, serializer: S, store: &mut B) -> Result<S::Ok, S::Error>
+    async fn async_serialize<S, B>(&self, serializer: S, store: &B) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
         B: BlockStore + ?Sized,

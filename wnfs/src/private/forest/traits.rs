@@ -63,7 +63,7 @@ pub trait PrivateForest {
         self: &mut Self,
         name: &'a Name,
         values: impl IntoIterator<Item = Cid>,
-        store: &mut impl BlockStore,
+        store: &impl BlockStore,
     ) -> Result<&'a NameAccumulator>;
 
     async fn get_encrypted_by_hash<'b>(
@@ -83,7 +83,7 @@ pub trait PrivateForest {
     async fn remove_encrypted(
         self: &mut Self,
         name_hash: &HashOutput,
-        store: &mut impl BlockStore,
+        store: &impl BlockStore,
     ) -> Result<Option<Pair<NameAccumulator, BTreeSet<Cid>>>>;
 
     /// Returns a stream of all private nodes that could be decrypted at given revision.

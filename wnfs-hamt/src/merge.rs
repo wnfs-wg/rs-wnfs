@@ -14,7 +14,7 @@ pub async fn merge<K, V, H, F, B: BlockStore>(
     main_link: Link<Rc<Node<K, V, H>>>,
     other_link: Link<Rc<Node<K, V, H>>>,
     f: F,
-    store: &mut B,
+    store: &B,
 ) -> Result<Rc<Node<K, V, H>>>
 where
     F: Fn(&V, &V) -> Result<V>,

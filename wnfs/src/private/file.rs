@@ -1,20 +1,20 @@
 use super::{
-    encrypted::Encrypted, forest::traits::PrivateForest, PrivateNode, PrivateNodeHeader,
-    PrivateRef, SnapshotKey, AUTHENTICATION_TAG_SIZE, NONCE_SIZE,
+    encrypted::Encrypted, forest::traits::PrivateForest, PrivateFileContentSerializable,
+    PrivateNode, PrivateNodeContentSerializable, PrivateNodeHeader, PrivateRef, SnapshotKey,
+    TemporalKey, AUTHENTICATION_TAG_SIZE, NONCE_SIZE,
 };
-use crate::{error::FsError, traits::Id};
-use anyhow::Result;
+use crate::{error::FsError, traits::Id, WNFS_VERSION};
+use anyhow::{bail, Result};
 use async_once_cell::OnceCell;
 use async_stream::try_stream;
 use chrono::{DateTime, Utc};
-use futures::{future, AsyncRead, Stream, StreamExt};
+use futures::{future, AsyncRead, Stream, StreamExt, TryStreamExt};
 use libipld::{Cid, IpldCodec};
 use rand_core::{CryptoRngCore, RngCore};
-use semver::Version;
-use serde::{de::Error as DeError, Deserialize, Deserializer, Serialize};
+use serde::{Deserialize, Serialize};
 use sha3::{Digest, Sha3_256};
 use std::{collections::BTreeSet, iter, rc::Rc};
-use wnfs_common::{dagcbor, utils, BlockStore, Metadata, NodeType, MAX_BLOCK_SIZE};
+use wnfs_common::{utils, BlockStore, Metadata, MAX_BLOCK_SIZE};
 use wnfs_nameaccumulator::{AccumulatorSetup, Name, NameSegment};
 
 //--------------------------------------------------------------------------------------------------
@@ -96,17 +96,6 @@ pub(crate) enum FileContent {
     },
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct PrivateFileContentSerializable {
-    pub r#type: NodeType,
-    pub version: Version,
-    #[serde(rename = "headerCid")]
-    pub header_cid: Cid,
-    pub previous: Vec<(usize, Encrypted<Cid>)>,
-    pub metadata: Metadata,
-    pub content: FileContent,
-}
-
 //--------------------------------------------------------------------------------------------------
 // Implementations
 //--------------------------------------------------------------------------------------------------
@@ -185,7 +174,7 @@ impl PrivateFile {
         time: DateTime<Utc>,
         content: Vec<u8>,
         forest: &mut impl PrivateForest,
-        store: &mut impl BlockStore,
+        store: &impl BlockStore,
         rng: &mut impl RngCore,
     ) -> Result<Self> {
         let header = PrivateNodeHeader::new(parent_name, rng);
@@ -249,7 +238,7 @@ impl PrivateFile {
         time: DateTime<Utc>,
         content: impl AsyncRead + Unpin,
         forest: &mut impl PrivateForest,
-        store: &mut impl BlockStore,
+        store: &impl BlockStore,
         rng: &mut impl RngCore,
     ) -> Result<Self> {
         let header = PrivateNodeHeader::new(parent_name, rng);
@@ -341,6 +330,44 @@ impl PrivateFile {
         })
     }
 
+    /// Reads a number of bytes starting from a given offset.
+    pub async fn read_at<'a>(
+        &'a self,
+        offset: usize,
+        size: usize,
+        forest: &'a impl PrivateForest,
+        store: &'a impl BlockStore,
+    ) -> Result<Vec<u8>> {
+        let block_content_size = MAX_BLOCK_CONTENT_SIZE;
+        let chunk_size_upper_bound = (self.get_content_size_upper_bound() - offset).min(size);
+        if chunk_size_upper_bound == 0 {
+            return Ok(vec![]);
+        }
+        let first_block = offset / block_content_size;
+        let last_block = (offset + size) / block_content_size;
+        let mut bytes = Vec::with_capacity(chunk_size_upper_bound);
+        let mut content_stream = self.stream_content(first_block, forest, store).enumerate();
+        while let Some((i, chunk)) = content_stream.next().await {
+            let chunk = chunk?;
+            let index = first_block + i;
+            let from = if index == first_block {
+                (offset - index * block_content_size).min(chunk.len())
+            } else {
+                0
+            };
+            let to = if index == last_block {
+                (offset + size - index * block_content_size).min(chunk.len())
+            } else {
+                chunk.len()
+            };
+            bytes.extend_from_slice(&chunk[from..to]);
+            if index == last_block {
+                break;
+            }
+        }
+        Ok(bytes)
+    }
+
     /// Gets the metadata of the file
     pub fn get_metadata(&self) -> &Metadata {
         &self.content.metadata
@@ -390,12 +417,27 @@ impl PrivateFile {
     ) -> Result<Vec<u8>> {
         let mut content = Vec::with_capacity(self.get_content_size_upper_bound());
         self.stream_content(0, forest, store)
-            .for_each(|chunk| {
-                content.extend_from_slice(&chunk.unwrap());
-                future::ready(())
+            .try_for_each(|chunk| {
+                content.extend_from_slice(&chunk);
+                future::ready(Ok(()))
             })
-            .await;
+            .await?;
         Ok(content)
+    }
+
+    /// Sets the content of a file.
+    pub async fn set_content(
+        &mut self,
+        time: DateTime<Utc>,
+        content: impl AsyncRead + Unpin,
+        forest: &mut impl PrivateForest,
+        store: &impl BlockStore,
+        rng: &mut impl RngCore,
+    ) -> Result<()> {
+        self.content.metadata = Metadata::new(time);
+        self.content.content =
+            Self::prepare_content_streaming(&self.header.name, content, forest, store, rng).await?;
+        Ok(())
     }
 
     /// Determines where to put the content of a file. This can either be inline or stored up in chunks in a private forest.
@@ -403,7 +445,7 @@ impl PrivateFile {
         file_name: &Name,
         content: Vec<u8>,
         forest: &mut impl PrivateForest,
-        store: &mut impl BlockStore,
+        store: &impl BlockStore,
         rng: &mut impl RngCore,
     ) -> Result<FileContent> {
         // TODO(appcypher): Use a better heuristic to determine when to use external storage.
@@ -440,7 +482,7 @@ impl PrivateFile {
         file_name: &Name,
         mut content: impl AsyncRead + Unpin,
         forest: &mut impl PrivateForest,
-        store: &mut impl BlockStore,
+        store: &impl BlockStore,
         rng: &mut impl RngCore,
     ) -> Result<FileContent> {
         let key = SnapshotKey::from(utils::get_random_bytes(rng));
@@ -488,7 +530,7 @@ impl PrivateFile {
     }
 
     /// Gets the upper bound of a file content size.
-    pub(crate) fn get_content_size_upper_bound(&self) -> usize {
+    pub fn get_content_size_upper_bound(&self) -> usize {
         match &self.content.content {
             FileContent::Inline { data } => data.len(),
             FileContent::External {
@@ -573,7 +615,7 @@ impl PrivateFile {
 
         let temporal_key = self.header.derive_temporal_key();
         let previous_link = (1, Encrypted::from_value(previous_cid, &temporal_key)?);
-        let mut cloned = Rc::make_mut(self);
+        let cloned = Rc::make_mut(self);
 
         // We make sure to clear any cached states.
         cloned.content.persisted_as = OnceCell::new();
@@ -605,7 +647,7 @@ impl PrivateFile {
         &mut self,
         parent_name: &Name,
         forest: &mut impl PrivateForest,
-        store: &mut impl BlockStore,
+        store: &impl BlockStore,
         rng: &mut impl CryptoRngCore,
     ) -> Result<()> {
         let content = self.get_content(forest, store).await?;
@@ -659,7 +701,7 @@ impl PrivateFile {
     pub async fn store(
         &self,
         forest: &mut impl PrivateForest,
-        store: &mut impl BlockStore,
+        store: &impl BlockStore,
         rng: &mut impl RngCore,
     ) -> Result<PrivateRef> {
         let setup = &forest.get_accumulator_setup().clone();
@@ -683,6 +725,37 @@ impl PrivateFile {
             .as_private_ref(content_cid))
     }
 
+    /// Creates a new [`PrivateFile`] from a [`PrivateFileContentSerializable`].
+    pub(crate) async fn from_serializable(
+        serializable: PrivateFileContentSerializable,
+        temporal_key: &TemporalKey,
+        cid: Cid,
+        store: &impl BlockStore,
+        mounted_relative_to: Option<Name>,
+        setup: &AccumulatorSetup,
+    ) -> Result<Self> {
+        if serializable.version.major != 0 || serializable.version.minor != 2 {
+            bail!(FsError::UnexpectedVersion(serializable.version));
+        }
+
+        let content = PrivateFileContent {
+            persisted_as: OnceCell::new_with(Some(cid)),
+            previous: serializable.previous.into_iter().collect(),
+            metadata: serializable.metadata,
+            content: serializable.content,
+        };
+
+        let header = PrivateNodeHeader::load(
+            &serializable.header_cid,
+            temporal_key,
+            store,
+            mounted_relative_to,
+            setup,
+        )
+        .await?;
+        Ok(Self { header, content })
+    }
+
     /// Wraps the file in a [`PrivateNode`].
     pub fn as_node(self: &Rc<Self>) -> PrivateNode {
         PrivateNode::File(Rc::clone(self))
@@ -690,63 +763,24 @@ impl PrivateFile {
 }
 
 impl PrivateFileContent {
-    /// Serializes the file with provided Serde serialilzer.
-    pub(crate) fn serialize<S>(&self, serializer: S, header_cid: Cid) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        (PrivateFileContentSerializable {
-            r#type: NodeType::PrivateFile,
-            version: Version::new(0, 2, 0),
-            previous: self.previous.iter().cloned().collect(),
-            header_cid,
-            metadata: self.metadata.clone(),
-            content: self.content.clone(),
-        })
-        .serialize(serializer)
-    }
-
-    /// Deserializes the file with provided Serde deserializer and key.
-    pub(crate) fn deserialize<'de, D>(
-        deserializer: D,
-        from_cid: Cid,
-    ) -> Result<(Self, Cid), D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let PrivateFileContentSerializable {
-            r#type,
-            version,
-            metadata,
-            previous,
-            header_cid,
-            content,
-        } = PrivateFileContentSerializable::deserialize(deserializer)?;
-
-        if version.major != 0 || version.minor != 2 {
-            return Err(DeError::custom(FsError::UnexpectedVersion(version)));
-        }
-
-        if r#type != NodeType::PrivateFile {
-            return Err(DeError::custom(FsError::UnexpectedNodeType(r#type)));
-        }
-
-        Ok((
-            Self {
-                persisted_as: OnceCell::new_with(Some(from_cid)),
-                previous: previous.into_iter().collect(),
-                metadata,
-                content,
-            },
-            header_cid,
-        ))
+    /// Serializes the file to a dag-cbor representation.
+    pub(crate) fn to_dag_cbor(&self, header_cid: Cid) -> Result<Vec<u8>> {
+        Ok(serde_ipld_dagcbor::to_vec(
+            &PrivateNodeContentSerializable::File(PrivateFileContentSerializable {
+                version: WNFS_VERSION,
+                previous: self.previous.iter().cloned().collect(),
+                header_cid,
+                metadata: self.metadata.clone(),
+                content: self.content.clone(),
+            }),
+        )?)
     }
 
     pub(crate) async fn store(
         &self,
         header_cid: Cid,
         snapshot_key: &SnapshotKey,
-        store: &mut impl BlockStore,
+        store: &impl BlockStore,
         rng: &mut impl RngCore,
     ) -> Result<Cid> {
         Ok(*self
@@ -755,8 +789,7 @@ impl PrivateFileContent {
                 // TODO(matheus23) deduplicate when reworking serialization
 
                 // Serialize node to cbor.
-                let ipld = self.serialize(libipld::serde::Serializer, header_cid)?;
-                let bytes = dagcbor::encode(&ipld)?;
+                let bytes = self.to_dag_cbor(header_cid)?;
 
                 // Encrypt bytes with snapshot key.
                 let block = snapshot_key.encrypt(&bytes, rng)?;
@@ -892,14 +925,18 @@ mod proptests {
         forest::{hamt::HamtForest, traits::PrivateForest},
         PrivateFile,
     };
+    use async_std::io::Cursor;
     use chrono::Utc;
     use futures::{future, StreamExt};
     use proptest::test_runner::{RngAlgorithm, TestRng};
     use std::rc::Rc;
     use test_strategy::proptest;
-    use wnfs_common::MemoryBlockStore;
+    use wnfs_common::{BlockStoreError, MemoryBlockStore};
 
-    #[proptest(cases = 10)]
+    /// Size of the test file at "./test/fixtures/Clara Schumann, Scherzo no. 2, Op. 14.mp3"
+    const FIXTURE_SCHERZO_SIZE: usize = 4028150;
+
+    #[proptest(cases = 100)]
     fn can_include_and_get_content_from_file(
         #[strategy(0..(MAX_BLOCK_CONTENT_SIZE * 2))] length: usize,
     ) {
@@ -956,6 +993,79 @@ mod proptests {
                 .await;
 
             assert_eq!(collected_content, content);
+        })
+    }
+
+    #[proptest(cases = 100)]
+    fn can_propagate_missing_chunk_error(
+        #[strategy(0..(MAX_BLOCK_CONTENT_SIZE * 2))] length: usize,
+    ) {
+        async_std::task::block_on(async {
+            let store = &mut MemoryBlockStore::default();
+            let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
+            let forest = &mut Rc::new(HamtForest::new_rsa_2048(rng));
+
+            let mut file = PrivateFile::new(&forest.empty_name(), Utc::now(), rng);
+
+            file.set_content(
+                Utc::now(),
+                &mut Cursor::new(vec![5u8; length]),
+                forest,
+                &mut MemoryBlockStore::default(),
+                rng,
+            )
+            .await
+            .unwrap();
+
+            let error = file
+                .get_content(forest, store)
+                .await
+                .expect_err("Expected error");
+
+            let error = error.downcast_ref::<BlockStoreError>().unwrap();
+
+            assert!(matches!(error, BlockStoreError::CIDNotFound(_)));
+        })
+    }
+
+    #[proptest(cases = 10)]
+    fn can_read_section_of_file(
+        #[strategy(0..FIXTURE_SCHERZO_SIZE)] size: usize,
+        #[strategy(0..FIXTURE_SCHERZO_SIZE)] offset: usize,
+    ) {
+        use async_std::{io::SeekFrom, prelude::*};
+        async_std::task::block_on(async {
+            let size = size.min(FIXTURE_SCHERZO_SIZE - offset);
+            let mut disk_file = async_std::fs::File::open(
+                "./test/fixtures/Clara Schumann, Scherzo no. 2, Op. 14.mp3",
+            )
+            .await
+            .unwrap();
+
+            let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
+            let forest = &mut Rc::new(HamtForest::new_rsa_2048(rng));
+            let store = &mut MemoryBlockStore::new();
+
+            let file = PrivateFile::with_content_streaming(
+                &forest.empty_name(),
+                Utc::now(),
+                disk_file.clone(),
+                forest,
+                store,
+                rng,
+            )
+            .await
+            .unwrap();
+
+            let mut source_content = vec![0u8; size];
+            disk_file
+                .seek(SeekFrom::Start(offset as u64))
+                .await
+                .unwrap();
+            disk_file.read_exact(&mut source_content).await.unwrap();
+            let wnfs_content = file.read_at(offset, size, forest, store).await.unwrap();
+
+            assert_eq!(source_content, wnfs_content);
         })
     }
 }

@@ -36,7 +36,7 @@ pub enum FsError {
     #[error("Missing node type field")]
     MissingNodeType,
 
-    #[error("Found unexpected node type: {0:?}")]
+    #[error("Found unexpected node type, expected {0:?}")]
     UnexpectedNodeType(NodeType),
 
     #[error("Found unexpected version: {0:?}")]
@@ -53,6 +53,9 @@ pub enum FsError {
 
     #[error("Mismatch between PrivateNode name {0:x?} and its mountpoint {0:x?}")]
     MountPointAndDeserializedNameMismatch([u8; 256], [u8; 256]),
+
+    #[error("Cannot find private ref with specified root path")]
+    PrivateRefNotFound,
 }
 
 /// Data sharing related errors

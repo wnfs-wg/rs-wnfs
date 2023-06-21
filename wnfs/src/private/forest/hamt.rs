@@ -63,13 +63,23 @@ impl HamtForest {
     pub async fn diff(
         &self,
         other: &Self,
-        store: &mut impl BlockStore,
+        store: &impl BlockStore,
     ) -> Result<Vec<KeyValueChange<NameAccumulator, BTreeSet<Cid>>>> {
         if self.accumulator != other.accumulator {
             return Err(FsError::IncompatibleAccumulatorSetups.into());
         }
 
         self.hamt.diff(&other.hamt, store).await
+    }
+
+    /// Serializes the forest and stores it in the given block store.
+    pub async fn store(&self, store: &impl BlockStore) -> Result<Cid> {
+        store.put_async_serializable(self).await
+    }
+
+    /// Deserializes a forest from the given block store.
+    pub async fn load(cid: &Cid, store: &impl BlockStore) -> Result<Self> {
+        store.get_deserializable(cid).await
     }
 }
 
@@ -104,7 +114,7 @@ impl PrivateForest for HamtForest {
         self: &mut Self,
         name: &'a Name,
         values: impl IntoIterator<Item = Cid>,
-        store: &mut impl BlockStore,
+        store: &impl BlockStore,
     ) -> Result<&'a NameAccumulator> {
         let name = name.as_accumulator(&self.accumulator);
 
@@ -142,7 +152,7 @@ impl PrivateForest for HamtForest {
     async fn remove_encrypted(
         self: &mut Self,
         name_hash: &HashOutput,
-        store: &mut impl BlockStore,
+        store: &impl BlockStore,
     ) -> Result<Option<Pair<NameAccumulator, BTreeSet<Cid>>>> {
         self.hamt.root.remove_by_hash(name_hash, store).await
     }
@@ -170,7 +180,7 @@ impl PrivateForest for Rc<HamtForest> {
         self: &mut Self,
         name: &'a Name,
         values: impl IntoIterator<Item = Cid>,
-        store: &mut impl BlockStore,
+        store: &impl BlockStore,
     ) -> Result<&'a NameAccumulator> {
         Rc::make_mut(self).put_encrypted(name, values, store).await
     }
@@ -194,7 +204,7 @@ impl PrivateForest for Rc<HamtForest> {
     async fn remove_encrypted(
         self: &mut Self,
         name_hash: &HashOutput,
-        store: &mut impl BlockStore,
+        store: &impl BlockStore,
     ) -> Result<Option<Pair<NameAccumulator, BTreeSet<Cid>>>> {
         Rc::make_mut(self).remove_encrypted(name_hash, store).await
     }
@@ -267,7 +277,7 @@ where
     ///     );
     /// }
     /// ```
-    pub async fn merge(&self, other: &Self, store: &mut impl BlockStore) -> Result<Self> {
+    pub async fn merge(&self, other: &Self, store: &impl BlockStore) -> Result<Self> {
         if self.accumulator != other.accumulator {
             return Err(FsError::IncompatibleAccumulatorSetups.into());
         }
@@ -292,7 +302,7 @@ where
 
 #[async_trait(?Send)]
 impl AsyncSerialize for HamtForest {
-    async fn async_serialize<S, B>(&self, serializer: S, store: &mut B) -> Result<S::Ok, S::Error>
+    async fn async_serialize<S, B>(&self, serializer: S, store: &B) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
         B: BlockStore + ?Sized,

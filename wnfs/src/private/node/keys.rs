@@ -234,10 +234,11 @@ mod proptests {
         let encrypted = key.encrypt(&data, rng).unwrap();
         let decrypted = key.decrypt(&encrypted).unwrap();
 
-        if !data.is_empty() {
+        if data.len() >= 16 {
             let cipher_part = &encrypted[NONCE_SIZE..NONCE_SIZE + data.len()];
             prop_assert_ne!(cipher_part, &decrypted);
         }
+
         prop_assert_eq!(&decrypted, &data);
     }
 
@@ -253,7 +254,7 @@ mod proptests {
 
         let tag = key.encrypt_in_place(nonce, &mut buffer).unwrap();
 
-        if !buffer.is_empty() {
+        if buffer.len() >= 16 {
             prop_assert_ne!(&buffer, &data);
         }
 

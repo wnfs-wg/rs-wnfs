@@ -76,7 +76,7 @@ impl<K, V, H: Hasher> Pointer<K, V, H> {
                     1 if matches!(node.pointers[0], Pointer::Values(_)) => {
                         Ok(Some(node.pointers[0].clone()))
                     }
-                    2..=HAMT_VALUES_BUCKET_SIZE if matches!(node.count_values(), Ok(_)) => {
+                    2..=HAMT_VALUES_BUCKET_SIZE if node.count_values().is_ok() => {
                         // Collect all the values of the node.
                         let mut values = node
                             .pointers
@@ -107,7 +107,7 @@ impl<K, V, H: Hasher> Pointer<K, V, H> {
     }
 
     /// Converts a Pointer to an IPLD object.
-    pub async fn to_ipld<B: BlockStore + ?Sized>(&self, store: &mut B) -> Result<Ipld>
+    pub async fn to_ipld<B: BlockStore + ?Sized>(&self, store: &B) -> Result<Ipld>
     where
         K: Serialize,
         V: Serialize,
@@ -125,7 +125,7 @@ where
     K: Serialize,
     V: Serialize,
 {
-    async fn async_serialize<S, B>(&self, serializer: S, store: &mut B) -> Result<S::Ok, S::Error>
+    async fn async_serialize<S, B>(&self, serializer: S, store: &B) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
         B: BlockStore + ?Sized,
