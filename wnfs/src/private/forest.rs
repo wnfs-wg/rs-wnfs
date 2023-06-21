@@ -159,7 +159,7 @@ impl PrivateForest {
                     for cid in cids {
                         match PrivateNode::from_cid(*cid, &revision.temporal_key, store).await {
                             Ok(node) => yield Ok(node),
-                            Err(e) if matches!(e.downcast_ref::<AesError>(), Some(_)) => {
+                            Err(e) if e.downcast_ref::<AesError>().is_some() => {
                                 // we likely matched a PrivateNodeHeader instead of a PrivateNode.
                                 // we skip it
                             }
@@ -182,6 +182,17 @@ impl PrivateForest {
         store: &impl BlockStore,
     ) -> Result<Vec<KeyValueChange<Namefilter, BTreeSet<Cid>>>> {
         self.0.diff(&other.0, store).await
+    }
+
+    /// Serializes the forest and stores it in the given block store.
+    pub async fn store(&self, store: &impl BlockStore) -> Result<Cid> {
+        store.put_async_serializable(&self.0).await
+    }
+
+    /// Deserializes a forest from the given block store.
+    pub async fn load(cid: &Cid, store: &impl BlockStore) -> Result<Self> {
+        let hamt = store.get_deserializable(cid).await?;
+        Ok(Self(hamt))
     }
 }
 

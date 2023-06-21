@@ -18,9 +18,9 @@ async fn main() {
     let rng = &mut thread_rng();
 
     // Create a new private forest and get the cid to it.
-    let (forest_cid, private_ref) = get_forest_cid_and_private_ref(store, rng).await;
+    let (forest_cid, private_ref) = create_forest_and_add_directory(store, rng).await;
 
-    // Fetch CBOR bytes of private forest from the blockstore.
+    // Deserialize private forest from the blockstore.
     let forest = store
         .get_deserializable::<PrivateForest>(&forest_cid)
         .await
@@ -35,7 +35,7 @@ async fn main() {
     println!("{:#?}", dir);
 }
 
-async fn get_forest_cid_and_private_ref(
+async fn create_forest_and_add_directory(
     store: &impl BlockStore,
     rng: &mut impl RngCore,
 ) -> (Cid, PrivateRef) {

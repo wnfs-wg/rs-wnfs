@@ -250,7 +250,7 @@ where
             }
 
             for Pair { key, value } in &other_values {
-                if matches!(main_map.get(key), None) {
+                if main_map.get(key).is_none() {
                     changes.push(KeyValueChange {
                         r#type: ChangeType::Remove,
                         key: key.clone(),
