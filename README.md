@@ -156,7 +156,7 @@ This library is designed with WebAssembly in mind. You can follow instructions o
   Check [REQUIREMENTS](#requirements) on how to set up the `rs-wnfs` command.
 
   ```bash
-  scripts/rs-wnfs build --all
+  scripts/rs-wnfs build
   ```
 
 - You can also build for specific crates
@@ -167,55 +167,62 @@ This library is designed with WebAssembly in mind. You can follow instructions o
 
 ## Usage
 
-WNFS does not have an opinion on where you want to persist your content or the file tree. Instead, the API expects any object that implements the async [`BlockStore`][blockstore-trait] interface. This implementation also defers system-level operations to the user; requiring that operations like time and random number generation be passed in from the interface. This makes for a clean wasm interface that works everywhere.
+WNFS does not have an opinion on where you want to persist your content or the file tree. Instead, the API takes any object that implements the asynchronous [`BlockStore`][blockstore-trait] trait. The library also avoids including system function calls that could possibly tie it to a set of platforms. Operations like time and random number generation have to be passed in via the API. This allows the library to be used in a wide variety of environments. It particularly makes virtualisation easier.
 
-Let's see an example of working with a public directory. Here we are going to use the memory-based blockstore provided by the library.
+Let's see an example of working with a public filesystem. We will use the in-memory block store provided by the library.
 
 ```rust
-use wnfs::{MemoryBlockStore, PublicDirectory};
+use anyhow::Result;
 use chrono::Utc;
 use std::rc::Rc;
+use wnfs::public::PublicDirectory;
+use wnfs_common::MemoryBlockStore;
 
 #[async_std::main]
-async fn main() {
+async fn main() -> Result<()> {
     // Create a new public directory.
     let dir = &mut Rc::new(PublicDirectory::new(Utc::now()));
 
-    // Create a memory-based blockstore.
-    let store = &mut MemoryBlockStore::default();
+    // Create an in-memory block store.
+    let store = &MemoryBlockStore::default();
 
     // Add a /pictures/cats subdirectory.
-    dir
-        .mkdir(&["pictures".into(), "cats".into()], Utc::now(), store)
-        .await
-        .unwrap();
+    dir.mkdir(&["pictures".into(), "cats".into()], Utc::now(), store)
+        .await?;
 
-    // Store the the file tree in the memory blockstore.
-    root_dir.store(store).await.unwrap();
+    // Store the the file tree in the in-memory block store.
+    dir.store(store).await?;
 
-    // Print root directory.
-    println!("{:#?}", root_dir);
+    // List all files in /pictures directory.
+    let result = dir.ls(&["pictures".into()], store).await?;
+
+    println!("Files in /pictures: {:#?}", result);
+
+    Ok(())
 }
 ```
 
-You may notice that we store the `root_dir` returned by the `mkdir` operation, not the `dir` we started with. That is because WNFS internal state is immutable and every operation potentially returns a new root directory. This allows us to track and rollback changes when needed. It also makes collaborative editing easier to implement and reason about. You can find more examples in the [`wnfs/examples/`][wnfs-examples] folder. And there is a basic demo of the filesystem immutability [here][wnfs-graph-demo].
+Here we create a root directory `dir` and subsequently add a `/pictures/cats` subdirectory to it. As mentioned earlier, system-level operations like time are passed in from the API. In this case, we use the `Utc::now()` function from the [chrono][chrono-crate] crate to get the current time.
 
-The private filesystem, on the other hand, is a bit more involved. [Hash Array Mapped Trie (HAMT)][hamt-wiki] is used as the intermediate format of private file tree before it is persisted to the blockstore. Our use of HAMTs obfuscate the file tree hierarchy.
+`PublicDirectory` gets wrapped in `Rc` here because it lets us pass it around without worrying about ownership and lifetimes. Making the Rc `&mut` futher allows us to relinquish ownership to the interior `PublicDirectory` and point to a new one when needed (essentially for every write). This immutable way of handling changes has cool benefits like tracking and rolling back changes. It also makes collaborative editing easier to implement and reason about. You can find more examples in the [`wnfs/examples/`][wnfs-examples] folder.
+
+That's the public filesyste, the private filesystem, on the other hand, is a bit more involved. The [Hash Array Mapped Trie (HAMT)][hamt-wiki] is where we store the private filesystem tree and some other information related to it. HAMT allows for effective storage and retrieval of encrypted and obfuscated filesystem trees and `PrivateForest` is basically a HAMT that can contain multiple file trees with hash for keys and CIDs for values.
 
 ```rust
-use wnfs::{
-    private::PrivateForest, MemoryBlockStore, Namefilter, PrivateDirectory,
-};
+use anyhow::Result;
 use chrono::Utc;
 use rand::thread_rng;
 use std::rc::Rc;
+use wnfs::private::{PrivateDirectory, PrivateForest};
+use wnfs_common::MemoryBlockStore;
+use wnfs_namefilter::Namefilter;
 
 #[async_std::main]
-async fn main() {
-    // Create a memory-based blockstore.
-    let store = &mut MemoryBlockStore::default();
+async fn main() -> Result<()> {
+    // Create an in-memory block store.
+    let store = &MemoryBlockStore::default();
 
-    // A random number generator the private filesystem can use.
+    // A random number generator.
     let rng = &mut thread_rng();
 
     // Create a private forest.
@@ -229,43 +236,42 @@ async fn main() {
     ));
 
     // Add a file to /pictures/cats directory.
-    dir
-        .mkdir(
-            &["pictures".into(), "cats".into()],
-            true,
-            Utc::now(),
-            forest,
-            store,
-            rng,
-        )
-        .await
-        .unwrap();
+    dir.mkdir(
+        &["pictures".into(), "cats".into()],
+        true,
+        Utc::now(),
+        forest,
+        store,
+        rng,
+    )
+    .await?;
 
     // Add a file to /pictures/dogs/billie.jpg file.
-    dir
-        .write(
-            &["pictures".into(), "dogs".into(), "billie.jpeg".into()],
-            true,
-            Utc::now(),
-            b"hello world".to_vec(),
-            forest,
-            store,
-            rng,
-        )
-        .await
-        .unwrap();
+    dir.write(
+        &["pictures".into(), "dogs".into(), "billie.jpg".into()],
+        true,
+        Utc::now(),
+        b"Hello! This is billie".to_vec(),
+        forest,
+        store,
+        rng,
+    )
+    .await?;
 
     // List all files in /pictures directory.
-    let result = dir
-        .ls(&["pictures".into()], true, forest, store)
-        .await
-        .unwrap();
+    let result = dir.ls(&["pictures".into()], true, forest, store).await?;
 
     println!("Files in /pictures: {:#?}", result);
+
+    Ok(())
 }
 ```
 
-Namefilters are currently how we identify private node blocks in the filesystem. They have nice properties, one of which is the ability to check if one node belongs to another. This is necessary in a filesystem where metadata like hierarchy needs to be hidden from observing agents. One notable caveat with namefilters is that they can only reliably store information of a file tree 47 levels deep or less so there is a plan to replace them with other cryptographic accumlators in the near future.
+This example introduces a few new concepts. The first is the `PrivateForest` which is a HAMT that can contain multiple file trees.
+
+The second is the `Namefilter` (a fixed-size bloomfilter) that lets us identify nodes in the filesystem, and are suitable for offspring checks. Namefilters currently have limitation on how deep the file tree can go but that is going to change in the near future.
+
+Finally, we have the random number generator, `rng`, that the library uses for ridding predictability and avoiding collisions in the `PrivateForest`.
 
 Check the [`wnfs/examples/`][wnfs-examples] folder for more examples.
 
@@ -274,13 +280,7 @@ Check the [`wnfs/examples/`][wnfs-examples] folder for more examples.
 - Run all tests
 
   ```bash
-  scripts/rs-wnfs test --all
-  ```
-
-- Show code coverage
-
-  ```bash
-  scripts/rs-wnfs coverage
+  scripts/rs-wnfs test
   ```
 
 - Run benchmarks
@@ -303,7 +303,7 @@ This library recommends using [pre-commit][pre-commit-guide] for running pre-com
 
 ### Conventional Commits
 
-This project *lightly* follows the [Conventional Commits convention][commit-spec-site]
+This project _lightly_ follows the [Conventional Commits convention][commit-spec-site]
 to help explain commit history and tie in with our release process. The full
 specification can be found [here][commit-spec]. We recommend prefixing your
 commits with a type of `fix`, `feat`, `docs`, `ci`, `refactor`, etc...,
