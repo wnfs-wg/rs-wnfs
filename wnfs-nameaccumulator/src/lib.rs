@@ -481,17 +481,6 @@ impl Name {
     pub fn as_accumulator(&self, setup: &AccumulatorSetup) -> &NameAccumulator {
         &self.as_proven_accumulator(setup).0
     }
-
-    pub fn into_proven_accumulator(
-        self,
-        setup: &AccumulatorSetup,
-    ) -> (NameAccumulator, ElementsProof) {
-        self.as_proven_accumulator(setup).clone()
-    }
-
-    pub fn into_accumulator(self, setup: &AccumulatorSetup) -> NameAccumulator {
-        self.as_accumulator(setup).clone()
-    }
 }
 
 #[cfg(test)]

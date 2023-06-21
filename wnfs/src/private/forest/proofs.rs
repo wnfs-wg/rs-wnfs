@@ -73,9 +73,14 @@ impl ProvingHamtForest {
         }
     }
 
+    pub fn from_proofs(proofs: ForestProofs, forest: Rc<HamtForest>) -> Self {
+        Self { forest, proofs }
+    }
+
     pub async fn verify_against_previous_state(
         &self,
         previous: &HamtForest,
+        allowed_bases: &BTreeSet<NameAccumulator>,
         store: &mut impl BlockStore,
     ) -> Result<()> {
         let setup = self.forest.get_accumulator_setup();
@@ -86,8 +91,18 @@ impl ProvingHamtForest {
         self.proofs.verify_proofs(setup)?;
 
         for change in self.forest.diff(previous, store).await? {
-            if !self.proofs.proofs_by_commitment.contains_key(&change.key) {
+            // Verify that there exists a proof for the changed label & obtain the base that
+            // was proven from.
+            let Some((base, _)) = self.proofs.proofs_by_commitment.get(&change.key) else {
                 return Err(VerificationError::UnverifiedWrite(Sha3_256::hash(&change.key)).into());
+            };
+
+            // Verify that the base is allowed to be written to (e.g. has been signed by a party
+            // with a signature chain up to the root owner).
+            if !allowed_bases.contains(base) {
+                return Err(
+                    VerificationError::WriteToDisallowedBase(base.as_bytes().clone()).into(),
+                );
             }
         }
 
@@ -160,19 +175,45 @@ impl PrivateForest for ProvingHamtForest {
 
 #[cfg(test)]
 mod tests {
-    use super::ProvingHamtForest;
+    use super::{ForestProofs, ProvingHamtForest};
     use crate::private::{
         forest::{hamt::HamtForest, traits::PrivateForest},
-        PrivateDirectory,
+        PrivateDirectory, PrivateNode, PrivateRef,
     };
+    use anyhow::Result;
     use chrono::Utc;
+    use libipld::Cid;
     use rand::thread_rng;
-    use std::rc::Rc;
-    use wnfs_common::MemoryBlockStore;
+    use std::{collections::BTreeSet, rc::Rc};
+    use wnfs_common::{BlockStore, MemoryBlockStore};
+    use wnfs_nameaccumulator::NameAccumulator;
 
     #[async_std::test]
     async fn proving_forest_example() {
+        // In between operations, Alice, Bob, and the persistence service would
+        // exchange blocks via bitswap, car mirror or some other protocol.
+        // Here we're simplifying by sharing a 'global' block store.
         let store = &mut MemoryBlockStore::new();
+
+        let (old_forest_cid, read_ref, allowed_write_name) = alice_actions(store).await.unwrap();
+        let (proofs, new_forest_cid) = bob_actions(old_forest_cid, read_ref, store).await.unwrap();
+        persistence_service_actions(
+            old_forest_cid,
+            new_forest_cid,
+            proofs,
+            allowed_write_name,
+            store,
+        )
+        .await
+        .unwrap();
+    }
+
+    /// Alice creates a directory and gives access to it out to someone else.
+    /// The returned PrivateRef gives read access and the NameAccumulator is
+    /// supposed to be publicly signed for verifyable write access.
+    async fn alice_actions(
+        store: &mut impl BlockStore,
+    ) -> Result<(Cid, PrivateRef, NameAccumulator)> {
         let rng = &mut thread_rng();
         let forest = &mut Rc::new(HamtForest::new_rsa_2048(rng));
         let root_dir = &mut PrivateDirectory::new_and_store(
@@ -182,46 +223,66 @@ mod tests {
             store,
             rng,
         )
-        .await
-        .unwrap();
+        .await?;
 
+        let private_ref = root_dir.store(forest, store, rng).await?;
+        let cid = store.put_async_serializable(forest).await?;
+        let setup = forest.get_accumulator_setup();
+        let allowed_name = root_dir.header.name.as_accumulator(setup).clone();
+
+        Ok((cid, private_ref, allowed_name))
+    }
+
+    /// Bob can take the forest, read data using the private ref
+    /// and prove writes.
+    async fn bob_actions(
+        forest_cid: Cid,
+        root_dir_ref: PrivateRef,
+        store: &mut impl BlockStore,
+    ) -> Result<(ForestProofs, Cid)> {
+        let hamt_forest = store.get_deserializable(&forest_cid).await?;
+        let mut forest = ProvingHamtForest::new(Rc::new(hamt_forest));
+        let rng = &mut thread_rng();
+
+        let mut root_node = PrivateNode::load(&root_dir_ref, &forest, store, None).await?;
+        let root_dir = root_node.as_dir_mut()?;
+
+        // Do arbitrary writes in any paths you have access to
         root_dir
             .write(
-                &["Docs".into(), "test.txt".into()],
+                &["Some".into(), "file.txt".into()],
                 true,
                 Utc::now(),
-                b"Hello, World!".to_vec(),
-                forest,
+                b"Hello, Alice!".to_vec(),
+                &mut forest,
                 store,
                 rng,
             )
+            .await?;
+
+        let ProvingHamtForest { forest, proofs } = forest;
+
+        store.put_async_serializable(&forest).await?;
+
+        Ok((proofs, forest_cid))
+    }
+
+    /// A persistence service can verify write proofs relative to a signed
+    /// accumulator without read access.
+    async fn persistence_service_actions(
+        old_forest_cid: Cid,
+        new_forest_cid: Cid,
+        proofs: ForestProofs,
+        allowed_access: NameAccumulator,
+        store: &mut impl BlockStore,
+    ) -> Result<()> {
+        let old_forest = store.get_deserializable(&old_forest_cid).await?;
+        let new_forest = store.get_deserializable(&new_forest_cid).await?;
+
+        let forest = ProvingHamtForest::from_proofs(proofs, Rc::new(new_forest));
+
+        forest
+            .verify_against_previous_state(&old_forest, &BTreeSet::from([allowed_access]), store)
             .await
-            .unwrap();
-
-        root_dir.store(forest, store, rng).await.unwrap();
-
-        let old_forest = Rc::clone(forest);
-
-        let forest = &mut ProvingHamtForest::new(Rc::clone(forest));
-
-        root_dir
-            .write(
-                &["Docs".into(), "test.txt".into()],
-                true,
-                Utc::now(),
-                b"Something else".to_vec(),
-                forest,
-                store,
-                rng,
-            )
-            .await
-            .unwrap();
-
-        root_dir.store(forest, store, rng).await.unwrap();
-
-        assert!(forest
-            .verify_against_previous_state(&old_forest, store)
-            .await
-            .is_ok());
     }
 }
