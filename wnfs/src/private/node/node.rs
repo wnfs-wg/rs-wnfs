@@ -12,7 +12,7 @@ use async_once_cell::OnceCell;
 use async_recursion::async_recursion;
 use chrono::{DateTime, Utc};
 use futures::StreamExt;
-use libipld::Cid;
+use libipld_core::cid::Cid;
 use rand_core::RngCore;
 use skip_ratchet::{seek::JumpSize, RatchetSeeker};
 use std::{cmp::Ordering, collections::BTreeSet, fmt::Debug, rc::Rc};
@@ -332,7 +332,7 @@ impl PrivateNode {
     ///
     /// #[async_std::main]
     /// async fn main() {
-    ///     let store = &mut MemoryBlockStore::default();
+    ///     let store = &MemoryBlockStore::default();
     ///     let rng = &mut thread_rng();
     ///     let forest = &mut Rc::new(PrivateForest::new());
     ///
@@ -449,7 +449,7 @@ impl PrivateNode {
     ///
     /// #[async_std::main]
     /// async fn main() {
-    ///     let store = &mut MemoryBlockStore::default();
+    ///     let store = &MemoryBlockStore::default();
     ///     let rng = &mut thread_rng();
     ///     let forest = &mut Rc::new(PrivateForest::new());
     ///     let dir = Rc::new(PrivateDirectory::new(
@@ -572,7 +572,7 @@ mod tests {
         let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
         let content = b"Lorem ipsum dolor sit amet";
         let forest = &mut Rc::new(PrivateForest::new());
-        let store = &mut MemoryBlockStore::new();
+        let store = &MemoryBlockStore::new();
 
         let file = Rc::new(
             PrivateFile::with_content(

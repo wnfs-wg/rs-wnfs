@@ -12,7 +12,7 @@ use wnfs_namefilter::Namefilter;
 async fn main() -> anyhow::Result<()> {
     // ----------- Prerequisites -----------
 
-    let store = &mut MemoryBlockStore::default();
+    let store = &MemoryBlockStore::default();
     let rng = &mut thread_rng();
     let forest = &mut Rc::new(PrivateForest::new());
 

@@ -9,7 +9,7 @@ use self::sharer::share;
 use super::{ExchangeKey, PrivateNode, SnapshotKey, TemporalKey};
 use crate::{error::ShareError, private::PrivateForest, public::PublicLink};
 use anyhow::{bail, Result};
-use libipld::Cid;
+use libipld_core::cid::Cid;
 use rand_core::RngCore;
 use serde::{Deserialize, Serialize};
 use std::{marker::PhantomData, rc::Rc};
@@ -38,7 +38,7 @@ pub struct Share<'a, K: ExchangeKey, S: BlockStore> {
 pub struct Sharer<'a, S: BlockStore> {
     pub root_did: String,
     pub forest: &'a mut Rc<PrivateForest>,
-    pub store: &'a mut S,
+    pub store: &'a S,
 }
 
 #[derive(Debug)]
@@ -220,9 +220,8 @@ pub mod sharer {
     use anyhow::Result;
     use async_stream::try_stream;
     use futures::{Stream, StreamExt};
-    use libipld::IpldCodec;
     use std::rc::Rc;
-    use wnfs_common::BlockStore;
+    use wnfs_common::{BlockStore, CODEC_RAW};
     use wnfs_namefilter::Namefilter;
 
     // TODO(appcypher): When ref mut is eliminated in BlockStore trait, make this into one BlockStore argument.
@@ -247,9 +246,7 @@ pub mod sharer {
             let encrypted_payload = exchange_key.encrypt(encoded_payload).await?;
             let share_label = create_share_label(share_count, sharer_root_did, &public_key_modulus);
 
-            let payload_cid = sharer_store
-                .put_block(encrypted_payload, IpldCodec::Raw)
-                .await?;
+            let payload_cid = sharer_store.put_block(encrypted_payload, CODEC_RAW).await?;
 
             sharer_forest
                 .put_encrypted(share_label, Some(payload_cid), sharer_store)
@@ -410,10 +407,9 @@ mod tests {
         };
         use anyhow::Result;
         use chrono::Utc;
-        use libipld::IpldCodec;
         use rand_core::RngCore;
         use std::rc::Rc;
-        use wnfs_common::BlockStore;
+        use wnfs_common::{BlockStore, CODEC_RAW};
         use wnfs_namefilter::Namefilter;
 
         pub(super) async fn create_sharer_dir(
@@ -449,7 +445,7 @@ mod tests {
         ) -> Result<(RsaPrivateKey, Rc<PublicDirectory>)> {
             let key = RsaPrivateKey::new()?;
             let exchange_key = key.get_public_key().get_public_key_modulus()?;
-            let exchange_key_cid = store.put_block(exchange_key, IpldCodec::Raw).await?;
+            let exchange_key_cid = store.put_block(exchange_key, CODEC_RAW).await?;
 
             let mut root_dir = Rc::new(PublicDirectory::new(Utc::now()));
             root_dir
@@ -467,8 +463,8 @@ mod tests {
 
     #[async_std::test]
     async fn can_share_and_recieve_share() {
-        let recipient_store = &mut MemoryBlockStore::default();
-        let sharer_store = &mut MemoryBlockStore::default();
+        let recipient_store = &MemoryBlockStore::default();
+        let sharer_store = &MemoryBlockStore::default();
         let sharer_forest = &mut Rc::new(PrivateForest::new());
         let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
 
@@ -533,7 +529,7 @@ mod tests {
 
     #[async_std::test]
     async fn serialized_share_payload_can_be_deserialized() {
-        let store = &mut MemoryBlockStore::default();
+        let store = &MemoryBlockStore::default();
         let forest = &mut Rc::new(PrivateForest::new());
         let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
         let dir =
@@ -557,8 +553,8 @@ mod tests {
 
     #[async_std::test]
     async fn find_latest_share_counter_finds_highest_count() {
-        let sharer_store = &mut MemoryBlockStore::default();
-        let recipient_store = &mut MemoryBlockStore::default();
+        let sharer_store = &MemoryBlockStore::default();
+        let recipient_store = &MemoryBlockStore::default();
         let forest = &mut Rc::new(PrivateForest::new());
         let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
 

@@ -1,13 +1,13 @@
 use super::TemporalKey;
 use crate::private::RevisionRef;
 use anyhow::Result;
-use libipld::{Cid, IpldCodec};
+use libipld_core::cid::Cid;
 use rand_core::RngCore;
 use serde::{Deserialize, Serialize};
 use sha3::Sha3_256;
 use skip_ratchet::Ratchet;
 use std::fmt::Debug;
-use wnfs_common::{utils, BlockStore, HashOutput, HASH_BYTE_SIZE};
+use wnfs_common::{utils, BlockStore, HashOutput, CODEC_RAW, HASH_BYTE_SIZE};
 use wnfs_hamt::Hasher;
 use wnfs_namefilter::Namefilter;
 
@@ -218,7 +218,7 @@ impl PrivateNodeHeader {
         let temporal_key = self.derive_temporal_key();
         let cbor_bytes = serde_ipld_dagcbor::to_vec(self)?;
         let ciphertext = temporal_key.key_wrap_encrypt(&cbor_bytes)?;
-        store.put_block(ciphertext, IpldCodec::Raw).await
+        store.put_block(ciphertext, CODEC_RAW).await
     }
 
     /// Loads a private node header from a given CID linking to the ciphertext block

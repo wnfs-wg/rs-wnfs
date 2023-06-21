@@ -91,7 +91,7 @@ impl<K, V, H: Hasher> Hamt<K, V, H> {
     ///
     /// #[async_std::main]
     /// async fn main() {
-    ///     let store = &mut MemoryBlockStore::default();
+    ///     let store = &MemoryBlockStore::default();
     ///
     ///     let main_hamt = Hamt::<String, usize>::with_root({
     ///         let mut node = Rc::new(Node::default());
@@ -228,7 +228,7 @@ mod tests {
 
     #[async_std::test]
     async fn hamt_can_encode_decode_as_cbor() {
-        let store = &mut MemoryBlockStore::default();
+        let store = &MemoryBlockStore::default();
         let root = Rc::new(Node::default());
         let hamt: Hamt<String, i32> = Hamt::with_root(root);
 

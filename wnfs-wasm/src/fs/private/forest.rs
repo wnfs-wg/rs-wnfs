@@ -3,12 +3,11 @@ use crate::{
     value,
 };
 use js_sys::{Array, Promise, Uint8Array};
+use libipld_core::cid::Cid;
 use std::rc::Rc;
 use wasm_bindgen::prelude::wasm_bindgen;
 use wasm_bindgen_futures::future_to_promise;
-use wnfs::{
-    common::BlockStore as WnfsBlockStore, libipld::Cid, private::PrivateForest as WnfsPrivateForest,
-};
+use wnfs::{common::BlockStore as WnfsBlockStore, private::PrivateForest as WnfsPrivateForest};
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions

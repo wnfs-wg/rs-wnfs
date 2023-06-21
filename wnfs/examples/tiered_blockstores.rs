@@ -6,7 +6,7 @@
 use anyhow::Result;
 use async_trait::async_trait;
 use chrono::Utc;
-use libipld::{Cid, IpldCodec};
+use libipld_core::cid::Cid;
 use rand::thread_rng;
 use std::{borrow::Cow, rc::Rc};
 use wnfs::private::{PrivateDirectory, PrivateForest, PrivateNode};
@@ -14,7 +14,7 @@ use wnfs_common::{BlockStore, MemoryBlockStore};
 use wnfs_namefilter::Namefilter;
 
 #[async_std::main]
-async fn main() {
+async fn main() -> Result<()> {
     // Create a block store that holds all 'hot' data:
     let mut hot_store = MemoryBlockStore::default();
 
@@ -44,14 +44,12 @@ async fn main() {
     // on the path we may have already created before.
     let file = directory
         .open_file_mut(&file_path, true, Utc::now(), forest, &mut hot_store, rng)
-        .await
-        .unwrap();
+        .await?;
 
     // `set_content` actually writes the data blocks to the blockstore in chunks,
     // so for this we provide the `cold_store`.
     file.set_content(Utc::now(), &video[..], forest, &mut cold_store, rng)
-        .await
-        .unwrap();
+        .await?;
 
     // When storing the hierarchy data blocks, we use the `hot_store`:
     let private_ref = directory.store(forest, &mut hot_store, rng).await.unwrap();
@@ -61,18 +59,11 @@ async fn main() {
     let private_root_cid = hot_store.put_async_serializable(forest).await.unwrap();
 
     // We can now read out our data back:
-    let forest: Rc<PrivateForest> = Rc::new(
-        hot_store
-            .get_deserializable(&private_root_cid)
-            .await
-            .unwrap(),
-    );
+    let forest: Rc<PrivateForest> = Rc::new(hot_store.get_deserializable(&private_root_cid).await?);
 
     let directory = PrivateNode::load(&private_ref, &forest, &hot_store)
-        .await
-        .unwrap()
-        .as_dir()
-        .unwrap();
+        .await?
+        .as_dir()?;
 
     // Reading the file's data will fail when only provided the hot store:
     assert!(directory
@@ -92,9 +83,11 @@ async fn main() {
         .await
         .unwrap();
 
-    println!("{}", String::from_utf8(result.clone()).unwrap());
+    println!("{}", String::from_utf8(result.clone())?);
 
-    assert_eq!(result, video.to_vec())
+    assert_eq!(result, video.to_vec());
+
+    Ok(())
 }
 
 struct TieredBlockStore<H: BlockStore, C: BlockStore> {
@@ -113,7 +106,7 @@ impl<H: BlockStore, C: BlockStore> BlockStore for TieredBlockStore<H, C> {
         }
     }
 
-    async fn put_block(&self, bytes: Vec<u8>, codec: IpldCodec) -> Result<Cid> {
+    async fn put_block(&self, bytes: Vec<u8>, codec: u64) -> Result<Cid> {
         self.hot.put_block(bytes, codec).await
     }
 }

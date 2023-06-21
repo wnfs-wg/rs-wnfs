@@ -5,7 +5,7 @@ use crate::{error::FsError, traits::Id, WNFS_VERSION};
 use anyhow::{bail, Result};
 use async_once_cell::OnceCell;
 use chrono::{DateTime, Utc};
-use libipld::Cid;
+use libipld_core::cid::Cid;
 use serde::{de::Error as DeError, Deserialize, Deserializer, Serialize, Serializer};
 use std::{collections::BTreeSet, rc::Rc};
 use wnfs_common::{BlockStore, Metadata, RemembersCid};
@@ -17,7 +17,7 @@ use wnfs_common::{BlockStore, Metadata, RemembersCid};
 /// ```
 /// use wnfs::public::PublicFile;
 /// use chrono::Utc;
-/// use libipld::Cid;
+/// use libipld_core::cid::Cid;
 ///
 /// let file = PublicFile::new(Utc::now(), Cid::default());
 ///
@@ -43,7 +43,7 @@ impl PublicFile {
     /// ```
     /// use wnfs::public::PublicFile;
     /// use chrono::Utc;
-    /// use libipld::Cid;
+    /// use libipld_core::cid::Cid;
     ///
     /// let file = PublicFile::new(Utc::now(), Cid::default());
     ///
@@ -111,7 +111,7 @@ impl PublicFile {
     ///     common::MemoryBlockStore
     /// };
     /// use chrono::Utc;
-    /// use libipld::Cid;
+    /// use libipld_core::cid::Cid;
     ///
     /// #[async_std::main]
     /// async fn main() {
@@ -213,16 +213,15 @@ impl RemembersCid for PublicFile {
 mod tests {
     use super::*;
     use chrono::Utc;
-    use libipld::IpldCodec;
-    use wnfs_common::MemoryBlockStore;
+    use wnfs_common::{MemoryBlockStore, CODEC_RAW};
 
     #[async_std::test]
     async fn previous_links_get_set() {
         let time = Utc::now();
-        let store = &mut MemoryBlockStore::default();
+        let store = &MemoryBlockStore::default();
 
         let content_cid = store
-            .put_block(b"Hello World".to_vec(), IpldCodec::Raw)
+            .put_block(b"Hello World".to_vec(), CODEC_RAW)
             .await
             .unwrap();
 
@@ -239,9 +238,9 @@ mod tests {
     #[async_std::test]
     async fn prepare_next_revision_shortcuts_if_possible() {
         let time = Utc::now();
-        let store = &mut MemoryBlockStore::default();
+        let store = &MemoryBlockStore::default();
         let content_cid = store
-            .put_block(b"Hello World".to_vec(), IpldCodec::Raw)
+            .put_block(b"Hello World".to_vec(), CODEC_RAW)
             .await
             .unwrap();
 

@@ -1,8 +1,8 @@
 use crate::fs::utils::{self, error};
+use libipld_core::cid::Cid;
 use wasm_bindgen::prelude::wasm_bindgen;
 use wnfs::{
     common::HASH_BYTE_SIZE,
-    libipld::Cid,
     private::{PrivateRef as WnfsPrivateRef, TemporalKey, KEY_BYTE_SIZE},
 };
 

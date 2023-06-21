@@ -253,7 +253,7 @@ mod tests {
 
     #[async_std::test]
     async fn pointer_can_encode_decode_as_cbor() {
-        let store = &mut MemoryBlockStore::default();
+        let store = &MemoryBlockStore::default();
         let pointer: Pointer<String, i32, Sha3_256> = Pointer::Values(vec![
             Pair {
                 key: "James".into(),
