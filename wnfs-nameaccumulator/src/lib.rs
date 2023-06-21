@@ -26,9 +26,9 @@ pub struct NameAccumulator {
 
 fn prepare_l_hash(modulus: &BigUint, base: &BigUint, commitment: &BigUint) -> Sha3_256 {
     let mut hasher = sha3::Sha3_256::new();
-    hasher.update(&modulus.to_bytes_le());
-    hasher.update(&base.to_bytes_le());
-    hasher.update(&commitment.to_bytes_le());
+    hasher.update(modulus.to_bytes_le());
+    hasher.update(base.to_bytes_le());
+    hasher.update(commitment.to_bytes_le());
     hasher
 }
 
@@ -98,7 +98,7 @@ impl NameAccumulator {
     pub fn parse_bytes(byte_buf: impl AsRef<[u8]>) -> Result<Self> {
         let mut bytes = [0u8; 256];
         bytes.copy_from_slice(byte_buf.as_ref());
-        Ok(Self::parse_slice(bytes.try_into()?))
+        Ok(Self::parse_slice(bytes))
     }
 
     pub fn parse_slice(slice: [u8; 256]) -> Self {
@@ -241,6 +241,12 @@ impl BatchedProofPart {
 
     pub fn add(&mut self, proof: &ElementsProof) {
         self.big_q_product *= &proof.big_q;
+    }
+}
+
+impl Default for BatchedProofPart {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -406,12 +412,12 @@ impl PartialEq for Name {
             .accumulated
             .get()
             .map(|x| &x.0)
-            .or(self.segments.is_empty().then(|| &self.relative_to));
+            .or(self.segments.is_empty().then_some(&self.relative_to));
         let right = other
             .accumulated
             .get()
             .map(|x| &x.0)
-            .or(other.segments.is_empty().then(|| &other.relative_to));
+            .or(other.segments.is_empty().then_some(&other.relative_to));
 
         if let (Some(left), Some(right)) = (left, right) {
             return left == right;
@@ -438,7 +444,7 @@ impl Name {
     }
 
     pub fn is_root(&self) -> bool {
-        self.segments.len() == 0
+        self.segments.is_empty()
     }
 
     pub fn up(&mut self) {

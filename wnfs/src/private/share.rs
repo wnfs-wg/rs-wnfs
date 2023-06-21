@@ -369,7 +369,7 @@ pub mod recipient {
             .ok_or(ShareError::SharePayloadNotFound)?;
 
         // Get encrypted payload from store using cid
-        let encrypted_payload = store.get_block(&payload_cid).await?.to_vec();
+        let encrypted_payload = store.get_block(payload_cid).await?.to_vec();
 
         // Decrypt payload using recipient's private key and decode it.
         let payload: SharePayload =

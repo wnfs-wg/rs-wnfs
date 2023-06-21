@@ -556,7 +556,7 @@ impl PrivateFile {
             .next()
             .expect("Expected set with at least a one cid");
 
-        let enc_bytes = store.get_block(&cid).await?;
+        let enc_bytes = store.get_block(cid).await?;
         let bytes = key.decrypt(&enc_bytes)?;
 
         Ok(bytes)

@@ -80,7 +80,7 @@ impl ProvingHamtForest {
     pub async fn verify_against_previous_state(
         &self,
         previous: &HamtForest,
-        allowed_bases: &BTreeSet<NameAccumulator>,
+        allowed_bases: &BTreeSet<&NameAccumulator>,
         store: &mut impl BlockStore,
     ) -> Result<()> {
         let setup = self.forest.get_accumulator_setup();
@@ -100,13 +100,17 @@ impl ProvingHamtForest {
             // Verify that the base is allowed to be written to (e.g. has been signed by a party
             // with a signature chain up to the root owner).
             if !allowed_bases.contains(base) {
-                return Err(
-                    VerificationError::WriteToDisallowedBase(base.as_bytes().clone()).into(),
-                );
+                return Err(VerificationError::WriteToDisallowedBase(*base.as_bytes()).into());
             }
         }
 
         Ok(())
+    }
+}
+
+impl Default for ForestProofs {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -136,7 +140,7 @@ impl PrivateForest for ProvingHamtForest {
     ) -> Result<&'a NameAccumulator> {
         let ProvingHamtForest { forest, proofs } = self;
 
-        proofs.add_and_prove_name(&name, forest.get_accumulator_setup())?;
+        proofs.add_and_prove_name(name, forest.get_accumulator_setup())?;
 
         Rc::make_mut(forest)
             .put_encrypted(name, values, store)
@@ -282,7 +286,7 @@ mod tests {
         let forest = ProvingHamtForest::from_proofs(proofs, Rc::new(new_forest));
 
         forest
-            .verify_against_previous_state(&old_forest, &BTreeSet::from([allowed_access]), store)
+            .verify_against_previous_state(&old_forest, &BTreeSet::from([&allowed_access]), store)
             .await
     }
 }

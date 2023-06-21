@@ -118,7 +118,7 @@ impl PrivateForest for HamtForest {
     ) -> Result<&'a NameAccumulator> {
         let name = name.as_accumulator(&self.accumulator);
 
-        match self.hamt.root.get_mut(&name, store).await? {
+        match self.hamt.root.get_mut(name, store).await? {
             Some(cids) => cids.extend(values),
             None => {
                 self.hamt
@@ -161,19 +161,19 @@ impl PrivateForest for HamtForest {
 #[async_trait(?Send)]
 impl PrivateForest for Rc<HamtForest> {
     fn empty_name(&self) -> Name {
-        (&**self).empty_name()
+        (**self).empty_name()
     }
 
     fn get_accumulator_setup(&self) -> &AccumulatorSetup {
-        (&**self).get_accumulator_setup()
+        (**self).get_accumulator_setup()
     }
 
     async fn has_by_hash(&self, name_hash: &HashOutput, store: &impl BlockStore) -> Result<bool> {
-        (&**self).has_by_hash(name_hash, store).await
+        (**self).has_by_hash(name_hash, store).await
     }
 
     async fn has(&self, name: &Name, store: &impl BlockStore) -> Result<bool> {
-        (&**self).has(name, store).await
+        (**self).has(name, store).await
     }
 
     async fn put_encrypted<'a>(
@@ -190,7 +190,7 @@ impl PrivateForest for Rc<HamtForest> {
         name_hash: &HashOutput,
         store: &impl BlockStore,
     ) -> Result<Option<&'b BTreeSet<Cid>>> {
-        (&**self).get_encrypted_by_hash(name_hash, store).await
+        (**self).get_encrypted_by_hash(name_hash, store).await
     }
 
     async fn get_encrypted(
@@ -198,7 +198,7 @@ impl PrivateForest for Rc<HamtForest> {
         name: &Name,
         store: &impl BlockStore,
     ) -> Result<Option<&BTreeSet<Cid>>> {
-        (&**self).get_encrypted(name, store).await
+        (**self).get_encrypted(name, store).await
     }
 
     async fn remove_encrypted(
