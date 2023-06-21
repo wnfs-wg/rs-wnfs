@@ -133,7 +133,7 @@ impl PrivateNode {
 
                 for private_link in &mut dir.content.entries.values_mut() {
                     let mut node = private_link
-                        .resolve_node(forest, store, &dir.header.name)
+                        .resolve_node(forest, store, Some(dir.header.name.clone()))
                         .await?
                         .clone();
                     node.update_ancestry(&dir.header.name, forest, store, rng)
@@ -437,7 +437,7 @@ impl PrivateNode {
             .get_multivalue(
                 &current_header.derive_revision_ref(setup),
                 store,
-                &mountpoint,
+                Some(mountpoint),
             )
             .collect::<Vec<Result<PrivateNode>>>()
             .await
@@ -486,7 +486,7 @@ impl PrivateNode {
         forest: &impl PrivateForest,
         store: &impl BlockStore,
         // TODO(matheus23) document this
-        mounted_relative_to: &Name,
+        mounted_relative_to: Option<Name>,
     ) -> Result<PrivateNode> {
         let cid = match forest
             .get_encrypted_by_hash(&private_ref.saturated_name_hash, store)
@@ -496,14 +496,24 @@ impl PrivateNode {
             _ => return Err(FsError::NotFound.into()),
         };
 
-        Self::from_cid(cid, &private_ref.temporal_key, store, mounted_relative_to).await
+        let setup = forest.get_accumulator_setup();
+
+        Self::from_cid(
+            cid,
+            &private_ref.temporal_key,
+            store,
+            mounted_relative_to,
+            setup,
+        )
+        .await
     }
 
     pub(crate) async fn from_cid(
         cid: Cid,
         temporal_key: &TemporalKey,
         store: &impl BlockStore,
-        mounted_relative_to: &Name,
+        mounted_relative_to: Option<Name>,
+        setup: &AccumulatorSetup,
     ) -> Result<PrivateNode> {
         let encrypted_bytes = store.get_block(&cid).await?;
         let snapshot_key = temporal_key.derive_snapshot_key();
@@ -526,6 +536,7 @@ impl PrivateNode {
                             temporal_key,
                             store,
                             mounted_relative_to,
+                            setup,
                         )
                         .await?;
                         PrivateNode::File(Rc::new(PrivateFile { header, content }))
@@ -541,6 +552,7 @@ impl PrivateNode {
                             temporal_key,
                             store,
                             mounted_relative_to,
+                            setup,
                         )
                         .await?;
                         PrivateNode::Dir(Rc::new(PrivateDirectory { header, content }))
@@ -634,7 +646,7 @@ mod tests {
         let private_ref = file.store(forest, store, rng).await.unwrap();
 
         let deserialized_node =
-            PrivateNode::load(&private_ref, forest, store, &forest.empty_name())
+            PrivateNode::load(&private_ref, forest, store, Some(forest.empty_name()))
                 .await
                 .unwrap();
 

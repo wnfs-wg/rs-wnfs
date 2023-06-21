@@ -456,7 +456,7 @@ mod tests {
 
         let private_node = PrivateNode::Dir(dir.clone());
         let private_ref = private_node.store(forest, store, rng).await.unwrap();
-        let retrieved = PrivateNode::load(&private_ref, forest, store, &forest.empty_name())
+        let retrieved = PrivateNode::load(&private_ref, forest, store, Some(forest.empty_name()))
             .await
             .unwrap();
 
@@ -504,13 +504,18 @@ mod tests {
         // Two of these entries should be content blocks, one entry should be the header block they share.
         assert_eq!(ciphertext_entries.len(), 3);
 
-        let retrieved = PrivateNode::load(&private_ref, forest, store, &forest.empty_name())
+        let retrieved = PrivateNode::load(&private_ref, forest, store, Some(forest.empty_name()))
             .await
             .unwrap();
-        let retrieved_conflict =
-            PrivateNode::load(&private_ref_conflict, forest, store, &forest.empty_name())
-                .await
-                .unwrap();
+
+        let retrieved_conflict = PrivateNode::load(
+            &private_ref_conflict,
+            forest,
+            store,
+            Some(forest.empty_name()),
+        )
+        .await
+        .unwrap();
 
         assert_eq!(retrieved, private_node);
         assert_eq!(retrieved_conflict, private_node_conflict);

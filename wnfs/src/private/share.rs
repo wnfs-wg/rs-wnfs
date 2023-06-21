@@ -385,13 +385,7 @@ pub mod recipient {
 
         // Use decrypted payload to get cid to encrypted node in sharer's forest.
         let private_ref = PrivateRef::with_temporal_key(label, temporal_key, content_cid);
-        PrivateNode::load(
-            &private_ref,
-            sharer_forest,
-            store,
-            &sharer_forest.empty_name(),
-        )
-        .await
+        PrivateNode::load(&private_ref, sharer_forest, store, None).await
     }
 }
 
@@ -489,8 +483,8 @@ mod tests {
         let sharer_forest = &mut Rc::new(HamtForest::new_rsa_2048(rng));
 
         let sharer_root_did = "did:key:z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK";
-        // Create directory to share.
 
+        // Create directory to share.
         let sharer_dir = helper::create_sharer_dir(sharer_forest, sharer_store, rng)
             .await
             .unwrap();

@@ -50,6 +50,9 @@ pub enum FsError {
 
     #[error("Cannot merge or compare forests, incompatible accumulator setups")]
     IncompatibleAccumulatorSetups,
+
+    #[error("Mismatch between PrivateNode name {0:x?} and its mountpoint {0:x?}")]
+    MountPointAndDeserializedNameMismatch([u8; 256], [u8; 256]),
 }
 
 /// Data sharing related errors
@@ -93,4 +96,7 @@ pub enum RsaError {
 pub enum VerificationError {
     #[error("Couldn't verify write for label {0:?}")]
     UnverifiedWrite(HashOutput),
+
+    #[error("Write to disallowed base {0:x?}")]
+    WriteToDisallowedBase([u8; 256]),
 }

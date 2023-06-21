@@ -129,11 +129,7 @@ impl<F: PrivateForest> PrivateNodeHistory<F> {
                 .as_private_ref(previous_cid),
             &self.forest,
             store,
-            &self
-                .header
-                .name
-                .parent()
-                .unwrap_or_else(|| self.forest.empty_name()),
+            self.header.name.parent(),
         )
         .await?;
 

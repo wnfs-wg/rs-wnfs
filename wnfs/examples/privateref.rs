@@ -68,7 +68,7 @@ async fn main() -> anyhow::Result<()> {
 
     // Now we can fetch the directory from the forest using the revision_ref.
     let fetched_node = forest
-        .get_multivalue(&revision_ref, store, &forest.empty_name())
+        .get_multivalue(&revision_ref, store, None)
         .next()
         .await
         .unwrap()?;
@@ -82,7 +82,7 @@ async fn main() -> anyhow::Result<()> {
 
     // And we can fetch the directory again using the generated revision_ref.
     let fetched_node = forest
-        .get_multivalue(&revision_ref, store, &forest.empty_name())
+        .get_multivalue(&revision_ref, store, None)
         .next()
         .await
         .unwrap()?;

@@ -32,7 +32,7 @@ async fn main() {
     );
 
     // Fetch and decrypt a directory from the private forest using provided private ref.
-    let dir = PrivateNode::load(&private_ref, &forest, store, &forest.empty_name())
+    let dir = PrivateNode::load(&private_ref, &forest, store, None)
         .await
         .unwrap();
 

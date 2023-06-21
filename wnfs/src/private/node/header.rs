@@ -1,5 +1,5 @@
 use super::TemporalKey;
-use crate::private::RevisionRef;
+use crate::{error::FsError, private::RevisionRef};
 use anyhow::Result;
 use libipld::{Cid, IpldCodec};
 use rand_core::{CryptoRngCore, RngCore};
@@ -211,21 +211,19 @@ impl PrivateNodeHeader {
         setup: &AccumulatorSetup,
     ) -> Result<Cid> {
         let temporal_key = self.derive_temporal_key();
-        let cbor_bytes = dagcbor::encode(&self.clone().to_serializable(setup))?;
+        let cbor_bytes = dagcbor::encode(&self.to_serializable(setup))?;
         let ciphertext = temporal_key.key_wrap_encrypt(&cbor_bytes)?;
         store.put_block(ciphertext, IpldCodec::Raw).await
     }
 
-    pub(crate) fn to_serializable(self, setup: &AccumulatorSetup) -> PrivateNodeHeaderSerializable {
-        let Self {
-            inumber,
-            ratchet,
-            name,
-        } = self;
+    pub(crate) fn to_serializable(
+        &self,
+        setup: &AccumulatorSetup,
+    ) -> PrivateNodeHeaderSerializable {
         PrivateNodeHeaderSerializable {
-            inumber,
-            ratchet,
-            name: name.into_accumulator(setup),
+            inumber: self.inumber.clone(),
+            ratchet: self.ratchet.clone(),
+            name: self.name.as_accumulator(setup).clone(),
         }
     }
 
@@ -243,17 +241,26 @@ impl PrivateNodeHeader {
         cid: &Cid,
         temporal_key: &TemporalKey,
         store: &impl BlockStore,
-        mounted_relative_to: &Name,
+        mounted_relative_to: Option<Name>,
+        setup: &AccumulatorSetup,
     ) -> Result<Self> {
         let ciphertext = store.get_block(cid).await?;
         let cbor_bytes = temporal_key.key_wrap_decrypt(&ciphertext)?;
         let decoded = dagcbor::decode::<PrivateNodeHeaderSerializable>(&cbor_bytes)?;
         let mut header = Self::from_serializable(decoded);
-        let name = mounted_relative_to
-            .clone()
-            .with_segments_added([header.inumber.clone()]);
-        // TODO(matheus23): Test name.as_accumulator() == header.name.as_accumulator() ?
-        header.name = name;
+        if let Some(parent_name) = mounted_relative_to {
+            let name = parent_name.with_segments_added([header.inumber.clone()]);
+            let mounted_acc = name.as_accumulator(setup);
+            let name_acc = header.name.as_accumulator(setup);
+            if mounted_acc != name_acc {
+                return Err(FsError::MountPointAndDeserializedNameMismatch(
+                    mounted_acc.as_bytes().clone(),
+                    name_acc.as_bytes().clone(),
+                )
+                .into());
+            }
+            header.name = name;
+        }
         Ok(header)
     }
 }

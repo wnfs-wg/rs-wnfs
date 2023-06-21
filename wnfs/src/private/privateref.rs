@@ -257,7 +257,7 @@ mod tests {
         let revision_ref =
             RevisionRef::with_seed(&forest.empty_name(), ratchet_seed, inumber, setup);
         let retrieved_node = forest
-            .get_multivalue(&revision_ref, store, &forest.empty_name())
+            .get_multivalue(&revision_ref, store, Some(forest.empty_name()))
             .next()
             .await
             .unwrap()

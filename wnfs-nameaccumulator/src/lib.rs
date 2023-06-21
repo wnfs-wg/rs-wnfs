@@ -305,7 +305,7 @@ pub struct AccumulatorSetup {
     #[serde(with = "uint256_serde_le")]
     modulus: BigUint,
     #[serde(with = "uint256_serde_le")]
-    generator: BigUint,
+    pub generator: BigUint,
 }
 
 impl AccumulatorSetup {
@@ -486,20 +486,11 @@ impl Name {
         self,
         setup: &AccumulatorSetup,
     ) -> (NameAccumulator, ElementsProof) {
-        let Self {
-            mut accumulated,
-            mut relative_to,
-            segments,
-        } = self;
-
-        accumulated.take().unwrap_or_else(|| {
-            let proof = relative_to.add(segments.iter(), setup);
-            (relative_to, proof)
-        })
+        self.as_proven_accumulator(setup).clone()
     }
 
     pub fn into_accumulator(self, setup: &AccumulatorSetup) -> NameAccumulator {
-        self.into_proven_accumulator(setup).0
+        self.as_accumulator(setup).clone()
     }
 }
 

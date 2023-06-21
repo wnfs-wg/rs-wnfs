@@ -95,7 +95,7 @@ pub trait PrivateForest {
         &'a self,
         revision: &'a RevisionRef,
         store: &'a impl BlockStore,
-        mounted_relative_to: &'a Name,
+        mounted_relative_to: Option<Name>,
     ) -> LocalBoxStream<'a, Result<PrivateNode>> {
         Box::pin(stream! {
             match self
@@ -103,8 +103,10 @@ pub trait PrivateForest {
                 .await
             {
                 Ok(Some(cids)) => {
+                    let setup = self.get_accumulator_setup();
+
                     for cid in cids {
-                        match PrivateNode::from_cid(*cid, &revision.temporal_key, store, mounted_relative_to).await {
+                        match PrivateNode::from_cid(*cid, &revision.temporal_key, store, mounted_relative_to.clone(), setup).await {
                             Ok(node) => yield Ok(node),
                             Err(e) if matches!(e.downcast_ref::<AesError>(), Some(_)) => {
                                 // we likely matched a PrivateNodeHeader instead of a PrivateNode.

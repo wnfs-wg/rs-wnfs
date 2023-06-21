@@ -47,7 +47,7 @@ impl PrivateLink {
         &self,
         forest: &impl PrivateForest,
         store: &impl BlockStore,
-        mounted_relative_to: &Name,
+        mounted_relative_to: Option<Name>,
     ) -> Result<&PrivateNode> {
         match self {
             Self::Encrypted { private_ref, cache } => {
@@ -69,7 +69,7 @@ impl PrivateLink {
         &mut self,
         forest: &impl PrivateForest,
         store: &impl BlockStore,
-        mounted_relative_to: &Name,
+        mounted_relative_to: Option<Name>,
     ) -> Result<&mut PrivateNode> {
         match self {
             Self::Encrypted { private_ref, cache } => {
@@ -101,7 +101,7 @@ impl PrivateLink {
         self,
         forest: &impl PrivateForest,
         store: &impl BlockStore,
-        mounted_relative_to: &Name,
+        mounted_relative_to: Option<Name>,
     ) -> Result<PrivateNode> {
         match self {
             Self::Encrypted { private_ref, cache } => match cache.into_inner() {

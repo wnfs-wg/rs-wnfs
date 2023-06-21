@@ -292,7 +292,7 @@ impl PrivateDirectory {
         Ok(match self.content.entries.get(path_segment) {
             Some(private_link) => {
                 let private_node = private_link
-                    .resolve_node(forest, store, &self.header.name)
+                    .resolve_node(forest, store, Some(self.header.name.clone()))
                     .await?;
                 if search_latest {
                     Some(private_node.search_latest(forest, store).await?)
@@ -315,7 +315,7 @@ impl PrivateDirectory {
         Ok(match self.content.entries.get_mut(path_segment) {
             Some(private_link) => {
                 let private_node = private_link
-                    .resolve_node_mut(forest, store, &self.header.name)
+                    .resolve_node_mut(forest, store, Some(self.header.name.clone()))
                     .await?;
                 if search_latest {
                     *private_node = private_node.search_latest(forest, store).await?;
@@ -408,7 +408,7 @@ impl PrivateDirectory {
                             .or_insert_with(|| {
                                 PrivateLink::with_dir(Self::new(&dir.header.name, time, rng))
                             })
-                            .resolve_node_mut(forest, store, &dir.header.name)
+                            .resolve_node_mut(forest, store, Some(dir.header.name.clone()))
                             .await
                             .unwrap()
                             .as_dir_mut()
@@ -882,7 +882,10 @@ impl PrivateDirectory {
             SearchResult::Found(dir) => {
                 let mut result = vec![];
                 for (name, link) in dir.content.entries.iter() {
-                    match link.resolve_node(forest, store, &dir.header.name).await? {
+                    match link
+                        .resolve_node(forest, store, Some(dir.header.name.clone()))
+                        .await?
+                    {
                         PrivateNode::File(file) => {
                             result.push((name.clone(), file.content.metadata.clone()));
                         }
@@ -970,7 +973,7 @@ impl PrivateDirectory {
 
         let removed_node = match dir.content.entries.remove(node_name) {
             Some(link) => {
-                link.resolve_owned_node(forest, store, &dir.header.name)
+                link.resolve_owned_node(forest, store, Some(dir.header.name.clone()))
                     .await?
             }
             None => bail!(FsError::NotFound),
