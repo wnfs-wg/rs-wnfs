@@ -4,7 +4,9 @@ use anyhow::Result;
 use async_trait::async_trait;
 use libipld::{Cid, Ipld};
 use rand_core::RngCore;
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use serde::{
+    de::Error as DeError, ser::Error as SerError, Deserialize, Deserializer, Serialize, Serializer,
+};
 use sha3::Sha3_256;
 use std::{collections::BTreeSet, rc::Rc};
 use wnfs_common::{AsyncSerialize, BlockStore, HashOutput, Link};
@@ -323,7 +325,8 @@ impl AsyncSerialize for HamtForest {
             .map_err(serde::ser::Error::custom)?;
 
         let Ipld::Map(mut ipld_map) = hamt_ipld else {
-            return todo!(); // TODO(matheus23) probably use `Node::AsyncSerialize` instead of `Hamt`
+            let msg = format!("Expected HAMT root to serialize to an IPLD map, but got {hamt_ipld:#?}");
+            return Err(SerError::custom(FsError::InvalidDeserialization(msg)));
         };
 
         ipld_map.insert("accumulator".into(), accumulator_ipld);
@@ -340,10 +343,12 @@ impl<'de> Deserialize<'de> for HamtForest {
         let ipld: Ipld = Deserialize::deserialize(deserializer)?;
         let hamt = Hamt::deserialize(ipld.clone()).map_err(serde::de::Error::custom)?;
         let Ipld::Map(ipld_map) = ipld else {
-            return todo!(); // TODO(matheus23)
+            let msg = format!("Expected IPLD Map representing a private forest, but got {ipld:#?}");
+            return Err(DeError::custom(FsError::InvalidDeserialization(msg)));
         };
         let Some(accumulator_ipld) = ipld_map.get("accumulator").cloned() else {
-            return todo!(); // TODO(matheus23)
+            let msg = "IPLD Map entry for 'accumulator' missing in private forest".to_string();
+            return Err(DeError::custom(FsError::InvalidDeserialization(msg)));
         };
         let accumulator =
             AccumulatorSetup::deserialize(accumulator_ipld).map_err(serde::de::Error::custom)?;

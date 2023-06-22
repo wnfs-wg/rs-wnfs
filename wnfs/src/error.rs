@@ -3,7 +3,7 @@
 use semver::Version;
 use skip_ratchet::PreviousErr;
 use thiserror::Error;
-use wnfs_common::{HashOutput, NodeType};
+use wnfs_common::NodeType;
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
@@ -51,8 +51,8 @@ pub enum FsError {
     #[error("Cannot merge or compare forests, incompatible accumulator setups")]
     IncompatibleAccumulatorSetups,
 
-    #[error("Mismatch between PrivateNode name {0:x?} and its mountpoint {0:x?}")]
-    MountPointAndDeserializedNameMismatch([u8; 256], [u8; 256]),
+    #[error("Mismatch between PrivateNode name {0} and its mountpoint {0}")]
+    MountPointAndDeserializedNameMismatch(String, String),
 
     #[error("Cannot find private ref with specified root path")]
     PrivateRefNotFound,
@@ -97,9 +97,9 @@ pub enum RsaError {
 
 #[derive(Debug, Error)]
 pub enum VerificationError {
-    #[error("Couldn't verify write for label {0:?}")]
-    UnverifiedWrite(HashOutput),
+    #[error("Couldn't verify write for label {0}")]
+    UnverifiedWrite(String),
 
-    #[error("Write to disallowed base {0:x?}")]
-    WriteToDisallowedBase([u8; 256]),
+    #[error("Write to disallowed base {0}")]
+    WriteToDisallowedBase(String),
 }

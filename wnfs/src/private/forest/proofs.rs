@@ -3,13 +3,12 @@ use crate::error::{FsError, VerificationError};
 use anyhow::Result;
 use async_trait::async_trait;
 use libipld::Cid;
-use sha3::Sha3_256;
 use std::{
     collections::{BTreeSet, HashMap},
     rc::Rc,
 };
 use wnfs_common::{BlockStore, HashOutput};
-use wnfs_hamt::{Hasher, Pair};
+use wnfs_hamt::Pair;
 use wnfs_nameaccumulator::{
     AccumulatorSetup, BatchedProofPart, BatchedProofVerification, Name, NameAccumulator,
     UnbatchableProofPart,
@@ -94,13 +93,13 @@ impl ProvingHamtForest {
             // Verify that there exists a proof for the changed label & obtain the base that
             // was proven from.
             let Some((base, _)) = self.proofs.proofs_by_commitment.get(&change.key) else {
-                return Err(VerificationError::UnverifiedWrite(Sha3_256::hash(&change.key)).into());
+                return Err(VerificationError::UnverifiedWrite(format!("{:?}", change.key)).into());
             };
 
             // Verify that the base is allowed to be written to (e.g. has been signed by a party
             // with a signature chain up to the root owner).
             if !allowed_bases.contains(base) {
-                return Err(VerificationError::WriteToDisallowedBase(*base.as_bytes()).into());
+                return Err(VerificationError::WriteToDisallowedBase(format!("{base:?}")).into());
             }
         }
 

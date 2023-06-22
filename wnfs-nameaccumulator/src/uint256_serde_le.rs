@@ -13,12 +13,12 @@ pub(crate) fn serialize<S>(uint: &BigUint, serializer: S) -> Result<S::Ok, S::Er
 where
     S: Serializer,
 {
-    serde_bytes::serialize(to_bytes_helper(uint).as_ref(), serializer)
+    serde_bytes::serialize(to_bytes_helper::<256>(uint).as_ref(), serializer)
 }
 
-pub(crate) fn to_bytes_helper(state: &BigUint) -> [u8; 256] {
+pub(crate) fn to_bytes_helper<const N: usize>(state: &BigUint) -> [u8; N] {
     let vec = state.to_bytes_le();
-    let mut bytes = [0u8; 256];
+    let mut bytes = [0u8; N];
     bytes[..vec.len()].copy_from_slice(&vec);
     bytes
 }

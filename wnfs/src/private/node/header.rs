@@ -232,8 +232,8 @@ impl PrivateNodeHeader {
             let name_acc = header.name.as_accumulator(setup);
             if mounted_acc != name_acc {
                 return Err(FsError::MountPointAndDeserializedNameMismatch(
-                    *mounted_acc.as_bytes(),
-                    *name_acc.as_bytes(),
+                    format!("{mounted_acc:?}"),
+                    format!("{name_acc:?}"),
                 )
                 .into());
             }
