@@ -110,7 +110,7 @@ pub trait PrivateForest {
                     for cid in cids {
                         match PrivateNode::from_cid(*cid, &revision.temporal_key, store, mounted_relative_to.clone(), setup).await {
                             Ok(node) => yield Ok(node),
-                            Err(e) if matches!(e.downcast_ref::<AesError>(), Some(_)) => {
+                            Err(e) if e.downcast_ref::<AesError>().is_some() => {
                                 // we likely matched a PrivateNodeHeader instead of a PrivateNode.
                                 // we skip it
                             }
