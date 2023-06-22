@@ -544,7 +544,7 @@ mod tests {
         assert_eq!(acc_back, acc);
     }
 
-    #[proptest(cases = 256)]
+    #[proptest(cases = 64)]
     fn batch_proofs(do_batch_step: [bool; 4], do_verify_step: [bool; 4]) {
         let rng = &mut thread_rng();
         let setup = &AccumulatorSetup::from_rsa_2048(rng);

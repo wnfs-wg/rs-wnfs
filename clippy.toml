@@ -1,1 +1,2 @@
 cognitive-complexity-threshold = 10
+ignore-interior-mutability = ["bytes::Bytes", "wnfs::private::encrypted::Encrypted", "wnfs_nameaccumulator::NameAccumulator"]

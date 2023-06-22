@@ -39,7 +39,7 @@ impl ForestProofs {
     }
 
     pub fn add_and_prove_name<'a>(
-        self: &mut Self,
+        &mut self,
         name: &'a Name,
         setup: &AccumulatorSetup,
     ) -> Result<&'a NameAccumulator> {
@@ -133,7 +133,7 @@ impl PrivateForest for ProvingHamtForest {
     }
 
     async fn put_encrypted<'a>(
-        self: &mut Self,
+        &mut self,
         name: &'a Name,
         values: impl IntoIterator<Item = Cid>,
         store: &impl BlockStore,
@@ -164,7 +164,7 @@ impl PrivateForest for ProvingHamtForest {
     }
 
     async fn remove_encrypted(
-        self: &mut Self,
+        &mut self,
         name_hash: &HashOutput,
         store: &impl BlockStore,
     ) -> Result<Option<Pair<NameAccumulator, BTreeSet<Cid>>>> {

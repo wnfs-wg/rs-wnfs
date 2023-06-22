@@ -28,17 +28,18 @@ use wnfs_nameaccumulator::{AccumulatorSetup, Name};
 /// # Examples
 ///
 /// ```
-/// use wnfs::{
-///     private::{PrivateDirectory, PrivateNode},
-///     namefilter::Namefilter
+/// use wnfs::private::{
+///     PrivateDirectory, PrivateNode,
+///     forest::{hamt::HamtForest, traits::PrivateForest},
 /// };
 /// use chrono::Utc;
 /// use std::rc::Rc;
 /// use rand::thread_rng;
 ///
 /// let rng = &mut thread_rng();
+/// let forest = &mut Rc::new(HamtForest::new_rsa_2048(rng));
 /// let dir = Rc::new(PrivateDirectory::new(
-///     Namefilter::default(),
+///     &forest.empty_name(),
 ///     Utc::now(),
 ///     rng,
 /// ));
@@ -64,16 +65,19 @@ impl PrivateNode {
     ///
     /// ```
     /// use wnfs::{
-    ///     private::{PrivateDirectory, PrivateNode},
-    ///     namefilter::Namefilter
+    ///     private::{
+    ///         PrivateDirectory, PrivateNode,
+    ///         forest::{hamt::HamtForest, traits::PrivateForest},
+    ///     },
     /// };
     /// use chrono::{Utc, Duration, TimeZone};
     /// use std::rc::Rc;
     /// use rand::thread_rng;
     ///
     /// let rng = &mut thread_rng();
+    /// let forest = &mut Rc::new(HamtForest::new_rsa_2048(rng));
     /// let dir = Rc::new(PrivateDirectory::new(
-    ///     Namefilter::default(),
+    ///     &forest.empty_name(),
     ///     Utc::now(),
     ///     rng,
     /// ));
@@ -147,16 +151,19 @@ impl PrivateNode {
     ///
     /// ```
     /// use wnfs::{
-    ///     private::{PrivateDirectory, PrivateNode},
-    ///     namefilter::Namefilter
+    ///     private::{
+    ///         PrivateDirectory, PrivateNode,
+    ///         forest::{hamt::HamtForest, traits::PrivateForest},
+    ///     },
     /// };
     /// use chrono::Utc;
     /// use std::rc::Rc;
     /// use rand::thread_rng;
     ///
     /// let rng = &mut thread_rng();
+    /// let forest = &mut Rc::new(HamtForest::new_rsa_2048(rng));
     /// let dir = Rc::new(PrivateDirectory::new(
-    ///     Namefilter::default(),
+    ///     &forest.empty_name(),
     ///     Utc::now(),
     ///     rng,
     /// ));
@@ -203,16 +210,19 @@ impl PrivateNode {
     ///
     /// ```
     /// use wnfs::{
-    ///     private::{PrivateDirectory, PrivateNode},
-    ///     namefilter::Namefilter
+    ///     private::{
+    ///         PrivateDirectory, PrivateNode,
+    ///         forest::{hamt::HamtForest, traits::PrivateForest},
+    ///     },
     /// };
     /// use chrono::Utc;
     /// use std::rc::Rc;
     /// use rand::thread_rng;
     ///
     /// let rng = &mut thread_rng();
+    /// let forest = &mut Rc::new(HamtForest::new_rsa_2048(rng));
     /// let dir = Rc::new(PrivateDirectory::new(
-    ///     Namefilter::default(),
+    ///     &forest.empty_name(),
     ///     Utc::now(),
     ///     rng,
     /// ));
@@ -241,16 +251,19 @@ impl PrivateNode {
     ///
     /// ```
     /// use wnfs::{
-    ///     private::{PrivateFile, PrivateNode},
-    ///     namefilter::Namefilter
+    ///     private::{
+    ///         PrivateFile, PrivateNode,
+    ///         forest::{hamt::HamtForest, traits::PrivateForest},
+    ///     },
     /// };
     /// use chrono::Utc;
     /// use std::rc::Rc;
     /// use rand::thread_rng;
     ///
     /// let rng = &mut thread_rng();
+    /// let forest = &mut Rc::new(HamtForest::new_rsa_2048(rng));
     /// let file = Rc::new(PrivateFile::new(
-    ///     Namefilter::default(),
+    ///     &forest.empty_name(),
     ///     Utc::now(),
     ///     rng,
     /// ));
@@ -271,16 +284,19 @@ impl PrivateNode {
     ///
     /// ```
     /// use wnfs::{
-    ///     private::{PrivateDirectory, PrivateNode},
-    ///     namefilter::Namefilter
+    ///     private::{
+    ///         PrivateDirectory, PrivateNode,
+    ///         forest::{hamt::HamtForest, traits::PrivateForest},
+    ///     },
     /// };
     /// use chrono::Utc;
     /// use std::rc::Rc;
     /// use rand::thread_rng;
     ///
     /// let rng = &mut thread_rng();
+    /// let forest = &mut Rc::new(HamtForest::new_rsa_2048(rng));
     /// let dir = Rc::new(PrivateDirectory::new(
-    ///     Namefilter::default(),
+    ///     &forest.empty_name(),
     ///     Utc::now(),
     ///     rng,
     /// ));
@@ -298,16 +314,19 @@ impl PrivateNode {
     ///
     /// ```
     /// use wnfs::{
-    ///     private::{PrivateFile, PrivateNode},
-    ///     namefilter::Namefilter
+    ///     private::{
+    ///         PrivateFile, PrivateNode,
+    ///         forest::{hamt::HamtForest, traits::PrivateForest},
+    ///     },
     /// };
     /// use chrono::Utc;
     /// use std::rc::Rc;
     /// use rand::thread_rng;
     ///
     /// let rng = &mut thread_rng();
+    /// let forest = &mut Rc::new(HamtForest::new_rsa_2048(rng));
     /// let file = Rc::new(PrivateFile::new(
-    ///     Namefilter::default(),
+    ///     &forest.empty_name(),
     ///     Utc::now(),
     ///     rng,
     /// ));
@@ -328,19 +347,21 @@ impl PrivateNode {
     /// use chrono::Utc;
     /// use rand::thread_rng;
     /// use wnfs::{
-    ///     private::{PrivateForest, PrivateRef, PrivateNode, PrivateDirectory},
+    ///     private::{
+    ///         PrivateRef, PrivateNode, PrivateDirectory,
+    ///         forest::{hamt::HamtForest, traits::PrivateForest},
+    ///     },
     ///     common::{BlockStore, MemoryBlockStore},
-    ///     namefilter::Namefilter,
     /// };
     ///
     /// #[async_std::main]
     /// async fn main() {
     ///     let store = &mut MemoryBlockStore::default();
     ///     let rng = &mut thread_rng();
-    ///     let forest = &mut Rc::new(PrivateForest::new());
+    ///     let forest = &mut Rc::new(HamtForest::new_rsa_2048(rng));
     ///
     ///     let mut init_dir = PrivateDirectory::new_and_store(
-    ///         Default::default(),
+    ///         &forest.empty_name(),
     ///         Utc::now(),
     ///         forest,
     ///         store,
@@ -449,18 +470,20 @@ impl PrivateNode {
     /// use chrono::Utc;
     /// use rand::thread_rng;
     /// use wnfs::{
-    ///     private::{PrivateForest, PrivateRef, PrivateNode, PrivateDirectory},
+    ///     private::{
+    ///         PrivateRef, PrivateNode, PrivateDirectory,
+    ///         forest::{hamt::HamtForest, traits::PrivateForest},
+    ///     },
     ///     common::{BlockStore, MemoryBlockStore},
-    ///     namefilter::Namefilter,
     /// };
     ///
     /// #[async_std::main]
     /// async fn main() {
     ///     let store = &mut MemoryBlockStore::default();
     ///     let rng = &mut thread_rng();
-    ///     let forest = &mut Rc::new(PrivateForest::new());
+    ///     let forest = &mut Rc::new(HamtForest::new_rsa_2048(rng));
     ///     let dir = Rc::new(PrivateDirectory::new(
-    ///         Namefilter::default(),
+    ///         &forest.empty_name(),
     ///         Utc::now(),
     ///         rng,
     ///     ));
@@ -470,7 +493,7 @@ impl PrivateNode {
     ///     let private_ref = node.store(forest, store, rng).await.unwrap();
     ///
     ///     assert_eq!(
-    ///         PrivateNode::load(&private_ref, forest, store).await.unwrap(),
+    ///         PrivateNode::load(&private_ref, forest, store, None).await.unwrap(),
     ///         node
     ///     );
     /// }

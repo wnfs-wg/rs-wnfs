@@ -37,23 +37,6 @@ pub(crate) fn nlogn_product<A>(factors: &[A], f: fn(&A) -> &BigUint) -> BigUint 
     }
 }
 
-/// Computes the product mod the modulus in O(n log n) time.
-pub(crate) fn nlogn_mod_poduct<A>(
-    factors: &[A],
-    f: fn(&A) -> &BigUint,
-    modulus: &BigUint,
-) -> BigUint {
-    match factors {
-        [] => BigUint::one(),
-        [factor] => f(factor) % modulus,
-        other => {
-            let mid = other.len() / 2;
-            let (left, right) = factors.split_at(mid);
-            (nlogn_product(left, f) * nlogn_product(right, f)) % modulus
-        }
-    }
-}
-
 /// Finalizes a hashing function to a 128-bit prime number.
 ///
 /// The output includes both the prime and a 32-bit counter

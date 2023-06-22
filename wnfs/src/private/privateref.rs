@@ -180,14 +180,18 @@ impl RevisionRef {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::{private::RevisionRef, namefilter::Namefilter};
+    /// use wnfs::private::RevisionRef;
+    /// use wnfs_nameaccumulator::{AccumulatorSetup, Name, NameSegment};
     /// use rand::{thread_rng, Rng};
     ///
     /// let rng = &mut thread_rng();
+    /// // Usually stored in the PrivateForest:
+    /// let setup = &AccumulatorSetup::from_rsa_2048(rng);
     /// let revision_ref = RevisionRef::with_seed(
-    ///     Namefilter::default(),
+    ///     &Name::empty(setup),
     ///     rng.gen::<[u8; 32]>(),
-    ///     rng.gen::<[u8; 32]>(),
+    ///     NameSegment::new(rng),
+    ///     setup,
     /// );
     ///
     /// println!("Private ref: {:?}", revision_ref);

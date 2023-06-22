@@ -23,17 +23,15 @@ pub type INumber = NameSegment;
 /// # Examples
 ///
 /// ```
-/// use wnfs::{
-///     private::PrivateFile,
-///     namefilter::Namefilter,
-///     traits::Id
-/// };
+/// use wnfs::private::PrivateFile;
+/// use wnfs_nameaccumulator::{AccumulatorSetup, Name};
 /// use chrono::Utc;
 /// use rand::thread_rng;
 ///
 /// let rng = &mut thread_rng();
+/// let setup = &AccumulatorSetup::from_rsa_2048(rng);
 /// let file = PrivateFile::new(
-///     Namefilter::default(),
+///     &Name::empty(setup),
 ///     Utc::now(),
 ///     rng,
 /// );
@@ -113,21 +111,19 @@ impl PrivateNodeHeader {
     ///
     /// ```
     /// use std::rc::Rc;
-    /// use wnfs::{
-    ///     private::PrivateFile,
-    ///     namefilter::Namefilter,
-    ///     traits::Id
-    /// };
+    /// use wnfs::private::PrivateFile;
+    /// use wnfs_nameaccumulator::{AccumulatorSetup, Name};
     /// use chrono::Utc;
     /// use rand::thread_rng;
     ///
     /// let rng = &mut thread_rng();
+    /// let setup = &AccumulatorSetup::from_rsa_2048(rng);
     /// let file = Rc::new(PrivateFile::new(
-    ///     Namefilter::default(),
+    ///     &Name::empty(setup),
     ///     Utc::now(),
     ///     rng,
     /// ));
-    /// let revision_ref = file.header.derive_revision_ref();
+    /// let revision_ref = file.header.derive_revision_ref(setup);
     ///
     /// println!("Private ref: {:?}", revision_ref);
     /// ```
@@ -147,17 +143,15 @@ impl PrivateNodeHeader {
     ///
     /// ```
     /// use std::rc::Rc;
-    /// use wnfs::{
-    ///     private::PrivateFile,
-    ///     namefilter::Namefilter,
-    ///     traits::Id
-    /// };
+    /// use wnfs::private::PrivateFile;
+    /// use wnfs_nameaccumulator::{AccumulatorSetup, Name};
     /// use chrono::Utc;
     /// use rand::thread_rng;
     ///
     /// let rng = &mut thread_rng();
+    /// let setup = &AccumulatorSetup::from_rsa_2048(rng);
     /// let file = Rc::new(PrivateFile::new(
-    ///     Namefilter::default(),
+    ///     &Name::empty(setup),
     ///     Utc::now(),
     ///     rng,
     /// ));
@@ -176,20 +170,21 @@ impl PrivateNodeHeader {
     ///
     /// ```
     /// use std::rc::Rc;
-    /// use wnfs::{
-    ///     private::{PrivateFile, AesKey},
-    ///     namefilter::Namefilter
+    /// use wnfs::private::{
+    ///     PrivateFile, AesKey,
+    ///     forest::{hamt::HamtForest, traits::PrivateForest},
     /// };
     /// use chrono::Utc;
     /// use rand::thread_rng;
     ///
     /// let rng = &mut thread_rng();
+    /// let forest = &mut Rc::new(HamtForest::new_rsa_2048(rng));
     /// let file = Rc::new(PrivateFile::new(
-    ///     Namefilter::default(),
+    ///     &forest.empty_name(),
     ///     Utc::now(),
     ///     rng,
     /// ));
-    /// let saturated_name = file.header.get_saturated_name();
+    /// let saturated_name = file.header.get_name();
     ///
     /// println!("Saturated name: {:?}", saturated_name);
     /// ```

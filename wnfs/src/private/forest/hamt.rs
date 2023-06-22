@@ -26,9 +26,10 @@ use wnfs_nameaccumulator::{AccumulatorSetup, Name, NameAccumulator};
 /// # Examples
 ///
 /// ```
-/// use wnfs::private::PrivateForest;
+/// use wnfs::private::forest::hamt::HamtForest;
+/// use rand::thread_rng;
 ///
-/// let forest = PrivateForest::new();
+/// let forest = HamtForest::new_rsa_2048(&mut thread_rng());
 ///
 /// println!("{:?}", forest);
 /// ```
@@ -52,10 +53,11 @@ impl HamtForest {
     }
 
     pub fn new_rsa_2048(rng: &mut impl RngCore) -> Self {
-        Self {
-            hamt: Hamt::new(),
-            accumulator: AccumulatorSetup::from_rsa_2048(rng),
-        }
+        Self::new(AccumulatorSetup::from_rsa_2048(rng))
+    }
+
+    pub fn new_trusted(rng: &mut impl RngCore) -> Self {
+        Self::new(AccumulatorSetup::trusted(rng))
     }
 
     /// Gets the difference in changes between two forests.
@@ -111,7 +113,7 @@ impl PrivateForest for HamtForest {
     }
 
     async fn put_encrypted<'a>(
-        self: &mut Self,
+        &mut self,
         name: &'a Name,
         values: impl IntoIterator<Item = Cid>,
         store: &impl BlockStore,
@@ -150,7 +152,7 @@ impl PrivateForest for HamtForest {
     }
 
     async fn remove_encrypted(
-        self: &mut Self,
+        &mut self,
         name_hash: &HashOutput,
         store: &impl BlockStore,
     ) -> Result<Option<Pair<NameAccumulator, BTreeSet<Cid>>>> {
@@ -177,7 +179,7 @@ impl PrivateForest for Rc<HamtForest> {
     }
 
     async fn put_encrypted<'a>(
-        self: &mut Self,
+        &mut self,
         name: &'a Name,
         values: impl IntoIterator<Item = Cid>,
         store: &impl BlockStore,
@@ -202,7 +204,7 @@ impl PrivateForest for Rc<HamtForest> {
     }
 
     async fn remove_encrypted(
-        self: &mut Self,
+        &mut self,
         name_hash: &HashOutput,
         store: &impl BlockStore,
     ) -> Result<Option<Pair<NameAccumulator, BTreeSet<Cid>>>> {
@@ -220,61 +222,63 @@ where
     /// # Examples
     ///
     /// ```
+    /// use anyhow::Result;
     /// use std::rc::Rc;
-    /// use chrono::{Utc, Days};
-    /// use rand::{thread_rng, Rng};
+    /// use chrono::Utc;
+    /// use rand::thread_rng;
     /// use futures::StreamExt;
     /// use wnfs::{
-    ///     private::{PrivateForest, RevisionRef, PrivateDirectory, PrivateNode},
-    ///     common::{BlockStore, MemoryBlockStore},
-    ///     namefilter::Namefilter,
+    ///     common::MemoryBlockStore,
+    ///     private::{
+    ///         PrivateDirectory,
+    ///         forest::{hamt::HamtForest, traits::PrivateForest},
+    ///     },
     /// };
     ///
     /// #[async_std::main]
-    /// async fn main() {
-    ///     let store = &mut MemoryBlockStore::default();
+    /// async fn main() -> Result<()> {
+    ///     let store = &mut MemoryBlockStore::new();
     ///     let rng = &mut thread_rng();
     ///
-    ///     let ratchet_seed = rng.gen::<[u8; 32]>();
-    ///     let inumber = rng.gen::<[u8; 32]>();
-    ///
-    ///     let main_forest = &mut Rc::new(PrivateForest::new());
-    ///     let root_dir = Rc::new(PrivateDirectory::with_seed(
-    ///         Namefilter::default(),
+    ///     let forest = &mut Rc::new(HamtForest::new_rsa_2048(rng));
+    ///     let root_dir = &mut PrivateDirectory::new_and_store(
+    ///         &forest.empty_name(),
     ///         Utc::now(),
-    ///         ratchet_seed,
-    ///         inumber
-    ///     ));
-    ///     root_dir.store(main_forest, store, rng).await.unwrap();
+    ///         forest,
+    ///         store,
+    ///         rng
+    ///     ).await?;
+    ///     root_dir.store(forest, store, rng).await?;
     ///
-    ///     let other_forest = &mut Rc::new(PrivateForest::new());
-    ///     let root_dir = Rc::new(PrivateDirectory::with_seed(
-    ///         Namefilter::default(),
-    ///         Utc::now().checked_add_days(Days::new(1)).unwrap(),
-    ///         ratchet_seed,
-    ///         inumber
-    ///     ));
-    ///     root_dir.store(other_forest, store, rng).await.unwrap();
+    ///     // Make two conflicting writes
+    ///     let forest_one = &mut Rc::clone(forest);
+    ///     let dir_one = &mut Rc::clone(root_dir);
+    ///     dir_one.mkdir(&["DirOne".into()], true, Utc::now(), forest_one, store, rng).await?;
+    ///     dir_one.store(forest_one, store, rng).await?;
     ///
-    ///     let merge_forest = main_forest.merge(other_forest, store).await.unwrap();
+    ///     let forest_two = &mut Rc::clone(forest);
+    ///     let dir_two = &mut Rc::clone(root_dir);
+    ///     dir_two.mkdir(&["DirTwo".into()], true, Utc::now(), forest_two, store, rng).await?;
+    ///     let private_ref = dir_two.store(forest_two, store, rng).await?;
     ///
-    ///     let revision_ref = RevisionRef::with_seed(
-    ///         Namefilter::default(),
-    ///         ratchet_seed,
-    ///         inumber
-    ///     );
+    ///     // Merge the forests together
+    ///     let forest_merged = forest_one.merge(forest_two, store).await?;
     ///
-    ///     assert_eq!(
-    ///         2,
-    ///         merge_forest
-    ///             .get_multivalue(&revision_ref, store)
-    ///             .collect::<Vec<anyhow::Result<PrivateNode>>>()
-    ///             .await
-    ///             .into_iter()
-    ///             .filter_map(|result| result.ok())
-    ///             .collect::<Vec<PrivateNode>>()
-    ///             .len()
-    ///     );
+    ///     // Read the revision slot with conflicting writes
+    ///     let revision_ref = private_ref.as_revision_ref();
+    ///
+    ///     let multivalue: Vec<_> = forest_merged
+    ///         .get_multivalue(&revision_ref, store, None)
+    ///         .collect::<Vec<_>>()
+    ///         .await
+    ///         .into_iter()
+    ///         .filter_map(|result| result.ok())
+    ///         .collect::<Vec<_>>();
+    ///
+    ///     // There's two conflicting values in the slot
+    ///     assert_eq!(2, multivalue.len());
+    ///
+    ///     Ok(())
     /// }
     /// ```
     pub async fn merge(&self, other: &Self, store: &impl BlockStore) -> Result<Self> {

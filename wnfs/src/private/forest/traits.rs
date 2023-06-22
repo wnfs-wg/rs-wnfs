@@ -30,19 +30,21 @@ pub trait PrivateForest {
     /// use rand::thread_rng;
     /// use sha3::Sha3_256;
     /// use wnfs::{
-    ///     private::{PrivateForest, PrivateRef, PrivateDirectory, PrivateNode},
-    ///     common::{BlockStore, MemoryBlockStore},
+    ///     private::{
+    ///         PrivateRef, PrivateDirectory, PrivateNode,
+    ///         forest::{hamt::HamtForest, traits::PrivateForest},
+    ///     },
+    ///     common::MemoryBlockStore,
     ///     hamt::Hasher,
-    ///     namefilter::Namefilter,
     /// };
     ///
     /// #[async_std::main]
     /// async fn main() {
     ///     let store = &mut MemoryBlockStore::default();
     ///     let rng = &mut thread_rng();
-    ///     let forest = &mut Rc::new(PrivateForest::new());
+    ///     let forest = &mut Rc::new(HamtForest::new_rsa_2048(rng));
     ///     let dir = Rc::new(PrivateDirectory::new(
-    ///         Namefilter::default(),
+    ///         &forest.empty_name(),
     ///         Utc::now(),
     ///         rng,
     ///     ));
@@ -50,7 +52,7 @@ pub trait PrivateForest {
     ///     let node = PrivateNode::Dir(dir);
     ///     let private_ref = node.store(forest, store, rng).await.unwrap();
     ///
-    ///     assert!(forest.has(&private_ref.saturated_name_hash, store).await.unwrap());
+    ///     assert!(forest.has_by_hash(&private_ref.saturated_name_hash, store).await.unwrap());
     /// }
     /// ```
     async fn has_by_hash(&self, name_hash: &HashOutput, store: &impl BlockStore) -> Result<bool>;
@@ -60,7 +62,7 @@ pub trait PrivateForest {
 
     /// Adds new encrypted values at the given key.
     async fn put_encrypted<'a>(
-        self: &mut Self,
+        &mut self,
         name: &'a Name,
         values: impl IntoIterator<Item = Cid>,
         store: &impl BlockStore,
@@ -81,7 +83,7 @@ pub trait PrivateForest {
 
     /// Removes the encrypted values at the given key.
     async fn remove_encrypted(
-        self: &mut Self,
+        &mut self,
         name_hash: &HashOutput,
         store: &impl BlockStore,
     ) -> Result<Option<Pair<NameAccumulator, BTreeSet<Cid>>>>;
