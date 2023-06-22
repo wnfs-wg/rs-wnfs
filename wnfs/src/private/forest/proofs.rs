@@ -79,7 +79,7 @@ impl ProvingHamtForest {
     pub async fn verify_against_previous_state(
         &self,
         previous: &HamtForest,
-        allowed_bases: &BTreeSet<&NameAccumulator>,
+        allowed_bases: &BTreeSet<NameAccumulator>,
         store: &mut impl BlockStore,
     ) -> Result<()> {
         let setup = self.forest.get_accumulator_setup();
@@ -285,7 +285,7 @@ mod tests {
         let forest = ProvingHamtForest::from_proofs(proofs, Rc::new(new_forest));
 
         forest
-            .verify_against_previous_state(&old_forest, &BTreeSet::from([&allowed_access]), store)
+            .verify_against_previous_state(&old_forest, &BTreeSet::from([allowed_access]), store)
             .await
     }
 }
