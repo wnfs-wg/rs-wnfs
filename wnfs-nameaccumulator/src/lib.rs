@@ -1,4 +1,3 @@
-#![feature(once_cell)]
 //! TODO(matheus23)
 
 use anyhow::Result;
@@ -7,10 +6,11 @@ use fns::{multi_exp, nlogn_product, prime_digest, prime_digest_fast};
 use num_bigint_dig::{BigUint, ModInverse, RandBigInt, RandPrime};
 use num_integer::Integer;
 use num_traits::One;
+use once_cell::sync::OnceCell;
 use rand_core::RngCore;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use sha3::{Digest, Sha3_256};
-use std::{cell::OnceCell, hash::Hash, str::FromStr};
+use std::{hash::Hash, str::FromStr};
 
 mod error;
 mod fns;
