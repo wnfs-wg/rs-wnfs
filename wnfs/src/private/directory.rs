@@ -1,5 +1,5 @@
 use super::{
-    encrypted::Encrypted, forest::traits::PrivateForest, link::PrivateLink, INumber,
+    encrypted::Encrypted, forest::traits::PrivateForest, link::PrivateLink,
     PrivateDirectoryContentSerializable, PrivateFile, PrivateNode, PrivateNodeContentSerializable,
     PrivateNodeHeader, PrivateRef, TemporalKey,
 };
@@ -122,7 +122,7 @@ impl PrivateDirectory {
         parent_name: &Name,
         time: DateTime<Utc>,
         ratchet_seed: HashOutput,
-        inumber: INumber,
+        inumber: NameSegment,
     ) -> Self {
         Self {
             header: PrivateNodeHeader::with_seed(parent_name, ratchet_seed, inumber),
@@ -154,7 +154,7 @@ impl PrivateDirectory {
         parent_name: &Name,
         time: DateTime<Utc>,
         ratchet_seed: HashOutput,
-        inumber: INumber,
+        inumber: NameSegment,
         forest: &mut impl PrivateForest,
         store: &mut B,
         rng: &mut R,

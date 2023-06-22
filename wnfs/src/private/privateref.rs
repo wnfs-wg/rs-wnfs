@@ -1,4 +1,4 @@
-use super::{INumber, PrivateNodeHeader, SnapshotKey, TemporalKey, KEY_BYTE_SIZE};
+use super::{PrivateNodeHeader, PrivateRefSerializable, TemporalKey, KEY_BYTE_SIZE};
 use crate::error::{AesError, FsError};
 use aes_kw::KekAes256;
 use anyhow::Result;
@@ -6,7 +6,7 @@ use libipld::Cid;
 use serde::{de::Error as DeError, ser::Error as SerError, Deserialize, Serialize};
 use std::fmt::Debug;
 use wnfs_common::HashOutput;
-use wnfs_nameaccumulator::{AccumulatorSetup, Name};
+use wnfs_nameaccumulator::{AccumulatorSetup, Name, NameSegment};
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
@@ -23,18 +23,6 @@ pub struct PrivateRef {
     pub temporal_key: TemporalKey,
     /// CID that identifies the exact value in the multivalue.
     pub content_cid: Cid,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub(crate) struct PrivateRefSerializable {
-    #[serde(rename = "name")]
-    pub(crate) saturated_name_hash: HashOutput,
-    #[serde(rename = "snapshotKey")]
-    pub(crate) snapshot_key: SnapshotKey,
-    #[serde(rename = "temporalKey")]
-    pub(crate) temporal_key: Vec<u8>,
-    #[serde(rename = "contentCid")]
-    pub(crate) content_cid: Cid,
 }
 
 /// A pointer to a specific revision in the private forest
@@ -199,7 +187,7 @@ impl RevisionRef {
     pub fn with_seed(
         name: &Name,
         ratchet_seed: HashOutput,
-        inumber: INumber,
+        inumber: NameSegment,
         setup: &AccumulatorSetup,
     ) -> Self {
         PrivateNodeHeader::with_seed(name, ratchet_seed, inumber).derive_revision_ref(setup)

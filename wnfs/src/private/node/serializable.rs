@@ -1,9 +1,12 @@
-use crate::private::{encrypted::Encrypted, FileContent, PrivateRefSerializable};
+use super::SnapshotKey;
+use crate::private::{encrypted::Encrypted, FileContent};
 use libipld::Cid;
 use semver::Version;
 use serde::{Deserialize, Serialize};
+use skip_ratchet::Ratchet;
 use std::collections::BTreeMap;
-use wnfs_common::Metadata;
+use wnfs_common::{HashOutput, Metadata};
+use wnfs_nameaccumulator::{NameAccumulator, NameSegment};
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
@@ -35,4 +38,26 @@ pub(crate) struct PrivateDirectoryContentSerializable {
     pub header_cid: Cid,
     pub metadata: Metadata,
     pub entries: BTreeMap<String, PrivateRefSerializable>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub(crate) struct PrivateNodeHeaderSerializable {
+    /// A unique identifier of the node.
+    pub inumber: NameSegment,
+    /// Used both for versioning and deriving keys for that enforces privacy.
+    pub ratchet: Ratchet,
+    /// Stores the name of this node for easier lookup.
+    pub name: NameAccumulator,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub(crate) struct PrivateRefSerializable {
+    #[serde(rename = "name")]
+    pub saturated_name_hash: HashOutput,
+    #[serde(rename = "snapshotKey")]
+    pub snapshot_key: SnapshotKey,
+    #[serde(rename = "temporalKey")]
+    pub temporal_key: Vec<u8>,
+    #[serde(rename = "contentCid")]
+    pub content_cid: Cid,
 }

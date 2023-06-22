@@ -1,21 +1,18 @@
-use super::TemporalKey;
+use super::{PrivateNodeHeaderSerializable, TemporalKey};
 use crate::{error::FsError, private::RevisionRef};
 use anyhow::Result;
 use libipld::{Cid, IpldCodec};
 use rand_core::{CryptoRngCore, RngCore};
-use serde::{Deserialize, Serialize};
 use sha3::{Digest, Sha3_256};
 use skip_ratchet::Ratchet;
 use std::fmt::Debug;
 use wnfs_common::{utils, BlockStore, HashOutput, HASH_BYTE_SIZE};
 use wnfs_hamt::Hasher;
-use wnfs_nameaccumulator::{AccumulatorSetup, Name, NameAccumulator, NameSegment};
+use wnfs_nameaccumulator::{AccumulatorSetup, Name, NameSegment};
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
 //--------------------------------------------------------------------------------------------------
-
-pub type INumber = NameSegment;
 
 /// This is the header of a private node. It contains secret information about the node which includes
 /// the inumber, the ratchet, and the namefilter.
@@ -41,21 +38,11 @@ pub type INumber = NameSegment;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PrivateNodeHeader {
     /// A unique identifier of the node.
-    pub(crate) inumber: INumber,
+    pub(crate) inumber: NameSegment,
     /// Used both for versioning and deriving keys for that enforces privacy.
     pub(crate) ratchet: Ratchet,
     /// Stores the name of this node for easier lookup.
     pub(crate) name: Name,
-}
-
-#[derive(Serialize, Deserialize)]
-pub struct PrivateNodeHeaderSerializable {
-    /// A unique identifier of the node.
-    inumber: INumber,
-    /// Used both for versioning and deriving keys for that enforces privacy.
-    ratchet: Ratchet,
-    /// Stores the name of this node for easier lookup.
-    name: NameAccumulator,
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -74,7 +61,7 @@ impl PrivateNodeHeader {
     pub(crate) fn with_seed(
         parent_name: &Name,
         ratchet_seed: HashOutput,
-        inumber: INumber,
+        inumber: NameSegment,
     ) -> Self {
         // A keyed hash to use for determining the seed increments without
         // leaking info about the seed itself (from the ratchet state).
