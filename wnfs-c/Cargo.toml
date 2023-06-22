@@ -1,0 +1,24 @@
+[package]
+name = "wnfs-c"
+version = "0.1.21"
+description = "WebNative Filesystem API (C bindings)"
+keywords = ["wnfs", "c", "webnative", "ipfs", "decentralisation"]
+categories = [
+  "filesystem",
+  "cryptography",
+  "c",
+]
+license = "Apache-2.0"
+readme = "README.md"
+edition = "2021"
+repository = "https://github.com/wnfs-wg/rs-wnfs/tree/main/wnfs-wasm"
+homepage = "https://fission.codes"
+authors = ["The Fission Authors"]
+
+[dependencies]
+
+[dev-dependencies]
+
+[lib]
+crate-type = ["cdylib", "staticlib"]
+path = "src/lib.rs"

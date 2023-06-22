@@ -2,6 +2,7 @@
 members = [
 	"wnfs",
 	"wnfs-bench",
+	"wnfs-c",
 	"wnfs-common",
 	"wnfs-hamt",
 	"wnfs-namefilter",
