@@ -1,6 +1,6 @@
 [package]
 name = "wnfs-wasm"
-version = "0.1.21"
+version = "0.1.22"
 description = "WebNative Filesystem API (WebAssembly)"
 keywords = ["wnfs", "wasm", "webnative", "ipfs", "decentralisation"]
 categories = [
@@ -30,7 +30,7 @@ rand_core = "0.6"
 wasm-bindgen = { version = "0.2.84", optional = true, features = ["serde-serialize"] }
 wasm-bindgen-futures = { version = "0.4", optional = true }
 web-sys = { version = "0.3", optional = true }
-wnfs = { path = "../wnfs", version = "0.1.21" }
+wnfs = { path = "../wnfs", version = "0.1.22" }
 
 [dev-dependencies]
 wasm-bindgen-test = "0.3"

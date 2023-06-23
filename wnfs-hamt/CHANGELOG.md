@@ -6,6 +6,22 @@
   * dev-dependencies
     * wnfs-common bumped from 0.1.19 to 0.1.20
 
+## [0.1.22](https://github.com/wnfs-wg/rs-wnfs/compare/wnfs-hamt-v0.1.21...wnfs-hamt-v0.1.22) (2023-06-23)
+
+
+### Features
+
+* make changes to BlockStore trait based on feedback ([#286](https://github.com/wnfs-wg/rs-wnfs/issues/286)) ([085242d](https://github.com/wnfs-wg/rs-wnfs/commit/085242d15aa48db17d77ed45e1c7717d13ed105f))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * wnfs-common bumped from 0.1.21 to 0.1.22
+  * dev-dependencies
+    * wnfs-common bumped from 0.1.21 to 0.1.22
+
 ## [0.1.21](https://github.com/wnfs-wg/rs-wnfs/compare/wnfs-hamt-v0.1.20...wnfs-hamt-v0.1.21) (2023-05-22)
 
 
