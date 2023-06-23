@@ -78,7 +78,7 @@ Here we create a root directory `dir` and subsequently add a `/pictures/cats` su
 
 `PublicDirectory` gets wrapped in `Rc` here because it lets us pass it around without worrying about ownership and lifetimes. Making the Rc `&mut` futher allows us to relinquish ownership to the interior `PublicDirectory` and point to a new one when needed (essentially for every write). This immutable way of handling changes has cool benefits like tracking and rolling back changes. It also makes collaborative editing easier to implement and reason about. You can find more examples in the [`wnfs/examples/`][wnfs-examples] folder.
 
-That's the public filesyste, the private filesystem, on the other hand, is a bit more involved. The [Hash Array Mapped Trie (HAMT)][hamt-wiki] is where we store the private filesystem tree and some other information related to it. HAMT allows for effective storage and retrieval of encrypted and obfuscated filesystem trees and `PrivateForest` is basically a HAMT that can contain multiple file trees with hash for keys and CIDs for values.
+That's the public filesystem, the private filesystem, on the other hand, is a bit more involved. The [Hash Array Mapped Trie (HAMT)][hamt-wiki] is where we store the private filesystem tree and some other information related to it. HAMT allows for effective storage and retrieval of encrypted and obfuscated filesystem trees and `PrivateForest` is basically a HAMT that can contain multiple file trees with hash for keys and CIDs for values.
 
 ```rust
 use anyhow::Result;
@@ -148,7 +148,7 @@ Finally, we have the random number generator, `rng`, that the library uses for r
 Check the [`wnfs/examples/`][wnfs-examples] folder for more examples.
 
 
-[blockstore-trait]: https://github.com/wnfs-wg/rs-wnfs/blob/main/wnfs/src/common/blockstore.rs
+[blockstore-trait]: https://github.com/wnfs-wg/rs-wnfs/blob/main/wnfs-common/src/blockstore.rs
 [hamt-wiki]: https://en.wikipedia.org/wiki/Hash_array_mapped_trie
 [ipld-spec]: https://ipld.io/
 [npm-ipld-tools]: https://www.npmjs.com/search?q=ipld
