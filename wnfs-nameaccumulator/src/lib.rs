@@ -315,6 +315,15 @@ pub struct AccumulatorSetup {
 }
 
 impl AccumulatorSetup {
+    pub fn with_modulus(modulus_big_endian: &[u8; 256], rng: &mut impl RngCore) -> Self {
+        let modulus = BigUint::from_bytes_be(modulus_big_endian);
+        // The generator is just some random quadratic residue.
+        let generator = rng
+            .gen_biguint_below(&modulus)
+            .modpow(&BigUint::from(2u8), &modulus);
+        Self { modulus, generator }
+    }
+
     /// Does a trusted setup in-memory and throws away the prime factors.
     /// This requires generating two 1024-bit primes, so it's fairly slow.
     pub fn trusted(rng: &mut impl RngCore) -> Self {

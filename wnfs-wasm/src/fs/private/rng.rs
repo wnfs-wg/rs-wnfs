@@ -1,4 +1,4 @@
-use rand_core::RngCore;
+use rand_core::{CryptoRng, RngCore};
 use wasm_bindgen::prelude::wasm_bindgen;
 
 //--------------------------------------------------------------------------------------------------
@@ -38,3 +38,5 @@ impl RngCore for Rng {
         Ok(())
     }
 }
+
+impl CryptoRng for Rng {}

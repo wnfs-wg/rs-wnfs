@@ -22,12 +22,13 @@ declare global {
         PrivateFile: typeof import("../../pkg/index").PrivateFile;
         PrivateNode: typeof import("../../pkg/index").PrivateNode;
         PrivateRef: typeof import("../../pkg/index").PrivateRef;
-        Namefilter: typeof import("../../pkg/index").Namefilter;
+        Name: typeof import("../../pkg/index").Name;
+        NameAccumulator: typeof import("../../pkg/index").NameAccumulator;
         SharePayload: typeof import("../../pkg/index").SharePayload;
         share: typeof import("../../pkg/index").share;
         findLatestShareCounter: typeof import("../../pkg/index").findLatestShareCounter;
         receiveShare: typeof import("../../pkg/index").receiveShare;
-        createShareLabel: typeof import("../../pkg/index").createShareLabel;
+        createShareName: typeof import("../../pkg/index").createShareName;
       };
       setPanicHook: typeof import("../../pkg/index").setPanicHook;
     }>;

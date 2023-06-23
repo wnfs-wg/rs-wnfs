@@ -244,7 +244,7 @@ pub mod sharer {
             let public_key_modulus = result?;
             let exchange_key = K::from_modulus(&public_key_modulus).await?;
             let encrypted_payload = exchange_key.encrypt(encoded_payload).await?;
-            let share_label = create_share_label(
+            let share_label = create_share_name(
                 share_count,
                 sharer_root_did,
                 &public_key_modulus,
@@ -290,9 +290,9 @@ pub mod sharer {
         })
     }
 
-    /// Creates a unique label for a share by concatenating the sharer's root DID, the recipient's exchange key,
-    /// and the share count, then applies a hash function to it and returns the resulting label.
-    pub fn create_share_label(
+    /// Generates the name for a share for given recipient,
+    /// at given count and from given sharer.
+    pub fn create_share_name(
         share_count: u64,
         sharer_root_did: &str,
         recipient_exchange_key: &[u8],
@@ -328,7 +328,7 @@ pub mod recipient {
         store: &impl BlockStore,
     ) -> Result<Option<u64>> {
         for share_count in share_count_start..share_count_start + limit {
-            let share_label = sharer::create_share_label(
+            let share_label = sharer::create_share_name(
                 share_count,
                 sharer_root_did,
                 recipient_exchange_key,
@@ -523,7 +523,7 @@ mod tests {
             .unwrap();
 
         // Create share label.
-        let share_label = sharer::create_share_label(
+        let share_label = sharer::create_share_name(
             0,
             sharer_root_did,
             &recipient_key

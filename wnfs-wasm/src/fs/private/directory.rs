@@ -1,10 +1,11 @@
 //! The bindgen API for PrivateDirectory.
 
+use super::Name;
 use crate::{
     fs::{
         metadata::JsMetadata,
         utils::{self, error},
-        BlockStore, ForeignBlockStore, JsResult, Namefilter, PrivateForest, PrivateNode, Rng,
+        BlockStore, ForeignBlockStore, JsResult, PrivateForest, PrivateNode, Rng,
     },
     value,
 };
@@ -18,6 +19,7 @@ use wnfs::{
     private::{PrivateDirectory as WnfsPrivateDirectory, PrivateNode as WnfsPrivateNode},
     traits::Id,
 };
+use wnfs_nameaccumulator::NameSegment;
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
@@ -35,15 +37,11 @@ pub struct PrivateDirectory(pub(crate) Rc<WnfsPrivateDirectory>);
 impl PrivateDirectory {
     /// Creates a new private directory.
     #[wasm_bindgen(constructor)]
-    pub fn new(
-        parent_bare_name: Namefilter,
-        time: &Date,
-        mut rng: Rng,
-    ) -> JsResult<PrivateDirectory> {
+    pub fn new(parent_bare_name: Name, time: &Date, mut rng: Rng) -> JsResult<PrivateDirectory> {
         let time = DateTime::<Utc>::from(time);
 
         Ok(Self(Rc::new(WnfsPrivateDirectory::new(
-            parent_bare_name.0,
+            &parent_bare_name.0,
             time,
             &mut rng,
         ))))
@@ -52,7 +50,7 @@ impl PrivateDirectory {
     /// Creates a new directory with the ratchet seed and inumber provided.
     #[wasm_bindgen(js_name = "withSeed")]
     pub fn with_seed(
-        parent_bare_name: Namefilter,
+        parent_bare_name: Name,
         time: &Date,
         ratchet_seed: Vec<u8>,
         inumber: Vec<u8>,
@@ -60,9 +58,10 @@ impl PrivateDirectory {
         let time = DateTime::<Utc>::from(time);
         let ratchet_seed = utils::expect_bytes::<HASH_BYTE_SIZE>(ratchet_seed)?;
         let inumber = utils::expect_bytes::<HASH_BYTE_SIZE>(inumber)?;
+        let inumber = NameSegment::from_seed(inumber);
 
         Ok(Self(Rc::new(WnfsPrivateDirectory::with_seed(
-            parent_bare_name.0,
+            &parent_bare_name.0,
             time,
             ratchet_seed,
             inumber,
@@ -72,7 +71,7 @@ impl PrivateDirectory {
     /// This contstructor creates a new private directory and stores it in a provided `PrivateForest`.
     #[wasm_bindgen(js_name = "newAndStore")]
     pub async fn new_and_store(
-        parent_bare_name: Namefilter,
+        parent_bare_name: Name,
         time: &Date,
         forest: &PrivateForest,
         store: BlockStore,
@@ -84,7 +83,7 @@ impl PrivateDirectory {
 
         Ok(future_to_promise(async move {
             let root_dir = WnfsPrivateDirectory::new_and_store(
-                parent_bare_name.0,
+                &parent_bare_name.0,
                 time,
                 &mut forest,
                 &mut store,
@@ -104,7 +103,7 @@ impl PrivateDirectory {
     /// This contstructor creates a new private directory and stores it in a provided `PrivateForest`.
     #[wasm_bindgen(js_name = "newWithSeedAndStore")]
     pub async fn new_with_seed_and_store(
-        parent_bare_name: Namefilter,
+        parent_bare_name: Name,
         time: &Date,
         ratchet_seed: Vec<u8>,
         inumber: Vec<u8>,
@@ -115,12 +114,13 @@ impl PrivateDirectory {
         let time = DateTime::<Utc>::from(time);
         let ratchet_seed = utils::expect_bytes::<HASH_BYTE_SIZE>(ratchet_seed)?;
         let inumber = utils::expect_bytes::<HASH_BYTE_SIZE>(inumber)?;
+        let inumber = NameSegment::from_seed(inumber);
         let mut store = ForeignBlockStore(store);
         let mut forest = Rc::clone(&forest.0);
 
         Ok(future_to_promise(async move {
             let root_dir = WnfsPrivateDirectory::new_with_seed_and_store(
-                parent_bare_name.0,
+                &parent_bare_name.0,
                 time,
                 ratchet_seed,
                 inumber,

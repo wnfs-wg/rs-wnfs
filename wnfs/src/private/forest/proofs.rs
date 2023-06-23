@@ -198,8 +198,20 @@ mod tests {
         // Here we're simplifying by sharing a 'global' block store.
         let store = &mut MemoryBlockStore::new();
 
+        // Alice creates a private file system with some data.
+        // She shares read access with bob by securely transferring the read_ref.
+        // She also publicly announces bob has access to a certain directory at allowed_write_name.
         let (old_forest_cid, read_ref, allowed_write_name) = alice_actions(store).await.unwrap();
+        // Bob can take the read_ref and forest and create writes.
+        // The output will be a new state of the forest as well as a set of proofs, proving
+        // he didn't touch anything in the file system except what he was allowed to.
         let (proofs, new_forest_cid) = bob_actions(old_forest_cid, read_ref, store).await.unwrap();
+        // A persistence service can check Bob's changes between the forests via his proofs.
+        // The service does *not* need read access (it doesn't get to know the read_ref)
+        // and it only gains limited information from the proofs from Bob.
+        // The idea is that in practice the persistence service can accept updates from anyone
+        // that were indirectly given access by Alice out-of-bounds, and it will store the updated
+        // file system.
         persistence_service_actions(
             old_forest_cid,
             new_forest_cid,

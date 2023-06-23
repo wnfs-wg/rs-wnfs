@@ -1,8 +1,9 @@
+use super::{Name, NameAccumulator};
 use crate::{
     fs::{
         private::{PrivateDirectory, PrivateFile, PrivateForest, PrivateRef},
         utils::{self, error},
-        BlockStore, ForeignBlockStore, JsResult, Namefilter, Rng,
+        BlockStore, ForeignBlockStore, JsResult, Rng,
     },
     value,
 };
@@ -13,10 +14,10 @@ use wasm_bindgen_futures::future_to_promise;
 use wnfs::{
     hamt::{ChangeType, KeyValueChange},
     libipld::Cid,
-    namefilter::Namefilter as WnfsNamefilter,
     private::PrivateNode as WnfsPrivateNode,
     traits::Id,
 };
+use wnfs_nameaccumulator::NameAccumulator as WnfsNameAccumulator;
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
@@ -27,7 +28,7 @@ use wnfs::{
 pub struct PrivateNode(pub(crate) WnfsPrivateNode);
 
 #[wasm_bindgen]
-pub struct ForestChange(pub(crate) KeyValueChange<WnfsNamefilter, BTreeSet<Cid>>);
+pub struct ForestChange(pub(crate) KeyValueChange<WnfsNameAccumulator, BTreeSet<Cid>>);
 
 //--------------------------------------------------------------------------------------------------
 // Implementations
@@ -65,13 +66,15 @@ impl PrivateNode {
         private_ref: PrivateRef,
         forest: &PrivateForest,
         store: BlockStore,
+        mounted_relative_to: Option<Name>,
     ) -> JsResult<Promise> {
         let store = ForeignBlockStore(store);
         let forest = Rc::clone(&forest.0);
         let private_ref = private_ref.try_into()?;
+        let mounted_relative_to = mounted_relative_to.map(|name| name.0.clone());
 
         Ok(future_to_promise(async move {
-            let node = WnfsPrivateNode::load(&private_ref, &forest, &store)
+            let node = WnfsPrivateNode::load(&private_ref, &forest, &store, mounted_relative_to)
                 .await
                 .map_err(error("Cannot load node"))?;
 
@@ -128,8 +131,8 @@ impl ForestChange {
     }
 
     #[wasm_bindgen(js_name = "getKey")]
-    pub fn get_key(&self) -> Namefilter {
-        Namefilter(self.0.key.clone())
+    pub fn get_key(&self) -> NameAccumulator {
+        NameAccumulator(self.0.key.clone())
     }
 
     #[wasm_bindgen(js_name = "getValue1")]

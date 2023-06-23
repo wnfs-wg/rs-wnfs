@@ -17,7 +17,7 @@ test.describe("Share", () => {
           PrivateForest,
           SharePayload,
           share,
-          createShareLabel,
+          createShareName,
           receiveShare,
         },
         mock: {
@@ -32,11 +32,11 @@ test.describe("Share", () => {
       // @ts-ignore
       globalThis.ExchangeKey = ExchangeKey;
 
-      var sharerForest = new PrivateForest();
+      const rng = new Rng();
+      var sharerForest = new PrivateForest(rng);
       const sharerStore = new MemoryBlockStore();
       const sharerRootDid = "did:key:z6MkqZjY";
       const recipientStore = new MemoryBlockStore();
-      const rng = new Rng();
 
       var { rootDir: sharerDir, forest: sharerForest } = await createSharerDir(
         sharerForest,
@@ -70,7 +70,7 @@ test.describe("Share", () => {
       );
 
       const modulus = await recipientKey.getPublicKey().getPublicKeyModulus();
-      const shareLabel = createShareLabel(0, sharerRootDid, modulus);
+      const shareLabel = createShareName(0, sharerRootDid, modulus, sharerForest2);
 
       const recipientPayload = await receiveShare(
         shareLabel,
