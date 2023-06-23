@@ -5,10 +5,11 @@
 
 use anyhow::Result;
 use async_trait::async_trait;
+use bytes::Bytes;
 use chrono::Utc;
 use libipld_core::cid::Cid;
 use rand::thread_rng;
-use std::{borrow::Cow, rc::Rc};
+use std::rc::Rc;
 use wnfs::private::{PrivateDirectory, PrivateForest, PrivateNode};
 use wnfs_common::{BlockStore, MemoryBlockStore};
 use wnfs_namefilter::Namefilter;
@@ -97,7 +98,7 @@ struct TieredBlockStore<H: BlockStore, C: BlockStore> {
 
 #[async_trait(?Send)]
 impl<H: BlockStore, C: BlockStore> BlockStore for TieredBlockStore<H, C> {
-    async fn get_block(&self, cid: &Cid) -> Result<Cow<Vec<u8>>> {
+    async fn get_block(&self, cid: &Cid) -> Result<Bytes> {
         match self.hot.get_block(cid).await {
             Ok(block) => Ok(block),
             // We could technically get better about this
@@ -106,7 +107,7 @@ impl<H: BlockStore, C: BlockStore> BlockStore for TieredBlockStore<H, C> {
         }
     }
 
-    async fn put_block(&self, bytes: Vec<u8>, codec: u64) -> Result<Cid> {
+    async fn put_block(&self, bytes: impl Into<Bytes>, codec: u64) -> Result<Cid> {
         self.hot.put_block(bytes, codec).await
     }
 }

@@ -24,6 +24,7 @@ async-once-cell = "0.4"
 async-recursion = "1.0"
 async-stream = "0.3"
 async-trait = "0.1"
+bytes = "1.4.0"
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
 futures = "0.3"
 libipld-core = { version = "0.16" }

@@ -1,13 +1,14 @@
 use crate::{dagcbor, AsyncSerialize, BlockStoreError, MAX_BLOCK_SIZE};
 use anyhow::{bail, Result};
 use async_trait::async_trait;
+use bytes::Bytes;
 use libipld::{
     cid::Version,
     multihash::{Code, MultihashDigest},
     serde as ipld_serde, Cid,
 };
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
-use std::{borrow::Cow, cell::RefCell, collections::HashMap};
+use std::{cell::RefCell, collections::HashMap};
 
 //--------------------------------------------------------------------------------------------------
 // Constants
@@ -44,8 +45,8 @@ pub const CODEC_RAW: u64 = 0x55;
 /// For types that implement block store operations like adding, getting content from the store.
 #[async_trait(?Send)]
 pub trait BlockStore: Sized {
-    async fn get_block(&self, cid: &Cid) -> Result<Cow<Vec<u8>>>;
-    async fn put_block(&self, bytes: Vec<u8>, codec: u64) -> Result<Cid>;
+    async fn get_block(&self, cid: &Cid) -> Result<Bytes>;
+    async fn put_block(&self, bytes: impl Into<Bytes>, codec: u64) -> Result<Cid>;
 
     async fn get_deserializable<V: DeserializeOwned>(&self, cid: &Cid) -> Result<V> {
         let bytes = self.get_block(cid).await?;
@@ -55,7 +56,6 @@ pub trait BlockStore: Sized {
 
     async fn put_serializable<V: Serialize>(&self, value: &V) -> Result<Cid> {
         let bytes = dagcbor::encode(&ipld_serde::to_ipld(value)?)?;
-        // let codec = utils::u64_to_ipld(CODEC_DAG_CBOR)?;
         self.put_block(bytes, CODEC_DAG_CBOR).await
     }
 
@@ -66,7 +66,7 @@ pub trait BlockStore: Sized {
     }
 
     // This should be the same in all implementations of BlockStore
-    fn create_cid(&self, bytes: &Vec<u8>, codec: u64) -> Result<Cid> {
+    fn create_cid(&self, bytes: &[u8], codec: u64) -> Result<Cid> {
         // If there are too many bytes, abandon this task
         if bytes.len() > MAX_BLOCK_SIZE {
             bail!(BlockStoreError::MaximumBlockSizeExceeded(bytes.len()))
@@ -90,7 +90,7 @@ pub trait BlockStore: Sized {
 ///
 /// IPFS is basically a glorified HashMap.
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
-pub struct MemoryBlockStore(RefCell<HashMap<String, Vec<u8>>>);
+pub struct MemoryBlockStore(RefCell<HashMap<String, Bytes>>);
 
 impl MemoryBlockStore {
     /// Creates a new in-memory block store.
@@ -102,22 +102,28 @@ impl MemoryBlockStore {
 #[async_trait(?Send)]
 impl BlockStore for MemoryBlockStore {
     /// Retrieves an array of bytes from the block store with given CID.
-    async fn get_block(&self, cid: &Cid) -> Result<Cow<Vec<u8>>> {
-        Ok(Cow::Owned(
-            self.0
-                .borrow()
-                .get(&cid.to_string())
-                .ok_or(BlockStoreError::CIDNotFound(*cid))?
-                .clone(),
-        ))
+    async fn get_block(&self, cid: &Cid) -> Result<Bytes> {
+        let bytes = self
+            .0
+            .borrow()
+            .get(&cid.to_string())
+            .ok_or(BlockStoreError::CIDNotFound(*cid))?
+            .clone();
+
+        Ok(bytes)
     }
 
     /// Stores an array of bytes in the block store.
-    async fn put_block(&self, bytes: Vec<u8>, codec: u64) -> Result<Cid> {
+    async fn put_block(&self, bytes: impl Into<Bytes>, codec: u64) -> Result<Cid> {
+        // Convert the bytes into a Bytes object
+        let bytes: Bytes = bytes.into();
+
         // Try to build the CID from the bytes and codec
         let cid = self.create_cid(&bytes, codec)?;
+
         // Insert the bytes into the HashMap using the CID as the key
         self.0.borrow_mut().insert(cid.to_string(), bytes);
+
         // Return Ok status with the generated CID
         Ok(cid)
     }
