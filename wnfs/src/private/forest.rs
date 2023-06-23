@@ -4,7 +4,7 @@ use anyhow::Result;
 use async_stream::stream;
 use async_trait::async_trait;
 use futures::Stream;
-use libipld::Cid;
+use libipld_core::cid::Cid;
 use serde::{Deserialize, Deserializer, Serializer};
 use sha3::Sha3_256;
 use std::{collections::BTreeSet, rc::Rc};
@@ -64,7 +64,7 @@ impl PrivateForest {
     ///
     /// #[async_std::main]
     /// async fn main() {
-    ///     let store = &mut MemoryBlockStore::default();
+    ///     let store = &MemoryBlockStore::default();
     ///     let rng = &mut thread_rng();
     ///     let forest = &mut Rc::new(PrivateForest::new());
     ///     let dir = Rc::new(PrivateDirectory::new(
@@ -218,7 +218,7 @@ where
     ///
     /// #[async_std::main]
     /// async fn main() {
-    ///     let store = &mut MemoryBlockStore::default();
+    ///     let store = &MemoryBlockStore::default();
     ///     let rng = &mut thread_rng();
     ///
     ///     let ratchet_seed = rng.gen::<[u8; 32]>();
@@ -321,7 +321,7 @@ mod tests {
     use wnfs_hamt::{HashNibbles, Node};
 
     mod helper {
-        use libipld::{Cid, Multihash};
+        use libipld_core::{cid::Cid, multihash::Multihash};
         use once_cell::sync::Lazy;
         use rand::{thread_rng, RngCore};
         use wnfs_common::{utils, HashOutput};
@@ -393,7 +393,7 @@ mod tests {
 
     #[async_std::test]
     async fn inserted_items_can_be_fetched() {
-        let store = &mut MemoryBlockStore::new();
+        let store = &MemoryBlockStore::new();
         let forest = &mut Rc::new(PrivateForest::new());
         let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
 
@@ -414,7 +414,7 @@ mod tests {
 
     #[async_std::test]
     async fn multivalue_conflict_can_be_fetched_individually() {
-        let store = &mut MemoryBlockStore::new();
+        let store = &MemoryBlockStore::new();
         let forest = &mut Rc::new(PrivateForest::new());
         let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
 
@@ -470,7 +470,7 @@ mod tests {
 
     #[async_std::test]
     async fn can_merge_nodes_with_different_structure_and_modified_changes() {
-        let store = &mut MemoryBlockStore::new();
+        let store = &MemoryBlockStore::new();
         let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
 
         // A node that adds the first 3 pairs of HASH_KV_PAIRS.

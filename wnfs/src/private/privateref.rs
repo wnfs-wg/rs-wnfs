@@ -2,7 +2,7 @@ use super::{PrivateNodeHeader, SnapshotKey, TemporalKey, KEY_BYTE_SIZE};
 use crate::error::{AesError, FsError};
 use aes_kw::KekAes256;
 use anyhow::Result;
-use libipld::Cid;
+use libipld_core::cid::Cid;
 use serde::{de::Error as DeError, ser::Error as SerError, Deserialize, Serialize};
 use std::fmt::Debug;
 use wnfs_common::HashOutput;
@@ -228,7 +228,7 @@ mod tests {
     #[async_std::test]
     async fn can_create_revisionref_deterministically_with_user_provided_seeds() {
         let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
-        let store = &mut MemoryBlockStore::default();
+        let store = &MemoryBlockStore::default();
         let forest = &mut Rc::new(PrivateForest::new());
         let ratchet_seed = utils::get_random_bytes::<32>(rng);
         let inumber = utils::get_random_bytes::<32>(rng);

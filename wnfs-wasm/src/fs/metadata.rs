@@ -1,8 +1,9 @@
 use super::utils::error;
 use crate::value;
 use js_sys::{Object, Reflect};
+use libipld_core::ipld::Ipld;
 use wasm_bindgen::JsValue;
-use wnfs::{common::Metadata, libipld::Ipld};
+use wnfs::common::Metadata;
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions

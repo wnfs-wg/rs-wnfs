@@ -10,12 +10,12 @@ use crate::{
 };
 use chrono::{DateTime, Utc};
 use js_sys::{Array, Date, Promise, Uint8Array};
+use libipld_core::cid::Cid;
 use std::rc::Rc;
 use wasm_bindgen::{prelude::wasm_bindgen, JsValue};
 use wasm_bindgen_futures::future_to_promise;
 use wnfs::{
     common::BlockStore as WnfsBlockStore,
-    libipld::Cid,
     public::{PublicDirectory as WnfsPublicDirectory, PublicNode as WnfsPublicNode},
     traits::Id,
 };

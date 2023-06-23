@@ -10,7 +10,7 @@ use anyhow::{bail, Result};
 use async_once_cell::OnceCell;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
-use libipld::Cid;
+use libipld_core::cid::Cid;
 use serde::{de::Error as DeError, Deserialize, Deserializer, Serialize, Serializer};
 use std::{collections::BTreeSet, rc::Rc};
 use wnfs_common::{AsyncSerialize, BlockStore, RemembersCid};
@@ -86,7 +86,7 @@ impl PublicNode {
     /// ```
     /// use wnfs::public::{PublicDirectory, PublicNode};
     /// use chrono::Utc;
-    /// use libipld::Cid;
+    /// use libipld_core::cid::Cid;
     /// use std::{rc::Rc, collections::BTreeSet};
     ///
     /// let dir = Rc::new(PublicDirectory::new(Utc::now()));
@@ -180,7 +180,7 @@ impl PublicNode {
     /// use wnfs::public::{PublicFile, PublicNode};
     /// use chrono::Utc;
     /// use std::rc::Rc;
-    /// use libipld::Cid;
+    /// use libipld_core::cid::Cid;
     ///
     /// let file = Rc::new(PublicFile::new(Utc::now(), Cid::default()));
     /// let node = PublicNode::File(Rc::clone(&file));
@@ -220,7 +220,7 @@ impl PublicNode {
     /// use wnfs::public::{PublicFile, PublicNode};
     /// use chrono::Utc;
     /// use std::rc::Rc;
-    /// use libipld::Cid;
+    /// use libipld_core::cid::Cid;
     ///
     /// let file = Rc::new(PublicFile::new(Utc::now(), Cid::default()));
     /// let node = PublicNode::File(file);
@@ -331,12 +331,12 @@ impl RemembersCid for PublicNode {
 mod tests {
     use crate::public::{PublicDirectory, PublicFile, PublicNode};
     use chrono::Utc;
-    use libipld::Cid;
+    use libipld_core::cid::Cid;
     use wnfs_common::MemoryBlockStore;
 
     #[async_std::test]
     async fn serialized_public_node_can_be_deserialized() {
-        let store = &mut MemoryBlockStore::default();
+        let store = &MemoryBlockStore::default();
         let dir_node: PublicNode = PublicDirectory::new(Utc::now()).into();
         let file_node: PublicNode = PublicFile::new(Utc::now(), Cid::default()).into();
 

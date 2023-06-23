@@ -9,12 +9,12 @@ use async_once_cell::OnceCell;
 use async_stream::try_stream;
 use chrono::{DateTime, Utc};
 use futures::{future, AsyncRead, Stream, StreamExt, TryStreamExt};
-use libipld::{Cid, IpldCodec};
+use libipld_core::cid::Cid;
 use rand_core::RngCore;
 use serde::{Deserialize, Serialize};
 use sha3::Sha3_256;
 use std::{collections::BTreeSet, iter, rc::Rc};
-use wnfs_common::{utils, BlockStore, Metadata, MAX_BLOCK_SIZE};
+use wnfs_common::{utils, BlockStore, Metadata, CODEC_RAW, MAX_BLOCK_SIZE};
 use wnfs_hamt::Hasher;
 use wnfs_namefilter::Namefilter;
 
@@ -51,7 +51,7 @@ pub const MAX_BLOCK_CONTENT_SIZE: usize = MAX_BLOCK_SIZE - NONCE_SIZE - AUTHENTI
 ///
 /// #[async_std::main]
 /// async fn main() {
-///     let store = &mut MemoryBlockStore::default();
+///     let store = &MemoryBlockStore::default();
 ///     let rng = &mut thread_rng();
 ///     let forest = &mut Rc::new(PrivateForest::new());
 ///
@@ -152,7 +152,7 @@ impl PrivateFile {
     ///
     /// #[async_std::main]
     /// async fn main() {
-    ///     let store = &mut MemoryBlockStore::default();
+    ///     let store = &MemoryBlockStore::default();
     ///     let rng = &mut thread_rng();
     ///     let forest = &mut Rc::new(PrivateForest::new());
     ///
@@ -216,7 +216,7 @@ impl PrivateFile {
     ///         .await
     ///         .unwrap();
     ///
-    ///     let store = &mut MemoryBlockStore::default();
+    ///     let store = &MemoryBlockStore::default();
     ///     let rng = &mut thread_rng();
     ///     let forest = &mut Rc::new(PrivateForest::new());
     ///
@@ -274,7 +274,7 @@ impl PrivateFile {
     ///
     /// #[async_std::main]
     /// async fn main() {
-    ///     let store = &mut MemoryBlockStore::default();
+    ///     let store = &MemoryBlockStore::default();
     ///     let rng = &mut thread_rng();
     ///     let forest = &mut Rc::new(PrivateForest::new());
     ///
@@ -390,7 +390,7 @@ impl PrivateFile {
     ///
     /// #[async_std::main]
     /// async fn main() {
-    ///     let store = &mut MemoryBlockStore::default();
+    ///     let store = &MemoryBlockStore::default();
     ///     let rng = &mut thread_rng();
     ///     let forest = &mut Rc::new(PrivateForest::new());
     ///
@@ -462,7 +462,7 @@ impl PrivateFile {
             let slice = &content[start..end];
 
             let enc_bytes = key.encrypt(slice, rng)?;
-            let content_cid = store.put_block(enc_bytes, IpldCodec::Raw).await?;
+            let content_cid = store.put_block(enc_bytes, CODEC_RAW).await?;
 
             forest
                 .put_encrypted(label, Some(content_cid), store)
@@ -509,7 +509,7 @@ impl PrivateFile {
             let tag = key.encrypt_in_place(&nonce, &mut current_block[NONCE_SIZE..])?;
             current_block.extend_from_slice(&tag);
 
-            let content_cid = store.put_block(current_block, IpldCodec::Raw).await?;
+            let content_cid = store.put_block(current_block, CODEC_RAW).await?;
 
             let label = Self::create_block_label(&key, block_index, bare_name);
             forest
@@ -681,7 +681,7 @@ impl PrivateFile {
     ///
     /// #[async_std::main]
     /// async fn main() {
-    ///     let store = &mut MemoryBlockStore::default();
+    ///     let store = &MemoryBlockStore::default();
     ///     let rng = &mut thread_rng();
     ///     let forest = &mut Rc::new(PrivateForest::new());
     ///     let file = Rc::new(PrivateFile::new(
@@ -786,7 +786,7 @@ impl PrivateFileContent {
                 let block = snapshot_key.encrypt(&bytes, rng)?;
 
                 // Store content section in blockstore and get Cid.
-                store.put_block(block, libipld::IpldCodec::Raw).await
+                store.put_block(block, CODEC_RAW).await
             })
             .await?)
     }
@@ -831,7 +831,7 @@ mod tests {
 
     #[async_std::test]
     async fn can_create_empty_file() {
-        let store = &mut MemoryBlockStore::default();
+        let store = &MemoryBlockStore::default();
         let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
         let forest = &Rc::new(PrivateForest::new());
 
@@ -846,7 +846,7 @@ mod tests {
         let mut content = vec![0u8; MAX_BLOCK_CONTENT_SIZE * 5];
         rand::thread_rng().fill(&mut content[..]);
 
-        let store = &mut MemoryBlockStore::default();
+        let store = &MemoryBlockStore::default();
         let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
         let forest = &mut Rc::new(PrivateForest::new());
 
@@ -888,7 +888,7 @@ mod tests {
             .unwrap();
 
         let forest = &mut Rc::new(PrivateForest::new());
-        let store = &mut MemoryBlockStore::new();
+        let store = &MemoryBlockStore::new();
         let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
 
         let file = PrivateFile::with_content_streaming(
@@ -930,7 +930,7 @@ mod proptests {
     ) {
         async_std::task::block_on(async {
             let content = vec![0u8; length];
-            let store = &mut MemoryBlockStore::default();
+            let store = &MemoryBlockStore::default();
             let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
             let forest = &mut Rc::new(PrivateForest::new());
 
@@ -957,7 +957,7 @@ mod proptests {
     ) {
         async_std::task::block_on(async {
             let content = vec![0u8; length];
-            let store = &mut MemoryBlockStore::default();
+            let store = &MemoryBlockStore::default();
             let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
             let forest = &mut Rc::new(PrivateForest::new());
 
@@ -989,7 +989,7 @@ mod proptests {
         #[strategy(0..(MAX_BLOCK_CONTENT_SIZE * 2))] length: usize,
     ) {
         async_std::task::block_on(async {
-            let store = &mut MemoryBlockStore::default();
+            let store = &MemoryBlockStore::default();
             let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
             let forest = &mut Rc::new(PrivateForest::new());
 
@@ -999,7 +999,7 @@ mod proptests {
                 Utc::now(),
                 &mut Cursor::new(vec![5u8; length]),
                 forest,
-                &mut MemoryBlockStore::default(),
+                &MemoryBlockStore::default(),
                 rng,
             )
             .await
@@ -1031,7 +1031,7 @@ mod proptests {
             .unwrap();
 
             let forest = &mut Rc::new(PrivateForest::new());
-            let store = &mut MemoryBlockStore::new();
+            let store = &MemoryBlockStore::new();
             let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
 
             let file = PrivateFile::with_content_streaming(

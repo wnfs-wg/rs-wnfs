@@ -76,7 +76,7 @@ mod proptests {
         #[strategy(generate_kvs("[a-z0-9]{1,3}", 0u64..1000, 0..100))] kvs3: Vec<(String, u64)>,
     ) {
         task::block_on(async {
-            let store = &mut MemoryBlockStore::default();
+            let store = &MemoryBlockStore::default();
 
             let node1 = strategies::node_from_kvs(kvs1, store).await.unwrap();
             let node2 = strategies::node_from_kvs(kvs2, store).await.unwrap();
@@ -132,7 +132,7 @@ mod proptests {
         #[strategy(generate_kvs("[a-z0-9]{1,3}", 0u64..1000, 0..100))] kvs2: Vec<(String, u64)>,
     ) {
         task::block_on(async {
-            let store = &mut MemoryBlockStore::default();
+            let store = &MemoryBlockStore::default();
 
             let node1 = strategies::node_from_kvs(kvs1, store).await.unwrap();
             let node2 = strategies::node_from_kvs(kvs2, store).await.unwrap();
@@ -165,7 +165,7 @@ mod proptests {
         #[strategy(generate_kvs("[a-z0-9]{1,3}", 0u64..1000, 0..100))] kvs2: Vec<(String, u64)>,
     ) {
         task::block_on(async {
-            let store = &mut MemoryBlockStore::default();
+            let store = &MemoryBlockStore::default();
 
             let node1 = strategies::node_from_kvs(kvs1, store).await.unwrap();
             let node2 = strategies::node_from_kvs(kvs2, store).await.unwrap();

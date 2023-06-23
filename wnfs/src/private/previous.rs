@@ -4,7 +4,7 @@ use super::{
 };
 use crate::error::FsError;
 use anyhow::{bail, Result};
-use libipld::Cid;
+use libipld_core::cid::Cid;
 use skip_ratchet::{ratchet::PreviousIterator, Ratchet};
 use std::{collections::BTreeSet, rc::Rc};
 use wnfs_common::{BlockStore, PathNodes, PathNodesResult};

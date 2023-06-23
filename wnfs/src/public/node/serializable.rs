@@ -1,4 +1,4 @@
-use libipld::Cid;
+use libipld_core::cid::Cid;
 use semver::Version;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;

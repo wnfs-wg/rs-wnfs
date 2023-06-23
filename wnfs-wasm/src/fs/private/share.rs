@@ -4,11 +4,11 @@ use crate::{
     value,
 };
 use js_sys::{Array, Promise, Reflect};
+use libipld_core::cid::Cid;
 use std::rc::Rc;
 use wasm_bindgen::prelude::wasm_bindgen;
 use wasm_bindgen_futures::future_to_promise;
 use wnfs::{
-    libipld::Cid,
     private::share::{recipient, sharer, SharePayload as WnfsSharePayload},
     public::PublicLink,
 };

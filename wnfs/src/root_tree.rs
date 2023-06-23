@@ -10,7 +10,7 @@ use crate::{
 };
 use anyhow::{bail, Result};
 use chrono::{DateTime, Utc};
-use libipld::{Cid, IpldCodec};
+use libipld_core::cid::Cid;
 #[cfg(test)]
 use rand::rngs::ThreadRng;
 use rand_core::RngCore;
@@ -19,7 +19,7 @@ use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, rc::Rc};
 #[cfg(test)]
 use wnfs_common::MemoryBlockStore;
-use wnfs_common::{BlockStore, Metadata};
+use wnfs_common::{BlockStore, Metadata, CODEC_RAW};
 
 //--------------------------------------------------------------------------------------------------
 // Types
@@ -150,13 +150,13 @@ where
 
         match first.as_str() {
             "public" => {
-                let cid = self.store.put_block(content, IpldCodec::Raw).await?;
+                let cid = self.store.put_block(content, CODEC_RAW).await?;
                 self.public_root
                     .write(path_segments, cid, time, self.store)
                     .await
             }
             "exchange" => {
-                let cid = self.store.put_block(content, IpldCodec::Raw).await?;
+                let cid = self.store.put_block(content, CODEC_RAW).await?;
                 self.exchange_root
                     .write(path_segments, cid, time, self.store)
                     .await

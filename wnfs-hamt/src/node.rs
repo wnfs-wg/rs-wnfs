@@ -45,7 +45,7 @@ pub type BitMaskType = [u8; HAMT_BITMASK_BYTE_SIZE];
 /// use wnfs_hamt::Node;
 /// use wnfs_common::MemoryBlockStore;
 ///
-/// let store = &mut MemoryBlockStore::new();
+/// let store = &MemoryBlockStore::new();
 /// let node = Rc::new(Node::<String, usize>::default());
 ///
 /// assert!(node.is_empty());
@@ -79,7 +79,7 @@ where
     ///
     /// #[async_std::main]
     /// async fn main() {
-    ///     let store = &mut MemoryBlockStore::new();
+    ///     let store = &MemoryBlockStore::new();
     ///     let mut node = Rc::new(Node::<String, usize>::default());
     ///
     ///     node.set("key".into(), 42, store).await.unwrap();
@@ -111,7 +111,7 @@ where
     ///
     /// #[async_std::main]
     /// async fn main() {
-    ///     let store = &mut MemoryBlockStore::new();
+    ///     let store = &MemoryBlockStore::new();
     ///     let mut node = Rc::new(Node::<String, usize>::default());
     ///
     ///     node.set("key".into(), 42, store).await.unwrap();
@@ -145,7 +145,7 @@ where
     ///
     /// #[async_std::main]
     /// async fn main() {
-    ///     let store = &mut MemoryBlockStore::new();
+    ///     let store = &MemoryBlockStore::new();
     ///     let mut node = Rc::new(Node::<String, usize>::default());
     ///
     ///     node.set("key".into(), 42, store).await.unwrap();
@@ -185,7 +185,7 @@ where
     ///
     /// #[async_std::main]
     /// async fn main() {
-    ///     let store = &mut MemoryBlockStore::new();
+    ///     let store = &MemoryBlockStore::new();
     ///     let mut node = Rc::new(Node::<String, usize>::default());
     ///
     ///     node.set("key".into(), 42, store).await.unwrap();
@@ -224,7 +224,7 @@ where
     ///
     /// #[async_std::main]
     /// async fn main() {
-    ///     let store = &mut MemoryBlockStore::new();
+    ///     let store = &MemoryBlockStore::new();
     ///     let mut node = Rc::new(Node::<String, usize>::default());
     ///
     ///     node.set("key".into(), 42, store).await.unwrap();
@@ -260,7 +260,7 @@ where
     ///
     /// #[async_std::main]
     /// async fn main() {
-    ///     let store = &mut MemoryBlockStore::new();
+    ///     let store = &MemoryBlockStore::new();
     ///
     ///     let mut node = Rc::new(Node::<String, usize>::default());
     ///     assert!(node.is_empty());
@@ -488,7 +488,7 @@ where
     ///
     /// #[async_std::main]
     /// async fn main() {
-    ///     let store = &mut MemoryBlockStore::new();
+    ///     let store = &MemoryBlockStore::new();
     ///     let mut node = Rc::new(Node::<[u8; 4], String>::default());
     ///     for i in 0..99_u32 {
     ///         node
@@ -544,7 +544,7 @@ where
     ///
     /// #[async_std::main]
     /// async fn main() {
-    ///     let store = &mut MemoryBlockStore::new();
+    ///     let store = &MemoryBlockStore::new();
     ///
     ///     let mut node = Rc::new(Node::<[u8; 4], String>::default());
     ///     for i in 0..100_u32 {
@@ -625,7 +625,7 @@ where
     ///
     /// #[async_std::main]
     /// async fn main() {
-    ///     let store = &mut MemoryBlockStore::new();
+    ///     let store = &MemoryBlockStore::new();
     ///
     ///     let mut node = Rc::new(Node::<[u8; 4], String>::default());
     ///     for i in 0..100_u32 {
@@ -848,7 +848,7 @@ mod tests {
 
     #[async_std::test]
     async fn get_value_fetches_deeply_linked_value() {
-        let store = &mut MemoryBlockStore::default();
+        let store = &MemoryBlockStore::default();
 
         // Insert 4 values to trigger the creation of a linked node.
         let working_node = &mut Rc::new(Node::<String, String, MockHasher>::default());
@@ -871,7 +871,7 @@ mod tests {
 
     #[async_std::test]
     async fn remove_value_canonicalizes_linked_node() {
-        let store = &mut MemoryBlockStore::default();
+        let store = &MemoryBlockStore::default();
 
         // Insert 4 values to trigger the creation of a linked node.
         let working_node = &mut Rc::new(Node::<String, String, MockHasher>::default());
@@ -910,7 +910,7 @@ mod tests {
 
     #[async_std::test]
     async fn set_value_splits_when_bucket_threshold_reached() {
-        let store = &mut MemoryBlockStore::default();
+        let store = &MemoryBlockStore::default();
 
         // Insert 3 values into the HAMT.
         let working_node = &mut Rc::new(Node::<String, String, MockHasher>::default());
@@ -955,7 +955,7 @@ mod tests {
 
     #[async_std::test]
     async fn get_value_index_gets_correct_index() {
-        let store = &mut MemoryBlockStore::default();
+        let store = &MemoryBlockStore::default();
         let hash_expected_idx_samples = [
             (&[0x00], 0),
             (&[0x20], 1),
@@ -1018,7 +1018,7 @@ mod tests {
         let insert_key: String = "GL59 Tg4phDb  bv".into();
         let remove_key: String = "hK i3b4V4152EPOdA".into();
 
-        let store = &mut MemoryBlockStore::default();
+        let store = &MemoryBlockStore::default();
         let node0: &mut Rc<Node<String, u64>> = &mut Rc::new(Node::default());
 
         node0.set(insert_key.clone(), 0, store).await.unwrap();
@@ -1029,7 +1029,7 @@ mod tests {
 
     #[async_std::test]
     async fn node_history_independence_regression() {
-        let store = &mut MemoryBlockStore::default();
+        let store = &MemoryBlockStore::default();
 
         let node1: &mut Rc<Node<String, u64>> = &mut Rc::new(Node::default());
         let node2: &mut Rc<Node<String, u64>> = &mut Rc::new(Node::default());
@@ -1056,7 +1056,7 @@ mod tests {
 
     #[async_std::test]
     async fn can_map_over_leaf_nodes() {
-        let store = &mut MemoryBlockStore::default();
+        let store = &MemoryBlockStore::default();
 
         let node = &mut Rc::new(Node::<[u8; 4], String>::default());
         for i in 0..99_u32 {
@@ -1075,7 +1075,7 @@ mod tests {
 
     #[async_std::test]
     async fn can_fetch_node_at_hashprefix() {
-        let store = &mut MemoryBlockStore::default();
+        let store = &MemoryBlockStore::default();
 
         let node = &mut Rc::new(Node::<String, String, MockHasher>::default());
         for (digest, kv) in HASH_KV_PAIRS.iter() {
@@ -1100,7 +1100,7 @@ mod tests {
 
     #[async_std::test]
     async fn can_generate_hashmap_from_node() {
-        let store = &mut MemoryBlockStore::default();
+        let store = &MemoryBlockStore::default();
 
         let node = &mut Rc::new(Node::<[u8; 4], String>::default());
         const NUM_VALUES: u32 = 1000;
@@ -1142,7 +1142,7 @@ mod proptests {
         #[strategy(0..1000u64)] value: u64,
     ) {
         async_std::task::block_on(async move {
-            let store = &mut MemoryBlockStore::default();
+            let store = &MemoryBlockStore::default();
             let node = &mut node_from_operations(&operations, store).await.unwrap();
 
             node.set(key.clone(), value, store).await.unwrap();
@@ -1164,7 +1164,7 @@ mod proptests {
         #[strategy(small_key())] key: String,
     ) {
         async_std::task::block_on(async move {
-            let store = &mut MemoryBlockStore::default();
+            let store = &MemoryBlockStore::default();
             let node = &mut node_from_operations(&operations, store).await.unwrap();
 
             node.remove(&key, store).await.unwrap();
@@ -1185,7 +1185,7 @@ mod proptests {
         >,
     ) {
         async_std::task::block_on(async move {
-            let store = &mut MemoryBlockStore::default();
+            let store = &MemoryBlockStore::default();
             let node = node_from_operations(&operations, store).await.unwrap();
 
             let encoded_node = dagcbor::async_encode(&node, store).await.unwrap();
@@ -1205,7 +1205,7 @@ mod proptests {
         async_std::task::block_on(async move {
             let (original, shuffled) = pair;
 
-            let store = &mut MemoryBlockStore::default();
+            let store = &MemoryBlockStore::default();
 
             let node1 = node_from_operations(&original, store).await.unwrap();
             let node2 = node_from_operations(&shuffled, store).await.unwrap();

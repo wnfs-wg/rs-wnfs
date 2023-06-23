@@ -7,7 +7,7 @@ use crate::{error::FsError, traits::Id, SearchResult, WNFS_VERSION};
 use anyhow::{bail, ensure, Result};
 use async_once_cell::OnceCell;
 use chrono::{DateTime, Utc};
-use libipld::Cid;
+use libipld_core::cid::Cid;
 use rand_core::RngCore;
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -16,7 +16,7 @@ use std::{
 };
 use wnfs_common::{
     utils::{self, error},
-    BlockStore, HashOutput, Metadata, PathNodes, PathNodesResult,
+    BlockStore, HashOutput, Metadata, PathNodes, PathNodesResult, CODEC_RAW,
 };
 use wnfs_namefilter::Namefilter;
 
@@ -151,7 +151,7 @@ impl PrivateDirectory {
         ratchet_seed: HashOutput,
         inumber: HashOutput,
         forest: &mut Rc<PrivateForest>,
-        store: &mut B,
+        store: &B,
         rng: &mut R,
     ) -> Result<Rc<Self>> {
         let dir = Rc::new(Self::with_seed(
@@ -255,7 +255,7 @@ impl PrivateDirectory {
     ///
     /// #[async_std::main]
     /// async fn main() {
-    ///     let store = &mut MemoryBlockStore::default();
+    ///     let store = &MemoryBlockStore::default();
     ///     let rng = &mut thread_rng();
     ///     let forest = &mut Rc::new(PrivateForest::new());
     ///     let root_dir = &mut Rc::new(PrivateDirectory::new(
@@ -487,7 +487,7 @@ impl PrivateDirectory {
     ///
     /// #[async_std::main]
     /// async fn main() {
-    ///     let store = &mut MemoryBlockStore::default();
+    ///     let store = &MemoryBlockStore::default();
     ///     let rng = &mut thread_rng();
     ///     let forest = &mut Rc::new(PrivateForest::new());
     ///     let root_dir = &mut Rc::new(PrivateDirectory::new(
@@ -545,7 +545,7 @@ impl PrivateDirectory {
     ///
     /// #[async_std::main]
     /// async fn main() {
-    ///     let store = &mut MemoryBlockStore::default();
+    ///     let store = &MemoryBlockStore::default();
     ///     let rng = &mut thread_rng();
     ///     let forest = &mut Rc::new(PrivateForest::new());
     ///     let root_dir = &mut Rc::new(PrivateDirectory::new(
@@ -711,7 +711,7 @@ impl PrivateDirectory {
     ///
     /// #[async_std::main]
     /// async fn main() {
-    ///     let store = &mut MemoryBlockStore::default();
+    ///     let store = &MemoryBlockStore::default();
     ///     let rng = &mut thread_rng();
     ///     let forest = &mut Rc::new(PrivateForest::new());
     ///     let root_dir = &mut Rc::new(PrivateDirectory::new(
@@ -811,7 +811,7 @@ impl PrivateDirectory {
     ///
     /// #[async_std::main]
     /// async fn main() {
-    ///     let store = &mut MemoryBlockStore::default();
+    ///     let store = &MemoryBlockStore::default();
     ///     let rng = &mut thread_rng();
     ///     let forest = &mut Rc::new(PrivateForest::new());
     ///     let mut init_dir = PrivateDirectory::new_and_store(
@@ -871,7 +871,7 @@ impl PrivateDirectory {
     ///
     /// #[async_std::main]
     /// async fn main() {
-    ///     let store = &mut MemoryBlockStore::default();
+    ///     let store = &MemoryBlockStore::default();
     ///     let rng = &mut thread_rng();
     ///     let forest = &mut Rc::new(PrivateForest::new());
     ///     let root_dir = &mut Rc::new(PrivateDirectory::new(
@@ -926,7 +926,7 @@ impl PrivateDirectory {
     ///
     /// #[async_std::main]
     /// async fn main() {
-    ///     let store = &mut MemoryBlockStore::default();
+    ///     let store = &MemoryBlockStore::default();
     ///     let rng = &mut thread_rng();
     ///     let forest = &mut Rc::new(PrivateForest::new());
     ///     let root_dir = &mut Rc::new(PrivateDirectory::new(
@@ -1019,7 +1019,7 @@ impl PrivateDirectory {
     ///
     /// #[async_std::main]
     /// async fn main() {
-    ///     let store = &mut MemoryBlockStore::default();
+    ///     let store = &MemoryBlockStore::default();
     ///     let rng = &mut thread_rng();
     ///     let forest = &mut Rc::new(PrivateForest::new());
     ///     let root_dir = &mut Rc::new(PrivateDirectory::new(
@@ -1133,7 +1133,7 @@ impl PrivateDirectory {
     ///
     /// #[async_std::main]
     /// async fn main() {
-    ///     let store = &mut MemoryBlockStore::default();
+    ///     let store = &MemoryBlockStore::default();
     ///     let rng = &mut thread_rng();
     ///     let forest = &mut Rc::new(PrivateForest::new());
     ///     let root_dir = &mut Rc::new(PrivateDirectory::new(
@@ -1221,7 +1221,7 @@ impl PrivateDirectory {
     ///
     /// #[async_std::main]
     /// async fn main() {
-    ///     let store = &mut MemoryBlockStore::default();
+    ///     let store = &MemoryBlockStore::default();
     ///     let rng = &mut thread_rng();
     ///     let forest = &mut Rc::new(PrivateForest::new());
     ///     let root_dir = &mut Rc::new(PrivateDirectory::new(
@@ -1307,7 +1307,7 @@ impl PrivateDirectory {
     ///
     /// #[async_std::main]
     /// async fn main() {
-    ///     let store = &mut MemoryBlockStore::default();
+    ///     let store = &MemoryBlockStore::default();
     ///     let rng = &mut thread_rng();
     ///     let forest = &mut Rc::new(PrivateForest::new());
     ///     let dir = &mut Rc::new(PrivateDirectory::new(
@@ -1449,7 +1449,7 @@ impl PrivateDirectoryContent {
                 let block = snapshot_key.encrypt(&bytes, rng)?;
 
                 // Store content section in blockstore and get Cid.
-                store.put_block(block, libipld::IpldCodec::Raw).await
+                store.put_block(block, CODEC_RAW).await
             })
             .await?)
     }
@@ -1522,7 +1522,7 @@ mod tests {
             Utc::now(),
             rng,
         ));
-        let store = &mut MemoryBlockStore::default();
+        let store = &MemoryBlockStore::default();
         let forest = &mut Rc::new(PrivateForest::new());
 
         let content = b"Hello, World!".to_vec();
@@ -1575,7 +1575,7 @@ mod tests {
             Utc::now(),
             rng,
         ));
-        let store = &mut MemoryBlockStore::default();
+        let store = &MemoryBlockStore::default();
         let forest = &mut Rc::new(PrivateForest::new());
 
         root_dir
@@ -1656,7 +1656,7 @@ mod tests {
             Utc::now(),
             rng,
         ));
-        let store = &mut MemoryBlockStore::default();
+        let store = &MemoryBlockStore::default();
         let forest = &mut Rc::new(PrivateForest::new());
 
         root_dir
@@ -1687,7 +1687,7 @@ mod tests {
             Utc::now(),
             rng,
         ));
-        let store = &mut MemoryBlockStore::default();
+        let store = &MemoryBlockStore::default();
         let forest = &mut Rc::new(PrivateForest::new());
 
         root_dir
@@ -1745,7 +1745,7 @@ mod tests {
             Utc::now(),
             rng,
         ));
-        let store = &mut MemoryBlockStore::default();
+        let store = &MemoryBlockStore::default();
         let forest = &mut Rc::new(PrivateForest::new());
 
         root_dir
@@ -1805,7 +1805,7 @@ mod tests {
             Utc::now(),
             rng,
         ));
-        let store = &mut MemoryBlockStore::default();
+        let store = &MemoryBlockStore::default();
         let forest = &mut Rc::new(PrivateForest::new());
 
         root_dir
@@ -1831,7 +1831,7 @@ mod tests {
 
     #[test(async_std::test)]
     async fn search_latest_finds_the_most_recent() {
-        let store = &mut MemoryBlockStore::default();
+        let store = &MemoryBlockStore::default();
         let forest = &mut Rc::new(PrivateForest::new());
         let rng = &mut rand::thread_rng();
         let root_dir = &mut Rc::new(PrivateDirectory::new(
@@ -1885,7 +1885,7 @@ mod tests {
     #[async_std::test]
     async fn cp_can_copy_sub_directory_to_another_valid_location_with_updated_ancestry() {
         let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
-        let store = &mut MemoryBlockStore::default();
+        let store = &MemoryBlockStore::default();
         let forest = &mut Rc::new(PrivateForest::new());
         let root_dir = &mut Rc::new(PrivateDirectory::new(
             Namefilter::default(),
@@ -1983,7 +1983,7 @@ mod tests {
     #[async_std::test]
     async fn mv_can_move_sub_directory_to_another_valid_location_with_updated_ancestry() {
         let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
-        let store = &mut MemoryBlockStore::default();
+        let store = &MemoryBlockStore::default();
         let forest = &mut Rc::new(PrivateForest::new());
         let root_dir = &mut Rc::new(PrivateDirectory::new(
             Namefilter::default(),
@@ -2080,7 +2080,7 @@ mod tests {
     #[async_std::test]
     async fn mv_cannot_move_sub_directory_to_invalid_location() {
         let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
-        let store = &mut MemoryBlockStore::default();
+        let store = &MemoryBlockStore::default();
         let forest = &mut Rc::new(PrivateForest::new());
         let root_dir = &mut Rc::new(PrivateDirectory::new(
             Namefilter::default(),
@@ -2123,7 +2123,7 @@ mod tests {
     #[async_std::test]
     async fn mv_can_rename_directories() {
         let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
-        let store = &mut MemoryBlockStore::default();
+        let store = &MemoryBlockStore::default();
         let forest = &mut Rc::new(PrivateForest::new());
         let root_dir = &mut Rc::new(PrivateDirectory::new(
             Namefilter::default(),
@@ -2176,7 +2176,7 @@ mod tests {
     #[async_std::test]
     async fn mv_fails_moving_directories_to_files() {
         let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
-        let store = &mut MemoryBlockStore::default();
+        let store = &MemoryBlockStore::default();
         let forest = &mut Rc::new(PrivateForest::new());
         let root_dir = &mut Rc::new(PrivateDirectory::new(
             Namefilter::default(),
@@ -2227,7 +2227,7 @@ mod tests {
     #[async_std::test]
     async fn write_doesnt_generate_previous_link() {
         let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
-        let store = &mut MemoryBlockStore::new();
+        let store = &MemoryBlockStore::new();
         let forest = &mut Rc::new(PrivateForest::new());
         let old_dir = &mut Rc::new(PrivateDirectory::new(
             Namefilter::default(),
@@ -2256,7 +2256,7 @@ mod tests {
     #[async_std::test]
     async fn store_before_write_generates_previous_link() {
         let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
-        let store = &mut MemoryBlockStore::new();
+        let store = &MemoryBlockStore::new();
         let forest = &mut Rc::new(PrivateForest::new());
         let old_dir = &mut Rc::new(PrivateDirectory::new(
             Namefilter::default(),
