@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1687528079495,
+  "lastUpdate": 1687536432487,
   "repoUrl": "https://github.com/wnfs-wg/rs-wnfs",
   "entries": {
     "Rust Benchmark": [
@@ -14623,6 +14623,108 @@ window.BENCHMARK_DATA = {
             "name": "namefilter encode",
             "value": 292,
             "range": "± 6",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter decode/0",
+            "value": 1,
+            "range": "± 0",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "appcypher@outlook.com",
+            "name": "Stephen Akinyemi",
+            "username": "appcypher"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "085242d15aa48db17d77ed45e1c7717d13ed105f",
+          "message": "feat: make changes to BlockStore trait based on feedback (#286)\n\n* Replace IpldCodec with u64\r\n\r\n* Change `Vec<u8>` to `Bytes` on BlockStore trait",
+          "timestamp": "2023-06-23T17:03:58+01:00",
+          "tree_id": "f969e8bc2c51c2a9e1b2be1275c41696eda534d1",
+          "url": "https://github.com/wnfs-wg/rs-wnfs/commit/085242d15aa48db17d77ed45e1c7717d13ed105f"
+        },
+        "date": 1687536431307,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "node set",
+            "value": 7218,
+            "range": "± 103",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node set 1000 consecutive",
+            "value": 4596578,
+            "range": "± 18083",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and get",
+            "value": 171439,
+            "range": "± 299",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and remove",
+            "value": 192718,
+            "range": "± 323",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt load and decode/0",
+            "value": 42454,
+            "range": "± 74",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt set and encode",
+            "value": 180298,
+            "range": "± 964",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt diff",
+            "value": 58329,
+            "range": "± 4634",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt merge",
+            "value": 243252,
+            "range": "± 19330",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter add",
+            "value": 8514,
+            "range": "± 160",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter contains",
+            "value": 9123,
+            "range": "± 72",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter saturate",
+            "value": 41899,
+            "range": "± 87",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter encode",
+            "value": 281,
+            "range": "± 8",
             "unit": "ns/iter"
           },
           {
