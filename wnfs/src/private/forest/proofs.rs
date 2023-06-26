@@ -164,14 +164,15 @@ impl PrivateForest for ProvingHamtForest {
 
     async fn remove_encrypted(
         &mut self,
-        name_hash: &HashOutput,
+        name: &Name,
         store: &impl BlockStore,
     ) -> Result<Option<Pair<NameAccumulator, BTreeSet<Cid>>>> {
-        // TODO(matheus23) implement proofs for removal
-        // Would need a refactor though:
-        // name_hash: &HashOutput is not enough info, we need the &Name.
+        let ProvingHamtForest { forest, proofs } = self;
+
+        proofs.add_and_prove_name(name, forest.get_accumulator_setup())?;
+
         Rc::make_mut(&mut self.forest)
-            .remove_encrypted(name_hash, store)
+            .remove_encrypted(name, store)
             .await
     }
 }

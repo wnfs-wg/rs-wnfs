@@ -84,7 +84,7 @@ pub trait PrivateForest {
     /// Removes the encrypted values at the given key.
     async fn remove_encrypted(
         &mut self,
-        name_hash: &HashOutput,
+        name: &Name,
         store: &impl BlockStore,
     ) -> Result<Option<Pair<NameAccumulator, BTreeSet<Cid>>>>;
 

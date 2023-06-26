@@ -155,9 +155,10 @@ impl PrivateForest for HamtForest {
 
     async fn remove_encrypted(
         &mut self,
-        name_hash: &HashOutput,
+        name: &Name,
         store: &impl BlockStore,
     ) -> Result<Option<Pair<NameAccumulator, BTreeSet<Cid>>>> {
+        let name_hash = &Sha3_256::hash(&name.as_accumulator(&self.accumulator).as_ref());
         self.hamt.root.remove_by_hash(name_hash, store).await
     }
 }
@@ -207,10 +208,10 @@ impl PrivateForest for Rc<HamtForest> {
 
     async fn remove_encrypted(
         &mut self,
-        name_hash: &HashOutput,
+        name: &Name,
         store: &impl BlockStore,
     ) -> Result<Option<Pair<NameAccumulator, BTreeSet<Cid>>>> {
-        Rc::make_mut(self).remove_encrypted(name_hash, store).await
+        Rc::make_mut(self).remove_encrypted(name, store).await
     }
 }
 
