@@ -9,29 +9,24 @@ use num_bigint_dig::{BigUint, ModInverse, RandBigInt, RandPrime};
 use num_integer::Integer;
 use num_traits::One;
 use once_cell::sync::OnceCell;
-use rand_core::RngCore;
+use rand_core::{CryptoRngCore, RngCore};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use sha3::{Digest, Sha3_256};
 use std::{hash::Hash, str::FromStr};
+use uint256_serde_le::to_bytes_helper;
+use zeroize::Zeroize;
 
 mod error;
 mod fns;
 mod uint256_serde_le;
 
+/// A WNFS name represented as the RSA accumulator of all of its name segments.
 #[derive(Clone, Eq)]
 pub struct NameAccumulator {
     /// A 2048-bit number
     state: BigUint,
     /// A cache for its serialized form
     serialized_cache: OnceCell<[u8; 256]>,
-}
-
-fn prepare_l_hash(modulus: &BigUint, base: &BigUint, commitment: &BigUint) -> Sha3_256 {
-    let mut hasher = sha3::Sha3_256::new();
-    hasher.update(modulus.to_bytes_le());
-    hasher.update(base.to_bytes_le());
-    hasher.update(commitment.to_bytes_le());
-    hasher
 }
 
 impl NameAccumulator {
@@ -124,9 +119,18 @@ impl NameAccumulator {
             .get_or_init(|| uint256_serde_le::to_bytes_helper(&self.state))
     }
 }
+
+fn prepare_l_hash(modulus: &BigUint, base: &BigUint, commitment: &BigUint) -> Sha3_256 {
+    let mut hasher = sha3::Sha3_256::new();
+    hasher.update(modulus.to_bytes_le());
+    hasher.update(base.to_bytes_le());
+    hasher.update(commitment.to_bytes_le());
+    hasher
+}
+
 /// PoKE* (Proof of Knowledge of Exponent),
 /// assuming that the base is trusted
-/// (e.g. part of a common reference string, CRS).
+/// (e.g. part of a common reference string).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ElementsProof {
     /// The accumulator's base, $u$
@@ -138,7 +142,7 @@ pub struct ElementsProof {
 }
 
 /// The part of PoKE* (Proof of Knowledge of Exponent) proofs that can't be batched.
-/// This is very small (typically <20 bytes, most likely just 17 bytes).
+/// This is very small (serialized typically <20 bytes, most likely just 17 bytes).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UnbatchableProofPart {
     /// The number to increase a hash by to land on the next prime.
@@ -164,9 +168,7 @@ impl Serialize for UnbatchableProofPart {
     where
         S: Serializer,
     {
-        let mut residue = [0u8; 16];
-        let encoded = self.r.to_bytes_le();
-        residue[..encoded.len()].copy_from_slice(&encoded);
+        let residue = to_bytes_helper::<16>(&self.r);
         let r = serde_bytes::Bytes::new(&residue);
         (self.l_hash_inc, r).serialize(serializer)
     }
@@ -229,6 +231,9 @@ impl AsRef<[u8]> for NameAccumulator {
     }
 }
 
+/// The part of a name accumulator proof that can be batched,
+/// i.e. the size of this part of the proof is independent of
+/// the number of elements being proven. It's always 2048-bit.
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct BatchedProofPart {
     big_q_product: BigUint,
@@ -252,6 +257,7 @@ impl Default for BatchedProofPart {
     }
 }
 
+/// Data that is kept around for verifying batch proofs.
 pub struct BatchedProofVerification<'a> {
     bases_and_exponents: Vec<(BigUint, BigUint)>,
     setup: &'a AccumulatorSetup,
@@ -308,6 +314,7 @@ impl<'a> BatchedProofVerification<'a> {
     }
 }
 
+/// Represents a setup needed for RSA accumulator operation.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Deserialize, Serialize)]
 pub struct AccumulatorSetup {
     #[serde(with = "uint256_serde_le")]
@@ -328,11 +335,21 @@ impl AccumulatorSetup {
 
     /// Does a trusted setup in-memory and throws away the prime factors.
     /// This requires generating two 1024-bit primes, so it's fairly slow.
-    pub fn trusted(rng: &mut impl RngCore) -> Self {
+    ///
+    /// The toxic waste generated during this operation is zeroized as soon
+    /// as possible. Keep in mind that in theory it's still possible for a
+    /// priviliged process to observe the memory and copy out the toxic waste
+    /// before it's deleted.
+    pub fn trusted(rng: &mut impl CryptoRngCore) -> Self {
         // This is a trusted setup.
         // The prime factors are "toxic waste", they need to be
         // disposed immediately.
-        let modulus = rng.gen_prime(1024) * rng.gen_prime(1024);
+        let mut p = rng.gen_prime(1024);
+        let mut q = rng.gen_prime(1024);
+        let modulus = &p * &q;
+        // Make sure to delete toxic waste
+        p.zeroize();
+        q.zeroize();
         // The generator is just some random quadratic residue.
         let generator = rng
             .gen_biguint_below(&modulus)

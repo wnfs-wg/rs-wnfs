@@ -3,7 +3,8 @@
 
 use chrono::Utc;
 use libipld::Cid;
-use rand::{thread_rng, RngCore};
+use rand::thread_rng;
+use rand_core::CryptoRngCore;
 use std::rc::Rc;
 use wnfs::private::{
     forest::{hamt::HamtForest, traits::PrivateForest},
@@ -37,7 +38,7 @@ async fn main() {
 
 async fn create_forest_and_add_directory(
     store: &impl BlockStore,
-    rng: &mut impl RngCore,
+    rng: &mut impl CryptoRngCore,
 ) -> (Cid, PrivateRef) {
     // Do a trusted setup for WNFS' name accumulators
     let setup = AccumulatorSetup::trusted(rng);

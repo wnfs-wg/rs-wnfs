@@ -3,7 +3,7 @@ use crate::error::FsError;
 use anyhow::Result;
 use async_trait::async_trait;
 use libipld::{Cid, Ipld};
-use rand_core::RngCore;
+use rand_core::{CryptoRngCore, RngCore};
 use serde::{
     de::Error as DeError, ser::Error as SerError, Deserialize, Deserializer, Serialize, Serializer,
 };
@@ -58,7 +58,7 @@ impl HamtForest {
         Self::new(AccumulatorSetup::from_rsa_2048(rng))
     }
 
-    pub fn new_trusted(rng: &mut impl RngCore) -> Self {
+    pub fn new_trusted(rng: &mut impl CryptoRngCore) -> Self {
         Self::new(AccumulatorSetup::trusted(rng))
     }
 
