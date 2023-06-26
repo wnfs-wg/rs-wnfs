@@ -2,7 +2,7 @@
 //! asynchronously when the other party may be offline using store-and-forward networks.
 //! The protocol uses asymmetric encryption, with RSA public keys, and is versioned to support multiple versions on the same file system.
 //! Public keys are widely distributed in a "exchange keys partition" and are grouped by device for easy selection by the sender.
-//! Access keys containing pointers to the private data are stored in the "Private Forest" and are labeled with a name filter that includes the sender's and recipient's information,
+//! Asymmetrically encrypted access keys containing pointers to the private data are stored in the "Private Forest" and are labeled with a name filter that includes the sender's and recipient's information,
 //! as well as a counter.
 
 use self::sharer::share;
