@@ -1940,32 +1940,33 @@ mod tests {
         assert_eq!(result.len(), 1);
         assert_eq!(result[0].0, String::from("cats"));
 
-        let _result = root_dir
+        let result = root_dir
             .get_node(&["images".into(), "cats".into()], true, forest, store)
             .await
             .unwrap();
 
-        // TODO(matheus23)
-        // let cats_bare_name = result.unwrap().get_header().bare_name.clone();
+        let cats_name_segments = result.unwrap().get_header().name.get_segments().clone();
 
-        // let images_dir_inumber = root_dir
-        //     .lookup_node("images", true, forest, store)
-        //     .await
-        //     .unwrap()
-        //     .unwrap()
-        //     .get_header()
-        //     .inumber;
+        let images_dir_inumber = root_dir
+            .lookup_node("images", true, forest, store)
+            .await
+            .unwrap()
+            .unwrap()
+            .get_header()
+            .inumber
+            .clone();
 
-        // let pictures_dir_inumber = root_dir
-        //     .lookup_node("pictures", true, forest, store)
-        //     .await
-        //     .unwrap()
-        //     .unwrap()
-        //     .get_header()
-        //     .inumber;
+        let pictures_dir_inumber = root_dir
+            .lookup_node("pictures", true, forest, store)
+            .await
+            .unwrap()
+            .unwrap()
+            .get_header()
+            .inumber
+            .clone();
 
-        // assert!(cats_bare_name.contains(&images_dir_inumber));
-        // assert!(!cats_bare_name.contains(&pictures_dir_inumber));
+        assert!(cats_name_segments.contains(&images_dir_inumber));
+        assert!(!cats_name_segments.contains(&pictures_dir_inumber));
     }
 
     #[async_std::test]
@@ -2034,32 +2035,33 @@ mod tests {
 
         assert_eq!(result.len(), 0);
 
-        let _result = root_dir
+        let result = root_dir
             .get_node(&["images".into(), "cats".into()], true, forest, store)
             .await
             .unwrap();
 
-        // TODO(matheus23)
-        // let cats_bare_name = result.unwrap().get_header().bare_name.clone();
+        let cats_name_segments = result.unwrap().get_header().name.get_segments().clone();
 
-        // let images_dir_inumber = root_dir
-        //     .lookup_node("images", true, forest, store)
-        //     .await
-        //     .unwrap()
-        //     .unwrap()
-        //     .get_header()
-        //     .inumber;
+        let images_dir_inumber = root_dir
+            .lookup_node("images", true, forest, store)
+            .await
+            .unwrap()
+            .unwrap()
+            .get_header()
+            .inumber
+            .clone();
 
-        // let pictures_dir_inumber = root_dir
-        //     .lookup_node("pictures", true, forest, store)
-        //     .await
-        //     .unwrap()
-        //     .unwrap()
-        //     .get_header()
-        //     .inumber;
+        let pictures_dir_inumber = root_dir
+            .lookup_node("pictures", true, forest, store)
+            .await
+            .unwrap()
+            .unwrap()
+            .get_header()
+            .inumber
+            .clone();
 
-        // assert!(cats_bare_name.contains(&images_dir_inumber));
-        // assert!(!cats_bare_name.contains(&pictures_dir_inumber));
+        assert!(cats_name_segments.contains(&images_dir_inumber));
+        assert!(!cats_name_segments.contains(&pictures_dir_inumber));
     }
 
     #[async_std::test]

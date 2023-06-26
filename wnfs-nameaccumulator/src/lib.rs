@@ -471,6 +471,10 @@ impl Name {
         }
     }
 
+    pub fn get_segments(&self) -> &Vec<NameSegment> {
+        &self.segments
+    }
+
     pub fn add_segments(&mut self, segments: impl IntoIterator<Item = NameSegment>) {
         self.segments.extend(segments);
         self.accumulated = OnceCell::new();
