@@ -502,11 +502,12 @@ mod tests {
     use super::*;
     use crate::private::{forest::hamt::HamtForest, PrivateDirectory};
     use chrono::Utc;
-    use proptest::test_runner::{RngAlgorithm, TestRng};
+    use rand_chacha::ChaCha12Rng;
+    use rand_core::SeedableRng;
     use wnfs_common::MemoryBlockStore;
 
     struct TestSetup {
-        rng: TestRng,
+        rng: ChaCha12Rng,
         store: MemoryBlockStore,
         forest: Rc<HamtForest>,
         root_dir: Rc<PrivateDirectory>,
@@ -515,7 +516,7 @@ mod tests {
 
     impl TestSetup {
         fn new() -> Self {
-            let mut rng = TestRng::deterministic_rng(RngAlgorithm::ChaCha);
+            let mut rng = ChaCha12Rng::seed_from_u64(0);
             let store = MemoryBlockStore::default();
             let forest = Rc::new(HamtForest::new_rsa_2048(&mut rng));
             let root_dir = Rc::new(PrivateDirectory::new(

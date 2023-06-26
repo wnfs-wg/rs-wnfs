@@ -9,7 +9,7 @@ use num_bigint_dig::{BigUint, ModInverse, RandBigInt, RandPrime};
 use num_integer::Integer;
 use num_traits::One;
 use once_cell::sync::OnceCell;
-use rand_core::{CryptoRngCore, RngCore};
+use rand_core::CryptoRngCore;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use sha3::{Digest, Sha3_256};
 use std::{hash::Hash, str::FromStr};
@@ -324,7 +324,7 @@ pub struct AccumulatorSetup {
 }
 
 impl AccumulatorSetup {
-    pub fn with_modulus(modulus_big_endian: &[u8; 256], rng: &mut impl RngCore) -> Self {
+    pub fn with_modulus(modulus_big_endian: &[u8; 256], rng: &mut impl CryptoRngCore) -> Self {
         let modulus = BigUint::from_bytes_be(modulus_big_endian);
         // The generator is just some random quadratic residue.
         let generator = rng
@@ -363,7 +363,7 @@ impl AccumulatorSetup {
     /// This is great for tests, as it doesn't require lots of primality tests.
     ///
     /// [rsa factoring challenge]: https://en.wikipedia.org/wiki/RSA_numbers#RSA-2048
-    pub fn from_rsa_2048(rng: &mut impl RngCore) -> Self {
+    pub fn from_rsa_2048(rng: &mut impl CryptoRngCore) -> Self {
         let modulus = BigUint::from_str(
             "25195908475657893494027183240048398571429282126204032027777137836043662020707595556264018525880784406918290641249515082189298559149176184502808489120072844992687392807287776735971418347270261896375014971824691165077613379859095700097330459748808428401797429100642458691817195118746121515172654632282216869987549182422433637259085141865462043576798423387184774447920739934236584823824281198163815010674810451660377306056201619676256133844143603833904414952634432190114657544454178424020924616515723350778707749817125772467962926386356373289912154831438167899885040445364023527381951378636564391212010397122822120720357",
         ).unwrap();
@@ -411,7 +411,7 @@ impl<'de> Deserialize<'de> for NameSegment {
 }
 
 impl NameSegment {
-    pub fn new(rng: &mut impl RngCore) -> Self {
+    pub fn new(rng: &mut impl CryptoRngCore) -> Self {
         Self(rng.gen_prime(256))
     }
 
@@ -600,13 +600,13 @@ mod tests {
         let (accum_image, proof_image) = name_image.as_proven_accumulator(setup);
 
         let mut batched_proof = BatchedProofPart::new();
-        batched_proof.add(&proof_note);
-        batched_proof.add(&proof_image);
+        batched_proof.add(proof_note);
+        batched_proof.add(proof_image);
 
         let name_base = Name::empty(setup).as_accumulator(setup).clone();
         let mut verification = BatchedProofVerification::new(setup);
-        verification.add(&name_base, &accum_note, &proof_note.part)?;
-        verification.add(&name_base, &accum_image, &proof_image.part)?;
+        verification.add(&name_base, accum_note, &proof_note.part)?;
+        verification.add(&name_base, accum_image, &proof_image.part)?;
         verification.verify(&batched_proof)?;
 
         Ok(())

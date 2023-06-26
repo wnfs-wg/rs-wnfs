@@ -2,7 +2,7 @@ use super::{PrivateNodeHeaderSerializable, TemporalKey};
 use crate::{error::FsError, private::RevisionRef};
 use anyhow::Result;
 use libipld::{Cid, IpldCodec};
-use rand_core::{CryptoRngCore, RngCore};
+use rand_core::CryptoRngCore;
 use sha3::{Digest, Sha3_256};
 use skip_ratchet::Ratchet;
 use std::fmt::Debug;
@@ -51,7 +51,7 @@ pub struct PrivateNodeHeader {
 
 impl PrivateNodeHeader {
     /// Creates a new PrivateNodeHeader.
-    pub(crate) fn new(parent_name: &Name, rng: &mut impl RngCore) -> Self {
+    pub(crate) fn new(parent_name: &Name, rng: &mut impl CryptoRngCore) -> Self {
         let inumber = NameSegment::new(rng);
         let ratchet_seed = utils::get_random_bytes::<HASH_BYTE_SIZE>(rng);
         Self::with_seed(parent_name, ratchet_seed, inumber)

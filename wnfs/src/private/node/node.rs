@@ -13,7 +13,7 @@ use async_recursion::async_recursion;
 use chrono::{DateTime, Utc};
 use futures::StreamExt;
 use libipld::Cid;
-use rand_core::{CryptoRngCore, RngCore};
+use rand_core::CryptoRngCore;
 use skip_ratchet::{JumpSize, RatchetSeeker};
 use std::{cmp::Ordering, collections::BTreeSet, fmt::Debug, rc::Rc};
 use wnfs_common::BlockStore;
@@ -574,7 +574,7 @@ impl PrivateNode {
         &self,
         forest: &mut impl PrivateForest,
         store: &impl BlockStore,
-        rng: &mut impl RngCore,
+        rng: &mut impl CryptoRngCore,
     ) -> Result<PrivateRef> {
         match self {
             Self::File(file) => file.store(forest, store, rng).await,
@@ -627,12 +627,13 @@ impl From<PrivateDirectory> for PrivateNode {
 mod tests {
     use super::*;
     use crate::private::forest::hamt::HamtForest;
-    use proptest::test_runner::{RngAlgorithm, TestRng};
+    use rand_chacha::ChaCha12Rng;
+    use rand_core::SeedableRng;
     use wnfs_common::MemoryBlockStore;
 
     #[async_std::test]
     async fn serialized_private_node_can_be_deserialized() {
-        let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
+        let rng = &mut ChaCha12Rng::seed_from_u64(0);
         let content = b"Lorem ipsum dolor sit amet";
         let forest = &mut Rc::new(HamtForest::new_rsa_2048(rng));
         let store = &mut MemoryBlockStore::new();

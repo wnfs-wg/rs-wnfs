@@ -10,7 +10,7 @@ use super::{forest::traits::PrivateForest, ExchangeKey, PrivateNode, SnapshotKey
 use crate::{error::ShareError, public::PublicLink};
 use anyhow::{bail, Result};
 use libipld::Cid;
-use rand_core::RngCore;
+use rand_core::CryptoRngCore;
 use serde::{Deserialize, Serialize};
 use std::marker::PhantomData;
 use wnfs_common::{BlockStore, HashOutput};
@@ -146,7 +146,7 @@ impl SharePayload {
         temporal: bool,
         forest: &mut impl PrivateForest,
         store: &impl BlockStore,
-        rng: &mut impl RngCore,
+        rng: &mut impl CryptoRngCore,
     ) -> Result<Self> {
         let payload = if temporal {
             let ptr = TemporalSharePointer::from_node(node, forest, store, rng).await?;
@@ -173,7 +173,7 @@ impl TemporalSharePointer {
         node: &PrivateNode,
         forest: &mut impl PrivateForest,
         store: &impl BlockStore,
-        rng: &mut impl RngCore,
+        rng: &mut impl CryptoRngCore,
     ) -> Result<Self> {
         let private_ref = node.store(forest, store, rng).await?;
 
@@ -193,7 +193,7 @@ impl SnapshotSharePointer {
         node: &PrivateNode,
         forest: &mut impl PrivateForest,
         store: &impl BlockStore,
-        rng: &mut impl RngCore,
+        rng: &mut impl CryptoRngCore,
     ) -> Result<Self> {
         let private_ref = node.store(forest, store, rng).await?;
 
@@ -408,7 +408,8 @@ mod tests {
         public::{PublicLink, PublicNode},
     };
     use chrono::Utc;
-    use proptest::test_runner::{RngAlgorithm, TestRng};
+    use rand_chacha::ChaCha12Rng;
+    use rand_core::SeedableRng;
     use std::rc::Rc;
     use wnfs_common::{BlockStore, MemoryBlockStore};
 
@@ -423,14 +424,14 @@ mod tests {
         use anyhow::Result;
         use chrono::Utc;
         use libipld::IpldCodec;
-        use rand_core::RngCore;
+        use rand_core::CryptoRngCore;
         use std::rc::Rc;
         use wnfs_common::BlockStore;
 
         pub(super) async fn create_sharer_dir(
             forest: &mut impl PrivateForest,
             store: &impl BlockStore,
-            rng: &mut impl RngCore,
+            rng: &mut impl CryptoRngCore,
         ) -> Result<Rc<PrivateDirectory>> {
             let mut dir = PrivateDirectory::new_and_store(
                 &forest.empty_name(),
@@ -478,7 +479,7 @@ mod tests {
 
     #[async_std::test]
     async fn can_share_and_recieve_share() {
-        let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
+        let rng = &mut ChaCha12Rng::seed_from_u64(0);
         let recipient_store = &mut MemoryBlockStore::default();
         let sharer_store = &mut MemoryBlockStore::default();
         let sharer_forest = &mut Rc::new(HamtForest::new_rsa_2048(rng));
@@ -545,7 +546,7 @@ mod tests {
 
     #[async_std::test]
     async fn serialized_share_payload_can_be_deserialized() {
-        let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
+        let rng = &mut ChaCha12Rng::seed_from_u64(0);
         let store = &mut MemoryBlockStore::default();
         let forest = &mut Rc::new(HamtForest::new_rsa_2048(rng));
         let dir =
@@ -569,7 +570,7 @@ mod tests {
 
     #[async_std::test]
     async fn find_latest_share_counter_finds_highest_count() {
-        let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
+        let rng = &mut ChaCha12Rng::seed_from_u64(0);
         let sharer_store = &mut MemoryBlockStore::default();
         let recipient_store = &mut MemoryBlockStore::default();
         let forest = &mut Rc::new(HamtForest::new_rsa_2048(rng));

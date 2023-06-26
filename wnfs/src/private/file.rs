@@ -10,7 +10,7 @@ use async_stream::try_stream;
 use chrono::{DateTime, Utc};
 use futures::{future, AsyncRead, Stream, StreamExt, TryStreamExt};
 use libipld::{Cid, IpldCodec};
-use rand_core::{CryptoRngCore, RngCore};
+use rand_core::CryptoRngCore;
 use serde::{Deserialize, Serialize};
 use sha3::{Digest, Sha3_256};
 use std::{collections::BTreeSet, iter, rc::Rc};
@@ -123,7 +123,7 @@ impl PrivateFile {
     ///
     /// println!("file = {:?}", file);
     /// ```
-    pub fn new(parent_name: &Name, time: DateTime<Utc>, rng: &mut impl RngCore) -> Self {
+    pub fn new(parent_name: &Name, time: DateTime<Utc>, rng: &mut impl CryptoRngCore) -> Self {
         Self {
             header: PrivateNodeHeader::new(parent_name, rng),
             content: PrivateFileContent {
@@ -174,7 +174,7 @@ impl PrivateFile {
         content: Vec<u8>,
         forest: &mut impl PrivateForest,
         store: &impl BlockStore,
-        rng: &mut impl RngCore,
+        rng: &mut impl CryptoRngCore,
     ) -> Result<Self> {
         let header = PrivateNodeHeader::new(parent_name, rng);
         let content = Self::prepare_content(&header.name, content, forest, store, rng).await?;
@@ -237,7 +237,7 @@ impl PrivateFile {
         content: impl AsyncRead + Unpin,
         forest: &mut impl PrivateForest,
         store: &impl BlockStore,
-        rng: &mut impl RngCore,
+        rng: &mut impl CryptoRngCore,
     ) -> Result<Self> {
         let header = PrivateNodeHeader::new(parent_name, rng);
         let content =
@@ -432,7 +432,7 @@ impl PrivateFile {
         content: impl AsyncRead + Unpin,
         forest: &mut impl PrivateForest,
         store: &impl BlockStore,
-        rng: &mut impl RngCore,
+        rng: &mut impl CryptoRngCore,
     ) -> Result<()> {
         self.content.metadata = Metadata::new(time);
         self.content.content =
@@ -446,7 +446,7 @@ impl PrivateFile {
         content: Vec<u8>,
         forest: &mut impl PrivateForest,
         store: &impl BlockStore,
-        rng: &mut impl RngCore,
+        rng: &mut impl CryptoRngCore,
     ) -> Result<FileContent> {
         // TODO(appcypher): Use a better heuristic to determine when to use external storage.
         let key = SnapshotKey::from(utils::get_random_bytes(rng));
@@ -483,7 +483,7 @@ impl PrivateFile {
         mut content: impl AsyncRead + Unpin,
         forest: &mut impl PrivateForest,
         store: &impl BlockStore,
-        rng: &mut impl RngCore,
+        rng: &mut impl CryptoRngCore,
     ) -> Result<FileContent> {
         let key = SnapshotKey::from(utils::get_random_bytes(rng));
         let file_revision_name = Self::create_revision_name(file_name, &key);
@@ -704,7 +704,7 @@ impl PrivateFile {
         &self,
         forest: &mut impl PrivateForest,
         store: &impl BlockStore,
-        rng: &mut impl RngCore,
+        rng: &mut impl CryptoRngCore,
     ) -> Result<PrivateRef> {
         let setup = &forest.get_accumulator_setup().clone();
         let header_cid = self.header.store(store, setup).await?;
@@ -783,7 +783,7 @@ impl PrivateFileContent {
         header_cid: Cid,
         snapshot_key: &SnapshotKey,
         store: &impl BlockStore,
-        rng: &mut impl RngCore,
+        rng: &mut impl CryptoRngCore,
     ) -> Result<Cid> {
         Ok(*self
             .persisted_as
@@ -837,14 +837,15 @@ mod tests {
     use super::*;
     use crate::private::forest::hamt::HamtForest;
     use async_std::fs::File;
-    use proptest::test_runner::{RngAlgorithm, TestRng};
     use rand::Rng;
+    use rand_chacha::ChaCha12Rng;
+    use rand_core::SeedableRng;
     use wnfs_common::MemoryBlockStore;
 
     #[async_std::test]
     async fn can_create_empty_file() {
         let store = &mut MemoryBlockStore::default();
-        let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
+        let rng = &mut ChaCha12Rng::seed_from_u64(0);
         let forest = &Rc::new(HamtForest::new_rsa_2048(rng));
 
         let file = PrivateFile::new(&forest.empty_name(), Utc::now(), rng);
@@ -859,7 +860,7 @@ mod tests {
         rand::thread_rng().fill(&mut content[..]);
 
         let store = &mut MemoryBlockStore::default();
-        let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
+        let rng = &mut ChaCha12Rng::seed_from_u64(0);
         let forest = &mut Rc::new(HamtForest::new_rsa_2048(rng));
 
         let file = PrivateFile::with_content(
@@ -900,7 +901,7 @@ mod tests {
             .unwrap();
 
         let store = &mut MemoryBlockStore::new();
-        let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
+        let rng = &mut ChaCha12Rng::seed_from_u64(0);
         let forest = &mut Rc::new(HamtForest::new_rsa_2048(rng));
 
         let file = PrivateFile::with_content_streaming(
@@ -930,7 +931,8 @@ mod proptests {
     use async_std::io::Cursor;
     use chrono::Utc;
     use futures::{future, StreamExt};
-    use proptest::test_runner::{RngAlgorithm, TestRng};
+    use rand_chacha::ChaCha12Rng;
+    use rand_core::SeedableRng;
     use std::rc::Rc;
     use test_strategy::proptest;
     use wnfs_common::{BlockStoreError, MemoryBlockStore};
@@ -945,7 +947,7 @@ mod proptests {
         async_std::task::block_on(async {
             let content = vec![0u8; length];
             let store = &mut MemoryBlockStore::default();
-            let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
+            let rng = &mut ChaCha12Rng::seed_from_u64(0);
             let forest = &mut Rc::new(HamtForest::new_rsa_2048(rng));
 
             let file = PrivateFile::with_content(
@@ -972,7 +974,7 @@ mod proptests {
         async_std::task::block_on(async {
             let content = vec![0u8; length];
             let store = &mut MemoryBlockStore::default();
-            let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
+            let rng = &mut ChaCha12Rng::seed_from_u64(0);
             let forest = &mut Rc::new(HamtForest::new_rsa_2048(rng));
 
             let file = PrivateFile::with_content(
@@ -1004,7 +1006,7 @@ mod proptests {
     ) {
         async_std::task::block_on(async {
             let store = &mut MemoryBlockStore::default();
-            let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
+            let rng = &mut ChaCha12Rng::seed_from_u64(0);
             let forest = &mut Rc::new(HamtForest::new_rsa_2048(rng));
 
             let mut file = PrivateFile::new(&forest.empty_name(), Utc::now(), rng);
@@ -1013,7 +1015,7 @@ mod proptests {
                 Utc::now(),
                 &mut Cursor::new(vec![5u8; length]),
                 forest,
-                &mut MemoryBlockStore::default(),
+                &MemoryBlockStore::default(),
                 rng,
             )
             .await
@@ -1044,7 +1046,7 @@ mod proptests {
             .await
             .unwrap();
 
-            let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
+            let rng = &mut ChaCha12Rng::seed_from_u64(0);
             let forest = &mut Rc::new(HamtForest::new_rsa_2048(rng));
             let store = &mut MemoryBlockStore::new();
 

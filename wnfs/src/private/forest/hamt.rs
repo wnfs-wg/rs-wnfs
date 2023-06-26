@@ -3,7 +3,7 @@ use crate::error::FsError;
 use anyhow::Result;
 use async_trait::async_trait;
 use libipld::{Cid, Ipld};
-use rand_core::{CryptoRngCore, RngCore};
+use rand_core::CryptoRngCore;
 use serde::{
     de::Error as DeError, ser::Error as SerError, Deserialize, Deserializer, Serialize, Serializer,
 };
@@ -46,7 +46,6 @@ pub struct HamtForest<H: Hasher = Sha3_256> {
 //--------------------------------------------------------------------------------------------------
 
 impl HamtForest {
-    /// Creates a new empty PrivateForest with given accumulator setup
     pub fn new(setup: AccumulatorSetup) -> Self {
         Self {
             hamt: Hamt::new(),
@@ -54,7 +53,7 @@ impl HamtForest {
         }
     }
 
-    pub fn new_rsa_2048(rng: &mut impl RngCore) -> Self {
+    pub fn new_rsa_2048(rng: &mut impl CryptoRngCore) -> Self {
         Self::new(AccumulatorSetup::from_rsa_2048(rng))
     }
 
@@ -368,7 +367,8 @@ mod tests {
     use crate::private::{PrivateDirectory, PrivateNode};
     use chrono::Utc;
     use helper::*;
-    use proptest::test_runner::{RngAlgorithm, TestRng};
+    use rand_chacha::ChaCha12Rng;
+    use rand_core::SeedableRng;
     use std::rc::Rc;
     use wnfs_common::MemoryBlockStore;
     use wnfs_hamt::{HashNibbles, Node};
@@ -377,7 +377,8 @@ mod tests {
     mod helper {
         use libipld::{Cid, Multihash};
         use once_cell::sync::Lazy;
-        use rand::{thread_rng, RngCore};
+        use rand::thread_rng;
+        use rand_core::CryptoRngCore;
         use wnfs_common::{utils, HashOutput};
         use wnfs_hamt::Hasher;
         use wnfs_nameaccumulator::{AccumulatorSetup, NameAccumulator, NameSegment};
@@ -428,14 +429,14 @@ mod tests {
 
         pub(super) fn generate_name_accumulator(
             setup: &AccumulatorSetup,
-            rng: &mut impl RngCore,
+            rng: &mut impl CryptoRngCore,
         ) -> Vec<u8> {
             let mut name = NameAccumulator::empty(setup);
             name.add(Some(&NameSegment::new(rng)), setup);
             name.as_ref().to_vec()
         }
 
-        pub(super) fn generate_cid(rng: &mut impl RngCore) -> Cid {
+        pub(super) fn generate_cid(rng: &mut impl CryptoRngCore) -> Cid {
             let bytes = {
                 let mut tmp = [0u8; 10];
                 let (a, b) = tmp.split_at_mut(2);
@@ -451,7 +452,7 @@ mod tests {
     #[async_std::test]
     async fn test_put_get() {
         let store = &mut MemoryBlockStore::new();
-        let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
+        let rng = &mut ChaCha12Rng::seed_from_u64(0);
         let forest = &mut Rc::new(HamtForest::new_rsa_2048(rng));
 
         let cid = Cid::default();
@@ -469,7 +470,7 @@ mod tests {
     #[async_std::test]
     async fn inserted_items_can_be_fetched() {
         let store = &mut MemoryBlockStore::new();
-        let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
+        let rng = &mut ChaCha12Rng::seed_from_u64(0);
         let forest = &mut Rc::new(HamtForest::new_rsa_2048(rng));
 
         let dir = Rc::new(PrivateDirectory::new(&forest.empty_name(), Utc::now(), rng));
@@ -486,7 +487,7 @@ mod tests {
     #[async_std::test]
     async fn multivalue_conflict_can_be_fetched_individually() {
         let store = &mut MemoryBlockStore::new();
-        let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
+        let rng = &mut ChaCha12Rng::seed_from_u64(0);
         let forest = &mut Rc::new(HamtForest::new_rsa_2048(rng));
 
         let dir = Rc::new(PrivateDirectory::new(&forest.empty_name(), Utc::now(), rng));
@@ -544,7 +545,7 @@ mod tests {
     #[async_std::test]
     async fn can_merge_nodes_with_different_structure_and_modified_changes() {
         let store = &mut MemoryBlockStore::new();
-        let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
+        let rng = &mut ChaCha12Rng::seed_from_u64(0);
         let setup = &AccumulatorSetup::from_rsa_2048(rng);
 
         // A node that adds the first 3 pairs of HASH_KV_PAIRS.

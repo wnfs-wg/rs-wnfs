@@ -4,7 +4,7 @@ use super::{
 use anyhow::Result;
 use async_once_cell::OnceCell;
 use async_recursion::async_recursion;
-use rand_core::RngCore;
+use rand_core::CryptoRngCore;
 use std::rc::Rc;
 use wnfs_common::BlockStore;
 use wnfs_nameaccumulator::{AccumulatorSetup, Name};
@@ -35,7 +35,7 @@ impl PrivateLink {
         &self,
         forest: &mut impl PrivateForest,
         store: &impl BlockStore,
-        rng: &mut impl RngCore,
+        rng: &mut impl CryptoRngCore,
     ) -> Result<PrivateRef> {
         match self {
             Self::Encrypted { private_ref, .. } => Ok(private_ref.clone()),
