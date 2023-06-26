@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1687536432487,
+  "lastUpdate": 1687794241980,
   "repoUrl": "https://github.com/wnfs-wg/rs-wnfs",
   "entries": {
     "Rust Benchmark": [
@@ -14725,6 +14725,108 @@ window.BENCHMARK_DATA = {
             "name": "namefilter encode",
             "value": 281,
             "range": "± 8",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter decode/0",
+            "value": 1,
+            "range": "± 0",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "appcypher@outlook.com",
+            "name": "Stephen Akinyemi",
+            "username": "appcypher"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "b749e74cd815ea1d6923d7ffb66f0a030f4cf23a",
+          "message": "feat: make AccessKey the key entrypoint for public apis (#285)\n\n* Make AccessKey the key entrypoint for public apis\r\n\r\n* Remove todos\r\n\r\n* Update wnfs/src/private/share.rs\r\n\r\nCo-authored-by: Philipp Krüger <philipp.krueger1@gmail.com>\r\nSigned-off-by: Stephen Akinyemi <appcypher@outlook.com>\r\n\r\n* Refactor get_multivalue\r\n\r\n---------\r\n\r\nSigned-off-by: Stephen Akinyemi <appcypher@outlook.com>\r\nCo-authored-by: Philipp Krüger <philipp.krueger1@gmail.com>",
+          "timestamp": "2023-06-26T16:39:44+01:00",
+          "tree_id": "a09173557f419019739d0675e98a82a4ed916469",
+          "url": "https://github.com/wnfs-wg/rs-wnfs/commit/b749e74cd815ea1d6923d7ffb66f0a030f4cf23a"
+        },
+        "date": 1687794241298,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "node set",
+            "value": 7885,
+            "range": "± 112",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node set 1000 consecutive",
+            "value": 4449158,
+            "range": "± 19154",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and get",
+            "value": 172697,
+            "range": "± 2803",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and remove",
+            "value": 193316,
+            "range": "± 423",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt load and decode/0",
+            "value": 41916,
+            "range": "± 59",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt set and encode",
+            "value": 184204,
+            "range": "± 396",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt diff",
+            "value": 54715,
+            "range": "± 4444",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt merge",
+            "value": 237518,
+            "range": "± 18817",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter add",
+            "value": 8481,
+            "range": "± 11",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter contains",
+            "value": 11704,
+            "range": "± 14",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter saturate",
+            "value": 39962,
+            "range": "± 42",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter encode",
+            "value": 225,
+            "range": "± 5",
             "unit": "ns/iter"
           },
           {
