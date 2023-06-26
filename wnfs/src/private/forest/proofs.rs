@@ -14,6 +14,14 @@ use wnfs_nameaccumulator::{
     UnbatchableProofPart,
 };
 
+/// This holds proofs that added, removed or changed labels in the private forest correspond
+/// to only sub-entries of certain directory or file names/paths.
+///
+/// The idea is to update this structure while writing to the actual private forest.
+/// To do this easily, use `ProvingHamtForest`.
+///
+/// This structure can then get serialized and transferred to an actor without read access
+/// to verify a diff between two forests.
 // TODO(matheus23) add serialization (ideally with capsule)
 // Ideally serialization deduplicates the base (first part of the value tuple).
 // E.g. by serializing as a nested map (somewhat inverting the way the hash map is laid out in memory in this struct).
@@ -23,6 +31,10 @@ pub struct ForestProofs {
     batched_proof_part: BatchedProofPart,
 }
 
+/// A hamt forest that also tracks label proofs on the side.
+///
+/// This can also be used for verifying that a private forest state is valid compared
+/// to a different private forest state.
 #[derive(Debug, Clone)]
 pub struct ProvingHamtForest {
     forest: Rc<HamtForest>,
@@ -30,6 +42,7 @@ pub struct ProvingHamtForest {
 }
 
 impl ForestProofs {
+    /// Initialize an empty proofs carrying struct
     pub fn new() -> Self {
         Self {
             proofs_by_commitment: HashMap::new(),
@@ -37,6 +50,7 @@ impl ForestProofs {
         }
     }
 
+    /// Prove given name, add its proof to the struct and return the accumulated name
     pub fn add_and_prove_name<'a>(
         &mut self,
         name: &'a Name,
@@ -53,6 +67,14 @@ impl ForestProofs {
         Ok(accumulated)
     }
 
+    /// Verify all proofs.
+    ///
+    /// Please note that this doesn't verify the integrity of a private forest per se.
+    ///
+    /// For that, one needs to also check that
+    /// - Added/removed or modified names in the private forest have associated proofs
+    /// - Each associated proof is rooted in a name accumulator that an actor has access to
+    ///   (e.g. via a signature from the root owner).
     pub fn verify_proofs(&self, setup: &AccumulatorSetup) -> Result<()> {
         let mut verification = BatchedProofVerification::new(setup);
 
@@ -65,6 +87,9 @@ impl ForestProofs {
 }
 
 impl ProvingHamtForest {
+    /// Create a new proving forest from the state of an existing hamt forest.
+    ///
+    /// It will be initialized without proofs.
     pub fn new(forest: Rc<HamtForest>) -> Self {
         Self {
             forest,
@@ -72,10 +97,17 @@ impl ProvingHamtForest {
         }
     }
 
+    /// Create a new proving forest with given pre-existing proofs and current
+    /// state of a hamt forest.
     pub fn from_proofs(proofs: ForestProofs, forest: Rc<HamtForest>) -> Self {
         Self { forest, proofs }
     }
 
+    /// Verify the current state of the hamt forest against an older state.
+    ///
+    /// You need to provide a set of allowed "base" name accumulators.
+    /// Them and all of their sub-entries (e.g. sub-directories or contained files)
+    /// are allowed to change between the previous and current state.
     pub async fn verify_against_previous_state(
         &self,
         previous: &HamtForest,

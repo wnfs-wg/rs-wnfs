@@ -30,6 +30,7 @@ pub struct NameAccumulator {
 }
 
 impl NameAccumulator {
+    /// Create the empty accumulator.
     pub fn empty(setup: &AccumulatorSetup) -> Self {
         Self {
             state: setup.generator.clone(),
@@ -37,6 +38,7 @@ impl NameAccumulator {
         }
     }
 
+    /// Create an accumulator with given segments inside.
     pub fn with_segments<'a>(
         segments: impl IntoIterator<Item = &'a NameSegment>,
         setup: &AccumulatorSetup,
@@ -46,6 +48,10 @@ impl NameAccumulator {
         acc
     }
 
+    /// Create an accumulator from the number it's represented as.
+    ///
+    /// This needs to be a 2048-bit number in the RSA group from
+    /// the accumulator setup used.
     pub fn from_state(state: BigUint) -> Self {
         Self {
             state,
@@ -53,6 +59,8 @@ impl NameAccumulator {
         }
     }
 
+    /// Add a set of elements to the accumulator and return a batch
+    /// elements proof that verifies the change of state of the accumulator.
     pub fn add<'a>(
         &mut self,
         segments: impl IntoIterator<Item = &'a NameSegment>,
@@ -83,21 +91,16 @@ impl NameAccumulator {
         }
     }
 
-    pub fn add_bytes(
-        &mut self,
-        bytes: impl AsRef<[u8]>,
-        setup: &AccumulatorSetup,
-    ) -> ElementsProof {
-        let digest = Sha3_256::new().chain_update(bytes.as_ref());
-        self.add(Some(&NameSegment::from_digest(digest)), setup)
-    }
-
+    /// Deserialize a name accumulator from bytes.
+    ///
+    /// The byte array needs to be 256 bytes (2048 bits).
     pub fn parse_bytes(byte_buf: impl AsRef<[u8]>) -> Result<Self> {
         let mut bytes = [0u8; 256];
         bytes.copy_from_slice(byte_buf.as_ref());
         Ok(Self::parse_slice(bytes))
     }
 
+    /// Deserialize a name accumulator from bytes.
     pub fn parse_slice(slice: [u8; 256]) -> Self {
         let state = BigUint::from_bytes_le(&slice);
         Self {
@@ -106,6 +109,7 @@ impl NameAccumulator {
         }
     }
 
+    /// Serialize a name accumulator from bytes.
     pub fn into_bytes(self) -> [u8; 256] {
         let cache = self.serialized_cache;
         let state = self.state;
@@ -114,6 +118,9 @@ impl NameAccumulator {
             .unwrap_or_else(|| uint256_serde_le::to_bytes_helper(&state))
     }
 
+    /// Serialize a name accumulator to bytes and return a reference.
+    ///
+    /// This call is memoized, serializing twice won't duplicate work.
     pub fn as_bytes(&self) -> &[u8; 256] {
         self.serialized_cache
             .get_or_init(|| uint256_serde_le::to_bytes_helper(&self.state))
@@ -240,12 +247,15 @@ pub struct BatchedProofPart {
 }
 
 impl BatchedProofPart {
+    /// Create a new proof batcher.
     pub fn new() -> Self {
         Self {
             big_q_product: BigUint::one(),
         }
     }
 
+    /// Add the batchable portion of a proof of elements
+    /// for a certain name accumulator to this batch proof.
     pub fn add(&mut self, proof: &ElementsProof) {
         self.big_q_product *= &proof.big_q;
     }
@@ -264,6 +274,7 @@ pub struct BatchedProofVerification<'a> {
 }
 
 impl<'a> BatchedProofVerification<'a> {
+    /// Create a new verifier
     pub fn new(setup: &'a AccumulatorSetup) -> Self {
         Self {
             bases_and_exponents: Vec::new(),
@@ -271,6 +282,14 @@ impl<'a> BatchedProofVerification<'a> {
         }
     }
 
+    /// Add another relation to verify.
+    ///
+    /// This will return an error if the unbatchable
+    /// proof part is invalid, either due to its "l" hash
+    /// not being prime or the residue being out of range.
+    ///
+    /// This can happen if the base element or commitment
+    /// don't fit this proof part.
     pub fn add(
         &mut self,
         base: &NameAccumulator,
@@ -299,6 +318,10 @@ impl<'a> BatchedProofVerification<'a> {
         Ok(())
     }
 
+    /// Verify the whole relation of previously added bases to their commitments using
+    /// the batched proof.
+    ///
+    /// Will return an error if verification fails.
     pub fn verify(&self, batched_proof: &BatchedProofPart) -> Result<()> {
         let l_star = nlogn_product(&self.bases_and_exponents, |(_, l)| l);
 
@@ -324,6 +347,9 @@ pub struct AccumulatorSetup {
 }
 
 impl AccumulatorSetup {
+    /// Finishes a setup given a 2048-bit RSA modulus encoded in big-endian.
+    ///
+    /// Remaining work is safe and doesn't require a trusted environment.
     pub fn with_modulus(modulus_big_endian: &[u8; 256], rng: &mut impl CryptoRngCore) -> Self {
         let modulus = BigUint::from_bytes_be(modulus_big_endian);
         // The generator is just some random quadratic residue.
@@ -375,6 +401,7 @@ impl AccumulatorSetup {
 }
 
 /// A name accumluator segment. A name accumulator commits to a set of these.
+/// They are represented as 256-bit prime numbers.
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct NameSegment(
     /// Invariant: Must be a 256-bit prime
@@ -411,19 +438,29 @@ impl<'de> Deserialize<'de> for NameSegment {
 }
 
 impl NameSegment {
+    /// Create a new, random name segment
     pub fn new(rng: &mut impl CryptoRngCore) -> Self {
         Self(rng.gen_prime(256))
     }
 
+    /// Derive a name segment by finishing a hasher state
+    /// (which is repeatedly re-hashed with a counter to find a prime).
     pub fn from_digest(digest: impl Digest + Clone) -> Self {
         Self(prime_digest(digest, 32).0)
     }
 
+    /// Derive a name segment from a seed secret
     pub fn from_seed(seed: impl AsRef<[u8]>) -> Self {
         Self::from_digest(Sha3_256::new().chain_update(seed))
     }
 }
 
+/// A WNFS name.
+/// Each file or directory has a name.
+/// Names consist of a set of name segments and are commited to name accumulators.
+/// However, these names are based on RSA accumulators to make it possible
+/// to prove a relationship between two names, e.g a file being contained in
+/// a sub-directory of a directory while leaking as little information as possible.
 #[derive(Clone, Debug, Eq)]
 pub struct Name {
     relative_to: NameAccumulator,
@@ -453,10 +490,13 @@ impl PartialEq for Name {
 }
 
 impl Name {
+    /// Create the empty name
     pub fn empty(setup: &AccumulatorSetup) -> Self {
         Self::new(NameAccumulator::empty(setup), None)
     }
 
+    /// Create a name relative to some other committed name
+    /// and with given segments added to that name.
     pub fn new(
         relative_to: NameAccumulator,
         segments: impl IntoIterator<Item = NameSegment>,
@@ -468,15 +508,19 @@ impl Name {
         }
     }
 
+    /// Returns whether the name has any segments added to it or
+    /// just represents an absolute path without relative segments.
     pub fn is_root(&self) -> bool {
         self.segments.is_empty()
     }
 
+    /// Remove the last name segment, if possible.
     pub fn up(&mut self) {
         self.segments.pop();
         self.accumulated = OnceCell::new();
     }
 
+    /// Return the parent name, if possible.
     pub fn parent(&self) -> Option<Name> {
         if self.is_root() {
             None
@@ -502,6 +546,11 @@ impl Name {
         clone
     }
 
+    /// Returns the commited name accumulator for this name
+    /// as well as a proof that related the name accumulator that
+    /// this name is relative to.
+    ///
+    /// This proof process is memoized. Running it twice won't duplicate work.
     pub fn as_proven_accumulator(
         &self,
         setup: &AccumulatorSetup,
@@ -513,6 +562,7 @@ impl Name {
         })
     }
 
+    /// Return what name accumulator this name commits to.
     pub fn as_accumulator(&self, setup: &AccumulatorSetup) -> &NameAccumulator {
         &self.as_proven_accumulator(setup).0
     }
