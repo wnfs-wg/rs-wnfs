@@ -1,6 +1,7 @@
+use super::AccessKey;
 use crate::{
     fs::{
-        private::{PrivateDirectory, PrivateFile, PrivateForest, PrivateRef},
+        private::{PrivateDirectory, PrivateFile, PrivateForest},
         utils::{self, error},
         BlockStore, ForeignBlockStore, JsResult, Namefilter, Rng,
     },
@@ -44,34 +45,33 @@ impl PrivateNode {
         mut rng: Rng,
     ) -> JsResult<Promise> {
         let node = self.0.clone(); // cheap clone
-        let mut store = ForeignBlockStore(store);
+        let store = ForeignBlockStore(store);
         let mut forest = Rc::clone(&forest.0);
 
         Ok(future_to_promise(async move {
-            let private_ref = node
-                .store(&mut forest, &mut store, &mut rng)
+            let access_key = node
+                .store(&mut forest, &store, &mut rng)
                 .await
                 .map_err(error("Cannot store node"))?;
 
             Ok(utils::create_private_forest_result(
-                value!(PrivateRef::from(private_ref)),
+                value!(AccessKey(access_key)),
                 forest,
             )?)
         }))
     }
 
-    /// Loads a node from the PrivateForest using the PrivateRef.
+    /// Loads a node from the PrivateForest using the AccessKey.
     pub fn load(
-        private_ref: PrivateRef,
+        access_key: AccessKey,
         forest: &PrivateForest,
         store: BlockStore,
     ) -> JsResult<Promise> {
         let store = ForeignBlockStore(store);
         let forest = Rc::clone(&forest.0);
-        let private_ref = private_ref.try_into()?;
 
         Ok(future_to_promise(async move {
-            let node = WnfsPrivateNode::load(&private_ref, &forest, &store)
+            let node = WnfsPrivateNode::load(&access_key.0, &forest, &store)
                 .await
                 .map_err(error("Cannot load node"))?;
 

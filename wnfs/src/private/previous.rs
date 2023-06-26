@@ -119,11 +119,11 @@ impl PrivateNodeHistory {
 
         self.header.ratchet = previous_ratchet;
 
-        let previous_node = PrivateNode::load(
+        let previous_node = PrivateNode::from_private_ref(
             &self
                 .header
                 .derive_revision_ref()
-                .as_private_ref(previous_cid),
+                .into_private_ref(previous_cid),
             &self.forest,
             store,
         )

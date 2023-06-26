@@ -2,8 +2,8 @@ use super::{PrivateNodeHeader, TemporalKey};
 use crate::{
     error::FsError,
     private::{
-        encrypted::Encrypted, link::PrivateLink, PrivateDirectory, PrivateFile, PrivateForest,
-        PrivateNodeContentSerializable, PrivateRef,
+        encrypted::Encrypted, link::PrivateLink, AccessKey, PrivateDirectory, PrivateFile,
+        PrivateForest, PrivateNodeContentSerializable, PrivateRef,
     },
     traits::Id,
 };
@@ -325,7 +325,7 @@ impl PrivateNode {
     /// use chrono::Utc;
     /// use rand::thread_rng;
     /// use wnfs::{
-    ///     private::{PrivateForest, PrivateRef, PrivateNode, PrivateDirectory},
+    ///     private::{PrivateForest, PrivateNode, PrivateDirectory},
     ///     common::{BlockStore, MemoryBlockStore},
     ///     namefilter::Namefilter,
     /// };
@@ -351,7 +351,7 @@ impl PrivateNode {
     ///         .await
     ///         .unwrap();
     ///
-    ///     dir_clone.store(forest, store, rng).await.unwrap();
+    ///     dir_clone.as_node().store(forest, store, rng).await.unwrap();
     ///
     ///     let latest_node = PrivateNode::Dir(init_dir).search_latest(forest, store).await.unwrap();
     ///
@@ -425,7 +425,11 @@ impl PrivateNode {
         current_header.ratchet = search.current().clone();
 
         Ok(forest
-            .get_multivalue(&current_header.derive_revision_ref(), store)
+            .get_multivalue_with_label(
+                &current_header.get_saturated_name_hash(),
+                &current_header.derive_temporal_key(),
+                store,
+            )
             .collect::<Vec<Result<PrivateNode>>>()
             .await
             .into_iter()
@@ -433,7 +437,6 @@ impl PrivateNode {
             .collect())
     }
 
-    /// Tries to deserialize and decrypt a PrivateNode at provided PrivateRef.
     ///
     /// # Examples
     ///
@@ -442,7 +445,7 @@ impl PrivateNode {
     /// use chrono::Utc;
     /// use rand::thread_rng;
     /// use wnfs::{
-    ///     private::{PrivateForest, PrivateRef, PrivateNode, PrivateDirectory},
+    ///     private::{PrivateForest, PrivateNode, PrivateDirectory},
     ///     common::{BlockStore, MemoryBlockStore},
     ///     namefilter::Namefilter,
     /// };
@@ -468,7 +471,7 @@ impl PrivateNode {
     ///     );
     /// }
     /// ```
-    pub async fn load(
+    pub(crate) async fn from_private_ref(
         private_ref: &PrivateRef,
         forest: &PrivateForest,
         store: &impl BlockStore,
@@ -478,7 +481,7 @@ impl PrivateNode {
             .await?
         {
             Some(cids) if cids.contains(&private_ref.content_cid) => private_ref.content_cid,
-            _ => return Err(FsError::NotFound.into()),
+            _ => bail!(FsError::NotFound),
         };
 
         Self::from_cid(cid, &private_ref.temporal_key, store).await
@@ -508,7 +511,22 @@ impl PrivateNode {
         Ok(node)
     }
 
-    pub async fn store(
+    /// Returns the private ref, if this node has been `.store()`ed before.
+    pub(crate) fn derive_private_ref(&self) -> Option<PrivateRef> {
+        match self {
+            Self::File(file) => file.derive_private_ref(),
+            Self::Dir(dir) => dir.derive_private_ref(),
+        }
+    }
+
+    pub(crate) fn get_persisted_as(&self) -> &OnceCell<Cid> {
+        match self {
+            Self::Dir(dir) => &dir.content.persisted_as,
+            Self::File(file) => &file.content.persisted_as,
+        }
+    }
+
+    pub(crate) async fn store_and_get_private_ref(
         &self,
         forest: &mut Rc<PrivateForest>,
         store: &impl BlockStore,
@@ -520,19 +538,25 @@ impl PrivateNode {
         }
     }
 
-    /// Returns the private ref, if this node has been `.store()`ed before.
-    pub(crate) fn get_private_ref(&self) -> Option<PrivateRef> {
-        match self {
-            Self::File(file) => file.get_private_ref(),
-            Self::Dir(dir) => dir.get_private_ref(),
-        }
+    /// Loads a node from the forest using provided access key.
+    pub async fn load(
+        access_key: &AccessKey,
+        forest: &PrivateForest,
+        store: &impl BlockStore,
+    ) -> Result<PrivateNode> {
+        let private_ref = access_key.derive_private_ref()?;
+        PrivateNode::from_private_ref(&private_ref, forest, store).await
     }
 
-    pub(crate) fn persisted_as(&self) -> &OnceCell<Cid> {
-        match self {
-            Self::Dir(dir) => &dir.content.persisted_as,
-            Self::File(file) => &file.content.persisted_as,
-        }
+    /// Stores a node in the forest and returns an access key.
+    pub async fn store(
+        &self,
+        forest: &mut Rc<PrivateForest>,
+        store: &impl BlockStore,
+        rng: &mut impl RngCore,
+    ) -> Result<AccessKey> {
+        let private_ref = &self.store_and_get_private_ref(forest, store, rng).await?;
+        Ok(AccessKey::Temporal(private_ref.into()))
     }
 }
 

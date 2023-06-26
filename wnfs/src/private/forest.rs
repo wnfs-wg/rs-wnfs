@@ -1,4 +1,4 @@
-use super::{PrivateNode, RevisionRef};
+use super::{AccessKey, PrivateNode, TemporalKey};
 use crate::error::AesError;
 use anyhow::Result;
 use async_stream::stream;
@@ -7,7 +7,7 @@ use futures::Stream;
 use libipld_core::cid::Cid;
 use serde::{Deserialize, Deserializer, Serializer};
 use sha3::Sha3_256;
-use std::{collections::BTreeSet, rc::Rc};
+use std::{collections::BTreeSet, pin::Pin, rc::Rc};
 use wnfs_common::{AsyncSerialize, BlockStore, HashOutput, Link};
 use wnfs_hamt::{merge, Hamt, Hasher, KeyValueChange};
 use wnfs_namefilter::Namefilter;
@@ -56,7 +56,7 @@ impl PrivateForest {
     /// use rand::thread_rng;
     /// use sha3::Sha3_256;
     /// use wnfs::{
-    ///     private::{PrivateForest, PrivateRef, PrivateDirectory, PrivateNode},
+    ///     private::{PrivateForest, PrivateDirectory, PrivateNode},
     ///     common::{BlockStore, MemoryBlockStore},
     ///     hamt::Hasher,
     ///     namefilter::Namefilter,
@@ -74,28 +74,19 @@ impl PrivateForest {
     ///     ));
     ///
     ///     let node = PrivateNode::Dir(dir);
-    ///     let private_ref = node.store(forest, store, rng).await.unwrap();
+    ///     let access_key = node.store(forest, store, rng).await.unwrap();
     ///
-    ///     assert!(forest.has(&private_ref.saturated_name_hash, store).await.unwrap());
+    ///     assert!(forest.has(&access_key.get_label(), store).await.unwrap());
     /// }
     /// ```
-    pub async fn has(
-        &self,
-        saturated_name_hash: &HashOutput,
-        store: &impl BlockStore,
-    ) -> Result<bool> {
-        Ok(self
-            .0
-            .root
-            .get_by_hash(saturated_name_hash, store)
-            .await?
-            .is_some())
+    pub async fn has(&self, label: &HashOutput, store: &impl BlockStore) -> Result<bool> {
+        Ok(self.0.root.get_by_hash(label, store).await?.is_some())
     }
 
     /// Adds new encrypted values at the given key.
     pub async fn put_encrypted(
         self: &mut Rc<Self>,
-        name: Namefilter,
+        key: Namefilter,
         values: impl IntoIterator<Item = Cid>,
         store: &impl BlockStore,
     ) -> Result<()> {
@@ -105,14 +96,14 @@ impl PrivateForest {
         let mut cids = self
             .0
             .root
-            .get(&name, store)
+            .get(&key, store)
             .await?
             .cloned()
             .unwrap_or_default();
 
         cids.extend(values);
 
-        Rc::make_mut(self).0.root.set(name, cids, store).await?;
+        Rc::make_mut(self).0.root.set(key, cids, store).await?;
         Ok(())
     }
 
@@ -120,44 +111,40 @@ impl PrivateForest {
     #[inline]
     pub async fn get_encrypted<'b>(
         &'b self,
-        name_hash: &HashOutput,
+        label: &HashOutput,
         store: &impl BlockStore,
     ) -> Result<Option<&'b BTreeSet<Cid>>> {
-        self.0.root.get_by_hash(name_hash, store).await
+        self.0.root.get_by_hash(label, store).await
     }
 
     /// Removes the encrypted value at the given key.
     pub async fn remove_encrypted(
         self: &mut Rc<Self>,
-        name_hash: &HashOutput,
+        label: &HashOutput,
         store: &impl BlockStore,
     ) -> Result<Option<BTreeSet<Cid>>> {
         let pair = Rc::make_mut(self)
             .0
             .root
-            .remove_by_hash(name_hash, store)
+            .remove_by_hash(label, store)
             .await?;
         Ok(pair.map(|p| p.value))
     }
 
-    /// Returns a stream of all private nodes that could be decrypted at given revision.
-    ///
-    /// The stream of results is ordered by CID.
-    ///
-    /// Each item in the resulting stream represents an instance of a concurrent write.
-    pub fn get_multivalue<'a>(
+    pub(crate) fn get_multivalue_with_label<'a>(
         &'a self,
-        revision: &'a RevisionRef,
+        label: &'a HashOutput,
+        temporal_key: &'a TemporalKey,
         store: &'a impl BlockStore,
     ) -> impl Stream<Item = Result<PrivateNode>> + 'a {
         Box::pin(stream! {
             match self
-                .get_encrypted(&revision.saturated_name_hash, store)
+                .get_encrypted(label, store)
                 .await
             {
                 Ok(Some(cids)) => {
                     for cid in cids {
-                        match PrivateNode::from_cid(*cid, &revision.temporal_key, store).await {
+                        match PrivateNode::from_cid(*cid, temporal_key, store).await {
                             Ok(node) => yield Ok(node),
                             Err(e) if e.downcast_ref::<AesError>().is_some() => {
                                 // we likely matched a PrivateNodeHeader instead of a PrivateNode.
@@ -172,6 +159,25 @@ impl PrivateForest {
                 Err(e) => yield Err(e),
             }
         })
+    }
+
+    /// Returns a stream of all private nodes that could be decrypted at given revision.
+    ///
+    /// The stream of results is ordered by CID.
+    ///
+    /// Each item in the resulting stream represents an instance of a concurrent write.
+    pub fn get_multivalue<'a>(
+        &'a self,
+        access_key: &'a AccessKey,
+        store: &'a impl BlockStore,
+    ) -> Result<Pin<Box<dyn Stream<Item = Result<PrivateNode>> + 'a>>> {
+        let stream = self.get_multivalue_with_label(
+            access_key.get_label(),
+            access_key.get_temporal_key()?,
+            store,
+        );
+
+        Ok(Box::pin(stream))
     }
 
     /// Gets the difference in changes between two forests.
@@ -211,7 +217,7 @@ where
     /// use rand::{thread_rng, Rng};
     /// use futures::StreamExt;
     /// use wnfs::{
-    ///     private::{PrivateForest, RevisionRef, PrivateDirectory, PrivateNode},
+    ///     private::{PrivateForest, PrivateDirectory, PrivateNode},
     ///     common::{BlockStore, MemoryBlockStore},
     ///     namefilter::Namefilter,
     /// };
@@ -223,37 +229,34 @@ where
     ///
     ///     let ratchet_seed = rng.gen::<[u8; 32]>();
     ///     let inumber = rng.gen::<[u8; 32]>();
+    ///     let name = Namefilter::default();
     ///
     ///     let main_forest = &mut Rc::new(PrivateForest::new());
-    ///     let root_dir = Rc::new(PrivateDirectory::with_seed(
-    ///         Namefilter::default(),
+    ///     let tmp_dir = Rc::new(PrivateDirectory::with_seed(
+    ///         name.clone().clone(),
     ///         Utc::now(),
     ///         ratchet_seed,
     ///         inumber
     ///     ));
-    ///     root_dir.store(main_forest, store, rng).await.unwrap();
+    ///     let _ = tmp_dir.as_node().store(main_forest, store, rng).await.unwrap();
     ///
     ///     let other_forest = &mut Rc::new(PrivateForest::new());
-    ///     let root_dir = Rc::new(PrivateDirectory::with_seed(
-    ///         Namefilter::default(),
+    ///     let tmp_dir = Rc::new(PrivateDirectory::with_seed(
+    ///         name.clone(),
     ///         Utc::now().checked_add_days(Days::new(1)).unwrap(),
     ///         ratchet_seed,
     ///         inumber
     ///     ));
-    ///     root_dir.store(other_forest, store, rng).await.unwrap();
+    ///
+    ///     let access_key = tmp_dir.as_node().store(other_forest, store, rng).await.unwrap();
     ///
     ///     let merge_forest = main_forest.merge(other_forest, store).await.unwrap();
-    ///
-    ///     let revision_ref = RevisionRef::with_seed(
-    ///         Namefilter::default(),
-    ///         ratchet_seed,
-    ///         inumber
-    ///     );
     ///
     ///     assert_eq!(
     ///         2,
     ///         merge_forest
-    ///             .get_multivalue(&revision_ref, store)
+    ///             .get_multivalue(&access_key, store)
+    ///             .unwrap()
     ///             .collect::<Vec<anyhow::Result<PrivateNode>>>()
     ///             .await
     ///             .into_iter()
@@ -434,21 +437,18 @@ mod tests {
         let private_node_conflict = PrivateNode::Dir(dir_conflict.clone());
 
         // Put the original node in the private forest
-        let private_ref = private_node.store(forest, store, rng).await.unwrap();
+        let access_key = private_node.store(forest, store, rng).await.unwrap();
 
         // Put the conflicting node in the private forest at the same key
-        let private_ref_conflict = private_node_conflict
+        let access_key_conflict = private_node_conflict
             .store(forest, store, rng)
             .await
             .unwrap();
 
-        assert_eq!(
-            private_ref.saturated_name_hash,
-            private_ref_conflict.saturated_name_hash
-        );
+        assert_eq!(access_key.get_label(), access_key_conflict.get_label());
 
         let ciphertext_cids = forest
-            .get_encrypted(&private_ref.saturated_name_hash, store)
+            .get_encrypted(&access_key.get_label(), store)
             .await
             .unwrap()
             .unwrap();
@@ -457,10 +457,8 @@ mod tests {
         // Two of these CIDs should be content blocks, one CID should be the header block they share.
         assert_eq!(ciphertext_cids.len(), 3);
 
-        let retrieved = PrivateNode::load(&private_ref, forest, store)
-            .await
-            .unwrap();
-        let retrieved_conflict = PrivateNode::load(&private_ref_conflict, forest, store)
+        let retrieved = PrivateNode::load(&access_key, forest, store).await.unwrap();
+        let retrieved_conflict = PrivateNode::load(&access_key_conflict, forest, store)
             .await
             .unwrap();
 
