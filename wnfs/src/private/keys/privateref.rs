@@ -39,6 +39,7 @@ pub(crate) struct PrivateRefSerializable {
     pub(crate) content_cid: Cid,
 }
 
+// TODO(appcypher): Remove RevisionRef.
 /// A pointer to a specific revision in the private forest
 /// together with the TemporalKey to decrypt any of these
 /// revisions.
@@ -138,15 +139,6 @@ impl PrivateRef {
     {
         let private_ref = PrivateRefSerializable::deserialize(deserializer)?;
         PrivateRef::from_serializable(private_ref, temporal_key).map_err(DeError::custom)
-    }
-
-    /// Returns a revision ref that refers to all other multivalues
-    /// next to this private ref's value.
-    pub(crate) fn into_revision_ref(self) -> RevisionRef {
-        RevisionRef {
-            saturated_name_hash: self.saturated_name_hash,
-            temporal_key: self.temporal_key,
-        }
     }
 }
 

@@ -53,15 +53,11 @@ async fn main() -> Result<()> {
         .await?;
 
     // When storing the hierarchy data blocks, we use the `hot_store`:
-    let access_key = directory
-        .as_node()
-        .store(forest, &hot_store, rng)
-        .await
-        .unwrap();
+    let access_key = directory.as_node().store(forest, &hot_store, rng).await?;
 
     // Same thing for the forest. Doing this will give us a single root CID
     // for all of the data, but parts separated into `hot_store` and `cold_store`:
-    let private_root_cid = hot_store.put_async_serializable(forest).await.unwrap();
+    let private_root_cid = hot_store.put_async_serializable(forest).await?;
 
     // We can now read out our data back:
     let forest: Rc<PrivateForest> = Rc::new(hot_store.get_deserializable(&private_root_cid).await?);
@@ -85,8 +81,7 @@ async fn main() -> Result<()> {
 
     let result = directory
         .read(&file_path, true, &forest, &tiered_store)
-        .await
-        .unwrap();
+        .await?;
 
     println!("{}", String::from_utf8(result.clone())?);
 

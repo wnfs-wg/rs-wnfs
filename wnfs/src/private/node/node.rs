@@ -425,7 +425,11 @@ impl PrivateNode {
         current_header.ratchet = search.current().clone();
 
         Ok(forest
-            .get_multivalue_with_revision_ref(current_header.derive_revision_ref(), store)
+            .get_multivalue_with_label(
+                &current_header.get_saturated_name_hash(),
+                &current_header.derive_temporal_key(),
+                store,
+            )
             .collect::<Vec<Result<PrivateNode>>>()
             .await
             .into_iter()

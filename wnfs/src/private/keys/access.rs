@@ -53,11 +53,12 @@ impl AccessKey {
         }
     }
 
-    pub fn get_temporal_key(&self) -> Option<&TemporalKey> {
-        match self {
-            Self::Temporal(key) => Some(&key.temporal_key),
-            Self::Snapshot(_) => None,
-        }
+    pub fn get_temporal_key(&self) -> Result<&TemporalKey> {
+        let Self::Temporal(key) = self else {
+            bail!(AccessKeyError::UnsupportedSnapshotPrivateRefDerive)
+        };
+
+        Ok(&key.temporal_key)
     }
 
     pub fn get_content_cid(&self) -> &Cid {
