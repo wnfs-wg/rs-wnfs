@@ -57,14 +57,14 @@ impl TryInto<WnfsPrivateRef> for PrivateRef {
             temporal_key,
             content_cid,
         } = self;
-        let saturated_name_hash = utils::expect_bytes::<HASH_BYTE_SIZE>(label)?;
+        let revision_name_hash = utils::expect_bytes::<HASH_BYTE_SIZE>(label)?;
 
         let key_bytes = utils::expect_bytes::<KEY_BYTE_SIZE>(temporal_key)?;
         let temporal_key = TemporalKey::from(key_bytes);
 
         let content_cid = Cid::try_from(content_cid).map_err(error("Error parsing CID"))?;
         Ok(WnfsPrivateRef {
-            saturated_name_hash,
+            revision_name_hash,
             temporal_key,
             content_cid,
         })
@@ -74,12 +74,12 @@ impl TryInto<WnfsPrivateRef> for PrivateRef {
 impl From<WnfsPrivateRef> for PrivateRef {
     fn from(private_ref: WnfsPrivateRef) -> Self {
         let WnfsPrivateRef {
-            saturated_name_hash,
+            revision_name_hash,
             temporal_key,
             content_cid,
         } = private_ref;
         PrivateRef {
-            label: Vec::from(saturated_name_hash),
+            label: Vec::from(revision_name_hash),
             temporal_key: Vec::from(temporal_key.0.bytes()),
             content_cid: content_cid.to_bytes(),
         }

@@ -29,14 +29,56 @@
 
 <div align="center"><sub>:warning: Work in progress :warning:</sub></div>
 
-##
+## WNFS Name Accumulators
 
-WNFS name accumulators are 2048-bit RSA accumulators.
+This library implements the cryptographic primitives necessary for WNFS to prove that its writes were valid in a way that's verifyable by third parties without read access.
 
-TODO(matheus23)
+Specifically, it implements 2048-bit RSA accumulators and the PoKE* and PoKCR algorithms from the paper ["Batching Techniques for Accumulators with Applications to IOPs and Stateless Blockchains"](https://eprint.iacr.org/2018/1188.pdf), as well as some WNFS-specific interfaces and serialized representations for them.
 
 ## Usage
 
+RSA accumulators require a trusted setup. Whoever has access to the trusted setup can create arbitrary valid proofs, which would in practice let malicious actors who've only been given partial access to a WNFS access to the rest of the file system.
+For this reason the trusted setup is run once upon creation of a new WNFS by the root author. The root author is naturally incentivized to throw away the toxic waste from the trusted setup.
+
 ```rust
-// TODO(matheus23)
+use wnfs_nameaccumulator::{AccumulatorSetup, BatchedProofPart, BatchedProofVerification, Name, NameSegment};
+use rand::thread_rng;
+
+// Run the trutsed setup.
+let rng = &mut thread_rng();
+let setup = &AccumulatorSetup::trusted(rng);
+
+// We want to prove the names for two files at
+// /Docs/Note and /Pics/Image respectively
+let mut name_note = Name::empty(setup);
+let mut name_image = Name::empty(setup);
+
+// Each segment is represented by a random 256-bit prime number
+let root_dir_segment = NameSegment::new(rng);
+let docs_dir_segment = NameSegment::new(rng);
+let pics_dir_segment = NameSegment::new(rng);
+let note_file_segment = NameSegment::new(rng);
+let image_file_segment = NameSegment::new(rng);
+
+name_note.add_segments([root_dir_segment.clone(), docs_dir_segment, note_file_segment]);
+name_image.add_segments([root_dir_segment, pics_dir_segment, image_file_segment]);
+
+// We can collapse these arrays of primes that represent paths into 2048-bit RSA accumulators
+// with a proof that they were derived from the same "base" name, in this case the `Name::empty` above.
+let (accum_note, proof_note) = name_note.as_proven_accumulator(setup);
+let (accum_image, proof_image) = name_image.as_proven_accumulator(setup);
+
+// Knowing the proofs, we can batch at least parts of the proofs together.
+// This results in a single 2048-bit batched proof part and ~17-20 bytes of unbatched proof per element.
+let mut batched_proof = BatchedProofPart::new();
+batched_proof.add(&proof_note);
+batched_proof.add(&proof_image);
+
+// Without read access, but given the accumulated base name and the proofs,
+// we can verify that the accumulated names are related to the same base name.
+let name_base = Name::empty(setup).as_accumulator(setup).clone();
+let mut verification = BatchedProofVerification::new(setup);
+verification.add(&name_base, &accum_note, &proof_note.part)?;
+verification.add(&name_base, &accum_image, &proof_image.part)?;
+verification.verify(&batched_proof)?;
 ```

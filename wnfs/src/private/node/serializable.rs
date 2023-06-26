@@ -53,7 +53,7 @@ pub(crate) struct PrivateNodeHeaderSerializable {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct PrivateRefSerializable {
     #[serde(rename = "name")]
-    pub saturated_name_hash: HashOutput,
+    pub revision_name_hash: HashOutput,
     #[serde(rename = "snapshotKey")]
     pub snapshot_key: SnapshotKey,
     #[serde(rename = "temporalKey")]

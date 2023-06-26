@@ -116,10 +116,10 @@ impl PrivateNodeHeader {
     /// ```
     pub fn derive_revision_ref(&self, setup: &AccumulatorSetup) -> RevisionRef {
         let temporal_key = self.derive_temporal_key();
-        let saturated_name_hash = self.get_name_hash(setup);
+        let revision_name_hash = Sha3_256::hash(self.get_revision_name().as_accumulator(setup));
 
         RevisionRef {
-            saturated_name_hash,
+            revision_name_hash,
             temporal_key,
         }
     }
@@ -151,7 +151,10 @@ impl PrivateNodeHeader {
         TemporalKey::from(&self.ratchet)
     }
 
-    /// Gets the saturated namefilter for this node.
+    /// Gets the revision name for this node.
+    ///
+    /// It's this node's name with a last segment added that's
+    /// unique but deterministic for each revision.
     ///
     /// # Examples
     ///
@@ -171,18 +174,13 @@ impl PrivateNodeHeader {
     ///     Utc::now(),
     ///     rng,
     /// ));
-    /// let saturated_name = file.header.get_name();
+    /// let revision_name = file.header.get_revision_name();
     ///
-    /// println!("Saturated name: {:?}", saturated_name);
+    /// println!("Revision name: {:?}", revision_name);
     /// ```
-    pub fn get_name(&self) -> Name {
+    pub fn get_revision_name(&self) -> Name {
         self.name
             .with_segments_added(Some(self.derive_temporal_key().to_revision_segment()))
-    }
-
-    /// TODO(matheus23)
-    pub fn get_name_hash(&self, setup: &AccumulatorSetup) -> HashOutput {
-        Sha3_256::hash(&self.get_name().as_accumulator(setup))
     }
 
     /// Encrypts this private node header in an block, then stores that in the given
@@ -219,14 +217,14 @@ impl PrivateNodeHeader {
         cid: &Cid,
         temporal_key: &TemporalKey,
         store: &impl BlockStore,
-        mounted_relative_to: Option<Name>,
+        parent_name: Option<Name>,
         setup: &AccumulatorSetup,
     ) -> Result<Self> {
         let ciphertext = store.get_block(cid).await?;
         let cbor_bytes = temporal_key.key_wrap_decrypt(&ciphertext)?;
         let decoded: PrivateNodeHeaderSerializable = serde_ipld_dagcbor::from_slice(&cbor_bytes)?;
         let mut header = Self::from_serializable(decoded);
-        if let Some(parent_name) = mounted_relative_to {
+        if let Some(parent_name) = parent_name {
             let name = parent_name.with_segments_added([header.inumber.clone()]);
             let mounted_acc = name.as_accumulator(setup);
             let name_acc = header.name.as_accumulator(setup);

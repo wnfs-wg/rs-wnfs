@@ -510,12 +510,12 @@ mod tests {
             .unwrap();
 
         assert_eq!(
-            private_ref.saturated_name_hash,
-            private_ref_conflict.saturated_name_hash
+            private_ref.revision_name_hash,
+            private_ref_conflict.revision_name_hash
         );
 
         let ciphertext_entries = forest
-            .get_encrypted_by_hash(&private_ref.saturated_name_hash, store)
+            .get_encrypted_by_hash(&private_ref.revision_name_hash, store)
             .await
             .unwrap()
             .unwrap();

@@ -47,17 +47,12 @@ impl PrivateLink {
         &self,
         forest: &impl PrivateForest,
         store: &impl BlockStore,
-        mounted_relative_to: Option<Name>,
+        parent_name: Option<Name>,
     ) -> Result<&PrivateNode> {
         match self {
             Self::Encrypted { private_ref, cache } => {
                 cache
-                    .get_or_try_init(PrivateNode::load(
-                        private_ref,
-                        forest,
-                        store,
-                        mounted_relative_to,
-                    ))
+                    .get_or_try_init(PrivateNode::load(private_ref, forest, store, parent_name))
                     .await
             }
             Self::Decrypted { node, .. } => Ok(node),
@@ -69,15 +64,13 @@ impl PrivateLink {
         &mut self,
         forest: &impl PrivateForest,
         store: &impl BlockStore,
-        mounted_relative_to: Option<Name>,
+        parent_name: Option<Name>,
     ) -> Result<&mut PrivateNode> {
         match self {
             Self::Encrypted { private_ref, cache } => {
                 let private_node = match cache.take() {
                     Some(node) => node,
-                    None => {
-                        PrivateNode::load(private_ref, forest, store, mounted_relative_to).await?
-                    }
+                    None => PrivateNode::load(private_ref, forest, store, parent_name).await?,
                 };
 
                 // We need to switch this PrivateLink to be a `Decrypted` again, since
@@ -101,14 +94,13 @@ impl PrivateLink {
         self,
         forest: &impl PrivateForest,
         store: &impl BlockStore,
-        mounted_relative_to: Option<Name>,
+        parent_name: Option<Name>,
     ) -> Result<PrivateNode> {
         match self {
             Self::Encrypted { private_ref, cache } => match cache.into_inner() {
                 Some(cached) => Ok(cached),
                 None => {
-                    let node =
-                        PrivateNode::load(&private_ref, forest, store, mounted_relative_to).await?;
+                    let node = PrivateNode::load(&private_ref, forest, store, parent_name).await?;
                     node.persisted_as()
                         .get_or_init(async { private_ref.content_cid })
                         .await;

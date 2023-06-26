@@ -66,15 +66,15 @@ impl PrivateNode {
         private_ref: PrivateRef,
         forest: &PrivateForest,
         store: BlockStore,
-        mounted_relative_to: Option<Name>,
+        parent_name: Option<Name>,
     ) -> JsResult<Promise> {
         let store = ForeignBlockStore(store);
         let forest = Rc::clone(&forest.0);
         let private_ref = private_ref.try_into()?;
-        let mounted_relative_to = mounted_relative_to.map(|name| name.0.clone());
+        let parent_name = parent_name.map(|name| name.0.clone());
 
         Ok(future_to_promise(async move {
-            let node = WnfsPrivateNode::load(&private_ref, &forest, &store, mounted_relative_to)
+            let node = WnfsPrivateNode::load(&private_ref, &forest, &store, parent_name)
                 .await
                 .map_err(error("Cannot load node"))?;
 

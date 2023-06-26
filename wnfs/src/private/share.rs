@@ -178,7 +178,7 @@ impl TemporalSharePointer {
         let private_ref = node.store(forest, store, rng).await?;
 
         let payload = TemporalSharePointer {
-            label: private_ref.saturated_name_hash,
+            label: private_ref.revision_name_hash,
             content_cid: private_ref.content_cid,
             temporal_key: private_ref.temporal_key,
         };
@@ -198,7 +198,7 @@ impl SnapshotSharePointer {
         let private_ref = node.store(forest, store, rng).await?;
 
         let payload = Self {
-            label: private_ref.saturated_name_hash,
+            label: private_ref.revision_name_hash,
             content_cid: private_ref.content_cid,
             snapshot_key: private_ref.temporal_key.derive_snapshot_key(),
         };

@@ -14,10 +14,25 @@ use wnfs_nameaccumulator::{AccumulatorSetup, Name, NameAccumulator};
 
 #[async_trait(?Send)]
 pub trait PrivateForest {
-    /// TODO(matheus23) docs
-    fn empty_name(&self) -> Name;
+    /// Construct what represents the empty name in this forest.
+    ///
+    /// It is forest-specific, as it depends on the specific forest's
+    /// accumulator setup.
+    ///
+    /// Two forests with the same accumulator setup will have the same
+    /// empty name representation.
+    fn empty_name(&self) -> Name {
+        Name::empty(self.get_accumulator_setup())
+    }
 
-    /// TODO(matheus23) docs
+    /// Return the forest's accumulator setup.
+    ///
+    /// This setup needs to be generated during creation of a private
+    /// forest. The setup creation needs to run in a trusted context,
+    /// usually on the device that has root access to the private forest.
+    ///
+    /// It's used for the cryptographic accumulator operations underlying
+    /// the private forest name accumulators.
     fn get_accumulator_setup(&self) -> &AccumulatorSetup;
 
     /// Checks that a value with the given saturated name hash key exists.
@@ -52,12 +67,12 @@ pub trait PrivateForest {
     ///     let node = PrivateNode::Dir(dir);
     ///     let private_ref = node.store(forest, store, rng).await.unwrap();
     ///
-    ///     assert!(forest.has_by_hash(&private_ref.saturated_name_hash, store).await.unwrap());
+    ///     assert!(forest.has_by_hash(&private_ref.revision_name_hash, store).await.unwrap());
     /// }
     /// ```
     async fn has_by_hash(&self, name_hash: &HashOutput, store: &impl BlockStore) -> Result<bool>;
 
-    /// TODO(matheus23) docs
+    /// Check whether a certain name has any values.
     async fn has(&self, name: &Name, store: &impl BlockStore) -> Result<bool>;
 
     /// Adds new encrypted values at the given key.
@@ -97,18 +112,18 @@ pub trait PrivateForest {
         &'a self,
         revision: &'a RevisionRef,
         store: &'a impl BlockStore,
-        mounted_relative_to: Option<Name>,
+        parent_name: Option<Name>,
     ) -> LocalBoxStream<'a, Result<PrivateNode>> {
         Box::pin(stream! {
             match self
-                .get_encrypted_by_hash(&revision.saturated_name_hash, store)
+                .get_encrypted_by_hash(&revision.revision_name_hash, store)
                 .await
             {
                 Ok(Some(cids)) => {
                     let setup = self.get_accumulator_setup();
 
                     for cid in cids {
-                        match PrivateNode::from_cid(*cid, &revision.temporal_key, store, mounted_relative_to.clone(), setup).await {
+                        match PrivateNode::from_cid(*cid, &revision.temporal_key, store, parent_name.clone(), setup).await {
                             Ok(node) => yield Ok(node),
                             Err(e) if e.downcast_ref::<AesError>().is_some() => {
                                 // we likely matched a PrivateNodeHeader instead of a PrivateNode.

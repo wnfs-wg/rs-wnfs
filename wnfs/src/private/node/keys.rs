@@ -64,11 +64,9 @@ impl TemporalKey {
             .map_err(|e| AesError::UnableToEncrypt(format!("{e}")))?)
     }
 
-    /// TODO(matheus23)
     pub(crate) fn to_revision_segment(&self) -> NameSegment {
         let mut hasher = Sha3_256::new();
-        // TODO(matheus23): Specification?
-        hasher.update("Revision name acc element");
+        hasher.update("wnfs/nameaccum/revisions/segment");
         hasher.update(self.0.as_bytes());
         NameSegment::from_digest(hasher)
     }

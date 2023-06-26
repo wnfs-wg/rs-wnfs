@@ -1,4 +1,6 @@
-//! TODO(matheus23)
+//! This library implements the cryptographic primitives necessary for WNFS to prove that its writes were valid in a way that's verifyable by third parties without read access.
+//!
+//! Specifically, it implements 2048-bit RSA accumulators and the PoKE* and PoKCR algorithms from the paper ["Batching Techniques for Accumulators with Applications to IOPs and Stateless Blockchains"](https://eprint.iacr.org/2018/1188.pdf), as well as some WNFS-specific interfaces and serialized representations for them.
 
 use anyhow::Result;
 use error::VerificationError;
@@ -414,9 +416,6 @@ pub struct Name {
 
 impl PartialEq for Name {
     fn eq(&self, other: &Self) -> bool {
-        // TODO(matheus23) this is not ideal.
-        // We're special-casing certain constructions of Names to be equal, but not all,
-        // just so that all *existing* tests are OK.
         let left = self
             .accumulated
             .get()
@@ -505,15 +504,18 @@ impl Name {
 #[cfg(test)]
 mod tests {
     use crate::{
-        AccumulatorSetup, BatchedProofPart, BatchedProofVerification, NameAccumulator, NameSegment,
+        AccumulatorSetup, BatchedProofPart, BatchedProofVerification, Name, NameAccumulator,
+        NameSegment,
     };
+    use anyhow::Result;
     use libipld::{
         cbor::DagCborCodec,
         prelude::{Decode, Encode},
         Ipld,
     };
     use proptest::{prop_assert, prop_assert_eq};
-    use rand::thread_rng;
+    use rand::{thread_rng, SeedableRng};
+    use rand_chacha::ChaCha12Rng;
     use std::io::Cursor;
     use test_strategy::proptest;
 
@@ -557,9 +559,45 @@ mod tests {
         assert_eq!(acc_back, acc);
     }
 
-    #[proptest(cases = 64)]
-    fn batch_proofs(do_batch_step: [bool; 4], do_verify_step: [bool; 4]) {
+    #[test]
+    fn name_batched_proof_example() -> Result<()> {
         let rng = &mut thread_rng();
+        let setup = &AccumulatorSetup::from_rsa_2048(rng);
+        let mut name_note = Name::empty(setup);
+        let mut name_image = Name::empty(setup);
+
+        let root_dir_segment = NameSegment::new(rng);
+        let docs_dir_segment = NameSegment::new(rng);
+        let pics_dir_segment = NameSegment::new(rng);
+        let note_file_segment = NameSegment::new(rng);
+        let image_file_segment = NameSegment::new(rng);
+
+        name_note.add_segments([
+            root_dir_segment.clone(),
+            docs_dir_segment,
+            note_file_segment,
+        ]);
+        name_image.add_segments([root_dir_segment, pics_dir_segment, image_file_segment]);
+
+        let (accum_note, proof_note) = name_note.as_proven_accumulator(setup);
+        let (accum_image, proof_image) = name_image.as_proven_accumulator(setup);
+
+        let mut batched_proof = BatchedProofPart::new();
+        batched_proof.add(&proof_note);
+        batched_proof.add(&proof_image);
+
+        let name_base = Name::empty(setup).as_accumulator(setup).clone();
+        let mut verification = BatchedProofVerification::new(setup);
+        verification.add(&name_base, &accum_note, &proof_note.part)?;
+        verification.add(&name_base, &accum_image, &proof_image.part)?;
+        verification.verify(&batched_proof)?;
+
+        Ok(())
+    }
+
+    #[proptest(cases = 64)]
+    fn batch_proofs(do_batch_step: [bool; 4], do_verify_step: [bool; 4], seed: u64) {
+        let rng = &mut ChaCha12Rng::seed_from_u64(seed);
         let setup = &AccumulatorSetup::from_rsa_2048(rng);
         let base_a = NameAccumulator::with_segments(&[NameSegment::new(rng)], setup);
         let base_b = NameAccumulator::with_segments(&[NameSegment::new(rng)], setup);

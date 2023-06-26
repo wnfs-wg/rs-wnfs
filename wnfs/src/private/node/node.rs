@@ -417,7 +417,7 @@ impl PrivateNode {
         let setup = forest.get_accumulator_setup();
         let mountpoint = header.name.parent().unwrap_or_else(|| forest.empty_name());
 
-        let current_name = &header.get_name();
+        let current_name = &header.get_revision_name();
         if !forest.has(current_name, store).await? {
             return Ok(vec![self.clone()]);
         }
@@ -433,7 +433,9 @@ impl PrivateNode {
             let current = search.current();
             current_header.ratchet = current.clone();
 
-            let has_curr = forest.has(&current_header.get_name(), store).await?;
+            let has_curr = forest
+                .has(&current_header.get_revision_name(), store)
+                .await?;
 
             let ord = if has_curr {
                 Ordering::Less
@@ -461,7 +463,19 @@ impl PrivateNode {
             .collect())
     }
 
-    /// Tries to deserialize and decrypt a PrivateNode at provided PrivateRef.
+    /// Tries to deserialize and decrypt a PrivateNode at provided PrivateRef
+    /// from the PrivateForest.
+    ///
+    /// In case you're loading this node as a sub-node of another node, you need
+    /// to provide the `parent_name`, so it can correctly create proofs relative
+    /// to the parent name's base for the private forest.
+    ///
+    /// In case you're loading this node as the entry point into a WNFS, e.g.
+    /// initially from an access key that was shared with you, simply provide `None`.
+    /// In short, provide `None` iff
+    /// - you have a certificate that gives you write access to exactly this node you're
+    ///   loading specifically
+    /// - you don't intend to prove writes to third parties.
     ///
     /// # Examples
     ///
@@ -502,11 +516,10 @@ impl PrivateNode {
         private_ref: &PrivateRef,
         forest: &impl PrivateForest,
         store: &impl BlockStore,
-        // TODO(matheus23) document this
-        mounted_relative_to: Option<Name>,
+        parent_name: Option<Name>,
     ) -> Result<PrivateNode> {
         let cid = match forest
-            .get_encrypted_by_hash(&private_ref.saturated_name_hash, store)
+            .get_encrypted_by_hash(&private_ref.revision_name_hash, store)
             .await?
         {
             Some(cids) if cids.contains(&private_ref.content_cid) => private_ref.content_cid,
@@ -515,21 +528,14 @@ impl PrivateNode {
 
         let setup = forest.get_accumulator_setup();
 
-        Self::from_cid(
-            cid,
-            &private_ref.temporal_key,
-            store,
-            mounted_relative_to,
-            setup,
-        )
-        .await
+        Self::from_cid(cid, &private_ref.temporal_key, store, parent_name, setup).await
     }
 
     pub(crate) async fn from_cid(
         cid: Cid,
         temporal_key: &TemporalKey,
         store: &impl BlockStore,
-        mounted_relative_to: Option<Name>,
+        parent_name: Option<Name>,
         setup: &AccumulatorSetup,
     ) -> Result<PrivateNode> {
         let encrypted_bytes = store.get_block(&cid).await?;
@@ -543,7 +549,7 @@ impl PrivateNode {
                     temporal_key,
                     cid,
                     store,
-                    mounted_relative_to,
+                    parent_name,
                     setup,
                 )
                 .await?;
@@ -555,7 +561,7 @@ impl PrivateNode {
                     temporal_key,
                     cid,
                     store,
-                    mounted_relative_to,
+                    parent_name,
                     setup,
                 )
                 .await?;

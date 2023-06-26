@@ -710,7 +710,7 @@ impl PrivateFile {
         let header_cid = self.header.store(store, setup).await?;
         let temporal_key = self.header.derive_temporal_key();
         let snapshot_key = temporal_key.derive_snapshot_key();
-        let name_with_revision = self.header.get_name();
+        let name_with_revision = self.header.get_revision_name();
 
         let content_cid = self
             .content
@@ -733,7 +733,7 @@ impl PrivateFile {
         temporal_key: &TemporalKey,
         cid: Cid,
         store: &impl BlockStore,
-        mounted_relative_to: Option<Name>,
+        parent_name: Option<Name>,
         setup: &AccumulatorSetup,
     ) -> Result<Self> {
         if serializable.version.major != 0 || serializable.version.minor != 2 {
@@ -751,7 +751,7 @@ impl PrivateFile {
             &serializable.header_cid,
             temporal_key,
             store,
-            mounted_relative_to,
+            parent_name,
             setup,
         )
         .await?;
