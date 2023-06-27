@@ -570,6 +570,8 @@ impl PrivateNode {
         })
     }
 
+    /// Encrypt and store this private node in a private forest
+    /// and return the private ref used for finding and decrypting it again.
     pub async fn store(
         &self,
         forest: &mut impl PrivateForest,

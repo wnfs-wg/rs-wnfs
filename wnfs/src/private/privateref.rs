@@ -3,7 +3,7 @@ use crate::error::{AesError, FsError};
 use aes_kw::KekAes256;
 use anyhow::Result;
 use libipld::Cid;
-use serde::{de::Error as DeError, ser::Error as SerError, Deserialize, Serialize};
+use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 use wnfs_common::HashOutput;
 use wnfs_nameaccumulator::{AccumulatorSetup, Name, NameSegment};
@@ -115,26 +115,6 @@ impl PrivateRef {
             temporal_key,
             content_cid: private_ref.content_cid,
         })
-    }
-
-    pub fn serialize<S>(&self, serializer: S, temporal_key: &TemporalKey) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        self.to_serializable(temporal_key)
-            .map_err(SerError::custom)?
-            .serialize(serializer)
-    }
-
-    pub fn deserialize<'de, D>(
-        deserializer: D,
-        temporal_key: &TemporalKey,
-    ) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        let private_ref = PrivateRefSerializable::deserialize(deserializer)?;
-        PrivateRef::from_serializable(private_ref, temporal_key).map_err(DeError::custom)
     }
 
     /// Returns a revision ref that refers to all other multivalues

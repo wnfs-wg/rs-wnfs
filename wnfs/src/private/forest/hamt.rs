@@ -46,6 +46,7 @@ pub struct HamtForest<H: Hasher = Sha3_256> {
 //--------------------------------------------------------------------------------------------------
 
 impl HamtForest {
+    /// Create a new, empty hamt forest with given pre-run accumulator setup
     pub fn new(setup: AccumulatorSetup) -> Self {
         Self {
             hamt: Hamt::new(),
@@ -53,10 +54,29 @@ impl HamtForest {
         }
     }
 
+    /// Create a new, empty hamt forest with an accumulator setup with its
+    /// security based on the factors of the RSA-2048 factoring challenge
+    /// modulus being unknown.
+    ///
+    /// This runs much faster than `new_trusted`, but relies on the RSA-2048
+    /// factoring challenge not being broken. Great for tests.
     pub fn new_rsa_2048(rng: &mut impl CryptoRngCore) -> Self {
         Self::new(AccumulatorSetup::from_rsa_2048(rng))
     }
 
+    /// Create a new, empty hamt forest with and run a trusted accumulator
+    /// steup. During this setup process there is a brief point in time
+    /// at which some memory is written which, if observed, will break
+    /// the security of the cryptographic accumulators.
+    ///
+    /// If the possibility of observing memory is part of your threat model,
+    /// avoid this and try to generate the accumulator setup in advance via
+    /// - a hardware security module (by generating an RSA modulus),
+    /// - secure multiparty computation,
+    /// - or by re-using the RSA-2048 factoring challenge.
+    ///
+    /// This function is fairly slow, as it's not using the most efficient
+    /// methods for generating an RSA modulus.
     pub fn new_trusted(rng: &mut impl CryptoRngCore) -> Self {
         Self::new(AccumulatorSetup::trusted(rng))
     }

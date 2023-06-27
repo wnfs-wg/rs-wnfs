@@ -50,7 +50,7 @@ pub struct PrivateDirectory {
 }
 
 #[derive(Debug)]
-pub struct PrivateDirectoryContent {
+pub(crate) struct PrivateDirectoryContent {
     pub(crate) persisted_as: OnceCell<Cid>,
     pub(crate) previous: BTreeSet<(usize, Encrypted<Cid>)>,
     pub(crate) metadata: Metadata,

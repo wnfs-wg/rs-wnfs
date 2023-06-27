@@ -12,6 +12,12 @@ use wnfs_common::{BlockStore, HashOutput};
 use wnfs_hamt::Pair;
 use wnfs_nameaccumulator::{AccumulatorSetup, Name, NameAccumulator};
 
+/// A trait representing a (usually serializable) mapping from
+/// WNFS names to a set of encrypted ciphertext blocks.
+///
+/// It also stores the accumulator setup information for running
+/// name accumulator operations. Upon put or remove, it'll run
+/// these operations for the caller.
 #[async_trait(?Send)]
 pub trait PrivateForest {
     /// Construct what represents the empty name in this forest.
@@ -83,20 +89,21 @@ pub trait PrivateForest {
         store: &impl BlockStore,
     ) -> Result<&'a NameAccumulator>;
 
+    /// Gets the CIDs to blocks of ciphertext by hash of name.
     async fn get_encrypted_by_hash<'b>(
         &'b self,
         name_hash: &HashOutput,
         store: &impl BlockStore,
     ) -> Result<Option<&'b BTreeSet<Cid>>>;
 
-    /// Gets the encrypted values at the given key.
+    /// Gets the CIDs to blocks of ciphertext by name.
     async fn get_encrypted(
         &self,
         name: &Name,
         store: &impl BlockStore,
     ) -> Result<Option<&BTreeSet<Cid>>>;
 
-    /// Removes the encrypted values at the given key.
+    /// Removes the CIDs to blocks of ciphertext by name.
     async fn remove_encrypted(
         &mut self,
         name: &Name,

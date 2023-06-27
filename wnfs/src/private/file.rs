@@ -76,7 +76,7 @@ pub struct PrivateFile {
 }
 
 #[derive(Debug)]
-pub struct PrivateFileContent {
+pub(crate) struct PrivateFileContent {
     pub(crate) persisted_as: OnceCell<Cid>,
     pub(crate) previous: BTreeSet<(usize, Encrypted<Cid>)>,
     pub(crate) metadata: Metadata,
