@@ -47,7 +47,7 @@ pub struct KeyValueChange<K, V> {
 ///
 /// #[async_std::main]
 /// async fn main() {
-///     let store = &mut MemoryBlockStore::new();
+///     let store = &MemoryBlockStore::new();
 ///     let main_node = &mut Rc::new(Node::<[u8; 4], String>::default());
 ///     for i in 0u32..3 {
 ///         main_node
@@ -333,7 +333,7 @@ mod tests {
 
     #[async_std::test]
     async fn can_diff_main_node_with_added_removed_pairs() {
-        let store = &mut MemoryBlockStore::default();
+        let store = &MemoryBlockStore::default();
 
         let main_node = &mut Rc::new(Node::<[u8; 4], String>::default());
         for i in 0u32..3 {
@@ -404,7 +404,7 @@ mod tests {
 
     #[async_std::test]
     async fn can_diff_main_node_with_no_changes() {
-        let store = &mut MemoryBlockStore::default();
+        let store = &MemoryBlockStore::default();
 
         let main_node = &mut Rc::new(Node::<_, _>::default());
         for i in 0_u32..3 {
@@ -435,7 +435,7 @@ mod tests {
 
     #[async_std::test]
     async fn can_diff_nodes_with_different_structure_and_modified_changes() {
-        let store = &mut MemoryBlockStore::default();
+        let store = &MemoryBlockStore::default();
 
         // A node that adds the first 3 pairs of HASH_KV_PAIRS.
         let other_node = &mut Rc::new(Node::<_, _, MockHasher>::default());
@@ -582,7 +582,7 @@ mod proptests {
         ),
     ) {
         task::block_on(async {
-            let store = &mut MemoryBlockStore::default();
+            let store = &MemoryBlockStore::default();
             let (ops, strategy_changes) = ops_changes;
 
             let other_node = &mut strategies::node_from_operations(&ops, store).await.unwrap();
@@ -624,7 +624,7 @@ mod proptests {
         #[strategy(generate_kvs("[a-z0-9]{1,3}", 0u64..1000, 0..100))] kvs2: Vec<(String, u64)>,
     ) {
         task::block_on(async {
-            let store = &mut MemoryBlockStore::default();
+            let store = &MemoryBlockStore::default();
 
             let node1 = strategies::node_from_kvs(kvs1, store).await.unwrap();
             let node2 = strategies::node_from_kvs(kvs2, store).await.unwrap();
@@ -648,7 +648,7 @@ mod proptests {
         #[strategy(generate_kvs("[a-z0-9]{1,3}", 0u64..1000, 0..100))] kvs2: Vec<(String, u64)>,
     ) {
         task::block_on(async {
-            let store = &mut MemoryBlockStore::default();
+            let store = &MemoryBlockStore::default();
 
             let node1 = strategies::node_from_kvs(kvs1, store).await.unwrap();
             let node2 = strategies::node_from_kvs(kvs2, store).await.unwrap();

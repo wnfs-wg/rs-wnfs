@@ -15,7 +15,6 @@ pub(crate) mod root_tree;
 pub mod traits;
 mod utils;
 
-pub use libipld;
 pub mod rand_core {
     pub use rand_core::RngCore;
 }

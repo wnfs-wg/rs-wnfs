@@ -9,7 +9,7 @@ use async_once_cell::OnceCell;
 use async_recursion::async_recursion;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
-use libipld::Cid;
+use libipld_core::cid::Cid;
 use serde::{
     de::Error as DeError, ser::Error as SerError, Deserialize, Deserializer, Serialize, Serializer,
 };
@@ -308,14 +308,14 @@ impl PublicDirectory {
     ///     public::PublicDirectory,
     ///     common::MemoryBlockStore
     /// };
-    /// use libipld::cid::Cid;
+    /// use libipld_core::cid::Cid;
     /// use std::rc::Rc;
     /// use chrono::Utc;
     ///
     /// #[async_std::main]
     /// async fn main() {
     ///     let dir = &mut Rc::new(PublicDirectory::new(Utc::now()));
-    ///     let store = &mut MemoryBlockStore::default();
+    ///     let store = &MemoryBlockStore::default();
     ///     let cid = Cid::default();
     ///
     ///     dir
@@ -357,7 +357,7 @@ impl PublicDirectory {
     ///     public::PublicDirectory,
     ///     common::MemoryBlockStore
     /// };
-    /// use libipld::cid::Cid;
+    /// use libipld_core::cid::Cid;
     /// use std::rc::Rc;
     /// use chrono::Utc;
     ///
@@ -461,7 +461,7 @@ impl PublicDirectory {
     ///     public::PublicDirectory,
     ///     common::MemoryBlockStore
     /// };
-    /// use libipld::cid::Cid;
+    /// use libipld_core::cid::Cid;
     /// use std::rc::Rc;
     /// use chrono::Utc;
     ///
@@ -523,7 +523,7 @@ impl PublicDirectory {
     ///     public::PublicDirectory,
     ///     common::MemoryBlockStore
     /// };
-    /// use libipld::cid::Cid;
+    /// use libipld_core::cid::Cid;
     /// use std::rc::Rc;
     /// use chrono::Utc;
     ///
@@ -592,7 +592,7 @@ impl PublicDirectory {
     ///     public::PublicDirectory,
     ///     common::MemoryBlockStore
     /// };
-    /// use libipld::cid::Cid;
+    /// use libipld_core::cid::Cid;
     /// use std::rc::Rc;
     /// use chrono::Utc;
     ///
@@ -673,7 +673,7 @@ impl PublicDirectory {
     ///
     /// #[async_std::main]
     /// async fn main() {
-    ///     let store = &mut MemoryBlockStore::default();
+    ///     let store = &MemoryBlockStore::default();
     ///     let dir = PublicDirectory::new(Utc::now());
     ///
     ///     let cid = dir.store(store).await.unwrap();
@@ -796,7 +796,7 @@ impl<'de> Deserialize<'de> for PublicDirectory {
 mod tests {
     use super::*;
     use chrono::Utc;
-    use libipld::Ipld;
+    use libipld_core::ipld::Ipld;
     use wnfs_common::MemoryBlockStore;
 
     #[async_std::test]
@@ -1158,7 +1158,7 @@ mod tests {
     #[async_std::test]
     async fn previous_links_get_set() {
         let time = Utc::now();
-        let store = &mut MemoryBlockStore::default();
+        let store = &MemoryBlockStore::default();
         let root_dir = &mut Rc::new(PublicDirectory::new(time));
         let previous_cid = root_dir.store(store).await.unwrap();
 
@@ -1182,7 +1182,7 @@ mod tests {
     #[async_std::test]
     async fn prepare_next_revision_shortcuts_if_possible() {
         let time = Utc::now();
-        let store = &mut MemoryBlockStore::default();
+        let store = &MemoryBlockStore::default();
         let root_dir = &mut Rc::new(PublicDirectory::new(time));
 
         let previous_cid = &root_dir.store(store).await.unwrap();

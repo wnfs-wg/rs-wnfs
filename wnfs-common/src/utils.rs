@@ -1,6 +1,7 @@
 use crate::HashOutput;
 use anyhow::Result;
 use futures::{AsyncRead, AsyncReadExt};
+use libipld::IpldCodec;
 #[cfg(any(test, feature = "test_utils"))]
 use proptest::{
     strategy::{Strategy, ValueTree},
@@ -125,4 +126,9 @@ pub fn to_hash_output(bytes: &[u8]) -> HashOutput {
     let mut nibbles = [0u8; 32];
     nibbles[..bytes.len()].copy_from_slice(bytes);
     nibbles
+}
+
+/// Tries to convert a u64 value to IPLD codec.
+pub fn u64_to_ipld(value: u64) -> Result<IpldCodec> {
+    Ok(value.try_into()?)
 }

@@ -1,45 +1,46 @@
 //! This example shows how to add a directory to a private forest (a HAMT) where encrypted ciphertexts are stored.
 //! It also shows how to retrieve encrypted nodes from the forest using `PrivateRef`s.
 
+use anyhow::Result;
 use chrono::Utc;
-use libipld::Cid;
+use libipld_core::cid::Cid;
 use rand::thread_rng;
 use rand_core::CryptoRngCore;
 use std::rc::Rc;
 use wnfs::private::{
     forest::{hamt::HamtForest, traits::PrivateForest},
-    PrivateDirectory, PrivateNode, PrivateRef,
+    AccessKey, PrivateDirectory, PrivateNode,
 };
 use wnfs_common::{BlockStore, MemoryBlockStore};
 use wnfs_nameaccumulator::AccumulatorSetup;
 
 #[async_std::main]
-async fn main() {
+async fn main() -> Result<()> {
     // Create an in-memory block store.
-    let store = &mut MemoryBlockStore::default();
+    let store = &MemoryBlockStore::default();
 
     // Create a random number generator the private filesystem can use.
     let rng = &mut thread_rng();
 
     // Create a new private forest and get the cid to it.
-    let (forest_cid, private_ref) = create_forest_and_add_directory(store, rng).await;
+    let (forest_cid, access_key) = create_forest_and_add_directory(store, rng).await?;
 
     // Deserialize private forest from the blockstore.
-    let forest = Rc::new(HamtForest::load(&forest_cid, store).await.unwrap());
+    let forest = HamtForest::load(&forest_cid, store).await?;
 
     // Fetch and decrypt a directory from the private forest using provided private ref.
-    let dir = PrivateNode::load(&private_ref, &forest, store, None)
-        .await
-        .unwrap();
+    let dir = PrivateNode::load(&access_key, &forest, store, None).await?;
 
     // Print the directory.
-    println!("{dir:#?}");
+    println!("{:#?}", dir);
+
+    Ok(())
 }
 
 async fn create_forest_and_add_directory(
     store: &impl BlockStore,
     rng: &mut impl CryptoRngCore,
-) -> (Cid, PrivateRef) {
+) -> Result<(Cid, AccessKey)> {
     // Do a trusted setup for WNFS' name accumulators
     let setup = AccumulatorSetup::trusted(rng);
 
@@ -58,14 +59,13 @@ async fn create_forest_and_add_directory(
         store,
         rng,
     )
-    .await
-    .unwrap();
+    .await?;
 
-    // Private ref contains data and keys for fetching and decrypting the directory node in the private forest.
-    let private_ref = dir.store(forest, store, rng).await.unwrap();
+    // Access key contains the materials for fetching and decrypting the directory node in the private forest.
+    let access_key = dir.as_node().store(forest, store, rng).await?;
 
     // Persist encoded private forest to the block store.
-    let forest_cid = store.put_async_serializable(forest).await.unwrap();
+    let forest_cid = store.put_async_serializable(forest).await?;
 
-    (forest_cid, private_ref)
+    Ok((forest_cid, access_key))
 }

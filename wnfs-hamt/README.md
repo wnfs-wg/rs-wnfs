@@ -49,7 +49,7 @@ The implementation is based on [fvm_ipld_hamt](https://github.com/filecoin-proje
 use wnfs_hamt::Node;
 use wnfs_common::MemoryBlockStore;
 
-let store = &mut MemoryBlockStore::default();
+let store = &MemoryBlockStore::default();
 let scores: Node<String, usize> = Rc::new(Node::default());
 
 scores.set("Mandy", 30, store).await?;

@@ -1,6 +1,6 @@
 [package]
 name = "wnfs-wasm"
-version = "0.1.21"
+version = "0.1.22"
 description = "WebNative Filesystem API (WebAssembly)"
 keywords = ["wnfs", "wasm", "webnative", "ipfs", "decentralisation"]
 categories = [
@@ -19,17 +19,19 @@ authors = ["The Fission Authors"]
 [dependencies]
 anyhow = "1.0"
 async-trait = "0.1"
+bytes = "1.4.0"
 cfg-if = "1.0"
 chrono = { version = "0.4", default-features = false, features = ["clock", "std", "wasmbind"] }
 console_error_panic_hook = { version = "0.1", optional = true }
 getrandom = { version = "0.2", features = ["js"] }
 js-sys = { version = "0.3", optional = true }
+libipld-core = { version = "0.16" }
 rand_core = "0.6"
 wasm-bindgen = { version = "0.2.84", optional = true, features = ["serde-serialize"] }
 wasm-bindgen-futures = { version = "0.4", optional = true }
 web-sys = { version = "0.3", optional = true }
-wnfs = { path = "../wnfs", version = "0.1.21" }
-wnfs-nameaccumulator = { path = "../wnfs-nameaccumulator", version = "0.1.21" }
+wnfs = { path = "../wnfs", version = "0.1.22" }
+wnfs-nameaccumulator = { path = "../wnfs-nameaccumulator", version = "0.1.22" }
 
 [dev-dependencies]
 wasm-bindgen-test = "0.3"
@@ -41,12 +43,5 @@ path = "src/lib.rs"
 [features]
 default = ["js"]
 wasm = ["wnfs/wasm"]
-js = [
-  "chrono/wasmbind",
-  "console_error_panic_hook",
-  "js-sys",
-  "wasm",
-  "wasm-bindgen",
-  "wasm-bindgen-futures"
-]
+js = ["chrono/wasmbind", "console_error_panic_hook", "js-sys", "wasm", "wasm-bindgen", "wasm-bindgen-futures"]
 web = ["wasm", "web-sys"]

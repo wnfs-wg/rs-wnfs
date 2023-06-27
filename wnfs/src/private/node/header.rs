@@ -1,12 +1,12 @@
 use super::{PrivateNodeHeaderSerializable, TemporalKey};
 use crate::{error::FsError, private::RevisionRef};
 use anyhow::Result;
-use libipld::{Cid, IpldCodec};
+use libipld_core::cid::Cid;
 use rand_core::CryptoRngCore;
 use sha3::{Digest, Sha3_256};
 use skip_ratchet::Ratchet;
 use std::fmt::Debug;
-use wnfs_common::{utils, BlockStore, HashOutput, HASH_BYTE_SIZE};
+use wnfs_common::{utils, BlockStore, HashOutput, CODEC_RAW, HASH_BYTE_SIZE};
 use wnfs_hamt::Hasher;
 use wnfs_nameaccumulator::{AccumulatorSetup, Name, NameSegment};
 
@@ -93,28 +93,7 @@ impl PrivateNodeHeader {
     }
 
     /// Derives the revision ref of the current header.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use std::rc::Rc;
-    /// use wnfs::private::PrivateFile;
-    /// use wnfs_nameaccumulator::{AccumulatorSetup, Name};
-    /// use chrono::Utc;
-    /// use rand::thread_rng;
-    ///
-    /// let rng = &mut thread_rng();
-    /// let setup = &AccumulatorSetup::from_rsa_2048(rng);
-    /// let file = Rc::new(PrivateFile::new(
-    ///     &Name::empty(setup),
-    ///     Utc::now(),
-    ///     rng,
-    /// ));
-    /// let revision_ref = file.header.derive_revision_ref(setup);
-    ///
-    /// println!("Private ref: {:?}", revision_ref);
-    /// ```
-    pub fn derive_revision_ref(&self, setup: &AccumulatorSetup) -> RevisionRef {
+    pub(crate) fn derive_revision_ref(&self, setup: &AccumulatorSetup) -> RevisionRef {
         let temporal_key = self.derive_temporal_key();
         let revision_name_hash = Sha3_256::hash(self.get_revision_name().as_accumulator(setup));
 
@@ -189,7 +168,7 @@ impl PrivateNodeHeader {
         let temporal_key = self.derive_temporal_key();
         let cbor_bytes = serde_ipld_dagcbor::to_vec(&self.to_serializable(setup))?;
         let ciphertext = temporal_key.key_wrap_encrypt(&cbor_bytes)?;
-        store.put_block(ciphertext, IpldCodec::Raw).await
+        store.put_block(ciphertext, CODEC_RAW).await
     }
 
     pub(crate) fn to_serializable(

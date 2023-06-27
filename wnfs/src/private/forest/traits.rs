@@ -1,12 +1,12 @@
 use crate::{
     error::AesError,
-    private::{PrivateNode, RevisionRef},
+    private::{PrivateNode, TemporalKey},
 };
 use anyhow::Result;
 use async_stream::stream;
 use async_trait::async_trait;
 use futures::stream::LocalBoxStream;
-use libipld::Cid;
+use libipld_core::cid::Cid;
 use std::collections::BTreeSet;
 use wnfs_common::{BlockStore, HashOutput};
 use wnfs_hamt::Pair;
@@ -52,7 +52,7 @@ pub trait PrivateForest {
     /// use sha3::Sha3_256;
     /// use wnfs::{
     ///     private::{
-    ///         PrivateRef, PrivateDirectory, PrivateNode,
+    ///         AccessKey, PrivateDirectory, PrivateNode,
     ///         forest::{hamt::HamtForest, traits::PrivateForest},
     ///     },
     ///     common::MemoryBlockStore,
@@ -71,9 +71,9 @@ pub trait PrivateForest {
     ///     ));
     ///
     ///     let node = PrivateNode::Dir(dir);
-    ///     let private_ref = node.store(forest, store, rng).await.unwrap();
+    ///     let access_key = node.store(forest, store, rng).await.unwrap();
     ///
-    ///     assert!(forest.has_by_hash(&private_ref.revision_name_hash, store).await.unwrap());
+    ///     assert!(forest.has_by_hash(access_key.get_label(), store).await.unwrap());
     /// }
     /// ```
     async fn has_by_hash(&self, name_hash: &HashOutput, store: &impl BlockStore) -> Result<bool>;
@@ -115,22 +115,23 @@ pub trait PrivateForest {
     /// The stream of results is ordered by CID.
     ///
     /// Each item in the resulting stream represents an instance of a concurrent write.
-    fn get_multivalue<'a>(
+    fn get_multivalue_by_hash<'a>(
         &'a self,
-        revision: &'a RevisionRef,
+        label: &'a HashOutput,
+        temporal_key: &'a TemporalKey,
         store: &'a impl BlockStore,
         parent_name: Option<Name>,
     ) -> LocalBoxStream<'a, Result<PrivateNode>> {
         Box::pin(stream! {
             match self
-                .get_encrypted_by_hash(&revision.revision_name_hash, store)
+                .get_encrypted_by_hash(label, store)
                 .await
             {
                 Ok(Some(cids)) => {
                     let setup = self.get_accumulator_setup();
 
                     for cid in cids {
-                        match PrivateNode::from_cid(*cid, &revision.temporal_key, store, parent_name.clone(), setup).await {
+                        match PrivateNode::from_cid(*cid, temporal_key, store, parent_name.clone(), setup).await {
                             Ok(node) => yield Ok(node),
                             Err(e) if e.downcast_ref::<AesError>().is_some() => {
                                 // we likely matched a PrivateNodeHeader instead of a PrivateNode.

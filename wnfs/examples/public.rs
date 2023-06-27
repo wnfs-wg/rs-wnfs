@@ -1,13 +1,15 @@
 //! This example shows how the different operations you can perform under a public filesystem.
 //! More importantly, it shows the immutable nature of the filesystem.
 
+use anyhow::Result;
 use chrono::Utc;
+use libipld_core::cid::Cid;
 use std::rc::Rc;
-use wnfs::{libipld::Cid, public::PublicDirectory};
+use wnfs::public::PublicDirectory;
 use wnfs_common::MemoryBlockStore;
 
 #[async_std::main]
-async fn main() {
+async fn main() -> Result<()> {
     // Create an in-memory blockstore.
     let store = MemoryBlockStore::default();
 
@@ -17,8 +19,7 @@ async fn main() {
     // Add a /pictures/cats subdirectory.
     root_dir
         .mkdir(&["pictures".into(), "cats".into()], Utc::now(), &store)
-        .await
-        .unwrap();
+        .await?;
 
     // Add a file to /pictures/dogs directory.
     root_dir
@@ -28,18 +29,18 @@ async fn main() {
             Utc::now(),
             &store,
         )
-        .await
-        .unwrap();
+        .await?;
 
     // Delete /pictures/cats directory.
     root_dir
         .rm(&["pictures".into(), "cats".into()], &store)
-        .await
-        .unwrap();
+        .await?;
 
     // List all the children of /pictures directory.
     let result = root_dir.ls(&["pictures".into()], &store).await.unwrap();
 
     // Print the result.
     println!("Files in /pictures: {result:#?}");
+
+    Ok(())
 }

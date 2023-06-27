@@ -1,19 +1,21 @@
-use super::{Name, NameAccumulator};
+use super::{AccessKey, Name, NameAccumulator};
 use crate::{
     fs::{
-        private::{PrivateDirectory, PrivateFile, PrivateForest, PrivateRef},
+        private::{PrivateDirectory, PrivateFile, PrivateForest},
         utils::{self, error},
         BlockStore, ForeignBlockStore, JsResult, Rng,
     },
     value,
 };
 use js_sys::{Error, Promise, Uint8Array};
+use libipld_core::cid::Cid;
 use std::{collections::BTreeSet, rc::Rc};
 use wasm_bindgen::prelude::wasm_bindgen;
 use wasm_bindgen_futures::future_to_promise;
 use wnfs::{
     hamt::{ChangeType, KeyValueChange},
     libipld::Cid,
+    namefilter::Namefilter as WnfsNamefilter,
     private::PrivateNode as WnfsPrivateNode,
     traits::Id,
 };
@@ -45,36 +47,35 @@ impl PrivateNode {
         mut rng: Rng,
     ) -> JsResult<Promise> {
         let node = self.0.clone(); // cheap clone
-        let mut store = ForeignBlockStore(store);
+        let store = ForeignBlockStore(store);
         let mut forest = Rc::clone(&forest.0);
 
         Ok(future_to_promise(async move {
-            let private_ref = node
-                .store(&mut forest, &mut store, &mut rng)
+            let access_key = node
+                .store(&mut forest, &store, &mut rng)
                 .await
                 .map_err(error("Cannot store node"))?;
 
             Ok(utils::create_private_forest_result(
-                value!(PrivateRef::from(private_ref)),
+                value!(AccessKey(access_key)),
                 forest,
             )?)
         }))
     }
 
-    /// Loads a node from the PrivateForest using the PrivateRef.
+    /// Loads a node from the PrivateForest using the AccessKey.
     pub fn load(
-        private_ref: PrivateRef,
+        access_key: AccessKey,
         forest: &PrivateForest,
         store: BlockStore,
         parent_name: Option<Name>,
     ) -> JsResult<Promise> {
         let store = ForeignBlockStore(store);
         let forest = Rc::clone(&forest.0);
-        let private_ref = private_ref.try_into()?;
         let parent_name = parent_name.map(|name| name.0.clone());
 
         Ok(future_to_promise(async move {
-            let node = WnfsPrivateNode::load(&private_ref, &forest, &store, parent_name)
+            let node = WnfsPrivateNode::load(&access_key.0, &forest, &store, parent_name)
                 .await
                 .map_err(error("Cannot load node"))?;
 

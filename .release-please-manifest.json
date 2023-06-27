@@ -1,8 +1,8 @@
 {
-  "wnfs": "0.1.21",
-  "wnfs-bench": "0.1.21",
-  "wnfs-common": "0.1.21",
-  "wnfs-hamt": "0.1.21",
-  "wnfs-nameaccumulator": "0.1.21",
-  "wnfs-wasm": "0.1.21"
+  "wnfs": "0.1.22",
+  "wnfs-bench": "0.1.22",
+  "wnfs-common": "0.1.22",
+  "wnfs-hamt": "0.1.22",
+  "wnfs-nameaccumulator": "0.1.22",
+  "wnfs-wasm": "0.1.22"
 }

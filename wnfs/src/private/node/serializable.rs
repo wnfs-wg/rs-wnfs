@@ -1,6 +1,6 @@
 use super::SnapshotKey;
 use crate::private::{encrypted::Encrypted, FileContent};
-use libipld::Cid;
+use libipld_core::cid::Cid;
 use semver::Version;
 use serde::{Deserialize, Serialize};
 use skip_ratchet::Ratchet;

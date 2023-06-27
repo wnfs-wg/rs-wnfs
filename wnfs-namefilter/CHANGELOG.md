@@ -4,6 +4,10 @@
   * dependencies
     * wnfs-common bumped from 0.1.19 to 0.1.20
 
+* The following workspace dependencies were updated
+  * dependencies
+    * wnfs-common bumped from 0.1.21 to 0.1.22
+
 ## [0.1.21](https://github.com/wnfs-wg/rs-wnfs/compare/wnfs-namefilter-v0.1.20...wnfs-namefilter-v0.1.21) (2023-05-22)
 
 

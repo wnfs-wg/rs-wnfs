@@ -2,7 +2,7 @@
 
 use super::{PublicDirectory, PublicFile, PublicNode};
 use anyhow::Result;
-use libipld::Cid;
+use libipld_core::cid::Cid;
 use std::rc::Rc;
 use wnfs_common::{BlockStore, Link};
 

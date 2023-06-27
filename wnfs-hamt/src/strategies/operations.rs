@@ -170,7 +170,7 @@ where
 ///     let mut runner = &mut TestRunner::deterministic();
 ///     let ops = strategies::operations(any::<[u8; 32]>(), any::<String>(), 10).sample(runner);
 ///
-///     let store = &mut MemoryBlockStore::new();
+///     let store = &MemoryBlockStore::new();
 ///     let node = strategies::node_from_operations(&ops, store).await.unwrap();
 ///
 ///     println!("{:?}", node);

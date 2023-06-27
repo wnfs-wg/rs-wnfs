@@ -2,8 +2,8 @@ use super::{PrivateNodeHeader, TemporalKey};
 use crate::{
     error::FsError,
     private::{
-        encrypted::Encrypted, forest::traits::PrivateForest, link::PrivateLink, PrivateDirectory,
-        PrivateFile, PrivateNodeContentSerializable, PrivateRef,
+        encrypted::Encrypted, forest::traits::PrivateForest, link::PrivateLink, AccessKey,
+        PrivateDirectory, PrivateFile, PrivateNodeContentSerializable, PrivateRef,
     },
     traits::Id,
 };
@@ -12,11 +12,13 @@ use async_once_cell::OnceCell;
 use async_recursion::async_recursion;
 use chrono::{DateTime, Utc};
 use futures::StreamExt;
-use libipld::Cid;
+use libipld_core::cid::Cid;
 use rand_core::CryptoRngCore;
+use sha3::Sha3_256;
 use skip_ratchet::{JumpSize, RatchetSeeker};
 use std::{cmp::Ordering, collections::BTreeSet, fmt::Debug, rc::Rc};
 use wnfs_common::BlockStore;
+use wnfs_hamt::Hasher;
 use wnfs_nameaccumulator::{AccumulatorSetup, Name};
 
 //--------------------------------------------------------------------------------------------------
@@ -348,7 +350,7 @@ impl PrivateNode {
     /// use rand::thread_rng;
     /// use wnfs::{
     ///     private::{
-    ///         PrivateRef, PrivateNode, PrivateDirectory,
+    ///         PrivateNode, PrivateDirectory,
     ///         forest::{hamt::HamtForest, traits::PrivateForest},
     ///     },
     ///     common::{BlockStore, MemoryBlockStore},
@@ -356,7 +358,7 @@ impl PrivateNode {
     ///
     /// #[async_std::main]
     /// async fn main() {
-    ///     let store = &mut MemoryBlockStore::default();
+    ///     let store = &MemoryBlockStore::default();
     ///     let rng = &mut thread_rng();
     ///     let forest = &mut Rc::new(HamtForest::new_rsa_2048(rng));
     ///
@@ -375,7 +377,7 @@ impl PrivateNode {
     ///         .await
     ///         .unwrap();
     ///
-    ///     dir_clone.store(forest, store, rng).await.unwrap();
+    ///     dir_clone.as_node().store(forest, store, rng).await.unwrap();
     ///
     ///     let latest_node = PrivateNode::Dir(init_dir).search_latest(forest, store).await.unwrap();
     ///
@@ -450,9 +452,12 @@ impl PrivateNode {
 
         current_header.ratchet = search.current().clone();
 
+        let name_hash = Sha3_256::hash(&current_header.get_revision_name().as_accumulator(setup));
+
         Ok(forest
-            .get_multivalue(
-                &current_header.derive_revision_ref(setup),
+            .get_multivalue_by_hash(
+                &name_hash,
+                &current_header.derive_temporal_key(),
                 store,
                 Some(mountpoint),
             )
@@ -465,54 +470,7 @@ impl PrivateNode {
 
     /// Tries to deserialize and decrypt a PrivateNode at provided PrivateRef
     /// from the PrivateForest.
-    ///
-    /// In case you're loading this node as a sub-node of another node, you need
-    /// to provide the `parent_name`, so it can correctly create proofs relative
-    /// to the parent name's base for the private forest.
-    ///
-    /// In case you're loading this node as the entry point into a WNFS, e.g.
-    /// initially from an access key that was shared with you, simply provide `None`.
-    /// In short, provide `None` iff
-    /// - you have a certificate that gives you write access to exactly this node you're
-    ///   loading specifically
-    /// - you don't intend to prove writes to third parties.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use std::rc::Rc;
-    /// use chrono::Utc;
-    /// use rand::thread_rng;
-    /// use wnfs::{
-    ///     private::{
-    ///         PrivateRef, PrivateNode, PrivateDirectory,
-    ///         forest::{hamt::HamtForest, traits::PrivateForest},
-    ///     },
-    ///     common::{BlockStore, MemoryBlockStore},
-    /// };
-    ///
-    /// #[async_std::main]
-    /// async fn main() {
-    ///     let store = &mut MemoryBlockStore::default();
-    ///     let rng = &mut thread_rng();
-    ///     let forest = &mut Rc::new(HamtForest::new_rsa_2048(rng));
-    ///     let dir = Rc::new(PrivateDirectory::new(
-    ///         &forest.empty_name(),
-    ///         Utc::now(),
-    ///         rng,
-    ///     ));
-    ///
-    ///     let node = PrivateNode::Dir(dir);
-    ///
-    ///     let private_ref = node.store(forest, store, rng).await.unwrap();
-    ///
-    ///     assert_eq!(
-    ///         PrivateNode::load(&private_ref, forest, store, None).await.unwrap(),
-    ///         node
-    ///     );
-    /// }
-    /// ```
-    pub async fn load(
+    pub(crate) async fn from_private_ref(
         private_ref: &PrivateRef,
         forest: &impl PrivateForest,
         store: &impl BlockStore,
@@ -523,7 +481,7 @@ impl PrivateNode {
             .await?
         {
             Some(cids) if cids.contains(&private_ref.content_cid) => private_ref.content_cid,
-            _ => return Err(FsError::NotFound.into()),
+            _ => bail!(FsError::NotFound),
         };
 
         let setup = forest.get_accumulator_setup();
@@ -570,9 +528,22 @@ impl PrivateNode {
         })
     }
 
-    /// Encrypt and store this private node in a private forest
-    /// and return the private ref used for finding and decrypting it again.
-    pub async fn store(
+    /// Returns the private ref, if this node has been `.store()`ed before.
+    pub(crate) fn derive_private_ref(&self, setup: &AccumulatorSetup) -> Option<PrivateRef> {
+        match self {
+            Self::File(file) => file.derive_private_ref(setup),
+            Self::Dir(dir) => dir.derive_private_ref(setup),
+        }
+    }
+
+    pub(crate) fn get_persisted_as(&self) -> &OnceCell<Cid> {
+        match self {
+            Self::Dir(dir) => &dir.content.persisted_as,
+            Self::File(file) => &file.content.persisted_as,
+        }
+    }
+
+    pub(crate) async fn store_and_get_private_ref(
         &self,
         forest: &mut impl PrivateForest,
         store: &impl BlockStore,
@@ -584,19 +555,73 @@ impl PrivateNode {
         }
     }
 
-    /// Returns the private ref, if this node has been `.store()`ed before.
-    pub(crate) fn get_private_ref(&self, setup: &AccumulatorSetup) -> Option<PrivateRef> {
-        match self {
-            Self::File(file) => file.get_private_ref(setup),
-            Self::Dir(dir) => dir.get_private_ref(setup),
-        }
+    /// Loads a node from the forest using provided access key.
+    ///
+    /// In case you're loading this node as a sub-node of another node, you need
+    /// to provide the `parent_name`, so it can correctly create proofs relative
+    /// to the parent name's base for the private forest.
+    ///
+    /// In case you're loading this node as the entry point into a WNFS, e.g.
+    /// initially from an access key that was shared with you, simply provide `None`.
+    /// In short, provide `None` iff
+    /// - you have a certificate that gives you write access to exactly this node you're
+    ///   loading specifically
+    /// - you don't intend to prove writes to third parties.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use std::rc::Rc;
+    /// use chrono::Utc;
+    /// use rand::thread_rng;
+    /// use wnfs::{
+    ///     private::{
+    ///         PrivateNode, PrivateDirectory,
+    ///         forest::{hamt::HamtForest, traits::PrivateForest},
+    ///     },
+    ///     common::{BlockStore, MemoryBlockStore},
+    /// };
+    ///
+    /// #[async_std::main]
+    /// async fn main() {
+    ///     let store = &MemoryBlockStore::new();
+    ///     let rng = &mut thread_rng();
+    ///     let forest = &mut Rc::new(HamtForest::new_rsa_2048(rng));
+    ///     let dir = Rc::new(PrivateDirectory::new(
+    ///         &forest.empty_name(),
+    ///         Utc::now(),
+    ///         rng,
+    ///     ));
+    ///
+    ///     let node = PrivateNode::Dir(dir);
+    ///
+    ///     let access_key = node.store(forest, store, rng).await.unwrap();
+    ///
+    ///     assert_eq!(
+    ///         PrivateNode::load(&access_key, forest, store, None).await.unwrap(),
+    ///         node
+    ///     );
+    /// }
+    /// ```
+    pub async fn load(
+        access_key: &AccessKey,
+        forest: &impl PrivateForest,
+        store: &impl BlockStore,
+        parent_name: Option<Name>,
+    ) -> Result<PrivateNode> {
+        let private_ref = access_key.derive_private_ref()?;
+        PrivateNode::from_private_ref(&private_ref, forest, store, parent_name).await
     }
 
-    pub(crate) fn persisted_as(&self) -> &OnceCell<Cid> {
-        match self {
-            Self::Dir(dir) => &dir.content.persisted_as,
-            Self::File(file) => &file.content.persisted_as,
-        }
+    /// Stores a node in the forest and returns an access key.
+    pub async fn store(
+        &self,
+        forest: &mut impl PrivateForest,
+        store: &impl BlockStore,
+        rng: &mut impl CryptoRngCore,
+    ) -> Result<AccessKey> {
+        let private_ref = &self.store_and_get_private_ref(forest, store, rng).await?;
+        Ok(AccessKey::Temporal(private_ref.into()))
     }
 }
 
@@ -638,7 +663,7 @@ mod tests {
         let rng = &mut ChaCha12Rng::seed_from_u64(0);
         let content = b"Lorem ipsum dolor sit amet";
         let forest = &mut Rc::new(HamtForest::new_rsa_2048(rng));
-        let store = &mut MemoryBlockStore::new();
+        let store = &MemoryBlockStore::new();
 
         let file = Rc::new(
             PrivateFile::with_content(

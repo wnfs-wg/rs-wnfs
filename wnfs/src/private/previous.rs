@@ -4,7 +4,7 @@ use super::{
 };
 use crate::error::FsError;
 use anyhow::{bail, Result};
-use libipld::Cid;
+use libipld_core::cid::Cid;
 use skip_ratchet::{PreviousIterator, Ratchet};
 use std::{collections::BTreeSet, rc::Rc};
 use wnfs_common::{BlockStore, PathNodes, PathNodesResult};
@@ -121,12 +121,11 @@ impl<F: PrivateForest> PrivateNodeHistory<F> {
         self.header.ratchet = previous_ratchet;
 
         let setup = self.forest.get_accumulator_setup();
-
-        let previous_node = PrivateNode::load(
+        let previous_node = PrivateNode::from_private_ref(
             &self
                 .header
                 .derive_revision_ref(setup)
-                .as_private_ref(previous_cid),
+                .into_private_ref(previous_cid),
             &self.forest,
             store,
             self.header.name.parent(),

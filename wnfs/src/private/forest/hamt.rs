@@ -2,7 +2,7 @@ use super::traits::PrivateForest;
 use crate::error::FsError;
 use anyhow::Result;
 use async_trait::async_trait;
-use libipld::{Cid, Ipld};
+use libipld_core::{cid::Cid, ipld::Ipld};
 use rand_core::CryptoRngCore;
 use serde::{
     de::Error as DeError, ser::Error as SerError, Deserialize, Deserializer, Serialize, Serializer,
@@ -270,27 +270,26 @@ where
     ///         store,
     ///         rng
     ///     ).await?;
-    ///     root_dir.store(forest, store, rng).await?;
+    ///     root_dir.as_node().store(forest, store, rng).await?;
     ///
     ///     // Make two conflicting writes
     ///     let forest_one = &mut Rc::clone(forest);
     ///     let dir_one = &mut Rc::clone(root_dir);
     ///     dir_one.mkdir(&["DirOne".into()], true, Utc::now(), forest_one, store, rng).await?;
-    ///     dir_one.store(forest_one, store, rng).await?;
+    ///     dir_one.as_node().store(forest_one, store, rng).await?;
     ///
     ///     let forest_two = &mut Rc::clone(forest);
     ///     let dir_two = &mut Rc::clone(root_dir);
     ///     dir_two.mkdir(&["DirTwo".into()], true, Utc::now(), forest_two, store, rng).await?;
-    ///     let private_ref = dir_two.store(forest_two, store, rng).await?;
+    ///     let access_key = dir_two.as_node().store(forest_two, store, rng).await?;
+    ///     let label = access_key.get_label();
+    ///     let key = access_key.get_temporal_key()?;
     ///
     ///     // Merge the forests together
     ///     let forest_merged = forest_one.merge(forest_two, store).await?;
     ///
-    ///     // Read the revision slot with conflicting writes
-    ///     let revision_ref = private_ref.as_revision_ref();
-    ///
     ///     let multivalue: Vec<_> = forest_merged
-    ///         .get_multivalue(&revision_ref, store, None)
+    ///         .get_multivalue_by_hash(label, key, store, None)
     ///         .collect::<Vec<_>>()
     ///         .await
     ///         .into_iter()
@@ -335,13 +334,13 @@ impl AsyncSerialize for HamtForest {
     {
         let hamt_ipld = self
             .hamt
-            .async_serialize(libipld::serde::Serializer, store)
+            .async_serialize(libipld_core::serde::Serializer, store)
             .await
             .map_err(serde::ser::Error::custom)?;
 
         let accumulator_ipld = self
             .accumulator
-            .serialize(libipld::serde::Serializer)
+            .serialize(libipld_core::serde::Serializer)
             .map_err(serde::ser::Error::custom)?;
 
         let Ipld::Map(mut ipld_map) = hamt_ipld else {
@@ -395,7 +394,7 @@ mod tests {
     use wnfs_nameaccumulator::NameSegment;
 
     mod helper {
-        use libipld::{Cid, Multihash};
+        use libipld_core::{cid::Cid, multihash::Multihash};
         use once_cell::sync::Lazy;
         use rand::thread_rng;
         use rand_core::CryptoRngCore;
@@ -522,13 +521,17 @@ mod tests {
         let private_node_conflict = PrivateNode::Dir(dir_conflict.clone());
 
         // Put the original node in the private forest
-        let private_ref = private_node.store(forest, store, rng).await.unwrap();
+        let access_key = private_node.store(forest, store, rng).await.unwrap();
+
+        let private_ref = access_key.derive_private_ref().unwrap();
 
         // Put the conflicting node in the private forest at the same key
-        let private_ref_conflict = private_node_conflict
+        let access_key_conflict = private_node_conflict
             .store(forest, store, rng)
             .await
             .unwrap();
+
+        let private_ref_conflict = access_key_conflict.derive_private_ref().unwrap();
 
         assert_eq!(
             private_ref.revision_name_hash,
@@ -545,12 +548,12 @@ mod tests {
         // Two of these entries should be content blocks, one entry should be the header block they share.
         assert_eq!(ciphertext_entries.len(), 3);
 
-        let retrieved = PrivateNode::load(&private_ref, forest, store, Some(forest.empty_name()))
+        let retrieved = PrivateNode::load(&access_key, forest, store, Some(forest.empty_name()))
             .await
             .unwrap();
 
         let retrieved_conflict = PrivateNode::load(
-            &private_ref_conflict,
+            &access_key_conflict,
             forest,
             store,
             Some(forest.empty_name()),
