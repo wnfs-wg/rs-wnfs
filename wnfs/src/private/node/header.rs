@@ -162,6 +162,13 @@ impl PrivateNodeHeader {
             .with_segments_added(Some(self.derive_temporal_key().to_revision_segment()))
     }
 
+    /// Gets the name for this node.
+    /// This name is persistent across revisions and can be used as the "allowed base name"
+    /// for delegating write access.
+    pub fn get_name(&self) -> &Name {
+        &self.name
+    }
+
     /// Encrypts this private node header in an block, then stores that in the given
     /// BlockStore and returns its CID.
     pub async fn store(&self, store: &impl BlockStore, setup: &AccumulatorSetup) -> Result<Cid> {

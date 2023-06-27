@@ -240,7 +240,7 @@ impl PrivateNode {
     }
 
     /// Casts a node to a mutable directory.
-    pub(crate) fn as_dir_mut(&mut self) -> Result<&mut Rc<PrivateDirectory>> {
+    pub fn as_dir_mut(&mut self) -> Result<&mut Rc<PrivateDirectory>> {
         Ok(match self {
             Self::Dir(dir) => dir,
             _ => bail!(FsError::NotADirectory),

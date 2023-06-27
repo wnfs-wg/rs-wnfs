@@ -37,8 +37,8 @@ pub struct ForestProofs {
 /// to a different private forest state.
 #[derive(Debug, Clone)]
 pub struct ProvingHamtForest {
-    forest: Rc<HamtForest>,
-    proofs: ForestProofs,
+    pub forest: Rc<HamtForest>,
+    pub proofs: ForestProofs,
 }
 
 impl ForestProofs {
@@ -212,127 +212,4 @@ impl PrivateForest for ProvingHamtForest {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::{ForestProofs, ProvingHamtForest};
-    use crate::private::{
-        forest::{hamt::HamtForest, traits::PrivateForest},
-        AccessKey, PrivateDirectory, PrivateNode,
-    };
-    use anyhow::Result;
-    use chrono::Utc;
-    use libipld_core::cid::Cid;
-    use rand::thread_rng;
-    use std::{collections::BTreeSet, rc::Rc};
-    use wnfs_common::{BlockStore, MemoryBlockStore};
-    use wnfs_nameaccumulator::NameAccumulator;
-
-    #[async_std::test]
-    async fn proving_forest_example() {
-        // In between operations, Alice, Bob, and the persistence service would
-        // exchange blocks via bitswap, car mirror or some other protocol.
-        // Here we're simplifying by sharing a 'global' block store.
-        let store = &mut MemoryBlockStore::new();
-
-        // Alice creates a private file system with some data.
-        // She shares read access with bob by securely transferring the read_ref.
-        // She also publicly announces bob has access to a certain directory at allowed_write_name.
-        let (old_forest_cid, read_ref, allowed_write_name) = alice_actions(store).await.unwrap();
-        // Bob can take the read_ref and forest and create writes.
-        // The output will be a new state of the forest as well as a set of proofs, proving
-        // he didn't touch anything in the file system except what he was allowed to.
-        let (proofs, new_forest_cid) = bob_actions(old_forest_cid, read_ref, store).await.unwrap();
-        // A persistence service can check Bob's changes between the forests via his proofs.
-        // The service does *not* need read access (it doesn't get to know the read_ref)
-        // and it only gains limited information from the proofs from Bob.
-        // The idea is that in practice the persistence service can accept updates from anyone
-        // that were indirectly given access by Alice out-of-bounds, and it will store the updated
-        // file system.
-        persistence_service_actions(
-            old_forest_cid,
-            new_forest_cid,
-            proofs,
-            allowed_write_name,
-            store,
-        )
-        .await
-        .unwrap();
-    }
-
-    /// Alice creates a directory and gives access to it out to someone else.
-    /// The returned AccessKey gives read access and the NameAccumulator is
-    /// supposed to be publicly signed for verifyable write access.
-    async fn alice_actions(
-        store: &mut impl BlockStore,
-    ) -> Result<(Cid, AccessKey, NameAccumulator)> {
-        let rng = &mut thread_rng();
-        let forest = &mut Rc::new(HamtForest::new_rsa_2048(rng));
-        let root_dir = &mut PrivateDirectory::new_and_store(
-            &forest.empty_name(),
-            Utc::now(),
-            forest,
-            store,
-            rng,
-        )
-        .await?;
-
-        let access_key = root_dir.as_node().store(forest, store, rng).await?;
-        let cid = store.put_async_serializable(forest).await?;
-        let setup = forest.get_accumulator_setup();
-        let allowed_name = root_dir.header.name.as_accumulator(setup).clone();
-
-        Ok((cid, access_key, allowed_name))
-    }
-
-    /// Bob can take the forest, read data using the private ref
-    /// and prove writes.
-    async fn bob_actions(
-        forest_cid: Cid,
-        root_dir_access: AccessKey,
-        store: &mut impl BlockStore,
-    ) -> Result<(ForestProofs, Cid)> {
-        let hamt_forest = store.get_deserializable(&forest_cid).await?;
-        let mut forest = ProvingHamtForest::new(Rc::new(hamt_forest));
-        let rng = &mut thread_rng();
-
-        let mut root_node = PrivateNode::load(&root_dir_access, &forest, store, None).await?;
-        let root_dir = root_node.as_dir_mut()?;
-
-        // Do arbitrary writes in any paths you have access to
-        root_dir
-            .write(
-                &["Some".into(), "file.txt".into()],
-                true,
-                Utc::now(),
-                b"Hello, Alice!".to_vec(),
-                &mut forest,
-                store,
-                rng,
-            )
-            .await?;
-
-        let ProvingHamtForest { forest, proofs } = forest;
-
-        store.put_async_serializable(&forest).await?;
-
-        Ok((proofs, forest_cid))
-    }
-
-    /// A persistence service can verify write proofs relative to a signed
-    /// accumulator without read access.
-    async fn persistence_service_actions(
-        old_forest_cid: Cid,
-        new_forest_cid: Cid,
-        proofs: ForestProofs,
-        allowed_access: NameAccumulator,
-        store: &mut impl BlockStore,
-    ) -> Result<()> {
-        let old_forest = store.get_deserializable(&old_forest_cid).await?;
-        let new_forest = store.get_deserializable(&new_forest_cid).await?;
-
-        let forest = ProvingHamtForest::from_proofs(proofs, Rc::new(new_forest));
-
-        forest
-            .verify_against_previous_state(&old_forest, &BTreeSet::from([allowed_access]), store)
-            .await
-    }
-}
+mod tests {}
