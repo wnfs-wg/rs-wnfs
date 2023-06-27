@@ -19,7 +19,7 @@ authors = ["The Fission Authors"]
 [dependencies]
 anyhow = "1.0"
 libipld = { version = "0.16", features = ["dag-cbor", "derive", "serde-codec"] }
-num-bigint-dig = { version = "0.8.2", features = ["prime"] }
+num-bigint-dig = { version = "0.8.2", features = ["prime", "zeroize"] }
 num-integer = "0.1.45"
 num-traits = "0.2.15"
 once_cell = "1.0"
