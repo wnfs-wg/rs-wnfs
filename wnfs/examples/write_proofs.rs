@@ -50,7 +50,7 @@ async fn main() -> Result<()> {
 /// Alice creates a directory and gives access to it out to someone else.
 /// The returned AccessKey gives read access and the NameAccumulator is
 /// supposed to be publicly signed for verifyable write access.
-async fn alice_actions(store: &mut impl BlockStore) -> Result<(Cid, AccessKey, NameAccumulator)> {
+async fn alice_actions(store: &impl BlockStore) -> Result<(Cid, AccessKey, NameAccumulator)> {
     let rng = &mut thread_rng();
     let forest = &mut Rc::new(HamtForest::new_rsa_2048(rng));
     let root_dir =
@@ -70,7 +70,7 @@ async fn alice_actions(store: &mut impl BlockStore) -> Result<(Cid, AccessKey, N
 async fn bob_actions(
     forest_cid: Cid,
     root_dir_access: AccessKey,
-    store: &mut impl BlockStore,
+    store: &impl BlockStore,
 ) -> Result<(ForestProofs, Cid)> {
     let hamt_forest = store.get_deserializable(&forest_cid).await?;
     let mut forest = ProvingHamtForest::new(Rc::new(hamt_forest));
@@ -106,7 +106,7 @@ async fn persistence_service_actions(
     new_forest_cid: Cid,
     proofs: ForestProofs,
     allowed_access: NameAccumulator,
-    store: &mut impl BlockStore,
+    store: &impl BlockStore,
 ) -> Result<()> {
     let old_forest = store.get_deserializable(&old_forest_cid).await?;
     let new_forest = store.get_deserializable(&new_forest_cid).await?;

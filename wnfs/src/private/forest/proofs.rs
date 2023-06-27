@@ -112,7 +112,7 @@ impl ProvingHamtForest {
         &self,
         previous: &HamtForest,
         allowed_bases: &BTreeSet<NameAccumulator>,
-        store: &mut impl BlockStore,
+        store: &impl BlockStore,
     ) -> Result<()> {
         let setup = self.forest.get_accumulator_setup();
         if setup != previous.get_accumulator_setup() {
@@ -212,4 +212,58 @@ impl PrivateForest for ProvingHamtForest {
 }
 
 #[cfg(test)]
-mod tests {}
+mod tests {
+    use super::{ForestProofs, ProvingHamtForest};
+    use crate::private::forest::{hamt::HamtForest, traits::PrivateForest};
+    use anyhow::Result;
+    use libipld_core::cid::Cid;
+    use rand::thread_rng;
+    use std::{collections::BTreeSet, rc::Rc};
+    use wnfs_common::MemoryBlockStore;
+    use wnfs_nameaccumulator::{AccumulatorSetup, Name, NameAccumulator, NameSegment};
+
+    #[test]
+    fn forest_proofs_can_be_verified() -> Result<()> {
+        let rng = &mut thread_rng();
+        let setup = &AccumulatorSetup::from_rsa_2048(rng);
+        let mut proofs = ForestProofs::new();
+
+        let base = Name::empty(setup).with_segments_added(Some(NameSegment::new(rng)));
+        let segments_one = [NameSegment::new(rng), NameSegment::new(rng)];
+        let segments_two = [NameSegment::new(rng), NameSegment::new(rng)];
+        let name_one = base.with_segments_added(segments_one);
+        let name_two = base.with_segments_added(segments_two);
+
+        proofs.add_and_prove_name(&name_one, setup)?;
+        proofs.add_and_prove_name(&name_two, setup)?;
+
+        assert!(proofs.verify_proofs(setup).is_ok());
+
+        Ok(())
+    }
+
+    #[async_std::test]
+    async fn proving_hamt_forest_can_be_verified() -> Result<()> {
+        let rng = &mut thread_rng();
+        let setup = &AccumulatorSetup::from_rsa_2048(rng);
+        let store = &MemoryBlockStore::new();
+        let old_forest = Rc::new(HamtForest::new(setup.clone()));
+        let mut forest = ProvingHamtForest::new(Rc::clone(&old_forest));
+
+        let base = NameAccumulator::with_segments(&Some(NameSegment::new(rng)), setup);
+        let name = Name::new(base.clone(), Some(NameSegment::new(rng)));
+
+        let cid = Cid::default();
+        forest.put_encrypted(&name, Some(cid), store).await?;
+
+        let allowed_bases = BTreeSet::from([base.clone()]);
+
+        let result = forest
+            .verify_against_previous_state(&old_forest, &allowed_bases, store)
+            .await;
+
+        assert!(result.is_ok());
+
+        Ok(())
+    }
+}
