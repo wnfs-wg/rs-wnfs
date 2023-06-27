@@ -1,6 +1,6 @@
 use super::{AccessKey, ForeignExchangeKey, ForeignPrivateKey, PrivateForest, PrivateNode};
 use crate::{
-    fs::{utils::error, BlockStore, ForeignBlockStore, JsResult, PrivateKey},
+    fs::{utils::error, BlockStore, ForeignBlockStore, JsResult, Name, PrivateKey},
     value,
 };
 use js_sys::Promise;
@@ -102,7 +102,7 @@ pub fn receive_share(
     let sharer_forest = Rc::clone(&sharer_forest.0);
 
     Ok(future_to_promise(async move {
-        let node = recipient::receive_share(&share_label.0, &recipient_key, &sharer_forest, &store)
+        let node = recipient::receive_share(&share_name.0, &recipient_key, &sharer_forest, &store)
             .await
             .map_err(error("Cannot receive share"))?;
 

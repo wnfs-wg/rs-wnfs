@@ -14,8 +14,6 @@ use wasm_bindgen::prelude::wasm_bindgen;
 use wasm_bindgen_futures::future_to_promise;
 use wnfs::{
     hamt::{ChangeType, KeyValueChange},
-    libipld::Cid,
-    namefilter::Namefilter as WnfsNamefilter,
     private::PrivateNode as WnfsPrivateNode,
     traits::Id,
 };

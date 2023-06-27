@@ -1,4 +1,4 @@
-use rand_core::{CryptoRng, CryptoRngCore};
+use rand_core::{CryptoRng, RngCore};
 use wasm_bindgen::prelude::wasm_bindgen;
 
 //--------------------------------------------------------------------------------------------------
@@ -18,7 +18,7 @@ extern "C" {
 // Implementations
 //--------------------------------------------------------------------------------------------------
 
-impl CryptoRngCore for Rng {
+impl RngCore for Rng {
     fn next_u32(&mut self) -> u32 {
         let bytes = self.get_random_bytes(4);
         u32::from_le_bytes(bytes.try_into().unwrap())

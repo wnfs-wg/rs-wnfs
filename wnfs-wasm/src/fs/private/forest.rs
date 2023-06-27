@@ -10,7 +10,6 @@ use wasm_bindgen::prelude::wasm_bindgen;
 use wasm_bindgen_futures::future_to_promise;
 use wnfs::{
     common::BlockStore as WnfsBlockStore,
-    libipld::Cid,
     private::forest::{
         hamt::HamtForest as WnfsHamtForest, traits::PrivateForest as WnfsPrivateForest,
     },
