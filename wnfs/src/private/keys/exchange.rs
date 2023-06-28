@@ -66,7 +66,7 @@ pub struct RsaPrivateKey(rsa::RsaPrivateKey);
 impl RsaPublicKey {
     /// Gets the public key modulus.
     pub fn get_public_key_modulus(&self) -> Result<Vec<u8>> {
-        Ok(self.0.n().to_bytes_le())
+        Ok(self.0.n().to_bytes_be())
     }
 }
 
@@ -97,7 +97,7 @@ impl ExchangeKey for RsaPublicKey {
     }
 
     async fn from_modulus(modulus: &[u8]) -> Result<Self> {
-        let n = BigUint::from_bytes_le(modulus);
+        let n = BigUint::from_bytes_be(modulus);
         let e = BigUint::from(PUBLIC_KEY_EXPONENT);
 
         Ok(Self(

@@ -1,7 +1,7 @@
 use crate::{
     error::VerificationError,
     fns::{multi_exp, nlogn_product, prime_digest, prime_digest_fast},
-    uint256_serde_le::to_bytes_helper,
+    uint256_serde_be::to_bytes_helper,
 };
 use anyhow::Result;
 use num_bigint_dig::{BigUint, ModInverse, RandBigInt, RandPrime};
@@ -34,9 +34,9 @@ pub struct Name {
 /// Represents a setup needed for RSA accumulator operation.
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Deserialize, Serialize)]
 pub struct AccumulatorSetup {
-    #[serde(with = "crate::uint256_serde_le")]
+    #[serde(with = "crate::uint256_serde_be")]
     modulus: BigUint,
-    #[serde(with = "crate::uint256_serde_le")]
+    #[serde(with = "crate::uint256_serde_be")]
     pub generator: BigUint,
 }
 
@@ -86,7 +86,7 @@ pub struct UnbatchableProofPart {
 /// the number of elements being proven. It's always 2048-bit.
 #[derive(Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct BatchedProofPart {
-    #[serde(with = "crate::uint256_serde_le")]
+    #[serde(with = "crate::uint256_serde_be")]
     big_q_product: BigUint,
 }
 
@@ -252,7 +252,7 @@ impl NameAccumulator {
 
     /// Deserialize a name accumulator from bytes.
     pub fn parse_slice(slice: [u8; 256]) -> Self {
-        let state = BigUint::from_bytes_le(&slice);
+        let state = BigUint::from_bytes_be(&slice);
         Self {
             state,
             serialized_cache: OnceCell::from(slice),
@@ -279,9 +279,9 @@ impl NameAccumulator {
 
 fn poke_fiat_shamir_l_hash(modulus: &BigUint, base: &BigUint, commitment: &BigUint) -> Sha3_256 {
     let mut hasher = sha3::Sha3_256::new();
-    hasher.update(modulus.to_bytes_le());
-    hasher.update(base.to_bytes_le());
-    hasher.update(commitment.to_bytes_le());
+    hasher.update(modulus.to_bytes_be());
+    hasher.update(base.to_bytes_be());
+    hasher.update(commitment.to_bytes_be());
     hasher
 }
 
@@ -442,7 +442,7 @@ impl Serialize for NameSegment {
     where
         S: serde::Serializer,
     {
-        let mut bytes = self.0.to_bytes_le();
+        let mut bytes = self.0.to_bytes_be();
         bytes.resize(32, 0);
         serde_bytes::serialize(&bytes, serializer)
     }
@@ -454,7 +454,7 @@ impl<'de> Deserialize<'de> for NameSegment {
         D: serde::Deserializer<'de>,
     {
         let bytes: Vec<u8> = serde_bytes::deserialize(deserializer)?;
-        Ok(NameSegment(BigUint::from_bytes_le(&bytes)))
+        Ok(NameSegment(BigUint::from_bytes_be(&bytes)))
     }
 }
 
@@ -483,7 +483,7 @@ impl<'de> Deserialize<'de> for UnbatchableProofPart {
         D: Deserializer<'de>,
     {
         let (l_hash_inc, r): (u32, &serde_bytes::Bytes) = Deserialize::deserialize(deserializer)?;
-        let r = BigUint::from_bytes_le(r);
+        let r = BigUint::from_bytes_be(r);
         Ok(Self { l_hash_inc, r })
     }
 }

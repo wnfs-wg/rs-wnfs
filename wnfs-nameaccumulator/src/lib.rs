@@ -5,6 +5,6 @@
 mod error;
 mod fns;
 mod name;
-mod uint256_serde_le;
+mod uint256_serde_be;
 
 pub use name::*;
