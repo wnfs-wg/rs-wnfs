@@ -15,7 +15,7 @@ use wnfs_nameaccumulator::{AccumulatorSetup, Name, NameSegment};
 //--------------------------------------------------------------------------------------------------
 
 /// This is the header of a private node. It contains secret information about the node which includes
-/// the inumber, the ratchet, and the namefilter.
+/// the inumber, the ratchet, and the identifying private name.
 ///
 /// # Examples
 ///
@@ -81,8 +81,8 @@ impl PrivateNodeHeader {
         self.ratchet.inc();
     }
 
-    /// Updates the bare name of the node.
-    pub(crate) fn update_bare_name(&mut self, parent_name: &Name) {
+    /// Updates the name to the child of given parent name.
+    pub(crate) fn update_name(&mut self, parent_name: &Name) {
         self.name = parent_name.clone();
         self.name.add_segments(Some(self.inumber.clone()));
     }

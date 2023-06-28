@@ -639,7 +639,7 @@ impl PrivateFile {
     ///
     /// Will reset the ratchet, so a different key is necessary for read access,
     /// will reset the inumber to reset write access,
-    /// will update the bare namefilter to match the new parent's namefilter,
+    /// will update the name to be the sub-name of given parent name,
     /// so it inherits the write access rules from the new parent and
     /// resets the `persisted_as` pointer.
     /// Will copy and re-encrypt all external content.
@@ -653,7 +653,7 @@ impl PrivateFile {
         let content = self.get_content(forest, store).await?;
 
         self.header.inumber = NameSegment::new(rng);
-        self.header.update_bare_name(parent_name);
+        self.header.update_name(parent_name);
         self.header.reset_ratchet(rng);
         self.content.persisted_as = OnceCell::new();
 

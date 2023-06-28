@@ -17,11 +17,9 @@ use wnfs_nameaccumulator::{AccumulatorSetup, Name, NameAccumulator};
 // Type Definitions
 //--------------------------------------------------------------------------------------------------
 
-/// PrivateForest is a HAMT that stores CIDs of encrypted private nodes keyed by saturated namefilters.
+/// HamtForest is a HAMT that stores CIDs of encrypted private nodes keyed by name accumulators.
 ///
-/// On insert, nodes are serialized to DAG CBOR and encrypted with their private refs and then stored in
-/// an accompanying block store. And on lookup, the nodes are decrypted and deserialized with the same private
-/// refs.
+/// Inserted nodes should be encrypted ciphertexts of private wnfs nodes.
 ///
 /// It is called a forest because it can store a collection of file trees.
 ///
