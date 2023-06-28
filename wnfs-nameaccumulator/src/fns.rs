@@ -46,7 +46,7 @@ pub(crate) fn prime_digest(hasher: impl Digest + Clone, bytes: usize) -> (BigUin
     loop {
         let hash = hasher
             .clone()
-            .chain_update(counter.to_le_bytes())
+            .chain_update(counter.to_be_bytes())
             .finalize();
 
         let mut candidate = BigUint::from_bytes_be(&hash[..bytes]);
@@ -69,7 +69,7 @@ pub(crate) fn prime_digest_fast(
     bytes: usize,
     counter: u32,
 ) -> Option<BigUint> {
-    let hash = hasher.chain_update(counter.to_le_bytes()).finalize();
+    let hash = hasher.chain_update(counter.to_be_bytes()).finalize();
 
     let mut to_verify = BigUint::from_bytes_be(&hash[..bytes]);
     to_verify |= BigUint::one();

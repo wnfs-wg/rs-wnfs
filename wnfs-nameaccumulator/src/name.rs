@@ -279,9 +279,9 @@ impl NameAccumulator {
 
 fn poke_fiat_shamir_l_hash(modulus: &BigUint, base: &BigUint, commitment: &BigUint) -> Sha3_256 {
     let mut hasher = sha3::Sha3_256::new();
-    hasher.update(modulus.to_bytes_be());
-    hasher.update(base.to_bytes_be());
-    hasher.update(commitment.to_bytes_be());
+    hasher.update(to_bytes_helper::<256>(modulus));
+    hasher.update(to_bytes_helper::<256>(base));
+    hasher.update(to_bytes_helper::<256>(commitment));
     hasher
 }
 
@@ -442,9 +442,7 @@ impl Serialize for NameSegment {
     where
         S: serde::Serializer,
     {
-        let mut bytes = self.0.to_bytes_be();
-        bytes.resize(32, 0);
-        serde_bytes::serialize(&bytes, serializer)
+        serde_bytes::serialize(to_bytes_helper::<32>(&self.0).as_ref(), serializer)
     }
 }
 
