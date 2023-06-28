@@ -157,6 +157,7 @@ where
     ///     assert_eq!(node.get(&String::from("key"), store).await.unwrap(), Some(&42));
     /// }
     /// ```
+    // TODO(matheus23): Eventually provide a HashMap::Entry-similar API
     pub async fn get_mut<'a>(
         self: &'a mut Rc<Self>,
         key: &K,

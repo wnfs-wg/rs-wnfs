@@ -32,7 +32,7 @@ pub struct Name {
 }
 
 /// Represents a setup needed for RSA accumulator operation.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Deserialize, Serialize)]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Deserialize, Serialize)]
 pub struct AccumulatorSetup {
     #[serde(with = "crate::uint256_serde_le")]
     modulus: BigUint,
@@ -60,7 +60,7 @@ pub struct NameSegment(
 /// PoKE* (Proof of Knowledge of Exponent),
 /// assuming that the base is trusted
 /// (e.g. part of a common reference string).
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct ElementsProof {
     /// The accumulator's base, $u$
     pub base: BigUint,
@@ -72,7 +72,7 @@ pub struct ElementsProof {
 
 /// The part of PoKE* (Proof of Knowledge of Exponent) proofs that can't be batched.
 /// This is very small (serialized typically <20 bytes, most likely just 17 bytes).
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct UnbatchableProofPart {
     /// The number to increase a hash by to land on the next prime.
     /// Helps to more quickly generate/verify the prime number $l$.
@@ -84,8 +84,9 @@ pub struct UnbatchableProofPart {
 /// The part of a name accumulator proof that can be batched,
 /// i.e. the size of this part of the proof is independent of
 /// the number of elements being proven. It's always 2048-bit.
-#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct BatchedProofPart {
+    #[serde(with = "crate::uint256_serde_le")]
     big_q_product: BigUint,
 }
 
@@ -366,8 +367,9 @@ impl BatchedProofPart {
 
     /// Add the batchable portion of a proof of elements
     /// for a certain name accumulator to this batch proof.
-    pub fn add(&mut self, proof: &ElementsProof) {
+    pub fn add(&mut self, proof: &ElementsProof, setup: &AccumulatorSetup) {
         self.big_q_product *= &proof.big_q;
+        self.big_q_product %= &setup.modulus;
     }
 }
 
@@ -570,6 +572,42 @@ impl std::fmt::Debug for NameSegment {
     }
 }
 
+impl std::fmt::Debug for AccumulatorSetup {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("AccumulatorSetup")
+            .field("modulus", &self.modulus.to_string())
+            .field("generator", &self.generator.to_string())
+            .finish()
+    }
+}
+
+impl std::fmt::Debug for UnbatchableProofPart {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("UnbatchableProofPart")
+            .field("l_hash_inc", &self.l_hash_inc)
+            .field("r", &self.r.to_string())
+            .finish()
+    }
+}
+
+impl std::fmt::Debug for ElementsProof {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ElementsProof")
+            .field("base", &self.base.to_string())
+            .field("big_q", &self.big_q.to_string())
+            .field("part", &self.part)
+            .finish()
+    }
+}
+
+impl std::fmt::Debug for BatchedProofPart {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("BatchedProofPart")
+            .field("big_q_product", &self.big_q_product.to_string())
+            .finish()
+    }
+}
+
 //--------------------------------------------------------------------------------------------------
 // Tests
 //--------------------------------------------------------------------------------------------------
@@ -656,8 +694,8 @@ mod tests {
         let (accum_image, proof_image) = name_image.as_proven_accumulator(setup);
 
         let mut batched_proof = BatchedProofPart::new();
-        batched_proof.add(proof_note);
-        batched_proof.add(proof_image);
+        batched_proof.add(proof_note, setup);
+        batched_proof.add(proof_image, setup);
 
         let name_base = Name::empty(setup).as_accumulator(setup).clone();
         let mut verification = BatchedProofVerification::new(setup);
@@ -687,16 +725,16 @@ mod tests {
 
         let mut batched_proof = BatchedProofPart::new();
         if do_batch_step[0] {
-            batched_proof.add(&proof_a_one);
+            batched_proof.add(&proof_a_one, setup);
         }
         if do_batch_step[1] {
-            batched_proof.add(&proof_a_two);
+            batched_proof.add(&proof_a_two, setup);
         }
         if do_batch_step[2] {
-            batched_proof.add(&proof_b_one);
+            batched_proof.add(&proof_b_one, setup);
         }
         if do_batch_step[3] {
-            batched_proof.add(&proof_b_two);
+            batched_proof.add(&proof_b_two, setup);
         }
 
         let mut verify = BatchedProofVerification::new(setup);

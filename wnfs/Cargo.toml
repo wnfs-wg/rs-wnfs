@@ -41,7 +41,6 @@ thiserror = "1.0"
 wnfs-common = { path = "../wnfs-common", version = "0.1.22" }
 wnfs-hamt = { path = "../wnfs-hamt", version = "0.1.22" }
 wnfs-nameaccumulator = { path = "../wnfs-nameaccumulator", version = "0.1.22" }
-xxhash-rust = { version = "0.8", features = ["xxh3"] }
 
 [dev-dependencies]
 async-std = { version = "1.11", features = ["attributes"] }

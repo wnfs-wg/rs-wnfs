@@ -19,20 +19,20 @@ async fn main() -> Result<()> {
     // In between operations, Alice, Bob, and the persistence service would
     // exchange blocks via bitswap, car mirror or some other protocol.
     // Here we're simplifying by sharing a 'global' block store.
-    let store = &mut MemoryBlockStore::new();
+    let store = &MemoryBlockStore::new();
 
     // Alice creates a private file system with some data.
-    // She shares read access with bob by securely transferring the read_ref.
+    // She shares read access with bob by securely transferring the access_key.
     // She also publicly announces bob has access to a certain directory at allowed_write_name.
-    let (old_forest_cid, read_ref, allowed_write_name) = alice_actions(store).await?;
+    let (old_forest_cid, access_key, allowed_write_name) = alice_actions(store).await?;
 
-    // Bob can take the read_ref and forest and create writes.
+    // Bob can take the access_key and forest and create writes.
     // The output will be a new state of the forest as well as a set of proofs, proving
     // he didn't touch anything in the file system except what he was allowed to.
-    let (proofs, new_forest_cid) = bob_actions(old_forest_cid, read_ref, store).await?;
+    let (proofs, new_forest_cid) = bob_actions(old_forest_cid, access_key, store).await?;
 
     // A persistence service can check Bob's changes between the forests via his proofs.
-    // The service does *not* need read access (it doesn't get to know the read_ref)
+    // The service does *not* need read access (it doesn't get to know the access_key)
     // and it only gains limited information from the proofs from Bob.
     // The idea is that in practice the persistence service can accept updates from anyone
     // that were indirectly given access by Alice out-of-bounds, and it will store the updated
@@ -68,11 +68,11 @@ async fn alice_actions(store: &impl BlockStore) -> Result<(Cid, AccessKey, NameA
 /// Bob can take the forest, read data using the private ref
 /// and prove writes.
 async fn bob_actions(
-    forest_cid: Cid,
+    old_forest_cid: Cid,
     root_dir_access: AccessKey,
     store: &impl BlockStore,
 ) -> Result<(ForestProofs, Cid)> {
-    let hamt_forest = store.get_deserializable(&forest_cid).await?;
+    let hamt_forest = store.get_deserializable(&old_forest_cid).await?;
     let mut forest = ProvingHamtForest::new(Rc::new(hamt_forest));
     let rng = &mut thread_rng();
 
@@ -92,11 +92,13 @@ async fn bob_actions(
         )
         .await?;
 
+    root_dir.as_node().store(&mut forest, store, rng).await?;
+
     let ProvingHamtForest { forest, proofs } = forest;
 
-    store.put_async_serializable(&forest).await?;
+    let new_forest_cid = store.put_async_serializable(&forest).await?;
 
-    Ok((proofs, forest_cid))
+    Ok((proofs, new_forest_cid))
 }
 
 /// A persistence service can verify write proofs relative to a signed

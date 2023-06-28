@@ -1,6 +1,6 @@
 use super::{PrivateNodeHeaderSerializable, TemporalKey};
 use crate::{error::FsError, private::RevisionRef};
-use anyhow::Result;
+use anyhow::{bail, Result};
 use libipld_core::cid::Cid;
 use rand_core::CryptoRngCore;
 use sha3::{Digest, Sha3_256};
@@ -209,17 +209,16 @@ impl PrivateNodeHeader {
         let ciphertext = store.get_block(cid).await?;
         let cbor_bytes = temporal_key.key_wrap_decrypt(&ciphertext)?;
         let decoded: PrivateNodeHeaderSerializable = serde_ipld_dagcbor::from_slice(&cbor_bytes)?;
+        let serialized_name = decoded.name.clone();
         let mut header = Self::from_serializable(decoded);
         if let Some(parent_name) = parent_name {
             let name = parent_name.with_segments_added([header.inumber.clone()]);
             let mounted_acc = name.as_accumulator(setup);
-            let name_acc = header.name.as_accumulator(setup);
-            if mounted_acc != name_acc {
-                return Err(FsError::MountPointAndDeserializedNameMismatch(
+            if mounted_acc != &serialized_name {
+                bail!(FsError::MountPointAndDeserializedNameMismatch(
                     format!("{mounted_acc:?}"),
-                    format!("{name_acc:?}"),
-                )
-                .into());
+                    format!("{serialized_name:?}"),
+                ));
             }
             header.name = name;
         }

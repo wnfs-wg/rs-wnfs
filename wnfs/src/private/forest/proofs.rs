@@ -60,7 +60,7 @@ impl ForestProofs {
         let base = NameAccumulator::from_state(proof.base.clone());
         let commitment = accumulated.clone();
 
-        self.batched_proof_part.add(proof);
+        self.batched_proof_part.add(proof, setup);
         self.proofs_by_commitment
             .insert(commitment, (base, proof.part.clone()));
 
