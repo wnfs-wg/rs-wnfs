@@ -29,6 +29,13 @@ pub struct SnapshotKey(pub AesKey);
 pub struct TemporalKey(pub AesKey);
 
 //--------------------------------------------------------------------------------------------------
+// Constants
+//--------------------------------------------------------------------------------------------------
+
+const REVISION_SEGMENT_DOMAIN_SEPARATION_STRING: &str = "wnfs/segment deriv from temporal";
+const TEMPORAL_KEY_DOMAIN_SEPARATION_STRING: &str = "wnfs/temporal deriv from ratchet";
+
+//--------------------------------------------------------------------------------------------------
 // Implementations
 //--------------------------------------------------------------------------------------------------
 
@@ -66,7 +73,7 @@ impl TemporalKey {
 
     pub(crate) fn to_revision_segment(&self) -> NameSegment {
         let mut hasher = Sha3_256::new();
-        hasher.update("wnfs/nameaccum/revisions/segment");
+        hasher.update(REVISION_SEGMENT_DOMAIN_SEPARATION_STRING);
         hasher.update(self.0.as_bytes());
         NameSegment::from_digest(hasher)
     }
@@ -180,7 +187,7 @@ impl From<&Ratchet> for TemporalKey {
     fn from(ratchet: &Ratchet) -> Self {
         Self::from(AesKey::new(
             ratchet
-                .derive_key("WNFS temporal key derivation")
+                .derive_key(TEMPORAL_KEY_DOMAIN_SEPARATION_STRING)
                 .finalize()
                 .into(),
         ))
