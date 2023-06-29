@@ -613,8 +613,8 @@ impl std::fmt::Debug for BatchedProofPart {
 #[cfg(test)]
 mod tests {
     use crate::{
-        AccumulatorSetup, BatchedProofPart, BatchedProofVerification, Name, NameAccumulator,
-        NameSegment,
+        uint256_serde_be::to_bytes_helper, AccumulatorSetup, BatchedProofPart,
+        BatchedProofVerification, Name, NameAccumulator, NameSegment,
     };
     use anyhow::Result;
     use libipld::{
@@ -622,6 +622,7 @@ mod tests {
         prelude::{Decode, Encode},
         Ipld,
     };
+    use num_bigint_dig::BigUint;
     use proptest::{prop_assert, prop_assert_eq};
     use rand::{thread_rng, SeedableRng};
     use rand_chacha::ChaCha12Rng;
@@ -767,5 +768,13 @@ mod tests {
                 Err(e) => prop_assert_eq!("no error", format!("{e}")),
             }
         }
+    }
+
+    #[proptest]
+    fn padded_biguint_encoding_roundtrips(num: u64) {
+        let num = BigUint::from(num);
+        let bytes = to_bytes_helper::<8>(&num);
+        let parsed = BigUint::from_bytes_be(bytes.as_ref());
+        prop_assert_eq!(parsed, num);
     }
 }
