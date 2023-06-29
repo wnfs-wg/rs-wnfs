@@ -19,6 +19,7 @@ where
 pub(crate) fn to_bytes_helper<const N: usize>(state: &BigUint) -> [u8; N] {
     let vec = state.to_bytes_be();
     let mut bytes = [0u8; N];
-    bytes[..vec.len()].copy_from_slice(&vec);
+    let zero_bytes = N - vec.len();
+    bytes[zero_bytes..].copy_from_slice(&vec);
     bytes
 }
