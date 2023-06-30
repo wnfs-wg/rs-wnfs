@@ -14,7 +14,6 @@ use sha3::{Digest, Sha3_256};
 use skip_ratchet::Ratchet;
 use std::fmt::Debug;
 use wnfs_hamt::Hasher;
-use wnfs_nameaccumulator::NameSegment;
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
@@ -32,8 +31,14 @@ pub struct TemporalKey(pub AesKey);
 // Constants
 //--------------------------------------------------------------------------------------------------
 
-const REVISION_SEGMENT_DOMAIN_SEPARATION_STRING: &str = "wnfs/segment deriv from temporal";
-const TEMPORAL_KEY_DOMAIN_SEPARATION_STRING: &str = "wnfs/temporal deriv from ratchet";
+/// The revision segment derivation domain separation string
+/// used for salting the hashing function when turning
+/// node names into revisioned node names.
+pub(crate) const REVISION_SEGMENT_DSS: &str = "wnfs/segment deriv from temporal";
+/// The temporal key derivation domain seperation string
+/// used for salting the hashing function when deriving
+/// symmetric keys from ratchets.
+pub(crate) const TEMPORAL_KEY_DSS: &str = "wnfs/temporal deriv from ratchet";
 
 //--------------------------------------------------------------------------------------------------
 // Implementations
@@ -69,13 +74,6 @@ impl TemporalKey {
         Ok(KekAes256::from(self.0.clone().bytes())
             .unwrap_with_padding_vec(ciphertext)
             .map_err(|e| AesError::UnableToEncrypt(format!("{e}")))?)
-    }
-
-    pub(crate) fn to_revision_segment(&self) -> NameSegment {
-        let mut hasher = Sha3_256::new();
-        hasher.update(REVISION_SEGMENT_DOMAIN_SEPARATION_STRING);
-        hasher.update(self.0.as_bytes());
-        NameSegment::from_digest(hasher)
     }
 }
 
@@ -186,10 +184,7 @@ impl From<[u8; KEY_BYTE_SIZE]> for TemporalKey {
 impl From<&Ratchet> for TemporalKey {
     fn from(ratchet: &Ratchet) -> Self {
         Self::from(AesKey::new(
-            ratchet
-                .derive_key(TEMPORAL_KEY_DOMAIN_SEPARATION_STRING)
-                .finalize()
-                .into(),
+            ratchet.derive_key(TEMPORAL_KEY_DSS).finalize().into(),
         ))
     }
 }

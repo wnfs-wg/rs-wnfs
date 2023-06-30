@@ -1,4 +1,4 @@
-use super::{PrivateNodeHeaderSerializable, TemporalKey};
+use super::{PrivateNodeHeaderSerializable, TemporalKey, REVISION_SEGMENT_DSS};
 use crate::{error::FsError, private::RevisionRef};
 use anyhow::{bail, Result};
 use libipld_core::cid::Cid;
@@ -130,6 +130,11 @@ impl PrivateNodeHeader {
         TemporalKey::from(&self.ratchet)
     }
 
+    pub(crate) fn derive_revision_segment(&self) -> NameSegment {
+        let hasher = self.ratchet.derive_key(REVISION_SEGMENT_DSS);
+        NameSegment::from_digest(hasher)
+    }
+
     /// Gets the revision name for this node.
     ///
     /// It's this node's name with a last segment added that's
@@ -159,7 +164,7 @@ impl PrivateNodeHeader {
     /// ```
     pub fn get_revision_name(&self) -> Name {
         self.name
-            .with_segments_added(Some(self.derive_temporal_key().to_revision_segment()))
+            .with_segments_added(Some(self.derive_revision_segment()))
     }
 
     /// Gets the name for this node.
