@@ -613,3 +613,36 @@ test.describe("PrivateForest", () => {
     expect(result).toBeDefined();
   });
 });
+
+test.describe("AccessKey", () => {
+  test("can encode / decode an access key", async ({ page }) => {
+    const [metadataBefore, metadataAfter] = await page.evaluate(async () => {
+      const {
+        wnfs: { AccessKey, Namefilter, PrivateFile, PrivateNode, PrivateForest },
+        mock: { MemoryBlockStore, Rng },
+      } = await window.setup();
+
+      
+      const rng = new Rng();
+      const store = new MemoryBlockStore();
+      const time = new Date();
+      const file = new PrivateFile(new Namefilter(), time, rng);
+      const node = file.asNode();
+      const forest = new PrivateForest();
+      const [accessKey, newForest] = await node.store(forest, store, rng);
+      
+      const encodedAccessKey = accessKey.toBytes();
+      const decodedAccessKey = AccessKey.fromBytes(encodedAccessKey);
+      
+      const fetched = await PrivateNode.load(decodedAccessKey, newForest, store);
+      const metadataBefore = node.asFile().metadata();
+      const metadataAfter = fetched.asFile().metadata();
+      return [metadataBefore, metadataAfter];
+    });
+    
+    expect(metadataBefore).toBeDefined();
+    expect(metadataAfter).toBeDefined();
+    expect(metadataBefore.created).toEqual(metadataAfter.created);
+    expect(metadataBefore.modified).toEqual(metadataAfter.modified);
+  });
+});
