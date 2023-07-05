@@ -242,7 +242,7 @@ impl PublicDirectory {
         };
 
         let SearchResult::Found(dir) = self.get_leaf_dir(path, store).await? else {
-            return Ok(None)
+            return Ok(None);
         };
 
         dir.lookup_node(tail, store).await
