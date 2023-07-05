@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1687794395064,
+  "lastUpdate": 1688558776541,
   "repoUrl": "https://github.com/wnfs-wg/rs-wnfs",
   "entries": {
     "Rust Benchmark": [
@@ -14929,6 +14929,108 @@ window.BENCHMARK_DATA = {
             "name": "namefilter encode",
             "value": 260,
             "range": "± 30",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter decode/0",
+            "value": 1,
+            "range": "± 0",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "contact@gozala.io",
+            "name": "Irakli Gozalishvili",
+            "username": "Gozala"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "982feff849a3f42bb859636a68324b3c6a550a91",
+          "message": "feat: expose AccessKey encode/decode api (#296)\n\n* feat: expose AccessKey encode/decode api\r\n\r\n* Format using newer formatter\r\n\r\n---------\r\n\r\nCo-authored-by: Philipp Krüger <philipp.krueger1@gmail.com>",
+          "timestamp": "2023-07-05T14:01:26+02:00",
+          "tree_id": "3e945ae4857879d099a410ffada8a37c09847cc6",
+          "url": "https://github.com/wnfs-wg/rs-wnfs/commit/982feff849a3f42bb859636a68324b3c6a550a91"
+        },
+        "date": 1688558770095,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "node set",
+            "value": 7190,
+            "range": "± 107",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node set 1000 consecutive",
+            "value": 4531785,
+            "range": "± 19174",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and get",
+            "value": 173590,
+            "range": "± 187",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and remove",
+            "value": 195645,
+            "range": "± 280",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt load and decode/0",
+            "value": 41859,
+            "range": "± 94",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt set and encode",
+            "value": 188074,
+            "range": "± 581",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt diff",
+            "value": 56762,
+            "range": "± 4644",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt merge",
+            "value": 242234,
+            "range": "± 22012",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter add",
+            "value": 8044,
+            "range": "± 10",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter contains",
+            "value": 11844,
+            "range": "± 17",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter saturate",
+            "value": 39960,
+            "range": "± 46",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "namefilter encode",
+            "value": 293,
+            "range": "± 4",
             "unit": "ns/iter"
           },
           {
