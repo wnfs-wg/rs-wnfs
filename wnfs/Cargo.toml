@@ -48,11 +48,12 @@ async-std = { version = "1.11", features = ["attributes"] }
 env_logger = "0.10"
 proptest = "1.1"
 rand = "0.8"
+rand_chacha = "0.3"
 rsa = "0.9"
 sha2 = "0.10"
 test-log = "0.2"
 test-strategy = "0.3"
-tokio = { version = "1.0", features = ["full"] }
+tiny-bip39 = "1.0"
 
 [lib]
 name = "wnfs"
