@@ -28,4 +28,14 @@ impl AccessKey {
     pub fn get_content_cid(&self) -> Vec<u8> {
         self.0.get_content_cid().to_bytes()
     }
+
+    #[wasm_bindgen(js_name = "toBytes")]
+    pub fn into_bytes(&self) -> Vec<u8> {
+        Vec::<u8>::from(&self.0)
+    }
+
+    #[wasm_bindgen(js_name = "fromBytes")]
+    pub fn from_bytes(bytes: &[u8]) -> Self {
+        Self(WnfsAccessKey::from(bytes).into())
+    }
 }

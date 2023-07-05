@@ -5,6 +5,7 @@ import {
   Namefilter,
   PrivateDirectory,
   PrivateForest,
+  AccessKey,
   PublicDirectory,
 } from "../pkg";
 
@@ -190,4 +191,5 @@ export {
   createRecipientExchangeRoot,
   PrivateKey,
   ExchangeKey,
+  AccessKey,
 };

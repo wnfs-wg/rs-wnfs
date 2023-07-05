@@ -101,3 +101,15 @@ impl From<&PrivateRef> for SnapshotAccessKey {
         }
     }
 }
+
+impl From<&[u8]> for AccessKey {
+    fn from(bytes: &[u8]) -> Self {
+        serde_ipld_dagcbor::from_slice(bytes).unwrap()
+    }
+}
+
+impl From<&AccessKey> for Vec<u8> {
+    fn from(key: &AccessKey) -> Self {
+        serde_ipld_dagcbor::to_vec(key).unwrap()
+    }
+}
