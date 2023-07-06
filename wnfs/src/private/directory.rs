@@ -14,9 +14,7 @@ use std::{
     fmt::Debug,
     rc::Rc,
 };
-use wnfs_common::{
-    utils::error, BlockStore, HashOutput, Metadata, PathNodes, PathNodesResult, CODEC_RAW,
-};
+use wnfs_common::{utils::error, BlockStore, Metadata, PathNodes, PathNodesResult, CODEC_RAW};
 use wnfs_nameaccumulator::{AccumulatorSetup, Name, NameSegment};
 
 //--------------------------------------------------------------------------------------------------
@@ -99,44 +97,6 @@ impl PrivateDirectory {
         }
     }
 
-    /// Creates a new directory with the ratchet seed and inumber provided.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use wnfs::private::PrivateDirectory;
-    /// use wnfs_nameaccumulator::{AccumulatorSetup, Name, NameSegment};
-    /// use chrono::Utc;
-    /// use rand::{thread_rng, Rng};
-    ///
-    /// let rng = &mut thread_rng();
-    /// let setup = &AccumulatorSetup::from_rsa_2048(rng);
-    /// let dir = PrivateDirectory::with_seed(
-    ///     &Name::empty(setup),
-    ///     Utc::now(),
-    ///     rng.gen::<[u8; 32]>(),
-    ///     NameSegment::new(rng),
-    /// );
-    ///
-    /// println!("dir = {:?}", dir);
-    /// ```
-    pub fn with_seed(
-        parent_name: &Name,
-        time: DateTime<Utc>,
-        ratchet_seed: HashOutput,
-        inumber: NameSegment,
-    ) -> Self {
-        Self {
-            header: PrivateNodeHeader::with_seed(parent_name, ratchet_seed, inumber),
-            content: PrivateDirectoryContent {
-                persisted_as: OnceCell::new(),
-                metadata: Metadata::new(time),
-                previous: BTreeSet::new(),
-                entries: BTreeMap::new(),
-            },
-        }
-    }
-
     /// This contstructor creates a new private directory and stores it in a provided `PrivateForest`.
     pub async fn new_and_store(
         parent_name: &Name,
@@ -146,22 +106,6 @@ impl PrivateDirectory {
         rng: &mut impl CryptoRngCore,
     ) -> Result<Rc<Self>> {
         let dir = Rc::new(Self::new(parent_name, time, rng));
-        dir.store(forest, store, rng).await?;
-        Ok(dir)
-    }
-
-    /// This contstructor creates a new private directory and stores it in a provided `PrivateForest` but
-    /// with user-provided ratchet seed and inumber provided.
-    pub async fn new_with_seed_and_store(
-        parent_name: &Name,
-        time: DateTime<Utc>,
-        ratchet_seed: HashOutput,
-        inumber: NameSegment,
-        forest: &mut impl PrivateForest,
-        store: &impl BlockStore,
-        rng: &mut impl CryptoRngCore,
-    ) -> Result<Rc<Self>> {
-        let dir = Rc::new(Self::with_seed(parent_name, time, ratchet_seed, inumber));
         dir.store(forest, store, rng).await?;
         Ok(dir)
     }
@@ -1481,35 +1425,7 @@ mod tests {
     use rand_chacha::ChaCha12Rng;
     use rand_core::SeedableRng;
     use test_log::test;
-    use wnfs_common::{utils, MemoryBlockStore};
-
-    #[test(async_std::test)]
-    async fn can_create_directories_deterministically_with_user_provided_seeds() {
-        let rng = &mut ChaCha12Rng::seed_from_u64(0);
-        let setup = &AccumulatorSetup::from_rsa_2048(rng);
-        let ratchet_seed = utils::get_random_bytes::<32>(rng);
-        let inumber = NameSegment::new(rng);
-
-        let dir1 = PrivateDirectory::with_seed(
-            &Name::empty(setup),
-            Utc::now(),
-            ratchet_seed,
-            inumber.clone(),
-        );
-
-        let dir2 =
-            PrivateDirectory::with_seed(&Name::empty(setup), Utc::now(), ratchet_seed, inumber);
-
-        assert_eq!(
-            dir1.header.derive_temporal_key(),
-            dir2.header.derive_temporal_key()
-        );
-
-        assert_eq!(
-            dir1.header.get_revision_name(),
-            dir2.header.get_revision_name()
-        );
-    }
+    use wnfs_common::MemoryBlockStore;
 
     #[test(async_std::test)]
     async fn look_up_can_fetch_file_added_to_directory() {

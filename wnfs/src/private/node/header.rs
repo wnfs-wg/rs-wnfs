@@ -3,10 +3,10 @@ use crate::{error::FsError, private::RevisionRef};
 use anyhow::{bail, Result};
 use libipld_core::cid::Cid;
 use rand_core::CryptoRngCore;
-use sha3::{Digest, Sha3_256};
+use sha3::Sha3_256;
 use skip_ratchet::Ratchet;
 use std::fmt::Debug;
-use wnfs_common::{utils, BlockStore, HashOutput, CODEC_RAW, HASH_BYTE_SIZE};
+use wnfs_common::{BlockStore, CODEC_RAW};
 use wnfs_hamt::Hasher;
 use wnfs_nameaccumulator::{AccumulatorSetup, Name, NameSegment};
 
@@ -53,25 +53,10 @@ impl PrivateNodeHeader {
     /// Creates a new PrivateNodeHeader.
     pub(crate) fn new(parent_name: &Name, rng: &mut impl CryptoRngCore) -> Self {
         let inumber = NameSegment::new(rng);
-        let ratchet_seed = utils::get_random_bytes::<HASH_BYTE_SIZE>(rng);
-        Self::with_seed(parent_name, ratchet_seed, inumber)
-    }
 
-    /// Creates a new PrivateNodeHeader with provided seed.
-    pub(crate) fn with_seed(
-        parent_name: &Name,
-        ratchet_seed: HashOutput,
-        inumber: NameSegment,
-    ) -> Self {
-        // A keyed hash to use for determining the seed increments without
-        // leaking info about the seed itself (from the ratchet state).
-        let seed_hash = Sha3_256::new()
-            .chain_update("WNFS ratchet increments")
-            .chain_update(ratchet_seed)
-            .finalize();
         Self {
             name: parent_name.with_segments_added(Some(inumber.clone())),
-            ratchet: Ratchet::from_seed(&ratchet_seed, seed_hash[0], seed_hash[1]),
+            ratchet: Ratchet::from_rng(rng),
             inumber,
         }
     }
