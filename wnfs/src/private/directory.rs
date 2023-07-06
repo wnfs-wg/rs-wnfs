@@ -525,7 +525,10 @@ impl PrivateDirectory {
             return Ok(None);
         };
 
-        let SearchResult::Found(dir) = self.get_leaf_dir(path, search_latest, forest, store).await? else {
+        let SearchResult::Found(dir) = self
+            .get_leaf_dir(path, search_latest, forest, store)
+            .await?
+        else {
             return Ok(None);
         };
 
@@ -1065,7 +1068,10 @@ impl PrivateDirectory {
         store: &impl BlockStore,
     ) -> Result<PrivateNode> {
         let (path, node_name) = crate::utils::split_last(path_segments)?;
-        let SearchResult::Found(dir) = self.get_leaf_dir_mut(path, search_latest, forest, store).await? else {
+        let SearchResult::Found(dir) = self
+            .get_leaf_dir_mut(path, search_latest, forest, store)
+            .await?
+        else {
             bail!(FsError::NotFound)
         };
 
@@ -1095,7 +1101,10 @@ impl PrivateDirectory {
         rng: &mut impl CryptoRngCore,
     ) -> Result<()> {
         let (path, node_name) = crate::utils::split_last(path_segments)?;
-        let SearchResult::Found(dir) = self.get_leaf_dir_mut(path, search_latest, forest, store).await? else {
+        let SearchResult::Found(dir) = self
+            .get_leaf_dir_mut(path, search_latest, forest, store)
+            .await?
+        else {
             bail!(FsError::NotFound);
         };
 

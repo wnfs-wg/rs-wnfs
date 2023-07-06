@@ -166,7 +166,7 @@ impl PrivateForest for HamtForest {
         name: &Name,
         store: &impl BlockStore,
     ) -> Result<Option<&BTreeSet<Cid>>> {
-        let name_hash = &Sha3_256::hash(&name.as_accumulator(&self.accumulator).as_ref());
+        let name_hash = &Sha3_256::hash(name.as_accumulator(&self.accumulator));
         self.get_encrypted_by_hash(name_hash, store).await
     }
 
@@ -175,7 +175,7 @@ impl PrivateForest for HamtForest {
         name: &Name,
         store: &impl BlockStore,
     ) -> Result<Option<Pair<NameAccumulator, BTreeSet<Cid>>>> {
-        let name_hash = &Sha3_256::hash(&name.as_accumulator(&self.accumulator).as_ref());
+        let name_hash = &Sha3_256::hash(name.as_accumulator(&self.accumulator));
         self.hamt.root.remove_by_hash(name_hash, store).await
     }
 }
@@ -342,7 +342,8 @@ impl AsyncSerialize for HamtForest {
             .map_err(serde::ser::Error::custom)?;
 
         let Ipld::Map(mut ipld_map) = hamt_ipld else {
-            let msg = format!("Expected HAMT root to serialize to an IPLD map, but got {hamt_ipld:#?}");
+            let msg =
+                format!("Expected HAMT root to serialize to an IPLD map, but got {hamt_ipld:#?}");
             return Err(SerError::custom(FsError::InvalidDeserialization(msg)));
         };
 

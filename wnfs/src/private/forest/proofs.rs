@@ -125,7 +125,10 @@ impl ProvingHamtForest {
             // Verify that there exists a proof for the changed label & obtain the base that
             // was proven from.
             let Some((base, _)) = self.proofs.proofs_by_commitment.get(&change.key) else {
-                bail!(VerificationError::UnverifiedWrite(format!("{:?}", change.key)));
+                bail!(VerificationError::UnverifiedWrite(format!(
+                    "{:?}",
+                    change.key
+                )));
             };
 
             // Verify that the base is allowed to be written to (e.g. has been signed by a party

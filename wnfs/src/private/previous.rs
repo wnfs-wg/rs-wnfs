@@ -109,8 +109,7 @@ impl<F: PrivateForest> PrivateNodeHistory<F> {
         &mut self,
         store: &impl BlockStore,
     ) -> Result<Option<PrivateNode>> {
-        let Some(previous_ratchet) = self.ratchets.next()
-        else {
+        let Some(previous_ratchet) = self.ratchets.next() else {
             return Ok(None);
         };
 
@@ -147,7 +146,7 @@ impl<F: PrivateForest> PrivateNodeHistory<F> {
             .iter()
             .find(|(revisions_back, _)| *revisions_back == 1)
         else {
-            return Ok(None)
+            return Ok(None);
         };
         Ok(Some(*first_backpointer.resolve_value(&temporal_key)?))
     }
@@ -288,7 +287,9 @@ impl<F: PrivateForest + Clone> PrivateNodeOnPathHistory<F> {
             PathNodesResult::NotADirectory(_, _) => bail!(FsError::NotADirectory),
         };
 
-        let Some(target) = (*path_nodes.tail).lookup_node(target_path_segment, false, &forest, store).await?
+        let Some(target) = (*path_nodes.tail)
+            .lookup_node(target_path_segment, false, &forest, store)
+            .await?
         else {
             bail!(FsError::NotFound);
         };
@@ -350,8 +351,7 @@ impl<F: PrivateForest + Clone> PrivateNodeOnPathHistory<F> {
             return Ok(Some(node));
         }
 
-        let Some(working_stack) = self.find_and_step_segment_history(store).await?
-        else {
+        let Some(working_stack) = self.find_and_step_segment_history(store).await? else {
             return Ok(None);
         };
 
@@ -476,8 +476,7 @@ impl<F: PrivateForest + Clone> PrivateNodeOnPathHistory<F> {
             };
 
             // We need to find the in-between history entry! See the test case `previous_with_multiple_child_changes`.
-            let Some(directory_prev) = directory_history.get_previous_dir(store).await?
-            else {
+            let Some(directory_prev) = directory_history.get_previous_dir(store).await? else {
                 return Ok(false);
             };
 
