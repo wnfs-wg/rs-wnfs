@@ -14,10 +14,10 @@ use wnfs_hamt::{
 
 fn node_set(c: &mut Criterion) {
     let mut runner = TestRunner::deterministic();
-    let mut store = MemoryBlockStore::default();
+    let store = MemoryBlockStore::default();
     let operations = operations(any::<[u8; 32]>(), any::<u64>(), 1_000_000).sample(&mut runner);
     let node =
-        &async_std::task::block_on(async { node_from_operations(&operations, &mut store).await })
+        &async_std::task::block_on(async { node_from_operations(&operations, &store).await })
             .expect("Couldn't setup HAMT node from operations");
 
     let store = Arc::new(store);
@@ -30,12 +30,11 @@ fn node_set(c: &mut Criterion) {
                 (store, kv)
             },
             |(store, (key, value))| async move {
-                black_box(
-                    Rc::clone(node)
-                        .set(key, value, store.as_ref())
-                        .await
-                        .unwrap(),
-                );
+                Rc::clone(node)
+                    .set(key, value, store.as_ref())
+                    .await
+                    .unwrap();
+                black_box(());
             },
             BatchSize::SmallInput,
         );
@@ -48,11 +47,11 @@ fn node_set_consecutive(c: &mut Criterion) {
     c.bench_function("node set 1000 consecutive", |b| {
         b.to_async(AsyncStdExecutor).iter_batched(
             || {
-                let mut store = MemoryBlockStore::default();
+                let store = MemoryBlockStore::default();
                 let operations =
                     operations(any::<[u8; 32]>(), any::<u64>(), 1000).sample(&mut runner);
                 let node = async_std::task::block_on(async {
-                    node_from_operations(&operations, &mut store).await
+                    node_from_operations(&operations, &store).await
                 })
                 .expect("Couldn't setup HAMT node from operations");
 
@@ -61,7 +60,8 @@ fn node_set_consecutive(c: &mut Criterion) {
             },
             |(mut node, store, kvs)| async move {
                 for (key, value) in kvs {
-                    black_box(node.set(key, value, &store).await.unwrap());
+                    node.set(key, value, &store).await.unwrap();
+                    black_box(());
                 }
             },
             BatchSize::SmallInput,
@@ -70,14 +70,14 @@ fn node_set_consecutive(c: &mut Criterion) {
 }
 
 fn node_load_get(c: &mut Criterion) {
-    let mut store = MemoryBlockStore::default();
+    let store = MemoryBlockStore::default();
     let cid = async_std::task::block_on(async {
         let mut node = Rc::new(<Node<_, _>>::default());
         for i in 0..50 {
             node.set(i.to_string(), i, &store).await.unwrap();
         }
 
-        let encoded_hamt = dagcbor::async_encode(&Hamt::with_root(node), &mut store)
+        let encoded_hamt = dagcbor::async_encode(&Hamt::with_root(node), &store)
             .await
             .unwrap();
 
@@ -102,14 +102,14 @@ fn node_load_get(c: &mut Criterion) {
 }
 
 fn node_load_remove(c: &mut Criterion) {
-    let mut store = MemoryBlockStore::default();
+    let store = MemoryBlockStore::default();
     let cid = async_std::task::block_on(async {
         let mut node = Rc::new(<Node<_, _>>::default());
         for i in 0..50 {
             node.set(i.to_string(), i, &store).await.unwrap();
         }
 
-        let encoded_hamt = dagcbor::async_encode(&Hamt::with_root(node), &mut store)
+        let encoded_hamt = dagcbor::async_encode(&Hamt::with_root(node), &store)
             .await
             .unwrap();
 
@@ -131,14 +131,14 @@ fn node_load_remove(c: &mut Criterion) {
 }
 
 fn hamt_load_decode(c: &mut Criterion) {
-    let mut store = MemoryBlockStore::default();
+    let store = MemoryBlockStore::default();
     let (cid, bytes) = async_std::task::block_on(async {
         let mut node = Rc::new(<Node<_, _>>::default());
         for i in 0..50 {
             node.set(i.to_string(), i, &store).await.unwrap();
         }
 
-        let encoded_hamt = dagcbor::async_encode(&Hamt::with_root(node), &mut store)
+        let encoded_hamt = dagcbor::async_encode(&Hamt::with_root(node), &store)
             .await
             .unwrap();
 
@@ -167,14 +167,14 @@ fn hamt_set_encode(c: &mut Criterion) {
                     Rc::new(<Node<_, _>>::default()),
                 )
             },
-            |(mut store, mut node)| async move {
+            |(store, mut node)| async move {
                 for i in 0..50 {
                     node.set(i.to_string(), i, &store).await.unwrap();
                 }
 
                 let hamt = Hamt::with_root(node);
 
-                let _ = black_box(dagcbor::async_encode(&hamt, &mut store).await.unwrap());
+                let _ = black_box(dagcbor::async_encode(&hamt, &store).await.unwrap());
             },
             BatchSize::SmallInput,
         )
@@ -187,20 +187,20 @@ fn hamt_diff(c: &mut Criterion) {
     c.bench_function("hamt diff", |b| {
         b.to_async(AsyncStdExecutor).iter_batched(
             || {
-                let mut store = MemoryBlockStore::default();
+                let store = MemoryBlockStore::default();
                 let kvs1 = generate_kvs("[a-z0-9]{1,3}", 0u64..1000, 0..100).sample(&mut runner);
                 let kvs2 = generate_kvs("[a-z0-9]{1,3}", 0u64..1000, 0..100).sample(&mut runner);
                 let (node1, node2) = task::block_on(async {
                     (
-                        node_from_kvs(kvs1, &mut store).await.unwrap(),
-                        node_from_kvs(kvs2, &mut store).await.unwrap(),
+                        node_from_kvs(kvs1, &store).await.unwrap(),
+                        node_from_kvs(kvs2, &store).await.unwrap(),
                     )
                 });
                 (store, (node1, node2))
             },
-            |(mut store, (node1, node2))| async move {
+            |(store, (node1, node2))| async move {
                 black_box(
-                    diff(Link::from(node1), Link::from(node2), &mut store)
+                    diff(Link::from(node1), Link::from(node2), &store)
                         .await
                         .unwrap(),
                 );
@@ -216,24 +216,24 @@ fn hamt_merge(c: &mut Criterion) {
     c.bench_function("hamt merge", |b| {
         b.to_async(AsyncStdExecutor).iter_batched(
             || {
-                let mut store = MemoryBlockStore::default();
+                let store = MemoryBlockStore::default();
                 let kvs1 = generate_kvs("[a-z0-9]{1,3}", 0u64..1000, 0..100).sample(&mut runner);
                 let kvs2 = generate_kvs("[a-z0-9]{1,3}", 0u64..1000, 0..100).sample(&mut runner);
                 let (node1, node2) = task::block_on(async {
                     (
-                        node_from_kvs(kvs1, &mut store).await.unwrap(),
-                        node_from_kvs(kvs2, &mut store).await.unwrap(),
+                        node_from_kvs(kvs1, &store).await.unwrap(),
+                        node_from_kvs(kvs2, &store).await.unwrap(),
                     )
                 });
                 (store, (node1, node2))
             },
-            |(mut store, (node1, node2))| async move {
+            |(store, (node1, node2))| async move {
                 black_box(
                     merge(
                         Link::from(node1),
                         Link::from(node2),
                         |a, b| Ok(cmp::min(*a, *b)),
-                        &mut store,
+                        &store,
                     )
                     .await
                     .unwrap(),

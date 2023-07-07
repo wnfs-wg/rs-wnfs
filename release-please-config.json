@@ -9,6 +9,6 @@
     "wnfs-wasm": {},
     "wnfs-common": {},
     "wnfs-hamt": {},
-    "wnfs-namefilter": {}
+    "wnfs-nameaccumulator": {}
   }
 }

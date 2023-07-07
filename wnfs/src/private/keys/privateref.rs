@@ -1,7 +1,7 @@
 use super::KEY_BYTE_SIZE;
 use crate::{
     error::{AesError, FsError},
-    private::{SnapshotKey, TemporalKey},
+    private::{PrivateRefSerializable, TemporalKey},
 };
 use aes_kw::KekAes256;
 use anyhow::Result;
@@ -19,24 +19,12 @@ use wnfs_common::HashOutput;
 /// It also includes required key material to decrypt/encrypt any future revisions of the node it points to.
 #[derive(Clone, PartialEq, Eq)]
 pub struct PrivateRef {
-    /// Sha3-256 hash of saturated namefilter. Used as the label for identifying revisions of PrivateNodes in the PrivateForest.
-    pub saturated_name_hash: HashOutput,
+    /// Sha3-256 hash of the revision name. Used as the label for identifying revisions of PrivateNodes in the PrivateForest.
+    pub revision_name_hash: HashOutput,
     /// Skip-ratchet-derived key. Gives read access to the revision pointed to and any newer revisions.
     pub temporal_key: TemporalKey,
     /// CID that identifies the exact value in the multivalue.
     pub content_cid: Cid,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub(crate) struct PrivateRefSerializable {
-    #[serde(rename = "name")]
-    pub(crate) saturated_name_hash: HashOutput,
-    #[serde(rename = "snapshotKey")]
-    pub(crate) snapshot_key: SnapshotKey,
-    #[serde(rename = "temporalKey")]
-    pub(crate) temporal_key: Vec<u8>,
-    #[serde(rename = "contentCid")]
-    pub(crate) content_cid: Cid,
 }
 
 // TODO(appcypher): Remove RevisionRef.
@@ -45,8 +33,8 @@ pub(crate) struct PrivateRefSerializable {
 /// revisions.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub(crate) struct RevisionRef {
-    /// Sha3-256 hash of saturated namefilter. Used as the label for private nodes in the private forest.
-    pub saturated_name_hash: HashOutput,
+    /// Sha3-256 hash of the revision name. Used as the label for private nodes in the private forest.
+    pub revision_name_hash: HashOutput,
     /// Skip-ratchet-derived key. Gives read access to the revision pointed to and any newer revisions.
     pub temporal_key: TemporalKey,
 }
@@ -56,14 +44,14 @@ pub(crate) struct RevisionRef {
 //--------------------------------------------------------------------------------------------------
 
 impl PrivateRef {
-    /// Creates a PrivateRef from provided saturated name and temporal key.
+    /// Creates a PrivateRef from provided revision name hash and temporal key.
     pub(crate) fn with_temporal_key(
-        saturated_name_hash: HashOutput,
+        revision_name_hash: HashOutput,
         temporal_key: TemporalKey,
         content_cid: Cid,
     ) -> Self {
         Self {
-            saturated_name_hash,
+            revision_name_hash,
             temporal_key,
             content_cid,
         }
@@ -81,7 +69,7 @@ impl PrivateRef {
             .map_err(|e| AesError::UnableToEncrypt(format!("{e}")))?;
 
         Ok(PrivateRefSerializable {
-            saturated_name_hash: self.saturated_name_hash,
+            revision_name_hash: self.revision_name_hash,
             snapshot_key,
             temporal_key: temporal_key_wrapped,
             content_cid: self.content_cid,
@@ -109,7 +97,7 @@ impl PrivateRef {
         let temporal_key = temporal_key_raw.into();
 
         Ok(Self {
-            saturated_name_hash: private_ref.saturated_name_hash,
+            revision_name_hash: private_ref.revision_name_hash,
             temporal_key,
             content_cid: private_ref.content_cid,
         })
@@ -144,13 +132,13 @@ impl PrivateRef {
 
 impl Debug for PrivateRef {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let mut sat_name_hash_str = String::from("0x");
-        for byte in self.saturated_name_hash {
-            sat_name_hash_str.push_str(&format!("{byte:02X}"));
+        let mut rev_name_hash_str = String::from("0x");
+        for byte in self.revision_name_hash {
+            rev_name_hash_str.push_str(&format!("{byte:02X}"));
         }
 
         f.debug_struct("PrivateRef")
-            .field("saturated_name_hash", &sat_name_hash_str)
+            .field("revision_name_hash", &rev_name_hash_str)
             .field("temporal_key", &self.temporal_key.0)
             .field("content_cid", &self.content_cid)
             .finish()
@@ -166,7 +154,7 @@ impl RevisionRef {
     /// The resulting private ref refers to the given CID in the multivalue.
     pub(crate) fn into_private_ref(self, content_cid: Cid) -> PrivateRef {
         PrivateRef {
-            saturated_name_hash: self.saturated_name_hash,
+            revision_name_hash: self.revision_name_hash,
             temporal_key: self.temporal_key,
             content_cid,
         }

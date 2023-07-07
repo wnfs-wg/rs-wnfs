@@ -10,9 +10,11 @@ use chrono::Utc;
 use libipld_core::cid::Cid;
 use rand::thread_rng;
 use std::rc::Rc;
-use wnfs::private::{PrivateDirectory, PrivateForest, PrivateNode};
+use wnfs::private::{
+    forest::{hamt::HamtForest, traits::PrivateForest},
+    PrivateDirectory, PrivateNode,
+};
 use wnfs_common::{BlockStore, MemoryBlockStore};
-use wnfs_namefilter::Namefilter;
 
 #[async_std::main]
 async fn main() -> Result<()> {
@@ -29,14 +31,10 @@ async fn main() -> Result<()> {
 
     // Create a new private forest.
     // This represents your whole private file system, but hides any internal structure.
-    let forest = &mut Rc::new(PrivateForest::new());
+    let forest = &mut Rc::new(HamtForest::new_rsa_2048(rng));
 
     // Create a new private directory
-    let mut directory = Rc::new(PrivateDirectory::new(
-        Namefilter::default(),
-        Utc::now(),
-        rng,
-    ));
+    let mut directory = Rc::new(PrivateDirectory::new(&forest.empty_name(), Utc::now(), rng));
 
     let file_path = ["datasets".into(), "recordings".into(), "monday.mp4".into()];
     let video = b"This isn't actually a video. But it could be!";
@@ -57,12 +55,12 @@ async fn main() -> Result<()> {
 
     // Same thing for the forest. Doing this will give us a single root CID
     // for all of the data, but parts separated into `hot_store` and `cold_store`:
-    let private_root_cid = hot_store.put_async_serializable(forest).await?;
+    let private_root_cid = forest.store(&hot_store).await?;
 
     // We can now read out our data back:
-    let forest: Rc<PrivateForest> = Rc::new(hot_store.get_deserializable(&private_root_cid).await?);
+    let forest = HamtForest::load(&private_root_cid, &hot_store).await?;
 
-    let directory = PrivateNode::load(&access_key, &forest, &hot_store)
+    let directory = PrivateNode::load(&access_key, &forest, &hot_store, None)
         .await?
         .as_dir()?;
 

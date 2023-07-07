@@ -5,7 +5,9 @@ use std::{fmt::Debug, rc::Rc};
 use wasm_bindgen::JsValue;
 use wnfs::{
     common::Metadata,
-    private::{PrivateDirectory as WnfsPrivateDirectory, PrivateForest as WnfsPrivateForest},
+    private::{
+        forest::hamt::HamtForest as WnfsHamtForest, PrivateDirectory as WnfsPrivateDirectory,
+    },
     public::PublicDirectory as WnfsPublicDirectory,
 };
 
@@ -65,7 +67,7 @@ pub(crate) fn create_public_op_result<T: Into<JsValue>>(
 
 pub(crate) fn create_private_op_result<T: Into<JsValue>>(
     root_dir: Rc<WnfsPrivateDirectory>,
-    forest: Rc<WnfsPrivateForest>,
+    forest: Rc<WnfsHamtForest>,
     result: T,
 ) -> JsResult<JsValue> {
     let op_result = Array::new();
@@ -86,7 +88,7 @@ pub(crate) fn create_private_op_result<T: Into<JsValue>>(
 
 pub(crate) fn create_private_forest_result(
     result: JsValue,
-    forest: Rc<WnfsPrivateForest>,
+    forest: Rc<WnfsHamtForest>,
 ) -> JsResult<JsValue> {
     let op_result = Array::new();
 

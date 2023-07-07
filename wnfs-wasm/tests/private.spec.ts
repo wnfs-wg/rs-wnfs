@@ -13,14 +13,14 @@ test.describe("PrivateDirectory", () => {
   test("lookupNode can fetch file added to directory", async ({ page }) => {
     const result = await page.evaluate(async () => {
       const {
-        wnfs: { PrivateDirectory, PrivateForest, Namefilter },
+        wnfs: { PrivateDirectory, PrivateForest },
         mock: { MemoryBlockStore, Rng },
       } = await window.setup();
 
-      const initialForest = new PrivateForest();
       const rng = new Rng();
       const store = new MemoryBlockStore();
-      const root = new PrivateDirectory(new Namefilter(), new Date(), rng);
+      const initialForest = new PrivateForest(rng);
+      const root = new PrivateDirectory(initialForest.emptyName(), new Date(), rng);
 
       var { rootDir, forest } = await root.write(
         ["text.txt"],
@@ -41,14 +41,14 @@ test.describe("PrivateDirectory", () => {
   test("getNode can fetch node from root dir", async ({ page }) => {
     const [result0, result1] = await page.evaluate(async (): Promise<any[]> => {
       const {
-        wnfs: { PrivateDirectory, PrivateForest, Namefilter },
+        wnfs: { PrivateDirectory, PrivateForest },
         mock: { MemoryBlockStore, Rng },
       } = await window.setup();
 
-      const initialForest = new PrivateForest();
       const rng = new Rng();
       const store = new MemoryBlockStore();
-      const root = new PrivateDirectory(new Namefilter(), new Date(), rng);
+      const initialForest = new PrivateForest(rng);
+      const root = new PrivateDirectory(initialForest.emptyName(), new Date(), rng);
 
       var { rootDir, forest } = await root.mkdir(
         ["pictures", "dogs"],
@@ -98,14 +98,14 @@ test.describe("PrivateDirectory", () => {
   }) => {
     const result = await page.evaluate(async () => {
       const {
-        wnfs: { PrivateDirectory, PrivateForest, Namefilter },
+        wnfs: { PrivateDirectory, PrivateForest },
         mock: { MemoryBlockStore, Rng },
       } = await window.setup();
 
-      const initialForest = new PrivateForest();
       const rng = new Rng();
       const store = new MemoryBlockStore();
-      const root = new PrivateDirectory(new Namefilter(), new Date(), rng);
+      const initialForest = new PrivateForest(rng);
+      const root = new PrivateDirectory(initialForest.emptyName(), new Date(), rng);
 
       return await root.lookupNode("Unknown", true, initialForest, store);
     });
@@ -116,14 +116,14 @@ test.describe("PrivateDirectory", () => {
   test("mkdir can create new directory", async ({ page }) => {
     const result = await page.evaluate(async () => {
       const {
-        wnfs: { PrivateDirectory, PrivateForest, Namefilter },
+        wnfs: { PrivateDirectory, PrivateForest },
         mock: { MemoryBlockStore, Rng },
       } = await window.setup();
 
-      const initialForest = new PrivateForest();
       const rng = new Rng();
       const store = new MemoryBlockStore();
-      const root = new PrivateDirectory(new Namefilter(), new Date(), rng);
+      const initialForest = new PrivateForest(rng);
+      const root = new PrivateDirectory(initialForest.emptyName(), new Date(), rng);
 
       var { rootDir, forest } = await root.mkdir(
         ["pictures", "cats"],
@@ -160,14 +160,14 @@ test.describe("PrivateDirectory", () => {
   test("ls can list children under directory", async ({ page }) => {
     const result = await page.evaluate(async () => {
       const {
-        wnfs: { PrivateDirectory, PrivateForest, Namefilter },
+        wnfs: { PrivateDirectory, PrivateForest },
         mock: { MemoryBlockStore, Rng },
       } = await window.setup();
 
-      const initialForest = new PrivateForest();
       const rng = new Rng();
       const store = new MemoryBlockStore();
-      const root = new PrivateDirectory(new Namefilter(), new Date(), rng);
+      const initialForest = new PrivateForest(rng);
+      const root = new PrivateDirectory(initialForest.emptyName(), new Date(), rng);
 
       var { rootDir, forest } = await root.mkdir(
         ["pictures", "dogs"],
@@ -201,14 +201,14 @@ test.describe("PrivateDirectory", () => {
   test("rm can remove children from directory", async ({ page }) => {
     const result = await page.evaluate(async () => {
       const {
-        wnfs: { PrivateDirectory, PrivateForest, Namefilter },
+        wnfs: { PrivateDirectory, PrivateForest },
         mock: { MemoryBlockStore, Rng },
       } = await window.setup();
 
-      const initialForest = new PrivateForest();
       const rng = new Rng();
       const store = new MemoryBlockStore();
-      const root = new PrivateDirectory(new Namefilter(), new Date(), rng);
+      const initialForest = new PrivateForest(rng);
+      const root = new PrivateDirectory(initialForest.emptyName(), new Date(), rng);
 
       var { rootDir, forest } = await root.write(
         ["pictures", "dogs", "billie.jpeg"],
@@ -250,14 +250,14 @@ test.describe("PrivateDirectory", () => {
   test("basicMv can move content between directories", async ({ page }) => {
     const [imagesContent, picturesContent] = await page.evaluate(async () => {
       const {
-        wnfs: { PrivateDirectory, PrivateForest, Namefilter },
+        wnfs: { PrivateDirectory, PrivateForest },
         mock: { MemoryBlockStore, Rng },
       } = await window.setup();
 
-      const initialForest = new PrivateForest();
       const rng = new Rng();
       const store = new MemoryBlockStore();
-      const root = new PrivateDirectory(new Namefilter(), new Date(), rng);
+      const initialForest = new PrivateForest(rng);
+      const root = new PrivateDirectory(initialForest.emptyName(), new Date(), rng);
 
       var { rootDir, forest } = await root.write(
         ["pictures", "cats", "luna.jpeg"],
@@ -323,14 +323,14 @@ test.describe("PrivateDirectory", () => {
   test("cp can copy content between directories", async ({ page }) => {
     const [imagesContent, picturesContent] = await page.evaluate(async () => {
       const {
-        wnfs: { PrivateDirectory, PrivateForest, Namefilter },
+        wnfs: { PrivateDirectory, PrivateForest },
         mock: { MemoryBlockStore, Rng },
       } = await window.setup();
 
-      const initialForest = new PrivateForest();
       const rng = new Rng();
       const store = new MemoryBlockStore();
-      const root = new PrivateDirectory(new Namefilter(), new Date(), rng);
+      const initialForest = new PrivateForest(rng);
+      const root = new PrivateDirectory(initialForest.emptyName(), new Date(), rng);
 
       var { rootDir, forest } = await root.write(
         ["pictures", "cats", "luna.jpeg"],
@@ -400,12 +400,13 @@ test.describe("PrivateFile", () => {
   test("empty can create empty file", async ({ page }) => {
     const result = await page.evaluate(async () => {
       const {
-        wnfs: { PrivateFile, Namefilter },
+        wnfs: { PrivateFile, PrivateForest },
         mock: { Rng },
       } = await window.setup();
 
       const rng = new Rng();
-      const file = new PrivateFile(new Namefilter(), new Date(), rng);
+      const forest = new PrivateForest(rng);
+      const file = new PrivateFile(forest.emptyName(), new Date(), rng);
 
       return file.getId();
     });
@@ -416,15 +417,15 @@ test.describe("PrivateFile", () => {
   test("withContent can create file with content", async ({ page }) => {
     const result = await page.evaluate(async () => {
       const {
-        wnfs: { PrivateFile, PrivateForest, Namefilter },
+        wnfs: { PrivateFile, PrivateForest },
         mock: { MemoryBlockStore, Rng },
       } = await window.setup();
 
-      const forest = new PrivateForest();
       const rng = new Rng();
+      const forest = new PrivateForest(rng);
       const store = new MemoryBlockStore();
       const [file] = await PrivateFile.withContent(
-        new Namefilter(),
+        forest.emptyName(),
         new Date(),
         new Uint8Array([1, 2, 3, 4, 5]),
         forest,
@@ -441,15 +442,15 @@ test.describe("PrivateFile", () => {
   test("getContent can fetch file's entire content", async ({ page }) => {
     const [length, type] = await page.evaluate(async () => {
       const {
-        wnfs: { PrivateFile, PrivateForest, Namefilter },
+        wnfs: { PrivateFile, PrivateForest },
         mock: { MemoryBlockStore, Rng },
       } = await window.setup();
 
-      const initialForest = new PrivateForest();
       const rng = new Rng();
+      const initialForest = new PrivateForest(rng);
       const store = new MemoryBlockStore();
       var [file, forest] = await PrivateFile.withContent(
-        new Namefilter(),
+        initialForest.emptyName(),
         new Date(),
         new Uint8Array([1, 2, 3, 4, 5]),
         initialForest,
@@ -469,12 +470,14 @@ test.describe("PrivateFile", () => {
   test("A PrivateDirectory has the correct metadata", async ({ page }) => {
     const result = await page.evaluate(async () => {
       const {
-        wnfs: { Namefilter, PrivateDirectory },
+        wnfs: { PrivateDirectory, PrivateForest },
         mock: { Rng },
       } = await window.setup();
 
+      const rng = new Rng();
+      const forest = new PrivateForest(rng);
       const time = new Date();
-      return new PrivateDirectory(new Namefilter(), time, new Rng()).metadata();
+      return new PrivateDirectory(forest.emptyName(), time, rng).metadata();
     });
 
     expect(result.created).not.toBeUndefined();
@@ -483,12 +486,14 @@ test.describe("PrivateFile", () => {
   test("A PrivateFile has the correct metadata", async ({ page }) => {
     const result = await page.evaluate(async () => {
       const {
-        wnfs: { Namefilter, PrivateFile },
+        wnfs: { PrivateFile, PrivateForest },
         mock: { Rng },
       } = await window.setup();
 
+      const rng = new Rng();
+      const forest = new PrivateForest(rng);
       const time = new Date();
-      return new PrivateFile(new Namefilter(), time, new Rng()).metadata();
+      return new PrivateFile(forest.emptyName(), time, rng).metadata();
     });
 
     expect(result.created).not.toBeUndefined();
@@ -499,16 +504,16 @@ test.describe("PrivateForest", () => {
   test("store returns a PrivateRef", async ({ page }) => {
     const result = await page.evaluate(async () => {
       const {
-        wnfs: { Namefilter, PrivateFile, PrivateForest },
+        wnfs: { PrivateFile, PrivateForest },
         mock: { MemoryBlockStore, Rng, CID },
       } = await window.setup();
 
       const rng = new Rng();
       const store = new MemoryBlockStore();
+      const forest = new PrivateForest(rng);
       const time = new Date();
-      const file = new PrivateFile(new Namefilter(), time, rng);
+      const file = new PrivateFile(forest.emptyName(), time, rng);
       const node = file.asNode();
-      const forest = new PrivateForest();
       const [privateRef, _] = await node.store(forest, store, rng);
       return {
         // Need to be converted to arrays so they can be passed as JSON
@@ -526,16 +531,16 @@ test.describe("PrivateForest", () => {
   test("load returns what was stored", async ({ page }) => {
     const [metadataBefore, metadataAfter] = await page.evaluate(async () => {
       const {
-        wnfs: { Namefilter, PrivateFile, PrivateNode, PrivateForest },
+        wnfs: { PrivateFile, PrivateNode, PrivateForest },
         mock: { MemoryBlockStore, Rng },
       } = await window.setup();
 
       const rng = new Rng();
       const store = new MemoryBlockStore();
+      const forest = new PrivateForest(rng);
       const time = new Date();
-      const file = new PrivateFile(new Namefilter(), time, rng);
+      const file = new PrivateFile(forest.emptyName(), time, rng);
       const node = file.asNode();
-      const forest = new PrivateForest();
       const [privateRef, newForest] = await node.store(forest, store, rng);
       const fetched = await PrivateNode.load(privateRef, newForest, store);
       const metadataBefore = node.asFile().metadata();
@@ -552,7 +557,7 @@ test.describe("PrivateForest", () => {
   test("diff gets changes in forests", async ({ page }) => {
     const changes = await page.evaluate(async () => {
       const {
-        wnfs: { Namefilter, PrivateFile, PrivateDirectory, PrivateForest },
+        wnfs: { PrivateFile, PrivateDirectory, PrivateForest },
         mock: { MemoryBlockStore, Rng },
       } = await window.setup();
 
@@ -560,11 +565,11 @@ test.describe("PrivateForest", () => {
       const store = new MemoryBlockStore();
       const time = new Date();
 
-      var mainForest: any = new PrivateForest();
-      var otherForest: any = new PrivateForest();
+      var mainForest: any = new PrivateForest(rng);
+      var otherForest: any = mainForest;
 
-      const file = new PrivateFile(new Namefilter(), time, rng).asNode();
-      const dir = new PrivateDirectory(new Namefilter(), time, rng).asNode();
+      const file = new PrivateFile(mainForest.emptyName(), time, rng).asNode();
+      const dir = new PrivateDirectory(mainForest.emptyName(), time, rng).asNode();
 
       var [_, mainForest] = await file.store(mainForest, store, rng);
       var [_, otherForest] = await dir.store(otherForest, store, rng);
@@ -583,7 +588,6 @@ test.describe("PrivateForest", () => {
     const result = await page.evaluate(async () => {
       const {
         wnfs: {
-          Namefilter,
           PrivateFile,
           PrivateDirectory,
           PrivateForest,
@@ -596,11 +600,11 @@ test.describe("PrivateForest", () => {
       const store = new MemoryBlockStore();
       const time = new Date();
 
-      var mainForest: any = new PrivateForest();
-      var otherForest: any = new PrivateForest();
+      var mainForest: any = new PrivateForest(rng);
+      var otherForest: any = mainForest;
 
-      const file = new PrivateFile(new Namefilter(), time, rng).asNode();
-      const dir = new PrivateDirectory(new Namefilter(), time, rng).asNode();
+      const file = new PrivateFile(mainForest.emptyName(), time, rng).asNode();
+      const dir = new PrivateDirectory(mainForest.emptyName(), time, rng).asNode();
 
       var [_, mainForest] = await file.store(mainForest, store, rng);
       var [privateRef, otherForest] = await dir.store(otherForest, store, rng);
@@ -618,17 +622,17 @@ test.describe("AccessKey", () => {
   test("can encode / decode an access key", async ({ page }) => {
     const [metadataBefore, metadataAfter] = await page.evaluate(async () => {
       const {
-        wnfs: { AccessKey, Namefilter, PrivateFile, PrivateNode, PrivateForest },
+        wnfs: { AccessKey, PrivateFile, PrivateNode, PrivateForest },
         mock: { MemoryBlockStore, Rng },
       } = await window.setup();
 
       
       const rng = new Rng();
       const store = new MemoryBlockStore();
+      const forest = new PrivateForest(rng);
       const time = new Date();
-      const file = new PrivateFile(new Namefilter(), time, rng);
+      const file = new PrivateFile(forest.emptyName(), time, rng);
       const node = file.asNode();
-      const forest = new PrivateForest();
       const [accessKey, newForest] = await node.store(forest, store, rng);
       
       const encodedAccessKey = accessKey.toBytes();

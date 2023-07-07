@@ -1,23 +1,16 @@
 use wasm_bindgen::prelude::wasm_bindgen;
-use wnfs::namefilter::Namefilter as WnfsNamefilter;
+use wnfs_nameaccumulator::{Name as WnfsName, NameAccumulator as WnfsNameAccumulator};
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
 //--------------------------------------------------------------------------------------------------
 
 #[wasm_bindgen]
-pub struct Namefilter(pub(crate) WnfsNamefilter);
+pub struct Name(pub(crate) WnfsName);
+
+#[wasm_bindgen]
+pub struct NameAccumulator(pub(crate) WnfsNameAccumulator);
 
 //--------------------------------------------------------------------------------------------------
 // Implementations
 //--------------------------------------------------------------------------------------------------
-
-#[wasm_bindgen]
-impl Namefilter {
-    /// Creates a new namefilter.
-    #[wasm_bindgen(constructor)]
-    #[allow(clippy::new_without_default)]
-    pub fn new() -> Namefilter {
-        Self(WnfsNamefilter::default())
-    }
-}

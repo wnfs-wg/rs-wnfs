@@ -1,9 +1,10 @@
 //! The bindgen API for PrivateFile.
+use super::Name;
 use crate::{
     fs::{
         metadata::JsMetadata,
         utils::{self, error},
-        BlockStore, ForeignBlockStore, JsResult, Namefilter, PrivateForest, PrivateNode, Rng,
+        BlockStore, ForeignBlockStore, JsResult, PrivateForest, PrivateNode, Rng,
     },
     value,
 };
@@ -33,11 +34,11 @@ pub struct PrivateFile(pub(crate) Rc<WnfsPrivateFile>);
 impl PrivateFile {
     /// Creates an empty private file.
     #[wasm_bindgen(constructor)]
-    pub fn new(parent_bare_name: Namefilter, time: &Date, mut rng: Rng) -> JsResult<PrivateFile> {
+    pub fn new(parent_bare_name: Name, time: &Date, mut rng: Rng) -> JsResult<PrivateFile> {
         let time = DateTime::<Utc>::from(time);
 
         Ok(Self(Rc::new(WnfsPrivateFile::new(
-            parent_bare_name.0,
+            &parent_bare_name.0,
             time,
             &mut rng,
         ))))
@@ -46,7 +47,7 @@ impl PrivateFile {
     /// Creates a file with provided content.
     #[wasm_bindgen(js_name = "withContent")]
     pub fn with_content(
-        parent_bare_name: Namefilter,
+        parent_bare_name: Name,
         time: &Date,
         content: Vec<u8>,
         forest: &PrivateForest,
@@ -59,7 +60,7 @@ impl PrivateFile {
 
         Ok(future_to_promise(async move {
             let file = WnfsPrivateFile::with_content(
-                parent_bare_name.0,
+                &parent_bare_name.0,
                 time,
                 content,
                 &mut forest,

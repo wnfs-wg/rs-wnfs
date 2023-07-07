@@ -1,5 +1,6 @@
+use super::{Name, Rng};
 use crate::{
-    fs::{utils::error, BlockStore, ForeignBlockStore, ForestChange, JsResult},
+    fs::{utils, utils::error, BlockStore, ForeignBlockStore, ForestChange, JsResult},
     value,
 };
 use js_sys::{Array, Promise, Uint8Array};
@@ -7,7 +8,10 @@ use libipld_core::cid::Cid;
 use std::rc::Rc;
 use wasm_bindgen::prelude::wasm_bindgen;
 use wasm_bindgen_futures::future_to_promise;
-use wnfs::{common::BlockStore as WnfsBlockStore, private::PrivateForest as WnfsPrivateForest};
+use wnfs::private::forest::{
+    hamt::HamtForest as WnfsHamtForest, traits::PrivateForest as WnfsPrivateForest,
+};
+use wnfs_nameaccumulator::AccumulatorSetup;
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
@@ -15,7 +19,7 @@ use wnfs::{common::BlockStore as WnfsBlockStore, private::PrivateForest as WnfsP
 
 /// A reference to a private forest. Used for the private file system.
 #[wasm_bindgen]
-pub struct PrivateForest(pub(crate) Rc<WnfsPrivateForest>);
+pub struct PrivateForest(pub(crate) Rc<WnfsHamtForest>);
 
 //--------------------------------------------------------------------------------------------------
 // Implementations
@@ -25,9 +29,15 @@ pub struct PrivateForest(pub(crate) Rc<WnfsPrivateForest>);
 impl PrivateForest {
     /// Creates a new private forest.
     #[wasm_bindgen(constructor)]
-    #[allow(clippy::new_without_default)]
-    pub fn new() -> PrivateForest {
-        Self(Rc::new(WnfsPrivateForest::default()))
+    pub fn new(mut rng: Rng, rsa_modulus_big_endian: Option<Vec<u8>>) -> JsResult<PrivateForest> {
+        match rsa_modulus_big_endian {
+            Some(rsa_modulus_big_endian) => {
+                let modulus_big_endian = utils::expect_bytes::<256>(rsa_modulus_big_endian)?;
+                let setup = AccumulatorSetup::with_modulus(&modulus_big_endian, &mut rng);
+                Ok(Self(Rc::new(WnfsHamtForest::new(setup))))
+            }
+            None => Ok(Self(Rc::new(WnfsHamtForest::new_rsa_2048(&mut rng)))),
+        }
     }
 
     /// Loads an existing private forest from a given CID
@@ -37,8 +47,7 @@ impl PrivateForest {
         let cid = Cid::read_bytes(&cid[..]).map_err(error("Cannot parse cid"))?;
 
         Ok(future_to_promise(async move {
-            let forest: WnfsPrivateForest = store
-                .get_deserializable(&cid)
+            let forest: WnfsHamtForest = WnfsHamtForest::load(&cid, &store)
                 .await
                 .map_err(error("Couldn't deserialize forest"))?;
 
@@ -53,8 +62,8 @@ impl PrivateForest {
         let store = ForeignBlockStore(store);
 
         Ok(future_to_promise(async move {
-            let cid = store
-                .put_async_serializable(&forest)
+            let cid = forest
+                .store(&store)
                 .await
                 .map_err(error("Cannot add to store"))?;
 
@@ -97,5 +106,10 @@ impl PrivateForest {
                 .map(|c| value!(ForestChange(c)))
                 .collect::<Array>()))
         }))
+    }
+
+    #[wasm_bindgen(js_name = "emptyName")]
+    pub fn empty_name(&self) -> Name {
+        Name(self.0.empty_name())
     }
 }

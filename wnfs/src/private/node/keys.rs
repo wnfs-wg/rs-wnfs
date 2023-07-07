@@ -8,9 +8,9 @@ use aes_gcm::{
 };
 use aes_kw::KekAes256;
 use anyhow::Result;
-use rand_core::RngCore;
+use rand_core::CryptoRngCore;
 use serde::{Deserialize, Serialize};
-use sha3::Sha3_256;
+use sha3::{Digest, Sha3_256};
 use skip_ratchet::Ratchet;
 use std::fmt::Debug;
 use wnfs_hamt::Hasher;
@@ -26,6 +26,19 @@ pub struct SnapshotKey(pub AesKey);
 /// The key used to encrypt the header section of a node.
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct TemporalKey(pub AesKey);
+
+//--------------------------------------------------------------------------------------------------
+// Constants
+//--------------------------------------------------------------------------------------------------
+
+/// The revision segment derivation domain separation string
+/// used for salting the hashing function when turning
+/// node names into revisioned node names.
+pub(crate) const REVISION_SEGMENT_DSS: &str = "wnfs/segment deriv from temporal";
+/// The temporal key derivation domain seperation string
+/// used for salting the hashing function when deriving
+/// symmetric keys from ratchets.
+pub(crate) const TEMPORAL_KEY_DSS: &str = "wnfs/temporal deriv from ratchet";
 
 //--------------------------------------------------------------------------------------------------
 // Implementations
@@ -83,7 +96,7 @@ impl SnapshotKey {
     ///
     /// assert_eq!(plaintext, &decrypted[..]);
     /// ```
-    pub fn encrypt(&self, data: &[u8], rng: &mut impl RngCore) -> Result<Vec<u8>> {
+    pub fn encrypt(&self, data: &[u8], rng: &mut impl CryptoRngCore) -> Result<Vec<u8>> {
         let nonce = Self::generate_nonce(rng);
 
         let cipher_text = Aes256Gcm::new(&self.0.clone().bytes().into())
@@ -94,7 +107,7 @@ impl SnapshotKey {
     }
 
     /// Generates a random 12-byte nonce for encryption.
-    pub(crate) fn generate_nonce(rng: &mut impl RngCore) -> Nonce<U12> {
+    pub(crate) fn generate_nonce(rng: &mut impl CryptoRngCore) -> Nonce<U12> {
         let mut nonce = Nonce::default();
         rng.fill_bytes(&mut nonce);
         nonce
@@ -170,7 +183,9 @@ impl From<[u8; KEY_BYTE_SIZE]> for TemporalKey {
 
 impl From<&Ratchet> for TemporalKey {
     fn from(ratchet: &Ratchet) -> Self {
-        Self::from(AesKey::new(ratchet.derive_key()))
+        Self::from(AesKey::new(
+            ratchet.derive_key(TEMPORAL_KEY_DSS).finalize().into(),
+        ))
     }
 }
 
@@ -200,11 +215,9 @@ impl From<SnapshotKey> for AesKey {
 mod proptests {
     use super::*;
     use crate::private::KEY_BYTE_SIZE;
-    use proptest::{
-        prelude::any,
-        prop_assert_eq, prop_assert_ne,
-        test_runner::{RngAlgorithm, TestRng},
-    };
+    use proptest::{prelude::any, prop_assert_eq, prop_assert_ne};
+    use rand_chacha::ChaCha12Rng;
+    use rand_core::SeedableRng;
     use test_strategy::proptest;
 
     #[proptest(cases = 100)]
@@ -214,7 +227,7 @@ mod proptests {
         key_bytes: [u8; KEY_BYTE_SIZE],
     ) {
         let key = SnapshotKey::from(key_bytes);
-        let rng = &mut TestRng::from_seed(RngAlgorithm::ChaCha, &rng_seed);
+        let rng = &mut ChaCha12Rng::from_seed(rng_seed);
 
         let encrypted = key.encrypt(&data, rng).unwrap();
         let decrypted = key.decrypt(&encrypted).unwrap();

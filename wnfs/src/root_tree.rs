@@ -4,7 +4,10 @@
 
 use crate::{
     error::FsError,
-    private::{PrivateDirectory, PrivateForest},
+    private::{
+        forest::{hamt::HamtForest, traits::PrivateForest},
+        PrivateDirectory,
+    },
     public::PublicDirectory,
     VERSION,
 };
@@ -13,23 +16,25 @@ use chrono::{DateTime, Utc};
 use libipld_core::cid::Cid;
 #[cfg(test)]
 use rand::rngs::ThreadRng;
-use rand_core::RngCore;
+use rand_core::CryptoRngCore;
 use semver::Version;
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, rc::Rc};
 #[cfg(test)]
 use wnfs_common::MemoryBlockStore;
 use wnfs_common::{BlockStore, Metadata, CODEC_RAW};
+#[cfg(test)]
+use wnfs_nameaccumulator::AccumulatorSetup;
 
 //--------------------------------------------------------------------------------------------------
 // Types
 //--------------------------------------------------------------------------------------------------
 
 #[derive(Debug)]
-pub struct RootTree<'a, B: BlockStore, R: RngCore> {
+pub struct RootTree<'a, B: BlockStore, R: CryptoRngCore> {
     pub store: &'a B,
     pub rng: R,
-    pub forest: Rc<PrivateForest>,
+    pub forest: Rc<HamtForest>,
     pub public_root: Rc<PublicDirectory>,
     pub exchange_root: Rc<PublicDirectory>,
     pub private_map: HashMap<Vec<String>, Rc<PrivateDirectory>>,
@@ -50,10 +55,10 @@ pub struct RootTreeSerializable {
 impl<'a, B, R> RootTree<'a, B, R>
 where
     B: BlockStore,
-    R: RngCore,
+    R: CryptoRngCore,
 {
     pub async fn new(
-        forest: Rc<PrivateForest>,
+        forest: Rc<HamtForest>,
         store: &'a B,
         rng: R,
         time: DateTime<Utc>,
@@ -71,7 +76,7 @@ where
 
     pub async fn create_private_root(&mut self, name: &str) -> Result<()> {
         let root = PrivateDirectory::new_and_store(
-            Default::default(),
+            &self.forest.empty_name(),
             Utc::now(),
             &mut self.forest,
             self.store,
@@ -312,7 +317,7 @@ where
         private_map: HashMap<Vec<String>, Rc<PrivateDirectory>>,
     ) -> Result<RootTree<'a, B, R>> {
         let deserialized: RootTreeSerializable = store.get_deserializable(cid).await?;
-        let forest = Rc::new(PrivateForest::load(&deserialized.forest, store).await?);
+        let forest = Rc::new(HamtForest::load(&deserialized.forest, store).await?);
         let public_root = Rc::new(store.get_deserializable(&deserialized.public).await?);
         let exchange_root = Rc::new(store.get_deserializable(&deserialized.exchange).await?);
 
@@ -330,10 +335,12 @@ where
 #[cfg(test)]
 impl<'a, B: BlockStore> RootTree<'a, B, ThreadRng> {
     pub fn with_store(store: &'a B) -> RootTree<'a, B, ThreadRng> {
+        let mut rng = rand::thread_rng();
+        let forest = Rc::new(HamtForest::new(AccumulatorSetup::trusted(&mut rng)));
         Self {
             store,
-            rng: rand::thread_rng(),
-            forest: Rc::new(PrivateForest::default()),
+            rng,
+            forest,
             public_root: Rc::new(PublicDirectory::new(Utc::now())),
             exchange_root: Rc::new(PublicDirectory::new(Utc::now())),
             private_map: HashMap::default(),

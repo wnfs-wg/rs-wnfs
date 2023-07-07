@@ -4,11 +4,15 @@
 use anyhow::Result;
 use chrono::Utc;
 use libipld_core::cid::Cid;
-use rand::{thread_rng, RngCore};
+use rand::thread_rng;
+use rand_core::CryptoRngCore;
 use std::rc::Rc;
-use wnfs::private::{AccessKey, PrivateDirectory, PrivateForest, PrivateNode};
+use wnfs::private::{
+    forest::{hamt::HamtForest, traits::PrivateForest},
+    AccessKey, PrivateDirectory, PrivateNode,
+};
 use wnfs_common::{BlockStore, MemoryBlockStore};
-use wnfs_namefilter::Namefilter;
+use wnfs_nameaccumulator::AccumulatorSetup;
 
 #[async_std::main]
 async fn main() -> Result<()> {
@@ -22,12 +26,10 @@ async fn main() -> Result<()> {
     let (forest_cid, access_key) = create_forest_and_add_directory(store, rng).await?;
 
     // Deserialize private forest from the blockstore.
-    let forest = store
-        .get_deserializable::<PrivateForest>(&forest_cid)
-        .await?;
+    let forest = HamtForest::load(&forest_cid, store).await?;
 
     // Fetch and decrypt a directory from the private forest using provided private ref.
-    let dir = PrivateNode::load(&access_key, &forest, store).await?;
+    let dir = PrivateNode::load(&access_key, &forest, store, None).await?;
 
     // Print the directory.
     println!("{:#?}", dir);
@@ -37,17 +39,16 @@ async fn main() -> Result<()> {
 
 async fn create_forest_and_add_directory(
     store: &impl BlockStore,
-    rng: &mut impl RngCore,
+    rng: &mut impl CryptoRngCore,
 ) -> Result<(Cid, AccessKey)> {
+    // Do a trusted setup for WNFS' name accumulators
+    let setup = AccumulatorSetup::trusted(rng);
+
     // Create the private forest (a HAMT), a map-like structure where file and directory ciphertexts are stored.
-    let forest = &mut Rc::new(PrivateForest::new());
+    let forest = &mut Rc::new(HamtForest::new(setup));
 
     // Create a new directory.
-    let dir = &mut Rc::new(PrivateDirectory::new(
-        Namefilter::default(),
-        Utc::now(),
-        rng,
-    ));
+    let dir = &mut Rc::new(PrivateDirectory::new(&forest.empty_name(), Utc::now(), rng));
 
     // Add a /pictures/cats subdirectory.
     dir.mkdir(
@@ -64,7 +65,7 @@ async fn create_forest_and_add_directory(
     let access_key = dir.as_node().store(forest, store, rng).await?;
 
     // Persist encoded private forest to the block store.
-    let forest_cid = store.put_async_serializable(forest).await?;
+    let forest_cid = forest.store(store).await?;
 
     Ok((forest_cid, access_key))
 }

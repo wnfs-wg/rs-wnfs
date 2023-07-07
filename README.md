@@ -55,7 +55,7 @@ This library is designed with WebAssembly in mind. You can follow instructions o
 - [wnfs](https://github.com/wnfs-wg/rs-wnfs/tree/main/wnfs)
 - [wnfs-common](https://github.com/wnfs-wg/rs-wnfs/tree/main/wnfs-common)
 - [wnfs-hamt](https://github.com/wnfs-wg/rs-wnfs/tree/main/wnfs-hamt)
-- [wnfs-namefilter](https://github.com/wnfs-wg/rs-wnfs/tree/main/wnfs-namefilter)
+- [wnfs-nameaccumulator](https://github.com/wnfs-wg/rs-wnfs/tree/main/wnfs-nameaccumulator)
 - [wnfs-wasm](https://github.com/wnfs-wg/rs-wnfs/tree/main/wnfs-wasm)
 
 ## Building the Project
@@ -216,9 +216,11 @@ use anyhow::Result;
 use chrono::Utc;
 use rand::thread_rng;
 use std::rc::Rc;
-use wnfs::private::{PrivateDirectory, PrivateForest};
+use wnfs::private::{
+    PrivateDirectory,
+    forest::{hamt::HamtForest, traits::PrivateForest},
+};
 use wnfs_common::MemoryBlockStore;
-use wnfs_namefilter::Namefilter;
 
 #[async_std::main]
 async fn main() -> Result<()> {
@@ -229,11 +231,11 @@ async fn main() -> Result<()> {
     let rng = &mut thread_rng();
 
     // Create a private forest.
-    let forest = &mut Rc::new(PrivateForest::new());
+    let forest = &mut Rc::new(HamtForest::new_trusted(rng));
 
     // Create a new private directory.
     let dir = &mut Rc::new(PrivateDirectory::new(
-        Namefilter::default(),
+        &forest.empty_name(),
         Utc::now(),
         rng,
     ));
@@ -270,11 +272,11 @@ async fn main() -> Result<()> {
 }
 ```
 
-This example introduces a few new concepts. The first is the `PrivateForest` which is a HAMT that can contain multiple file trees.
+This example introduces a few new concepts. The first is the `HamtForest` which is a HAMT that can contain multiple file trees and implements the `PrivateForest` interface needed for persisting private file systems.
 
-The second is the `Namefilter` (a fixed-size bloomfilter) that lets us identify nodes in the filesystem, and are suitable for offspring checks. Namefilters currently have limitation on how deep the file tree can go but that is going to change in the near future.
+The second is the `Name` (returned from `forest.empty_name()`) and `NameAccumulator` that lets us identify nodes in the filesystem, and are suitable for offspring proving.
 
-Finally, we have the random number generator, `rng`, that the library uses for ridding predictability and avoiding collisions in the `PrivateForest`.
+Finally, we have the random number generator, `rng`, that the library uses for generating new keys and other random values needed for the protocol.
 
 Check the [`wnfs/examples/`][wnfs-examples] folder for more examples.
 

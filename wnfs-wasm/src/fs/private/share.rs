@@ -1,8 +1,6 @@
-use super::{
-    AccessKey, ForeignExchangeKey, ForeignPrivateKey, Namefilter, PrivateForest, PrivateNode,
-};
+use super::{AccessKey, ForeignExchangeKey, ForeignPrivateKey, PrivateForest, PrivateNode};
 use crate::{
-    fs::{utils::error, BlockStore, ForeignBlockStore, JsResult, PrivateKey},
+    fs::{utils::error, BlockStore, ForeignBlockStore, JsResult, Name, PrivateKey},
     value,
 };
 use js_sys::Promise;
@@ -48,16 +46,19 @@ pub fn share(
     }))
 }
 
-#[wasm_bindgen(js_name = "createShareLabel")]
-pub fn create_share_label(
+#[wasm_bindgen(js_name = "createShareName")]
+pub fn create_share_name(
     share_count: u32,
     sharer_root_did: &str,
     recipient_exchange_key: &[u8],
-) -> Namefilter {
-    Namefilter(sharer::create_share_label(
+    sharer_forest: &PrivateForest,
+) -> Name {
+    let sharer_forest = Rc::clone(&sharer_forest.0);
+    Name(sharer::create_share_name(
         share_count.into(),
         sharer_root_did,
         recipient_exchange_key,
+        &sharer_forest,
     ))
 }
 
@@ -91,7 +92,7 @@ pub fn find_latest_share_counter(
 
 #[wasm_bindgen(js_name = "receiveShare")]
 pub fn receive_share(
-    share_label: Namefilter,
+    share_name: Name,
     recipient_key: PrivateKey,
     sharer_forest: &PrivateForest,
     store: BlockStore,
@@ -101,7 +102,7 @@ pub fn receive_share(
     let sharer_forest = Rc::clone(&sharer_forest.0);
 
     Ok(future_to_promise(async move {
-        let node = recipient::receive_share(share_label.0, &recipient_key, &sharer_forest, &store)
+        let node = recipient::receive_share(&share_name.0, &recipient_key, &sharer_forest, &store)
             .await
             .map_err(error("Cannot receive share"))?;
 

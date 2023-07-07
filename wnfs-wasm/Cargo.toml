@@ -31,6 +31,7 @@ wasm-bindgen = { version = "0.2.84", optional = true, features = ["serde-seriali
 wasm-bindgen-futures = { version = "0.4", optional = true }
 web-sys = { version = "0.3", optional = true }
 wnfs = { path = "../wnfs", version = "0.1.22" }
+wnfs-nameaccumulator = { path = "../wnfs-nameaccumulator", version = "0.1.22" }
 
 [dev-dependencies]
 wasm-bindgen-test = "0.3"

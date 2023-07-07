@@ -48,6 +48,12 @@ pub enum FsError {
     #[error("Cannot find shard for file content")]
     FileShardNotFound,
 
+    #[error("Cannot merge or compare forests, incompatible accumulator setups")]
+    IncompatibleAccumulatorSetups,
+
+    #[error("Mismatch between PrivateNode name {0} and its mountpoint {0}")]
+    MountPointAndDeserializedNameMismatch(String, String),
+
     #[error("Cannot find private ref with specified root path")]
     PrivateRefNotFound,
 }
@@ -84,6 +90,15 @@ pub enum RsaError {
 
     #[error("Decryption failed: {0}")]
     DecryptionFailed(anyhow::Error),
+}
+
+#[derive(Debug, Error)]
+pub enum VerificationError {
+    #[error("Couldn't verify write for label {0}")]
+    UnverifiedWrite(String),
+
+    #[error("Write to disallowed base {0}")]
+    WriteToDisallowedBase(String),
 }
 
 /// AccessKey related errors.
