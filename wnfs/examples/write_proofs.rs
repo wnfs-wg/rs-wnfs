@@ -58,7 +58,7 @@ async fn alice_actions(store: &impl BlockStore) -> Result<(Cid, AccessKey, NameA
             .await?;
 
     let access_key = root_dir.as_node().store(forest, store, rng).await?;
-    let cid = store.put_async_serializable(forest).await?;
+    let cid = forest.store(store).await?;
     let setup = forest.get_accumulator_setup();
     let allowed_name = root_dir.header.get_name().as_accumulator(setup).clone();
 
@@ -72,7 +72,7 @@ async fn bob_actions(
     root_dir_access: AccessKey,
     store: &impl BlockStore,
 ) -> Result<(ForestProofs, Cid)> {
-    let hamt_forest = store.get_deserializable(&old_forest_cid).await?;
+    let hamt_forest = HamtForest::load(&old_forest_cid, store).await?;
     let mut forest = ProvingHamtForest::new(Rc::new(hamt_forest));
     let rng = &mut thread_rng();
 
@@ -96,7 +96,7 @@ async fn bob_actions(
 
     let ProvingHamtForest { forest, proofs } = forest;
 
-    let new_forest_cid = store.put_async_serializable(&forest).await?;
+    let new_forest_cid = forest.store(store).await?;
 
     Ok((proofs, new_forest_cid))
 }
@@ -110,8 +110,8 @@ async fn persistence_service_actions(
     allowed_access: NameAccumulator,
     store: &impl BlockStore,
 ) -> Result<()> {
-    let old_forest = store.get_deserializable(&old_forest_cid).await?;
-    let new_forest = store.get_deserializable(&new_forest_cid).await?;
+    let old_forest = HamtForest::load(&old_forest_cid, store).await?;
+    let new_forest = HamtForest::load(&new_forest_cid, store).await?;
 
     let forest = ProvingHamtForest::from_proofs(proofs, Rc::new(new_forest));
 

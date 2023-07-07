@@ -65,7 +65,7 @@ async fn create_forest_and_add_directory(
     let access_key = dir.as_node().store(forest, store, rng).await?;
 
     // Persist encoded private forest to the block store.
-    let forest_cid = store.put_async_serializable(forest).await?;
+    let forest_cid = forest.store(store).await?;
 
     Ok((forest_cid, access_key))
 }

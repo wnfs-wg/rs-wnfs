@@ -55,7 +55,7 @@ async fn main() -> Result<()> {
 
     // Same thing for the forest. Doing this will give us a single root CID
     // for all of the data, but parts separated into `hot_store` and `cold_store`:
-    let private_root_cid = hot_store.put_async_serializable(forest).await?;
+    let private_root_cid = forest.store(&hot_store).await?;
 
     // We can now read out our data back:
     let forest = HamtForest::load(&private_root_cid, &hot_store).await?;
