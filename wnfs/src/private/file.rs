@@ -582,15 +582,14 @@ impl PrivateFile {
     }
 
     fn create_revision_name(file_block_name: &Name, key: &SnapshotKey) -> Name {
-        let revision_segment =
-            NameSegment::from_digest(Sha3_256::new().chain_update(key.0.as_bytes()));
+        let revision_segment = NameSegment::from_digest(Sha3_256::new().chain_update(key.0));
         file_block_name.with_segments_added(Some(revision_segment))
     }
 
     /// Creates the label for a block of a file.
     fn create_block_label(key: &SnapshotKey, index: usize, file_revision_name: &Name) -> Name {
         let key_hash = Sha3_256::new()
-            .chain_update(key.0.as_bytes())
+            .chain_update(key.0)
             .chain_update(index.to_le_bytes());
         let elem = NameSegment::from_digest(key_hash);
 

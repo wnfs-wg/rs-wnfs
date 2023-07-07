@@ -8,7 +8,7 @@ use serde::{de::DeserializeOwned, Deserialize, Serialize};
 /// Any data wrapped like this **must not have low entropy**.
 ///
 /// For anything that could potentially have low entropy,
-/// please use AES-GCM instead via `SnapshotKey`.
+/// please use XChaCha20-Poly1305 instead via `SnapshotKey`.
 ///
 /// When serialized or deserialized this will only
 /// ever emit or consume ciphertexts.

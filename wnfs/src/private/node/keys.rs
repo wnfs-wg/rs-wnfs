@@ -1,7 +1,4 @@
-use crate::{
-    error::CryptError,
-    private::{AesKey, KEY_BYTE_SIZE, NONCE_SIZE},
-};
+use crate::error::CryptError;
 use aes_kw::KekAes256;
 use anyhow::{anyhow, Result};
 use chacha20poly1305::{
@@ -16,16 +13,32 @@ use std::fmt::Debug;
 use wnfs_hamt::Hasher;
 
 //--------------------------------------------------------------------------------------------------
+// Constants
+//--------------------------------------------------------------------------------------------------
+
+pub(crate) const NONCE_SIZE: usize = 24;
+pub(crate) const AUTHENTICATION_TAG_SIZE: usize = 16;
+pub const KEY_BYTE_SIZE: usize = 32;
+
+//--------------------------------------------------------------------------------------------------
 // Type Definitions
 //--------------------------------------------------------------------------------------------------
 
 /// The key used to encrypt the content of a node.
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
-pub struct SnapshotKey(pub AesKey);
+pub struct SnapshotKey(
+    #[serde(serialize_with = "crate::utils::serialize_byte_slice32")]
+    #[serde(deserialize_with = "crate::utils::deserialize_byte_slice32")]
+    pub [u8; KEY_BYTE_SIZE],
+);
 
 /// The key used to encrypt the header section of a node.
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
-pub struct TemporalKey(pub AesKey);
+pub struct TemporalKey(
+    #[serde(serialize_with = "crate::utils::serialize_byte_slice32")]
+    #[serde(deserialize_with = "crate::utils::deserialize_byte_slice32")]
+    pub [u8; KEY_BYTE_SIZE],
+);
 
 //--------------------------------------------------------------------------------------------------
 // Constants
@@ -48,8 +61,7 @@ impl TemporalKey {
     /// Turn this TemporalKey, which gives read access to the current revision and any future
     /// revisions into a SnapshotKey, which only gives read access to the current revision.
     pub fn derive_snapshot_key(&self) -> SnapshotKey {
-        let TemporalKey(key) = self;
-        SnapshotKey::from(Sha3_256::hash(&key.as_bytes()))
+        SnapshotKey::from(Sha3_256::hash(&self.0))
     }
 
     /// Encrypt a cleartext with this temporal key.
@@ -59,7 +71,7 @@ impl TemporalKey {
     /// The resulting ciphertext is 8 bytes longer than the next multiple of 8 bytes of the
     /// cleartext input length.
     pub fn key_wrap_encrypt(&self, cleartext: &[u8]) -> Result<Vec<u8>> {
-        Ok(KekAes256::from(self.0.clone().bytes())
+        Ok(KekAes256::from(self.0)
             .wrap_with_padding_vec(cleartext)
             .map_err(|e| CryptError::UnableToEncrypt(anyhow!(e)))?)
     }
@@ -71,7 +83,7 @@ impl TemporalKey {
     /// The input ciphertext is 8 bytes longer than the next multiple of 8 bytes of the
     /// resulting cleartext length.
     pub fn key_wrap_decrypt(&self, ciphertext: &[u8]) -> Result<Vec<u8>> {
-        Ok(KekAes256::from(self.0.clone().bytes())
+        Ok(KekAes256::from(self.0)
             .unwrap_with_padding_vec(ciphertext)
             .map_err(|e| CryptError::UnableToEncrypt(anyhow!(e)))?)
     }
@@ -83,7 +95,7 @@ impl SnapshotKey {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::private::{AesKey, SnapshotKey};
+    /// use wnfs::private::SnapshotKey;
     /// use wnfs::common::utils;
     /// use rand::thread_rng;
     ///
@@ -99,7 +111,7 @@ impl SnapshotKey {
     pub fn encrypt(&self, data: &[u8], rng: &mut impl CryptoRngCore) -> Result<Vec<u8>> {
         let nonce = Self::generate_nonce(rng);
 
-        let key = self.0.clone().bytes().into();
+        let key = self.0.into();
         let cipher_text = XChaCha20Poly1305::new(&key)
             .encrypt(&nonce, data)
             .map_err(|e| CryptError::UnableToEncrypt(anyhow!(e)))?;
@@ -118,7 +130,7 @@ impl SnapshotKey {
     ///
     /// The authentication tag is required for decryption and usually appended to the ciphertext.
     pub(crate) fn encrypt_in_place(&self, nonce: &XNonce, buffer: &mut [u8]) -> Result<Tag> {
-        let key = self.0.clone().bytes().into();
+        let key = self.0.into();
         let tag = XChaCha20Poly1305::new(&key)
             .encrypt_in_place_detached(nonce, &[], buffer)
             .map_err(|e| CryptError::UnableToEncrypt(anyhow!(e)))?;
@@ -130,7 +142,7 @@ impl SnapshotKey {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::private::{AesKey, SnapshotKey};
+    /// use wnfs::private::SnapshotKey;
     /// use wnfs::common::utils;
     /// use rand::thread_rng;
     ///
@@ -145,7 +157,7 @@ impl SnapshotKey {
     /// ```
     pub fn decrypt(&self, cipher_text: &[u8]) -> Result<Vec<u8>> {
         let (nonce_bytes, data) = cipher_text.split_at(NONCE_SIZE);
-        let key = self.0.clone().bytes().into();
+        let key = self.0.into();
         let nonce = XNonce::from_slice(nonce_bytes);
 
         Ok(XChaCha20Poly1305::new(&key)
@@ -164,7 +176,7 @@ impl SnapshotKey {
         tag: &Tag,
         buffer: &mut [u8],
     ) -> Result<()> {
-        let key = self.0.clone().bytes().into();
+        let key = self.0.into();
         XChaCha20Poly1305::new(&key)
             .decrypt_in_place_detached(nonce, &[], buffer, tag)
             .map_err(|e| CryptError::UnableToDecrypt(anyhow!(e)))?;
@@ -172,41 +184,22 @@ impl SnapshotKey {
     }
 }
 
-impl From<AesKey> for TemporalKey {
-    fn from(key: AesKey) -> Self {
-        Self(key)
-    }
-}
-
 impl From<[u8; KEY_BYTE_SIZE]> for TemporalKey {
     fn from(key: [u8; KEY_BYTE_SIZE]) -> Self {
-        Self(AesKey::new(key))
+        Self(key)
     }
 }
 
 impl From<&Ratchet> for TemporalKey {
     fn from(ratchet: &Ratchet) -> Self {
-        Self::from(AesKey::new(
-            ratchet.derive_key(TEMPORAL_KEY_DSS).finalize().into(),
-        ))
-    }
-}
-
-impl From<AesKey> for SnapshotKey {
-    fn from(key: AesKey) -> Self {
-        Self(key)
+        let key: [u8; KEY_BYTE_SIZE] = ratchet.derive_key(TEMPORAL_KEY_DSS).finalize().into();
+        Self::from(key)
     }
 }
 
 impl From<[u8; KEY_BYTE_SIZE]> for SnapshotKey {
     fn from(key: [u8; KEY_BYTE_SIZE]) -> Self {
-        Self(AesKey::new(key))
-    }
-}
-
-impl From<SnapshotKey> for AesKey {
-    fn from(key: SnapshotKey) -> Self {
-        key.0
+        Self(key)
     }
 }
 

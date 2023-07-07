@@ -68,7 +68,7 @@ pub enum ShareError {
     AccessKeyNotFound,
 }
 
-/// AES-GCM errors.
+/// Symmetric encryption errors.
 #[derive(Debug, Error)]
 pub enum CryptError {
     #[error("Unable to encrypt data: {0}")]
