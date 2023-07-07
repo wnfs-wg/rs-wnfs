@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1688558776541,
+  "lastUpdate": 1688744857318,
   "repoUrl": "https://github.com/wnfs-wg/rs-wnfs",
   "entries": {
     "Rust Benchmark": [
@@ -15037,6 +15037,102 @@ window.BENCHMARK_DATA = {
             "name": "namefilter decode/0",
             "value": 1,
             "range": "± 0",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "philipp.krueger1@gmail.com",
+            "name": "Philipp Krüger",
+            "username": "matheus23"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "7026a379443038fa1b0410df1c7d0bc23649f17a",
+          "message": "feat: Switch from Namefilter to Name Accumulators (#247)\n\n* feat: Add wnfs-nameaccumulator crate\r\n\r\n* WIP: refactor\r\n\r\n* WIP\r\n\r\n* Type checker\r\n\r\n* Checkpoint: No failing unit tests\r\n\r\n* Remove wnfs-namefilter\r\n\r\n* feat: Benchmarks for name accumulators\r\n\r\n* chore: Use published skip ratchet version\r\n\r\n* refactor out Name abstraction\r\n\r\n* cargo clippy --fix\r\n\r\n* Run proptests less often\r\n\r\n* refactor: use shorter AccumulatorSetup names\r\n\r\n* Make header's name based on mountpoint\r\n\r\n* Mount files and directories to explicit paths\r\n\r\n* refactor: Some forest function renames & moving code around\r\n\r\n* Implement proof generation\r\n\r\n* Attach proof info to PrivateForest entries\r\n\r\n* One proof for each CID in forest\r\n\r\n* Implement batch proving library functions\r\n\r\n* Revert PrivateForest back to storing just sets of CIDs\r\n\r\n* Refactor out trait PrivateForest\r\n\r\n* Refactor PrivateForest trait to be Rc-independent\r\n\r\n* Move forest-related files into own directory\r\n\r\n* Don't re-expose, implement PrivateForest with and without Rc for HamtForest\r\n\r\n* Implement get_mut in hamt node\r\n\r\n* Implement private forest label proof aggregation\r\n\r\n* Fix mounting\r\n\r\n* Write an example for forest proofs\r\n\r\n* Fix some clippy warnings\r\n\r\n* Fix doctests\r\n\r\n* Move more structs into serializable.rs\r\n\r\n* Fix all clippy warnings.\r\n\r\n* Use once_cell crate instead of std::cell for backwards compat\r\n\r\n* Make clippy happy?\r\n\r\n* Make clippy nightly happy!\r\n\r\n* Possibly fix wasm bindings\r\n\r\n* Uncomment two tests\r\n\r\n* Also prove removals in proving forest\r\n\r\n* Go through some TODOs\r\n\r\n* Zeroize toxic waste\r\n\r\n* Consistently use `CryptoRngCore` instead of `RngCore`\r\n\r\n* Write docstrings\r\n\r\n* Document more & remove unused\r\n\r\n* Organize name accumulator tests\r\n\r\n* Move proofs example to example dir\r\n\r\n* Fix wasm types\r\n\r\n* Tests in proofs.rs\r\n\r\n* Small cleanup and fixes\r\n\r\n* Switch to big endian for BigUints in general (RSA moduli are usually encoded big-endian)\r\n\r\n* Update readme, remove `Namefilter` mentions\r\n\r\n* Canonicalize l hash derivation\r\n\r\n* Correctly encode big integers with padding\r\n\r\n* Add previously failing test case\r\n\r\n* Better domain separation strings\r\n\r\n* Derive the name segment directly from the key\r\n\r\n* Remove redundant `as_ref()` + format\r\n\r\n* Remove `with_seed` and related APIs\r\n\r\n* Use `HamtForest::load` and `store` everywhere\r\n\r\n* Remove generic from `HamtForest`\r\n\r\n* Update wnfs/src/private/keys/privateref.rs\r\n\r\nCo-authored-by: Stephen Akinyemi <appcypher@outlook.com>\r\nSigned-off-by: Philipp Krüger <philipp.krueger1@gmail.com>\r\n\r\n* Update wnfs/examples/write_proofs.rs\r\n\r\nCo-authored-by: Stephen Akinyemi <appcypher@outlook.com>\r\nSigned-off-by: Philipp Krüger <philipp.krueger1@gmail.com>\r\n\r\n* Rename \"saturated\" into \"revisioned\"\r\n\r\n* Run webpack as a separate CI step\r\n\r\n* Adjust new js test from main\r\n\r\n---------\r\n\r\nSigned-off-by: Philipp Krüger <philipp.krueger1@gmail.com>\r\nCo-authored-by: Stephen Akinyemi <appcypher@outlook.com>",
+          "timestamp": "2023-07-07T17:42:52+02:00",
+          "tree_id": "b492ea70796ee22406345162a9b1a674d936631f",
+          "url": "https://github.com/wnfs-wg/rs-wnfs/commit/7026a379443038fa1b0410df1c7d0bc23649f17a"
+        },
+        "date": 1688744855929,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "node set",
+            "value": 8332,
+            "range": "± 100",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node set 1000 consecutive",
+            "value": 5226646,
+            "range": "± 33113",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and get",
+            "value": 203955,
+            "range": "± 779",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and remove",
+            "value": 230777,
+            "range": "± 1070",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt load and decode/0",
+            "value": 51249,
+            "range": "± 213",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt set and encode",
+            "value": 218938,
+            "range": "± 889",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt diff",
+            "value": 62927,
+            "range": "± 5289",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt merge",
+            "value": 280360,
+            "range": "± 23351",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameSegment::from_digest",
+            "value": 2889907,
+            "range": "± 329470",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameSegment::new(rng)",
+            "value": 2884547,
+            "range": "± 289532",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameAccumulator::add",
+            "value": 2570394,
+            "range": "± 83140",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameAccumulator serialization",
+            "value": 1010,
+            "range": "± 25",
             "unit": "ns/iter"
           }
         ]
