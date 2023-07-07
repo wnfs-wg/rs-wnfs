@@ -16,7 +16,7 @@ test.describe("Share", () => {
         wnfs: {
           PrivateForest,
           share,
-          createShareLabel,
+          createShareName,
           receiveShare,
         },
         mock: {
@@ -31,10 +31,10 @@ test.describe("Share", () => {
       // @ts-ignore
       globalThis.ExchangeKey = ExchangeKey;
 
-      var sharerForest = new PrivateForest();
-      const store = new MemoryBlockStore();
-      const sharerRootDid = "did:key:z6MkqZjY";
       const rng = new Rng();
+      var sharerForest = new PrivateForest(rng);
+      const sharerRootDid = "did:key:z6MkqZjY";
+      const store = new MemoryBlockStore();
 
       var { rootDir: sharerDir, forest: sharerForest } = await createSharerDir(
         sharerForest,
@@ -61,7 +61,7 @@ test.describe("Share", () => {
       );
 
       const modulus = await recipientKey.getPublicKey().getPublicKeyModulus();
-      const shareLabel = createShareLabel(0, sharerRootDid, modulus);
+      const shareLabel = createShareName(0, sharerRootDid, modulus, sharerForest2);
 
       const sharedNode = await receiveShare(
         shareLabel,

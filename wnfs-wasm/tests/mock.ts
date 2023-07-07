@@ -2,7 +2,8 @@ import { CID } from "multiformats/cid";
 import { sha256 } from "multiformats/hashes/sha2";
 import { fromString, toString } from "uint8arrays";
 import {
-  Namefilter,
+  Name,
+  NameAccumulator,
   PrivateDirectory,
   PrivateForest,
   AccessKey,
@@ -147,7 +148,7 @@ const createSharerDir = async (
   rng: Rng
 ): Promise<{ rootDir: PrivateDirectory; forest: PrivateForest }> => {
   var { rootDir, forest } = await PrivateDirectory.newAndStore(
-    new Namefilter(),
+    initialForest.emptyName(),
     new Date(),
     initialForest,
     store,

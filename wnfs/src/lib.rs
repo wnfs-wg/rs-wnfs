@@ -16,7 +16,7 @@ pub mod traits;
 mod utils;
 
 pub mod rand_core {
-    pub use rand_core::RngCore;
+    pub use rand_core::CryptoRngCore;
 }
 pub mod common {
     pub use wnfs_common::*;
@@ -24,8 +24,8 @@ pub mod common {
 pub mod hamt {
     pub use wnfs_hamt::*;
 }
-pub mod namefilter {
-    pub use wnfs_namefilter::*;
+pub mod nameaccumulator {
+    pub use wnfs_nameaccumulator::*;
 }
 
 //--------------------------------------------------------------------------------------------------

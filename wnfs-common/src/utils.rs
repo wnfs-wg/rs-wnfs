@@ -7,7 +7,7 @@ use proptest::{
     strategy::{Strategy, ValueTree},
     test_runner::TestRunner,
 };
-use rand_core::RngCore;
+use rand_core::CryptoRngCore;
 use serde::de::Visitor;
 use std::fmt;
 
@@ -101,7 +101,7 @@ pub async fn read_fully(
 ///
 /// assert_eq!(bytes.len(), 32);
 /// ```
-pub fn get_random_bytes<const N: usize>(rng: &mut impl RngCore) -> [u8; N] {
+pub fn get_random_bytes<const N: usize>(rng: &mut impl CryptoRngCore) -> [u8; N] {
     let mut bytes = [0u8; N];
     rng.fill_bytes(&mut bytes);
     bytes

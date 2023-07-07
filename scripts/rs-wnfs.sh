@@ -73,8 +73,8 @@ help() {
     echo "    rs-wnfs [COMMAND] [...args]"
     echo ""
     echo "COMMAND:"
-    echo "   * build [--fs|--wasm|--common|--hamt|--filter]  - build projects"
-    echo "   * test  [--fs|--wasm|--common|--hamt|--filter]  - run tests"
+    echo "   * build [--fs|--wasm|--common|--hamt|--accumulator]  - build projects"
+    echo "   * test  [--fs|--wasm|--common|--hamt|--accumulator]  - run tests"
     echo "   * bench                                             - run wnfs benchmarks"
     echo "   * setup                                             - install rs-wnfs script"
     echo "   * help                                              - print this help message"
@@ -90,7 +90,7 @@ help() {
 #	Builds the project.
 #
 # USAGE:
-#	rs-wnfs build [--fs|--wasm|--common|--hamt|--filter]
+#	rs-wnfs build [--fs|--wasm|--common|--hamt|--accumulator]
 #
 build() {
 	if check_flag --fs; then
@@ -101,12 +101,12 @@ build() {
         build_common
     elif check_flag --hamt; then
         build_hamt
-    elif check_flag --filter; then
-        build_filter
+    elif check_flag --accumulator; then
+        build_accumulator
     else
         build_common
         build_hamt
-        build_filter
+        build_accumulator
         build_fs
         build_wasm
     fi
@@ -127,9 +127,9 @@ build_hamt() {
     cargo build -p wnfs-hamt --release
 }
 
-build_filter() {
-    display_header "💿 | BUILDING WNFS-NAMEFILTER PROJECT | 💿"
-    cargo build -p wnfs-namefilter --release
+build_accumulator() {
+    display_header "💿 | BUILDING WNFS-NAMEACCUMULATOR PROJECT | 💿"
+    cargo build -p wnfs-nameaccumulator --release
 }
 
 build_wasm() {
@@ -147,7 +147,7 @@ build_wasm() {
 #   Runs tests.
 #
 # USAGE:
-#	rs-wnfs test [--fs|--wasm|--common|--hamt|--filter]
+#	rs-wnfs test [--fs|--wasm|--common|--hamt|--accumulator]
 #
 test() {
 	if check_flag --fs; then
@@ -158,12 +158,12 @@ test() {
         test_common
     elif check_flag --hamt; then
         test_hamt
-    elif check_flag --filter; then
-        test_filter
+    elif check_flag --accumulator; then
+        test_accumulator
     else
         test_common
         test_hamt
-        test_filter
+        test_accumulator
         test_fs
         test_wasm
     fi
@@ -184,9 +184,9 @@ test_hamt() {
     cargo test -p wnfs-hamt
 }
 
-test_filter() {
-    display_header "🧪 | RUNNING WNFS-NAMEFILTER TESTS | 🧪"
-    cargo test -p wnfs-namefilter
+test_accumulator() {
+    display_header "🧪 | RUNNING WNFS-NAMEACCUMULATOR TESTS | 🧪"
+    cargo test -p wnfs-nameaccumulator
 }
 
 test_wasm() {

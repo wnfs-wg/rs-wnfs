@@ -1,10 +1,13 @@
-use super::{PrivateDirectory, PrivateFile, PrivateForest, PrivateNode, PrivateRef};
+use super::{
+    forest::traits::PrivateForest, PrivateDirectory, PrivateFile, PrivateNode, PrivateRef,
+};
 use anyhow::Result;
 use async_once_cell::OnceCell;
 use async_recursion::async_recursion;
-use rand_core::RngCore;
+use rand_core::CryptoRngCore;
 use std::rc::Rc;
 use wnfs_common::BlockStore;
+use wnfs_nameaccumulator::{AccumulatorSetup, Name};
 
 #[derive(Debug)]
 pub(crate) enum PrivateLink {
@@ -30,9 +33,9 @@ impl PrivateLink {
     #[async_recursion(?Send)]
     pub(crate) async fn resolve_ref(
         &self,
-        forest: &mut Rc<PrivateForest>,
+        forest: &mut impl PrivateForest,
         store: &impl BlockStore,
-        rng: &mut impl RngCore,
+        rng: &mut impl CryptoRngCore,
     ) -> Result<PrivateRef> {
         match self {
             Self::Encrypted { private_ref, .. } => Ok(private_ref.clone()),
@@ -44,13 +47,19 @@ impl PrivateLink {
 
     pub(crate) async fn resolve_node(
         &self,
-        forest: &PrivateForest,
+        forest: &impl PrivateForest,
         store: &impl BlockStore,
+        parent_name: Option<Name>,
     ) -> Result<&PrivateNode> {
         match self {
             Self::Encrypted { private_ref, cache } => {
                 cache
-                    .get_or_try_init(PrivateNode::from_private_ref(private_ref, forest, store))
+                    .get_or_try_init(PrivateNode::from_private_ref(
+                        private_ref,
+                        forest,
+                        store,
+                        parent_name,
+                    ))
                     .await
             }
             Self::Decrypted { node, .. } => Ok(node),
@@ -60,14 +69,18 @@ impl PrivateLink {
     /// Gets mut value stored in link. It attempts to get it from the store if it is not present in link.
     pub(crate) async fn resolve_node_mut(
         &mut self,
-        forest: &PrivateForest,
+        forest: &impl PrivateForest,
         store: &impl BlockStore,
+        parent_name: Option<Name>,
     ) -> Result<&mut PrivateNode> {
         match self {
             Self::Encrypted { private_ref, cache } => {
                 let private_node = match cache.take() {
                     Some(node) => node,
-                    None => PrivateNode::from_private_ref(private_ref, forest, store).await?,
+                    None => {
+                        PrivateNode::from_private_ref(private_ref, forest, store, parent_name)
+                            .await?
+                    }
                 };
 
                 // We need to switch this PrivateLink to be a `Decrypted` again, since
@@ -89,14 +102,17 @@ impl PrivateLink {
     /// Gets an owned value from type. It attempts to it get from the store if it is not present in type.
     pub(crate) async fn resolve_owned_node(
         self,
-        forest: &PrivateForest,
+        forest: &impl PrivateForest,
         store: &impl BlockStore,
+        parent_name: Option<Name>,
     ) -> Result<PrivateNode> {
         match self {
             Self::Encrypted { private_ref, cache } => match cache.into_inner() {
                 Some(cached) => Ok(cached),
                 None => {
-                    let node = PrivateNode::from_private_ref(&private_ref, forest, store).await?;
+                    let node =
+                        PrivateNode::from_private_ref(&private_ref, forest, store, parent_name)
+                            .await?;
                     node.get_persisted_as()
                         .get_or_init(async { private_ref.content_cid })
                         .await;
@@ -120,10 +136,10 @@ impl PrivateLink {
     }
 
     #[allow(dead_code)]
-    pub(crate) fn get_ref(&self) -> Option<PrivateRef> {
+    pub(crate) fn get_ref(&self, setup: &AccumulatorSetup) -> Option<PrivateRef> {
         match self {
             Self::Encrypted { private_ref, .. } => Some(private_ref.clone()),
-            Self::Decrypted { node } => node.derive_private_ref(),
+            Self::Decrypted { node } => node.derive_private_ref(setup),
         }
     }
 }
@@ -145,10 +161,12 @@ impl PartialEq for PrivateLink {
                 l_node == r_node
             }
             (Self::Encrypted { private_ref, cache }, Self::Decrypted { node }) => {
-                Some(private_ref) == node.derive_private_ref().as_ref() || Some(node) == cache.get()
+                Some(&private_ref.content_cid) == node.get_persisted_as().get()
+                    || Some(node) == cache.get()
             }
             (Self::Decrypted { node }, Self::Encrypted { private_ref, cache }) => {
-                Some(private_ref) == node.derive_private_ref().as_ref() || Some(node) == cache.get()
+                Some(&private_ref.content_cid) == node.get_persisted_as().get()
+                    || Some(node) == cache.get()
             }
         }
     }

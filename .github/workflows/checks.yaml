@@ -127,5 +127,8 @@ jobs:
       - name: Install Playwright
         run: npx playwright install --with-deps
 
+      - name: Run Webpack
+        run: cd tests/server && npx webpack
+
       - name: Run Playwright Tests
         run: yarn playwright test

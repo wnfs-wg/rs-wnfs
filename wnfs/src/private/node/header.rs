@@ -1,53 +1,48 @@
-use super::TemporalKey;
-use crate::private::RevisionRef;
-use anyhow::Result;
+use super::{PrivateNodeHeaderSerializable, TemporalKey, REVISION_SEGMENT_DSS};
+use crate::{error::FsError, private::RevisionRef};
+use anyhow::{bail, Result};
 use libipld_core::cid::Cid;
-use rand_core::RngCore;
-use serde::{Deserialize, Serialize};
+use rand_core::CryptoRngCore;
 use sha3::Sha3_256;
 use skip_ratchet::Ratchet;
 use std::fmt::Debug;
-use wnfs_common::{utils, BlockStore, HashOutput, CODEC_RAW, HASH_BYTE_SIZE};
+use wnfs_common::{BlockStore, CODEC_RAW};
 use wnfs_hamt::Hasher;
-use wnfs_namefilter::Namefilter;
+use wnfs_nameaccumulator::{AccumulatorSetup, Name, NameSegment};
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
 //--------------------------------------------------------------------------------------------------
 
-pub type INumber = HashOutput;
-
 /// This is the header of a private node. It contains secret information about the node which includes
-/// the inumber, the ratchet, and the namefilter.
+/// the inumber, the ratchet, and the identifying private name.
 ///
 /// # Examples
 ///
 /// ```
-/// use wnfs::{
-///     private::PrivateFile,
-///     namefilter::Namefilter,
-///     traits::Id
-/// };
+/// use wnfs::private::PrivateFile;
+/// use wnfs_nameaccumulator::{AccumulatorSetup, Name};
 /// use chrono::Utc;
 /// use rand::thread_rng;
 ///
 /// let rng = &mut thread_rng();
+/// let setup = &AccumulatorSetup::from_rsa_2048(rng);
 /// let file = PrivateFile::new(
-///     Namefilter::default(),
+///     &Name::empty(setup),
 ///     Utc::now(),
 ///     rng,
 /// );
 ///
-/// println!("Header: {:?}", file.header);
+/// println!("Header: {:#?}", file.header);
 /// ```
-#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PrivateNodeHeader {
     /// A unique identifier of the node.
-    pub(crate) inumber: INumber,
+    pub(crate) inumber: NameSegment,
     /// Used both for versioning and deriving keys for that enforces privacy.
     pub(crate) ratchet: Ratchet,
-    /// Used for ancestry checks and as a key for the private forest.
-    pub(crate) bare_name: Namefilter,
+    /// Stores the name of this node for easier lookup.
+    pub(crate) name: Name,
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -56,34 +51,12 @@ pub struct PrivateNodeHeader {
 
 impl PrivateNodeHeader {
     /// Creates a new PrivateNodeHeader.
-    pub(crate) fn new(parent_bare_name: Namefilter, rng: &mut impl RngCore) -> Self {
-        let inumber = utils::get_random_bytes::<HASH_BYTE_SIZE>(rng);
-        let ratchet_seed = utils::get_random_bytes::<HASH_BYTE_SIZE>(rng);
+    pub(crate) fn new(parent_name: &Name, rng: &mut impl CryptoRngCore) -> Self {
+        let inumber = NameSegment::new(rng);
 
         Self {
-            bare_name: {
-                let mut namefilter = parent_bare_name;
-                namefilter.add(&inumber);
-                namefilter
-            },
-            ratchet: Ratchet::zero(ratchet_seed),
-            inumber,
-        }
-    }
-
-    /// Creates a new PrivateNodeHeader with provided seed.
-    pub(crate) fn with_seed(
-        parent_bare_name: Namefilter,
-        ratchet_seed: HashOutput,
-        inumber: HashOutput,
-    ) -> Self {
-        Self {
-            bare_name: {
-                let mut namefilter = parent_bare_name;
-                namefilter.add(&inumber);
-                namefilter
-            },
-            ratchet: Ratchet::zero(ratchet_seed),
+            name: parent_name.with_segments_added(Some(inumber.clone())),
+            ratchet: Ratchet::from_rng(rng),
             inumber,
         }
     }
@@ -93,35 +66,26 @@ impl PrivateNodeHeader {
         self.ratchet.inc();
     }
 
-    /// Updates the bare name of the node.
-    pub(crate) fn update_bare_name(&mut self, parent_bare_name: Namefilter) {
-        self.bare_name = {
-            let mut namefilter = parent_bare_name;
-            namefilter.add(&self.inumber);
-            namefilter
-        };
+    /// Updates the name to the child of given parent name.
+    pub(crate) fn update_name(&mut self, parent_name: &Name) {
+        self.name = parent_name.clone();
+        self.name.add_segments(Some(self.inumber.clone()));
     }
 
     /// Resets the ratchet.
-    pub(crate) fn reset_ratchet(&mut self, rng: &mut impl RngCore) {
-        self.ratchet = Ratchet::zero(utils::get_random_bytes(rng))
+    pub(crate) fn reset_ratchet(&mut self, rng: &mut impl CryptoRngCore) {
+        self.ratchet = Ratchet::from_rng(rng)
     }
 
     /// Derives the revision ref of the current header.
-    pub(crate) fn derive_revision_ref(&self) -> RevisionRef {
+    pub(crate) fn derive_revision_ref(&self, setup: &AccumulatorSetup) -> RevisionRef {
         let temporal_key = self.derive_temporal_key();
-        let saturated_name_hash = self.get_saturated_name_hash();
+        let revision_name_hash = Sha3_256::hash(self.get_revision_name().as_accumulator(setup));
 
         RevisionRef {
-            saturated_name_hash,
+            revision_name_hash,
             temporal_key,
         }
-    }
-
-    /// Returns the label used for identifying the revision in the PrivateForest.
-    #[inline]
-    pub fn get_saturated_name_hash(&self) -> HashOutput {
-        Sha3_256::hash(&self.get_saturated_name())
     }
 
     /// Derives the temporal key.
@@ -130,17 +94,15 @@ impl PrivateNodeHeader {
     ///
     /// ```
     /// use std::rc::Rc;
-    /// use wnfs::{
-    ///     private::PrivateFile,
-    ///     namefilter::Namefilter,
-    ///     traits::Id
-    /// };
+    /// use wnfs::private::PrivateFile;
+    /// use wnfs_nameaccumulator::{AccumulatorSetup, Name};
     /// use chrono::Utc;
     /// use rand::thread_rng;
     ///
     /// let rng = &mut thread_rng();
+    /// let setup = &AccumulatorSetup::from_rsa_2048(rng);
     /// let file = Rc::new(PrivateFile::new(
-    ///     Namefilter::default(),
+    ///     &Name::empty(setup),
     ///     Utc::now(),
     ///     rng,
     /// ));
@@ -153,49 +115,76 @@ impl PrivateNodeHeader {
         TemporalKey::from(&self.ratchet)
     }
 
-    /// Gets the saturated namefilter for this node using the provided ratchet key.
-    pub(crate) fn get_saturated_name_with_key(&self, temporal_key: &TemporalKey) -> Namefilter {
-        let mut name = self.bare_name.clone();
-        name.add(&temporal_key.0.as_bytes());
-        name.saturate();
-        name
+    pub(crate) fn derive_revision_segment(&self) -> NameSegment {
+        let hasher = self.ratchet.derive_key(REVISION_SEGMENT_DSS);
+        NameSegment::from_digest(hasher)
     }
 
-    /// Gets the saturated namefilter for this node.
+    /// Gets the revision name for this node.
+    ///
+    /// It's this node's name with a last segment added that's
+    /// unique but deterministic for each revision.
     ///
     /// # Examples
     ///
     /// ```
     /// use std::rc::Rc;
-    /// use wnfs::{
-    ///     private::{PrivateFile, AesKey},
-    ///     namefilter::Namefilter
+    /// use wnfs::private::{
+    ///     PrivateFile, AesKey,
+    ///     forest::{hamt::HamtForest, traits::PrivateForest},
     /// };
     /// use chrono::Utc;
     /// use rand::thread_rng;
     ///
     /// let rng = &mut thread_rng();
+    /// let forest = &mut Rc::new(HamtForest::new_rsa_2048(rng));
     /// let file = Rc::new(PrivateFile::new(
-    ///     Namefilter::default(),
+    ///     &forest.empty_name(),
     ///     Utc::now(),
     ///     rng,
     /// ));
-    /// let saturated_name = file.header.get_saturated_name();
+    /// let revision_name = file.header.get_revision_name();
     ///
-    /// println!("Saturated name: {:?}", saturated_name);
+    /// println!("Revision name: {:?}", revision_name);
     /// ```
-    #[inline]
-    pub fn get_saturated_name(&self) -> Namefilter {
-        self.get_saturated_name_with_key(&self.derive_temporal_key())
+    pub fn get_revision_name(&self) -> Name {
+        self.name
+            .with_segments_added(Some(self.derive_revision_segment()))
+    }
+
+    /// Gets the name for this node.
+    /// This name is persistent across revisions and can be used as the "allowed base name"
+    /// for delegating write access.
+    pub fn get_name(&self) -> &Name {
+        &self.name
     }
 
     /// Encrypts this private node header in an block, then stores that in the given
     /// BlockStore and returns its CID.
-    pub async fn store(&self, store: &impl BlockStore) -> Result<Cid> {
+    pub async fn store(&self, store: &impl BlockStore, setup: &AccumulatorSetup) -> Result<Cid> {
         let temporal_key = self.derive_temporal_key();
-        let cbor_bytes = serde_ipld_dagcbor::to_vec(self)?;
+        let cbor_bytes = serde_ipld_dagcbor::to_vec(&self.to_serializable(setup))?;
         let ciphertext = temporal_key.key_wrap_encrypt(&cbor_bytes)?;
         store.put_block(ciphertext, CODEC_RAW).await
+    }
+
+    pub(crate) fn to_serializable(
+        &self,
+        setup: &AccumulatorSetup,
+    ) -> PrivateNodeHeaderSerializable {
+        PrivateNodeHeaderSerializable {
+            inumber: self.inumber.clone(),
+            ratchet: self.ratchet.clone(),
+            name: self.name.as_accumulator(setup).clone(),
+        }
+    }
+
+    pub(crate) fn from_serializable(serializable: PrivateNodeHeaderSerializable) -> Self {
+        Self {
+            inumber: serializable.inumber,
+            ratchet: serializable.ratchet,
+            name: Name::new(serializable.name, []),
+        }
     }
 
     /// Loads a private node header from a given CID linking to the ciphertext block
@@ -204,24 +193,25 @@ impl PrivateNodeHeader {
         cid: &Cid,
         temporal_key: &TemporalKey,
         store: &impl BlockStore,
-    ) -> Result<PrivateNodeHeader> {
+        parent_name: Option<Name>,
+        setup: &AccumulatorSetup,
+    ) -> Result<Self> {
         let ciphertext = store.get_block(cid).await?;
         let cbor_bytes = temporal_key.key_wrap_decrypt(&ciphertext)?;
-        Ok(serde_ipld_dagcbor::from_slice(&cbor_bytes)?)
-    }
-}
-
-impl Debug for PrivateNodeHeader {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let mut inumber_str = String::from("0x");
-        for byte in self.inumber {
-            inumber_str.push_str(&format!("{byte:02X}"));
+        let decoded: PrivateNodeHeaderSerializable = serde_ipld_dagcbor::from_slice(&cbor_bytes)?;
+        let serialized_name = decoded.name.clone();
+        let mut header = Self::from_serializable(decoded);
+        if let Some(parent_name) = parent_name {
+            let name = parent_name.with_segments_added([header.inumber.clone()]);
+            let mounted_acc = name.as_accumulator(setup);
+            if mounted_acc != &serialized_name {
+                bail!(FsError::MountPointAndDeserializedNameMismatch(
+                    format!("{mounted_acc:?}"),
+                    format!("{serialized_name:?}"),
+                ));
+            }
+            header.name = name;
         }
-
-        f.debug_struct("PrivateRef")
-            .field("inumber", &inumber_str)
-            .field("ratchet", &self.ratchet)
-            .field("bare_name", &self.bare_name)
-            .finish()
+        Ok(header)
     }
 }

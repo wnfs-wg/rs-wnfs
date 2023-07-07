@@ -1,0 +1,10 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc d484f5f453d1118b7c84093cb69b5a6c8efc49e832fac2c21011f3b84384319f # shrinks to input = _BatchProofsArgs { skip_batch_step: [false, false, false, true], skip_verify_step: [false, false, false, true] }
+cc 189b999a49e826e8f43688efedd30b1b2fa39ced3a1e30f40cdfc2792cf32d07 # shrinks to input = _BatchProofsArgs { skip_batch_step: [true, true, true, true], skip_verify_step: [true, true, false, true] }
+cc 7399d850af8e5425e86888a3dcbbb8cc2bf59d6dd91574e00d255fa060c1e67d # shrinks to input = _BatchProofsArgs { do_batch_step: [false, false, true, true], do_verify_step: [false, true, true, false] }
+cc 51a5311632445afd3b03fe9d8a65ae58753339963b497eb18515fcd0ad206dde # shrinks to input = _BatchProofsArgs { do_batch_step: [true, false, false, true], do_verify_step: [true, true, true, true] }

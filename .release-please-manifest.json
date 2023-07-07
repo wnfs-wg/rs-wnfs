@@ -3,6 +3,6 @@
   "wnfs-bench": "0.1.22",
   "wnfs-common": "0.1.22",
   "wnfs-hamt": "0.1.22",
-  "wnfs-namefilter": "0.1.22",
+  "wnfs-nameaccumulator": "0.1.22",
   "wnfs-wasm": "0.1.22"
 }

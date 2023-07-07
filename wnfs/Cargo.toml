@@ -36,18 +36,18 @@ semver = { version = "1.0", features = ["serde"] }
 serde = { version = "1.0", features = ["rc"] }
 serde_ipld_dagcbor = "0.3.0"
 sha3 = "0.10"
-skip_ratchet = { version = "0.1", features = ["serde"] }
+skip_ratchet = { version = "0.2.1", features = ["serde"] }
 thiserror = "1.0"
 wnfs-common = { path = "../wnfs-common", version = "0.1.22" }
 wnfs-hamt = { path = "../wnfs-hamt", version = "0.1.22" }
-wnfs-namefilter = { path = "../wnfs-namefilter", version = "0.1.22" }
-xxhash-rust = { version = "0.8", features = ["xxh3"] }
+wnfs-nameaccumulator = { path = "../wnfs-nameaccumulator", version = "0.1.22" }
 
 [dev-dependencies]
 async-std = { version = "1.11", features = ["attributes"] }
 env_logger = "0.10"
 proptest = "1.1"
 rand = "0.8"
+rand_chacha = "0.3.1"
 rsa = "0.9"
 sha2 = "0.10"
 test-log = "0.2"

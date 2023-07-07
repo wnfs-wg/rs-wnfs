@@ -1,7 +1,7 @@
 use super::{
-    encrypted::Encrypted, PrivateFileContentSerializable, PrivateForest, PrivateNode,
-    PrivateNodeContentSerializable, PrivateNodeHeader, PrivateRef, SnapshotKey, TemporalKey,
-    AUTHENTICATION_TAG_SIZE, NONCE_SIZE,
+    encrypted::Encrypted, forest::traits::PrivateForest, PrivateFileContentSerializable,
+    PrivateNode, PrivateNodeContentSerializable, PrivateNodeHeader, PrivateRef, SnapshotKey,
+    TemporalKey, AUTHENTICATION_TAG_SIZE, NONCE_SIZE,
 };
 use crate::{error::FsError, traits::Id, WNFS_VERSION};
 use anyhow::{bail, Result};
@@ -10,13 +10,12 @@ use async_stream::try_stream;
 use chrono::{DateTime, Utc};
 use futures::{future, AsyncRead, Stream, StreamExt, TryStreamExt};
 use libipld_core::cid::Cid;
-use rand_core::RngCore;
+use rand_core::CryptoRngCore;
 use serde::{Deserialize, Serialize};
-use sha3::Sha3_256;
+use sha3::{Digest, Sha3_256};
 use std::{collections::BTreeSet, iter, rc::Rc};
 use wnfs_common::{utils, BlockStore, Metadata, CODEC_RAW, MAX_BLOCK_SIZE};
-use wnfs_hamt::Hasher;
-use wnfs_namefilter::Namefilter;
+use wnfs_nameaccumulator::{AccumulatorSetup, Name, NameSegment};
 
 //--------------------------------------------------------------------------------------------------
 // Constants
@@ -40,33 +39,34 @@ pub const MAX_BLOCK_CONTENT_SIZE: usize = MAX_BLOCK_SIZE - NONCE_SIZE - AUTHENTI
 /// # Examples
 ///
 /// ```
+/// use anyhow::Result;
 /// use std::rc::Rc;
 /// use chrono::Utc;
 /// use rand::thread_rng;
 /// use wnfs::{
-///     private::{PrivateForest, PrivateFile},
+///     private::{PrivateFile, forest::{hamt::HamtForest, traits::PrivateForest}},
 ///     common::{MemoryBlockStore, utils::get_random_bytes},
-///     namefilter::Namefilter,
 /// };
 ///
 /// #[async_std::main]
-/// async fn main() {
-///     let store = &MemoryBlockStore::default();
+/// async fn main() -> Result<()> {
+///     let store = &MemoryBlockStore::new();
 ///     let rng = &mut thread_rng();
-///     let forest = &mut Rc::new(PrivateForest::new());
+///     let forest = &mut Rc::new(HamtForest::new_rsa_2048(rng));
 ///
 ///     let file = PrivateFile::with_content(
-///         Namefilter::default(),
+///         &forest.empty_name(),
 ///         Utc::now(),
 ///         get_random_bytes::<100>(rng).to_vec(),
 ///         forest,
 ///         store,
 ///         rng,
 ///     )
-///     .await
-///     .unwrap();
+///     .await?;
 ///
 ///     println!("file = {:?}", file);
+///
+///     Ok(())
 /// }
 /// ```
 #[derive(Debug, Clone, PartialEq)]
@@ -76,7 +76,7 @@ pub struct PrivateFile {
 }
 
 #[derive(Debug)]
-pub struct PrivateFileContent {
+pub(crate) struct PrivateFileContent {
     pub(crate) persisted_as: OnceCell<Cid>,
     pub(crate) previous: BTreeSet<(usize, Encrypted<Cid>)>,
     pub(crate) metadata: Metadata,
@@ -107,26 +107,25 @@ impl PrivateFile {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::{
-    ///     private::PrivateFile,
-    ///     namefilter::Namefilter,
-    ///     traits::Id
+    /// use wnfs::private::{
+    ///     PrivateFile, forest::{hamt::HamtForest, traits::PrivateForest},
     /// };
     /// use chrono::Utc;
     /// use rand::thread_rng;
     ///
     /// let rng = &mut thread_rng();
+    /// let forest = HamtForest::new_rsa_2048(rng);
     /// let file = PrivateFile::new(
-    ///     Namefilter::default(),
+    ///     &forest.empty_name(),
     ///     Utc::now(),
     ///     rng,
     /// );
     ///
     /// println!("file = {:?}", file);
     /// ```
-    pub fn new(parent_bare_name: Namefilter, time: DateTime<Utc>, rng: &mut impl RngCore) -> Self {
+    pub fn new(parent_name: &Name, time: DateTime<Utc>, rng: &mut impl CryptoRngCore) -> Self {
         Self {
-            header: PrivateNodeHeader::new(parent_bare_name, rng),
+            header: PrivateNodeHeader::new(parent_name, rng),
             content: PrivateFileContent {
                 persisted_as: OnceCell::new(),
                 metadata: Metadata::new(time),
@@ -145,19 +144,18 @@ impl PrivateFile {
     /// use chrono::Utc;
     /// use rand::thread_rng;
     /// use wnfs::{
-    ///     private::{PrivateForest, PrivateFile},
-    ///     common::{MemoryBlockStore, utils::get_random_bytes, MAX_BLOCK_SIZE},
-    ///     namefilter::Namefilter,
+    ///     private::{PrivateFile, forest::{hamt::HamtForest, traits::PrivateForest}},
+    ///     common::{MemoryBlockStore, utils::get_random_bytes},
     /// };
     ///
     /// #[async_std::main]
     /// async fn main() {
-    ///     let store = &MemoryBlockStore::default();
+    ///     let store = &MemoryBlockStore::new();
     ///     let rng = &mut thread_rng();
-    ///     let forest = &mut Rc::new(PrivateForest::new());
+    ///     let forest = &mut Rc::new(HamtForest::new_rsa_2048(rng));
     ///
     ///     let file = PrivateFile::with_content(
-    ///         Namefilter::default(),
+    ///         &forest.empty_name(),
     ///         Utc::now(),
     ///         get_random_bytes::<100>(rng).to_vec(),
     ///         forest,
@@ -171,15 +169,15 @@ impl PrivateFile {
     /// }
     /// ```
     pub async fn with_content(
-        parent_bare_name: Namefilter,
+        parent_name: &Name,
         time: DateTime<Utc>,
         content: Vec<u8>,
-        forest: &mut Rc<PrivateForest>,
+        forest: &mut impl PrivateForest,
         store: &impl BlockStore,
-        rng: &mut impl RngCore,
+        rng: &mut impl CryptoRngCore,
     ) -> Result<Self> {
-        let header = PrivateNodeHeader::new(parent_bare_name, rng);
-        let content = Self::prepare_content(&header.bare_name, content, forest, store, rng).await?;
+        let header = PrivateNodeHeader::new(parent_name, rng);
+        let content = Self::prepare_content(&header.name, content, forest, store, rng).await?;
 
         Ok(Self {
             header,
@@ -201,50 +199,49 @@ impl PrivateFile {
     ///
     /// ```
     /// use std::rc::Rc;
+    /// use anyhow::Result;
     /// use async_std::fs::File;
     /// use chrono::Utc;
     /// use rand::thread_rng;
     /// use wnfs::{
-    ///     private::{PrivateForest, PrivateFile},
-    ///     common::{MemoryBlockStore, MAX_BLOCK_SIZE},
-    ///     namefilter::Namefilter,
+    ///     private::{PrivateFile, forest::{hamt::HamtForest, traits::PrivateForest}},
+    ///     common::MemoryBlockStore,
     /// };
     ///
     /// #[async_std::main]
-    /// async fn main() {
-    ///     let disk_file = File::open("./test/fixtures/Clara Schumann, Scherzo no. 2, Op. 14.mp3")
-    ///         .await
-    ///         .unwrap();
+    /// async fn main() -> Result<()> {
+    ///     let disk_file = File::open("./test/fixtures/Clara Schumann, Scherzo no. 2, Op. 14.mp3").await?;
     ///
-    ///     let store = &MemoryBlockStore::default();
+    ///     let store = &MemoryBlockStore::new();
     ///     let rng = &mut thread_rng();
-    ///     let forest = &mut Rc::new(PrivateForest::new());
+    ///     let forest = &mut Rc::new(HamtForest::new_rsa_2048(rng));
     ///
     ///     let file = PrivateFile::with_content_streaming(
-    ///         Namefilter::default(),
+    ///         &forest.empty_name(),
     ///         Utc::now(),
     ///         disk_file,
     ///         forest,
     ///         store,
     ///         rng,
     ///     )
-    ///     .await
-    ///     .unwrap();
+    ///     .await?;
     ///
     ///     println!("file = {:?}", file);
+    ///
+    ///     Ok(())
     /// }
     /// ```
     pub async fn with_content_streaming(
-        parent_bare_name: Namefilter,
+        parent_name: &Name,
         time: DateTime<Utc>,
         content: impl AsyncRead + Unpin,
-        forest: &mut Rc<PrivateForest>,
+        forest: &mut impl PrivateForest,
         store: &impl BlockStore,
-        rng: &mut impl RngCore,
+        rng: &mut impl CryptoRngCore,
     ) -> Result<Self> {
-        let header = PrivateNodeHeader::new(parent_bare_name, rng);
+        let header = PrivateNodeHeader::new(parent_name, rng);
         let content =
-            Self::prepare_content_streaming(&header.bare_name, content, forest, store, rng).await?;
+            Self::prepare_content_streaming(&header.name, content, forest, store, rng).await?;
 
         Ok(Self {
             header,
@@ -262,49 +259,50 @@ impl PrivateFile {
     /// # Examples
     ///
     /// ```
+    /// use anyhow::Result;
     /// use std::rc::Rc;
     /// use chrono::Utc;
     /// use rand::thread_rng;
     /// use wnfs::{
-    ///     private::{PrivateForest, PrivateFile},
+    ///     private::{PrivateFile, forest::{hamt::HamtForest, traits::PrivateForest}},
     ///     common::{MemoryBlockStore, utils::get_random_bytes},
-    ///     namefilter::Namefilter,
     /// };
-    /// use futures::{future, StreamExt};
+    /// use futures::{future, TryStreamExt};
     ///
     /// #[async_std::main]
-    /// async fn main() {
-    ///     let store = &MemoryBlockStore::default();
+    /// async fn main() -> Result<()> {
+    ///     let store = &MemoryBlockStore::new();
     ///     let rng = &mut thread_rng();
-    ///     let forest = &mut Rc::new(PrivateForest::new());
+    ///     let forest = &mut Rc::new(HamtForest::new_rsa_2048(rng));
     ///
     ///     let content = get_random_bytes::<100>(rng).to_vec();
     ///     let file = PrivateFile::with_content(
-    ///         Namefilter::default(),
+    ///         &forest.empty_name(),
     ///         Utc::now(),
     ///         content.clone(),
     ///         forest,
     ///         store,
     ///         rng,
     ///     )
-    ///     .await
-    ///     .unwrap();
+    ///     .await?;
     ///
     ///     let mut stream_content = vec![];
-    ///     file.stream_content(0, &forest, store)
-    ///         .for_each(|chunk| {
-    ///             stream_content.extend_from_slice(&chunk.unwrap());
-    ///             future::ready(())
+    ///     file.stream_content(0, forest, store)
+    ///         .try_for_each(|chunk| {
+    ///             stream_content.extend_from_slice(&chunk);
+    ///             future::ready(Ok(()))
     ///         })
-    ///         .await;
+    ///         .await?;
     ///
     ///     assert_eq!(content, stream_content);
+    ///
+    ///     Ok(())
     /// }
     /// ```
     pub fn stream_content<'a>(
         &'a self,
         index: usize,
-        forest: &'a PrivateForest,
+        forest: &'a impl PrivateForest,
         store: &'a impl BlockStore,
     ) -> impl Stream<Item = Result<Vec<u8>>> + 'a {
         Box::pin(try_stream! {
@@ -321,9 +319,9 @@ impl PrivateFile {
                     block_count,
                     ..
                 } => {
-                    let bare_name = &self.header.bare_name;
-                    for label in Self::generate_shard_labels(key, index,  *block_count, bare_name) {
-                        let bytes = Self::decrypt_block(key, &label, forest, store).await?;
+                    let name = &self.header.name;
+                    for name in Self::generate_shard_labels(key, index, *block_count, name) {
+                        let bytes = Self::decrypt_block(key, &name, forest, store).await?;
                         yield bytes
                     }
                 }
@@ -336,7 +334,7 @@ impl PrivateFile {
         &'a self,
         offset: usize,
         size: usize,
-        forest: &'a PrivateForest,
+        forest: &'a impl PrivateForest,
         store: &'a impl BlockStore,
     ) -> Result<Vec<u8>> {
         let block_content_size = MAX_BLOCK_CONTENT_SIZE;
@@ -379,41 +377,42 @@ impl PrivateFile {
     /// # Examples
     ///
     /// ```
+    /// use anyhow::Result;
     /// use std::rc::Rc;
     /// use chrono::Utc;
     /// use rand::thread_rng;
     /// use wnfs::{
-    ///     private::{PrivateFile, PrivateForest},
+    ///     private::{PrivateFile, forest::{hamt::HamtForest, traits::PrivateForest}},
     ///     common::{MemoryBlockStore, utils::get_random_bytes},
-    ///     namefilter::Namefilter,
     /// };
     ///
     /// #[async_std::main]
-    /// async fn main() {
-    ///     let store = &MemoryBlockStore::default();
+    /// async fn main() -> Result<()> {
+    ///     let store = &MemoryBlockStore::new();
     ///     let rng = &mut thread_rng();
-    ///     let forest = &mut Rc::new(PrivateForest::new());
+    ///     let forest = &mut Rc::new(HamtForest::new_rsa_2048(rng));
     ///
     ///     let content = get_random_bytes::<100>(rng).to_vec();
     ///     let file = PrivateFile::with_content(
-    ///         Namefilter::default(),
+    ///         &forest.empty_name(),
     ///         Utc::now(),
     ///         content.clone(),
     ///         forest,
     ///         store,
     ///         rng,
     ///     )
-    ///     .await
-    ///     .unwrap();
+    ///     .await?;
     ///
-    ///     let mut all_content = file.get_content(forest, store).await.unwrap();
+    ///     let mut all_content = file.get_content(forest, store).await?;
     ///
     ///     assert_eq!(content, all_content);
+    ///
+    ///     Ok(())
     /// }
     /// ```
     pub async fn get_content(
         &self,
-        forest: &PrivateForest,
+        forest: &impl PrivateForest,
         store: &impl BlockStore,
     ) -> Result<Vec<u8>> {
         let mut content = Vec::with_capacity(self.get_content_size_upper_bound());
@@ -431,31 +430,30 @@ impl PrivateFile {
         &mut self,
         time: DateTime<Utc>,
         content: impl AsyncRead + Unpin,
-        forest: &mut Rc<PrivateForest>,
+        forest: &mut impl PrivateForest,
         store: &impl BlockStore,
-        rng: &mut impl RngCore,
+        rng: &mut impl CryptoRngCore,
     ) -> Result<()> {
         self.content.metadata = Metadata::new(time);
         self.content.content =
-            Self::prepare_content_streaming(&self.header.bare_name, content, forest, store, rng)
-                .await?;
+            Self::prepare_content_streaming(&self.header.name, content, forest, store, rng).await?;
         Ok(())
     }
 
     /// Determines where to put the content of a file. This can either be inline or stored up in chunks in a private forest.
     pub(super) async fn prepare_content(
-        bare_name: &Namefilter,
+        file_name: &Name,
         content: Vec<u8>,
-        forest: &mut Rc<PrivateForest>,
+        forest: &mut impl PrivateForest,
         store: &impl BlockStore,
-        rng: &mut impl RngCore,
+        rng: &mut impl CryptoRngCore,
     ) -> Result<FileContent> {
         // TODO(appcypher): Use a better heuristic to determine when to use external storage.
         let key = SnapshotKey::from(utils::get_random_bytes(rng));
         let block_count = (content.len() as f64 / MAX_BLOCK_CONTENT_SIZE as f64).ceil() as usize;
 
-        for (index, label) in
-            Self::generate_shard_labels(&key, 0, block_count, bare_name).enumerate()
+        for (index, name) in
+            Self::generate_shard_labels(&key, 0, block_count, file_name).enumerate()
         {
             let start = index * MAX_BLOCK_CONTENT_SIZE;
             let end = content.len().min((index + 1) * MAX_BLOCK_CONTENT_SIZE);
@@ -465,7 +463,7 @@ impl PrivateFile {
             let content_cid = store.put_block(enc_bytes, CODEC_RAW).await?;
 
             forest
-                .put_encrypted(label, Some(content_cid), store)
+                .put_encrypted(&name, Some(content_cid), store)
                 .await?;
         }
 
@@ -481,13 +479,14 @@ impl PrivateFile {
     /// Returns an external `FileContent` that contains necessary information
     /// to later retrieve the data.
     pub(super) async fn prepare_content_streaming(
-        bare_name: &Namefilter,
+        file_name: &Name,
         mut content: impl AsyncRead + Unpin,
-        forest: &mut Rc<PrivateForest>,
+        forest: &mut impl PrivateForest,
         store: &impl BlockStore,
-        rng: &mut impl RngCore,
+        rng: &mut impl CryptoRngCore,
     ) -> Result<FileContent> {
         let key = SnapshotKey::from(utils::get_random_bytes(rng));
+        let file_revision_name = Self::create_revision_name(file_name, &key);
 
         let mut block_index = 0;
 
@@ -511,9 +510,9 @@ impl PrivateFile {
 
             let content_cid = store.put_block(current_block, CODEC_RAW).await?;
 
-            let label = Self::create_block_label(&key, block_index, bare_name);
+            let name = Self::create_block_label(&key, block_index, &file_revision_name);
             forest
-                .put_encrypted(label, Some(content_cid), store)
+                .put_encrypted(&name, Some(content_cid), store)
                 .await?;
 
             block_index += 1;
@@ -545,21 +544,17 @@ impl PrivateFile {
     /// Decrypts a block of a file's content.
     async fn decrypt_block(
         key: &SnapshotKey,
-        label: &Namefilter,
-        forest: &PrivateForest,
+        name: &Name,
+        forest: &impl PrivateForest,
         store: &impl BlockStore,
     ) -> Result<Vec<u8>> {
-        let label_hash = &Sha3_256::hash(&label.as_bytes());
-
-        let cids = forest
-            .get_encrypted(label_hash, store)
+        let cid = forest
+            .get_encrypted(name, store)
             .await?
-            .ok_or(FsError::FileShardNotFound)?;
-
-        let cid = cids
+            .ok_or(FsError::FileShardNotFound)?
             .iter()
             .next()
-            .expect("Expected set with at least a Cid");
+            .expect("Expected set with at least a one cid");
 
         let enc_bytes = store.get_block(cid).await?;
         let bytes = key.decrypt(&enc_bytes)?;
@@ -572,30 +567,34 @@ impl PrivateFile {
         key: &'a SnapshotKey,
         mut index: usize,
         block_count: usize,
-        bare_name: &'a Namefilter,
-    ) -> impl Iterator<Item = Namefilter> + 'a {
+        file_block_name: &'a Name,
+    ) -> impl Iterator<Item = Name> + 'a {
+        let file_revision_name = Self::create_revision_name(file_block_name, key);
         iter::from_fn(move || {
             if index >= block_count {
                 return None;
             }
 
-            let label = Self::create_block_label(key, index, bare_name);
+            let label = Self::create_block_label(key, index, &file_revision_name);
             index += 1;
             Some(label)
         })
     }
 
+    fn create_revision_name(file_block_name: &Name, key: &SnapshotKey) -> Name {
+        let revision_segment =
+            NameSegment::from_digest(Sha3_256::new().chain_update(key.0.as_bytes()));
+        file_block_name.with_segments_added(Some(revision_segment))
+    }
+
     /// Creates the label for a block of a file.
-    fn create_block_label(key: &SnapshotKey, index: usize, bare_name: &Namefilter) -> Namefilter {
-        let key_bytes = key.0.as_bytes();
-        let key_hash = Sha3_256::hash(&[key_bytes, &index.to_le_bytes()[..]].concat());
+    fn create_block_label(key: &SnapshotKey, index: usize, file_revision_name: &Name) -> Name {
+        let key_hash = Sha3_256::new()
+            .chain_update(key.0.as_bytes())
+            .chain_update(index.to_le_bytes());
+        let elem = NameSegment::from_digest(key_hash);
 
-        let mut label = bare_name.clone();
-        label.add(&key_bytes);
-        label.add(&key_hash);
-        label.saturate();
-
-        label
+        file_revision_name.with_segments_added(Some(elem))
     }
 
     /// This should be called to prepare a node for modifications,
@@ -627,10 +626,10 @@ impl PrivateFile {
     }
 
     /// Returns the private ref, if this file has been `.store()`ed before.
-    pub(crate) fn derive_private_ref(&self) -> Option<PrivateRef> {
+    pub(crate) fn derive_private_ref(&self, setup: &AccumulatorSetup) -> Option<PrivateRef> {
         self.content.persisted_as.get().map(|content_cid| {
             self.header
-                .derive_revision_ref()
+                .derive_revision_ref(setup)
                 .into_private_ref(*content_cid)
         })
     }
@@ -640,26 +639,25 @@ impl PrivateFile {
     ///
     /// Will reset the ratchet, so a different key is necessary for read access,
     /// will reset the inumber to reset write access,
-    /// will update the bare namefilter to match the new parent's namefilter,
+    /// will update the name to be the sub-name of given parent name,
     /// so it inherits the write access rules from the new parent and
     /// resets the `persisted_as` pointer.
     /// Will copy and re-encrypt all external content.
     pub(crate) async fn prepare_key_rotation(
         &mut self,
-        parent_bare_name: Namefilter,
-        forest: &mut Rc<PrivateForest>,
+        parent_name: &Name,
+        forest: &mut impl PrivateForest,
         store: &impl BlockStore,
-        rng: &mut impl RngCore,
+        rng: &mut impl CryptoRngCore,
     ) -> Result<()> {
         let content = self.get_content(forest, store).await?;
 
-        self.header.inumber = utils::get_random_bytes(rng);
-        self.header.update_bare_name(parent_bare_name);
+        self.header.inumber = NameSegment::new(rng);
+        self.header.update_name(parent_name);
         self.header.reset_ratchet(rng);
         self.content.persisted_as = OnceCell::new();
 
-        let content =
-            Self::prepare_content(&self.header.bare_name, content, forest, store, rng).await?;
+        let content = Self::prepare_content(&self.header.name, content, forest, store, rng).await?;
         self.content.content = content;
 
         Ok(())
@@ -668,13 +666,15 @@ impl PrivateFile {
     /// Stores this PrivateFile in the PrivateForest.
     pub(crate) async fn store(
         &self,
-        forest: &mut Rc<PrivateForest>,
+        forest: &mut impl PrivateForest,
         store: &impl BlockStore,
-        rng: &mut impl RngCore,
+        rng: &mut impl CryptoRngCore,
     ) -> Result<PrivateRef> {
-        let header_cid = self.header.store(store).await?;
-        let snapshot_key = self.header.derive_temporal_key().derive_snapshot_key();
-        let label = self.header.get_saturated_name();
+        let setup = &forest.get_accumulator_setup().clone();
+        let header_cid = self.header.store(store, setup).await?;
+        let temporal_key = self.header.derive_temporal_key();
+        let snapshot_key = temporal_key.derive_snapshot_key();
+        let name_with_revision = self.header.get_revision_name();
 
         let content_cid = self
             .content
@@ -682,12 +682,12 @@ impl PrivateFile {
             .await?;
 
         forest
-            .put_encrypted(label, [header_cid, content_cid], store)
+            .put_encrypted(&name_with_revision, [header_cid, content_cid], store)
             .await?;
 
         Ok(self
             .header
-            .derive_revision_ref()
+            .derive_revision_ref(setup)
             .into_private_ref(content_cid))
     }
 
@@ -697,6 +697,8 @@ impl PrivateFile {
         temporal_key: &TemporalKey,
         cid: Cid,
         store: &impl BlockStore,
+        parent_name: Option<Name>,
+        setup: &AccumulatorSetup,
     ) -> Result<Self> {
         if serializable.version.major != 0 || serializable.version.minor != 2 {
             bail!(FsError::UnexpectedVersion(serializable.version));
@@ -709,7 +711,14 @@ impl PrivateFile {
             content: serializable.content,
         };
 
-        let header = PrivateNodeHeader::load(&serializable.header_cid, temporal_key, store).await?;
+        let header = PrivateNodeHeader::load(
+            &serializable.header_cid,
+            temporal_key,
+            store,
+            parent_name,
+            setup,
+        )
+        .await?;
         Ok(Self { header, content })
     }
 
@@ -738,7 +747,7 @@ impl PrivateFileContent {
         header_cid: Cid,
         snapshot_key: &SnapshotKey,
         store: &impl BlockStore,
-        rng: &mut impl RngCore,
+        rng: &mut impl CryptoRngCore,
     ) -> Result<Cid> {
         Ok(*self
             .persisted_as
@@ -790,18 +799,20 @@ impl Id for PrivateFile {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::private::forest::hamt::HamtForest;
     use async_std::fs::File;
-    use proptest::test_runner::{RngAlgorithm, TestRng};
     use rand::Rng;
+    use rand_chacha::ChaCha12Rng;
+    use rand_core::SeedableRng;
     use wnfs_common::MemoryBlockStore;
 
     #[async_std::test]
     async fn can_create_empty_file() {
-        let store = &MemoryBlockStore::default();
-        let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
-        let forest = &Rc::new(PrivateForest::new());
+        let store = &MemoryBlockStore::new();
+        let rng = &mut ChaCha12Rng::seed_from_u64(0);
+        let forest = &Rc::new(HamtForest::new_rsa_2048(rng));
 
-        let file = PrivateFile::new(Namefilter::new(), Utc::now(), rng);
+        let file = PrivateFile::new(&forest.empty_name(), Utc::now(), rng);
         let file_content = file.get_content(forest, store).await.unwrap();
 
         assert!(file_content.is_empty());
@@ -812,12 +823,12 @@ mod tests {
         let mut content = vec![0u8; MAX_BLOCK_CONTENT_SIZE * 5];
         rand::thread_rng().fill(&mut content[..]);
 
-        let store = &MemoryBlockStore::default();
-        let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
-        let forest = &mut Rc::new(PrivateForest::new());
+        let store = &MemoryBlockStore::new();
+        let rng = &mut ChaCha12Rng::seed_from_u64(0);
+        let forest = &mut Rc::new(HamtForest::new_rsa_2048(rng));
 
         let file = PrivateFile::with_content(
-            Namefilter::default(),
+            &forest.empty_name(),
             Utc::now(),
             content.clone(),
             forest,
@@ -853,12 +864,12 @@ mod tests {
             .await
             .unwrap();
 
-        let forest = &mut Rc::new(PrivateForest::new());
         let store = &MemoryBlockStore::new();
-        let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
+        let rng = &mut ChaCha12Rng::seed_from_u64(0);
+        let forest = &mut Rc::new(HamtForest::new_rsa_2048(rng));
 
         let file = PrivateFile::with_content_streaming(
-            Namefilter::default(),
+            &forest.empty_name(),
             Utc::now(),
             disk_file,
             forest,
@@ -877,15 +888,18 @@ mod tests {
 #[cfg(test)]
 mod proptests {
     use super::MAX_BLOCK_CONTENT_SIZE;
-    use crate::private::{PrivateFile, PrivateForest};
+    use crate::private::{
+        forest::{hamt::HamtForest, traits::PrivateForest},
+        PrivateFile,
+    };
     use async_std::io::Cursor;
     use chrono::Utc;
     use futures::{future, StreamExt};
-    use proptest::test_runner::{RngAlgorithm, TestRng};
+    use rand_chacha::ChaCha12Rng;
+    use rand_core::SeedableRng;
     use std::rc::Rc;
     use test_strategy::proptest;
     use wnfs_common::{BlockStoreError, MemoryBlockStore};
-    use wnfs_namefilter::Namefilter;
 
     /// Size of the test file at "./test/fixtures/Clara Schumann, Scherzo no. 2, Op. 14.mp3"
     const FIXTURE_SCHERZO_SIZE: usize = 4028150;
@@ -896,12 +910,12 @@ mod proptests {
     ) {
         async_std::task::block_on(async {
             let content = vec![0u8; length];
-            let store = &MemoryBlockStore::default();
-            let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
-            let forest = &mut Rc::new(PrivateForest::new());
+            let store = &MemoryBlockStore::new();
+            let rng = &mut ChaCha12Rng::seed_from_u64(0);
+            let forest = &mut Rc::new(HamtForest::new_rsa_2048(rng));
 
             let file = PrivateFile::with_content(
-                Namefilter::new(),
+                &forest.empty_name(),
                 Utc::now(),
                 content.clone(),
                 forest,
@@ -917,18 +931,18 @@ mod proptests {
         })
     }
 
-    #[proptest(cases = 100)]
+    #[proptest(cases = 10)]
     fn can_include_and_stream_content_from_file(
         #[strategy(0..(MAX_BLOCK_CONTENT_SIZE * 2))] length: usize,
     ) {
         async_std::task::block_on(async {
             let content = vec![0u8; length];
-            let store = &MemoryBlockStore::default();
-            let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
-            let forest = &mut Rc::new(PrivateForest::new());
+            let store = &MemoryBlockStore::new();
+            let rng = &mut ChaCha12Rng::seed_from_u64(0);
+            let forest = &mut Rc::new(HamtForest::new_rsa_2048(rng));
 
             let file = PrivateFile::with_content(
-                Namefilter::new(),
+                &forest.empty_name(),
                 Utc::now(),
                 content.clone(),
                 forest,
@@ -955,11 +969,11 @@ mod proptests {
         #[strategy(0..(MAX_BLOCK_CONTENT_SIZE * 2))] length: usize,
     ) {
         async_std::task::block_on(async {
-            let store = &MemoryBlockStore::default();
-            let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
-            let forest = &mut Rc::new(PrivateForest::new());
+            let store = &MemoryBlockStore::new();
+            let rng = &mut ChaCha12Rng::seed_from_u64(0);
+            let forest = &mut Rc::new(HamtForest::new_rsa_2048(rng));
 
-            let mut file = PrivateFile::new(Namefilter::new(), Utc::now(), rng);
+            let mut file = PrivateFile::new(&forest.empty_name(), Utc::now(), rng);
 
             file.set_content(
                 Utc::now(),
@@ -996,12 +1010,12 @@ mod proptests {
             .await
             .unwrap();
 
-            let forest = &mut Rc::new(PrivateForest::new());
+            let rng = &mut ChaCha12Rng::seed_from_u64(0);
+            let forest = &mut Rc::new(HamtForest::new_rsa_2048(rng));
             let store = &MemoryBlockStore::new();
-            let rng = &mut TestRng::deterministic_rng(RngAlgorithm::ChaCha);
 
             let file = PrivateFile::with_content_streaming(
-                Namefilter::default(),
+                &forest.empty_name(),
                 Utc::now(),
                 disk_file.clone(),
                 forest,
