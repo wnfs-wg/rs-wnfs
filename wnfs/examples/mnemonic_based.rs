@@ -102,7 +102,7 @@ async fn setup_seeded_keypair_access(
             store,
         )
         .await?;
-    let exchange_root = PublicLink::new(PublicNode::Dir(exchange_root));
+    let exchange_root = PublicLink::with_rc_dir(exchange_root);
 
     // The user identity's root DID. In practice this would be e.g. an ed25519 key used
     // for e.g. UCANs or key usually used for authenticating writes.
