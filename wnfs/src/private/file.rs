@@ -493,7 +493,7 @@ impl PrivateFile {
         loop {
             let mut current_block = vec![0u8; MAX_BLOCK_SIZE];
             let nonce = SnapshotKey::generate_nonce(rng);
-            current_block[..NONCE_SIZE].copy_from_slice(&nonce);
+            current_block[..NONCE_SIZE].copy_from_slice(nonce.as_ref());
 
             // read up to MAX_BLOCK_CONTENT_SIZE content
 
@@ -506,7 +506,7 @@ impl PrivateFile {
             current_block.truncate(bytes_written + NONCE_SIZE);
 
             let tag = key.encrypt_in_place(&nonce, &mut current_block[NONCE_SIZE..])?;
-            current_block.extend_from_slice(&tag);
+            current_block.extend_from_slice(tag.as_ref());
 
             let content_cid = store.put_block(current_block, CODEC_RAW).await?;
 

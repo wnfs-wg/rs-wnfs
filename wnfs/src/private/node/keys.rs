@@ -1,13 +1,13 @@
 use crate::{
-    error::AesError,
+    error::CryptError,
     private::{AesKey, KEY_BYTE_SIZE, NONCE_SIZE},
 };
-use aes_gcm::{
-    aead::{consts::U12, Aead},
-    AeadInPlace, Aes256Gcm, KeyInit, Nonce, Tag,
-};
 use aes_kw::KekAes256;
-use anyhow::Result;
+use anyhow::{anyhow, Result};
+use chacha20poly1305::{
+    aead::{Aead, AeadCore, KeyInit},
+    AeadInPlace, Tag, XChaCha20Poly1305, XNonce,
+};
 use rand_core::CryptoRngCore;
 use serde::{Deserialize, Serialize};
 use sha3::{Digest, Sha3_256};
@@ -61,7 +61,7 @@ impl TemporalKey {
     pub fn key_wrap_encrypt(&self, cleartext: &[u8]) -> Result<Vec<u8>> {
         Ok(KekAes256::from(self.0.clone().bytes())
             .wrap_with_padding_vec(cleartext)
-            .map_err(|e| AesError::UnableToEncrypt(format!("{e}")))?)
+            .map_err(|e| CryptError::UnableToEncrypt(anyhow!(e)))?)
     }
 
     /// Decrypt a ciphertext that was encrypted with this temporal key.
@@ -73,7 +73,7 @@ impl TemporalKey {
     pub fn key_wrap_decrypt(&self, ciphertext: &[u8]) -> Result<Vec<u8>> {
         Ok(KekAes256::from(self.0.clone().bytes())
             .unwrap_with_padding_vec(ciphertext)
-            .map_err(|e| AesError::UnableToEncrypt(format!("{e}")))?)
+            .map_err(|e| CryptError::UnableToEncrypt(anyhow!(e)))?)
     }
 }
 
@@ -99,18 +99,17 @@ impl SnapshotKey {
     pub fn encrypt(&self, data: &[u8], rng: &mut impl CryptoRngCore) -> Result<Vec<u8>> {
         let nonce = Self::generate_nonce(rng);
 
-        let cipher_text = Aes256Gcm::new(&self.0.clone().bytes().into())
+        let key = self.0.clone().bytes().into();
+        let cipher_text = XChaCha20Poly1305::new(&key)
             .encrypt(&nonce, data)
-            .map_err(|e| AesError::UnableToEncrypt(format!("{e}")))?;
+            .map_err(|e| CryptError::UnableToEncrypt(anyhow!(e)))?;
 
         Ok([nonce.to_vec(), cipher_text].concat())
     }
 
-    /// Generates a random 12-byte nonce for encryption.
-    pub(crate) fn generate_nonce(rng: &mut impl CryptoRngCore) -> Nonce<U12> {
-        let mut nonce = Nonce::default();
-        rng.fill_bytes(&mut nonce);
-        nonce
+    /// Generates a random 24-byte extended nonce for encryption.
+    pub(crate) fn generate_nonce(rng: &mut impl CryptoRngCore) -> XNonce {
+        XChaCha20Poly1305::generate_nonce(rng)
     }
 
     /// Encrypts the cleartext in the given buffer in-place, with given key.
@@ -118,10 +117,11 @@ impl SnapshotKey {
     /// The nonce is usually pre-pended to the ciphertext.
     ///
     /// The authentication tag is required for decryption and usually appended to the ciphertext.
-    pub(crate) fn encrypt_in_place(&self, nonce: &Nonce<U12>, buffer: &mut [u8]) -> Result<Tag> {
-        let tag = Aes256Gcm::new(&self.0.clone().bytes().into())
+    pub(crate) fn encrypt_in_place(&self, nonce: &XNonce, buffer: &mut [u8]) -> Result<Tag> {
+        let key = self.0.clone().bytes().into();
+        let tag = XChaCha20Poly1305::new(&key)
             .encrypt_in_place_detached(nonce, &[], buffer)
-            .map_err(|e| AesError::UnableToEncrypt(format!("{e}")))?;
+            .map_err(|e| CryptError::UnableToEncrypt(anyhow!(e)))?;
         Ok(tag)
     }
 
@@ -145,10 +145,12 @@ impl SnapshotKey {
     /// ```
     pub fn decrypt(&self, cipher_text: &[u8]) -> Result<Vec<u8>> {
         let (nonce_bytes, data) = cipher_text.split_at(NONCE_SIZE);
+        let key = self.0.clone().bytes().into();
+        let nonce = XNonce::from_slice(nonce_bytes);
 
-        Ok(Aes256Gcm::new(&self.0.clone().bytes().into())
-            .decrypt(Nonce::from_slice(nonce_bytes), data)
-            .map_err(|e| AesError::UnableToDecrypt(format!("{e}")))?)
+        Ok(XChaCha20Poly1305::new(&key)
+            .decrypt(nonce, data)
+            .map_err(|e| CryptError::UnableToDecrypt(anyhow!(e)))?)
     }
 
     /// Decrypts the ciphertext in the given buffer in-place, with given key.
@@ -158,13 +160,14 @@ impl SnapshotKey {
     #[allow(dead_code)] // I figured it makes sense to have this for completeness sake.
     pub(crate) fn decrypt_in_place(
         &self,
-        nonce: &Nonce<U12>,
+        nonce: &XNonce,
         tag: &Tag,
         buffer: &mut [u8],
     ) -> Result<()> {
-        Aes256Gcm::new(&self.0.clone().bytes().into())
+        let key = self.0.clone().bytes().into();
+        XChaCha20Poly1305::new(&key)
             .decrypt_in_place_detached(nonce, &[], buffer, tag)
-            .map_err(|e| AesError::UnableToDecrypt(format!("{e}")))?;
+            .map_err(|e| CryptError::UnableToDecrypt(anyhow!(e)))?;
         Ok(())
     }
 }
@@ -247,7 +250,7 @@ mod proptests {
         nonce: [u8; NONCE_SIZE],
     ) {
         let mut buffer = data.clone();
-        let nonce = Nonce::from_slice(&nonce);
+        let nonce = XNonce::from_slice(&nonce);
         let key = SnapshotKey::from(key_bytes);
 
         let tag = key.encrypt_in_place(nonce, &mut buffer).unwrap();

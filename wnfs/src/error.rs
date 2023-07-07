@@ -70,12 +70,12 @@ pub enum ShareError {
 
 /// AES-GCM errors.
 #[derive(Debug, Error)]
-pub enum AesError {
+pub enum CryptError {
     #[error("Unable to encrypt data: {0}")]
-    UnableToEncrypt(String),
+    UnableToEncrypt(anyhow::Error),
 
     #[error("Unable to decrypt data: {0}")]
-    UnableToDecrypt(String),
+    UnableToDecrypt(anyhow::Error),
 }
 
 /// RSA related errors

@@ -1,5 +1,5 @@
 use crate::{
-    error::AesError,
+    error::CryptError,
     private::{PrivateNode, TemporalKey},
 };
 use anyhow::Result;
@@ -133,7 +133,7 @@ pub trait PrivateForest {
                     for cid in cids {
                         match PrivateNode::from_cid(*cid, temporal_key, store, parent_name.clone(), setup).await {
                             Ok(node) => yield Ok(node),
-                            Err(e) if e.downcast_ref::<AesError>().is_some() => {
+                            Err(e) if e.downcast_ref::<CryptError>().is_some() => {
                                 // we likely matched a PrivateNodeHeader instead of a PrivateNode.
                                 // we skip it
                             }

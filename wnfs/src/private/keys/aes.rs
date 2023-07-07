@@ -5,7 +5,7 @@ use std::fmt::Debug;
 // Constants
 //--------------------------------------------------------------------------------------------------
 
-pub(crate) const NONCE_SIZE: usize = 12;
+pub(crate) const NONCE_SIZE: usize = 24;
 pub(crate) const AUTHENTICATION_TAG_SIZE: usize = 16;
 pub const KEY_BYTE_SIZE: usize = 32;
 

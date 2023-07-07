@@ -1,10 +1,10 @@
 use super::KEY_BYTE_SIZE;
 use crate::{
-    error::{AesError, FsError},
+    error::{CryptError, FsError},
     private::{PrivateRefSerializable, TemporalKey},
 };
 use aes_kw::KekAes256;
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use libipld_core::cid::Cid;
 use serde::{de::Error as DeError, ser::Error as SerError, Deserialize, Serialize};
 use std::fmt::Debug;
@@ -66,7 +66,7 @@ impl PrivateRef {
         let temporal_key_as_kek = KekAes256::from(parent_temporal_key.0.clone().bytes());
         let temporal_key_wrapped = temporal_key_as_kek
             .wrap_with_padding_vec(self.temporal_key.0.as_bytes())
-            .map_err(|e| AesError::UnableToEncrypt(format!("{e}")))?;
+            .map_err(|e| CryptError::UnableToEncrypt(anyhow!(e)))?;
 
         Ok(PrivateRefSerializable {
             revision_name_hash: self.revision_name_hash,
@@ -85,7 +85,7 @@ impl PrivateRef {
 
         let temporal_key_raw: [u8; KEY_BYTE_SIZE] = temporal_key_as_kek
             .unwrap_with_padding_vec(&private_ref.temporal_key)
-            .map_err(|e| AesError::UnableToDecrypt(format!("{e}")))?
+            .map_err(|e| CryptError::UnableToDecrypt(anyhow!(e)))?
             .try_into()
             .map_err(|e: Vec<u8>| {
                 FsError::InvalidDeserialization(format!(
