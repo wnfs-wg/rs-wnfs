@@ -16,7 +16,7 @@ pub mod traits;
 mod utils;
 
 pub mod rand_core {
-    pub use rand_core::RngCore;
+    pub use rand_core::CryptoRngCore;
 }
 pub mod common {
     pub use wnfs_common::*;

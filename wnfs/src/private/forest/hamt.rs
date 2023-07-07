@@ -34,8 +34,8 @@ use wnfs_nameaccumulator::{AccumulatorSetup, Name, NameAccumulator};
 /// println!("{:?}", forest);
 /// ```
 #[derive(Debug, Clone)]
-pub struct HamtForest<H: Hasher = Sha3_256> {
-    hamt: Hamt<NameAccumulator, BTreeSet<Cid>, H>,
+pub struct HamtForest {
+    hamt: Hamt<NameAccumulator, BTreeSet<Cid>, Sha3_256>,
     accumulator: AccumulatorSetup,
 }
 
@@ -232,10 +232,7 @@ impl PrivateForest for Rc<HamtForest> {
     }
 }
 
-impl<H> HamtForest<H>
-where
-    H: Hasher + Clone + 'static,
-{
+impl HamtForest {
     /// Merges a private forest with another. If there is a conflict with the values,they are union
     /// combined into a single value in the final merge node
     ///
@@ -384,88 +381,11 @@ mod tests {
     use super::*;
     use crate::private::{PrivateDirectory, PrivateNode};
     use chrono::Utc;
-    use helper::*;
     use rand_chacha::ChaCha12Rng;
     use rand_core::SeedableRng;
     use std::rc::Rc;
     use wnfs_common::MemoryBlockStore;
-    use wnfs_hamt::{HashNibbles, Node};
     use wnfs_nameaccumulator::NameSegment;
-
-    mod helper {
-        use libipld_core::{cid::Cid, multihash::Multihash};
-        use once_cell::sync::Lazy;
-        use rand::thread_rng;
-        use rand_core::CryptoRngCore;
-        use wnfs_common::{utils, HashOutput};
-        use wnfs_hamt::Hasher;
-        use wnfs_nameaccumulator::{AccumulatorSetup, NameAccumulator, NameSegment};
-
-        pub(super) static HASH_KV_PAIRS: Lazy<Vec<(HashOutput, Vec<u8>, Cid)>> = Lazy::new(|| {
-            let setup = AccumulatorSetup::from_rsa_2048(&mut thread_rng());
-            vec![
-                (
-                    utils::to_hash_output(&[0xA0]),
-                    generate_name_accumulator(&setup, &mut thread_rng()),
-                    generate_cid(&mut thread_rng()),
-                ),
-                (
-                    utils::to_hash_output(&[0xA3]),
-                    generate_name_accumulator(&setup, &mut thread_rng()),
-                    generate_cid(&mut thread_rng()),
-                ),
-                (
-                    utils::to_hash_output(&[0xA7]),
-                    generate_name_accumulator(&setup, &mut thread_rng()),
-                    generate_cid(&mut thread_rng()),
-                ),
-                (
-                    utils::to_hash_output(&[0xAC]),
-                    generate_name_accumulator(&setup, &mut thread_rng()),
-                    generate_cid(&mut thread_rng()),
-                ),
-                (
-                    utils::to_hash_output(&[0xAE]),
-                    generate_name_accumulator(&setup, &mut thread_rng()),
-                    generate_cid(&mut thread_rng()),
-                ),
-            ]
-        });
-
-        #[derive(Debug, Clone)]
-        pub(super) struct MockHasher;
-        impl Hasher for MockHasher {
-            fn hash<K: AsRef<[u8]>>(key: &K) -> HashOutput {
-                let key_ref = key.as_ref();
-                HASH_KV_PAIRS
-                    .iter()
-                    .find(|(_, v, _)| key_ref == v)
-                    .unwrap()
-                    .0
-            }
-        }
-
-        pub(super) fn generate_name_accumulator(
-            setup: &AccumulatorSetup,
-            rng: &mut impl CryptoRngCore,
-        ) -> Vec<u8> {
-            let mut name = NameAccumulator::empty(setup);
-            name.add(Some(&NameSegment::new(rng)), setup);
-            name.as_ref().to_vec()
-        }
-
-        pub(super) fn generate_cid(rng: &mut impl CryptoRngCore) -> Cid {
-            let bytes = {
-                let mut tmp = [0u8; 10];
-                let (a, b) = tmp.split_at_mut(2);
-                a.copy_from_slice(&[0x55, 0x08]);
-                b.copy_from_slice(&utils::get_random_bytes::<8>(rng));
-                tmp
-            };
-
-            Cid::new_v1(0x55, Multihash::from_bytes(&bytes).unwrap())
-        }
-    }
 
     #[async_std::test]
     async fn test_put_get() {
@@ -562,90 +482,5 @@ mod tests {
 
         assert_eq!(retrieved, private_node);
         assert_eq!(retrieved_conflict, private_node_conflict);
-    }
-
-    #[async_std::test]
-    async fn can_merge_nodes_with_different_structure_and_modified_changes() {
-        let store = &mut MemoryBlockStore::new();
-        let rng = &mut ChaCha12Rng::seed_from_u64(0);
-        let setup = &AccumulatorSetup::from_rsa_2048(rng);
-
-        // A node that adds the first 3 pairs of HASH_KV_PAIRS.
-        let other_node = &mut Rc::new(Node::<_, _, MockHasher>::default());
-        for (digest, k, v) in HASH_KV_PAIRS.iter().take(3) {
-            other_node
-                .set_value(
-                    &mut HashNibbles::new(digest),
-                    NameAccumulator::parse_bytes(k).unwrap(),
-                    BTreeSet::from([*v]),
-                    store,
-                )
-                .await
-                .unwrap();
-        }
-
-        // Another node that keeps the first pair, modify the second pair, removes the third pair, and adds the fourth and fifth pair.
-        let main_node = &mut Rc::new(Node::<_, _, MockHasher>::default());
-        main_node
-            .set_value(
-                &mut HashNibbles::new(&HASH_KV_PAIRS[0].0),
-                NameAccumulator::parse_bytes(&HASH_KV_PAIRS[0].1).unwrap(),
-                BTreeSet::from([HASH_KV_PAIRS[0].2]),
-                store,
-            )
-            .await
-            .unwrap();
-
-        let new_cid = generate_cid(rng);
-        main_node
-            .set_value(
-                &mut HashNibbles::new(&HASH_KV_PAIRS[1].0),
-                NameAccumulator::parse_bytes(&HASH_KV_PAIRS[1].1).unwrap(),
-                BTreeSet::from([new_cid]),
-                store,
-            )
-            .await
-            .unwrap();
-
-        for (digest, k, v) in HASH_KV_PAIRS.iter().skip(3).take(2) {
-            main_node
-                .set_value(
-                    &mut HashNibbles::new(digest),
-                    NameAccumulator::parse_bytes(k).unwrap(),
-                    BTreeSet::from([*v]),
-                    store,
-                )
-                .await
-                .unwrap();
-        }
-
-        let main_forest = HamtForest {
-            hamt: Hamt::<NameAccumulator, BTreeSet<Cid>, _>::with_root(Rc::clone(main_node)),
-            accumulator: setup.clone(),
-        };
-
-        let other_forest = HamtForest {
-            hamt: Hamt::<NameAccumulator, BTreeSet<Cid>, _>::with_root(Rc::clone(other_node)),
-            accumulator: setup.clone(),
-        };
-
-        let merge_forest = main_forest.merge(&other_forest, store).await.unwrap();
-
-        for (i, (digest, _, v)) in HASH_KV_PAIRS.iter().take(5).enumerate() {
-            let retrieved = merge_forest
-                .hamt
-                .root
-                .get_by_hash(digest, store)
-                .await
-                .unwrap();
-
-            if i != 1 {
-                assert_eq!(retrieved.unwrap(), &BTreeSet::from([*v]));
-            } else {
-                // The second pair should contain two merged Cids.
-                assert!(retrieved.unwrap().contains(&new_cid));
-                assert!(retrieved.unwrap().contains(&HASH_KV_PAIRS[1].2));
-            }
-        }
     }
 }
