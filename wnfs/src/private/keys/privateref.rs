@@ -132,13 +132,13 @@ impl PrivateRef {
 
 impl Debug for PrivateRef {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let mut sat_name_hash_str = String::from("0x");
+        let mut rev_name_hash_str = String::from("0x");
         for byte in self.revision_name_hash {
-            sat_name_hash_str.push_str(&format!("{byte:02X}"));
+            rev_name_hash_str.push_str(&format!("{byte:02X}"));
         }
 
         f.debug_struct("PrivateRef")
-            .field("revision_name_hash", &sat_name_hash_str)
+            .field("revision_name_hash", &rev_name_hash_str)
             .field("temporal_key", &self.temporal_key.0)
             .field("content_cid", &self.content_cid)
             .finish()
