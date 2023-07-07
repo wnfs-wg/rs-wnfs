@@ -1,8 +1,8 @@
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
+use bip39::{Language, Mnemonic, MnemonicType, Seed};
 use chrono::Utc;
 use libipld_core::cid::Cid;
-use rand::thread_rng;
 use rand_chacha::ChaCha12Rng;
 use rand_core::SeedableRng;
 use rsa::{traits::PublicKeyParts, BigUint, Oaep, RsaPrivateKey, RsaPublicKey};
@@ -10,13 +10,13 @@ use sha2::Sha256;
 use std::rc::Rc;
 use wnfs::{
     private::{
+        forest::{hamt::HamtForest, traits::PrivateForest},
         share::{recipient, sharer},
-        AccessKey, ExchangeKey, PrivateDirectory, PrivateForest, PrivateKey, PrivateNode,
-        PUBLIC_KEY_EXPONENT,
+        AccessKey, ExchangeKey, PrivateDirectory, PrivateKey, PrivateNode, PUBLIC_KEY_EXPONENT,
     },
     public::{PublicDirectory, PublicLink, PublicNode},
 };
-use wnfs_common::{utils::get_random_bytes, BlockStore, MemoryBlockStore, CODEC_RAW};
+use wnfs_common::{BlockStore, MemoryBlockStore, CODEC_RAW};
 
 //--------------------------------------------------------------------------------------------------
 // Example Code
@@ -34,12 +34,13 @@ async fn main() -> Result<()> {
 
     // We write a private share into the private forest for giving access to a
     // seed-derived keypair:
-    let seed = setup_seeded_keypair_access(&mut forest, access_key, store).await?;
+    let mnemonic = setup_seeded_keypair_access(&mut forest, access_key, store).await?;
 
-    println!("seed: {:x?}", seed);
+    println!("seed phrase: {}", mnemonic.phrase());
 
-    // And regain access to our directory:
-    let node = regain_access_from_seed(&forest, seed, store).await?;
+    // And regain access to our directory,
+    // given knowledge of the mnemonic & the private forest:
+    let node = regain_access_from_mnemonic(&forest, mnemonic, store).await?;
     let dir = node.as_dir()?;
     let content_bytes = dir
         .read(&["hello".into(), "world".into()], true, &forest, store)
@@ -53,12 +54,12 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
-async fn root_dir_setup(store: &impl BlockStore) -> Result<(Rc<PrivateForest>, AccessKey)> {
+async fn root_dir_setup(store: &impl BlockStore) -> Result<(Rc<HamtForest>, AccessKey)> {
     // We generate a new simple example file system:
     let rng = &mut rand::thread_rng();
-    let forest = &mut Rc::new(PrivateForest::new());
+    let forest = &mut Rc::new(HamtForest::new_trusted(rng));
     let root_dir =
-        &mut PrivateDirectory::new_and_store(Default::default(), Utc::now(), forest, store, rng)
+        &mut PrivateDirectory::new_and_store(&forest.empty_name(), Utc::now(), forest, store, rng)
             .await?;
 
     // And write something to it:
@@ -80,12 +81,14 @@ async fn root_dir_setup(store: &impl BlockStore) -> Result<(Rc<PrivateForest>, A
 }
 
 async fn setup_seeded_keypair_access(
-    forest: &mut Rc<PrivateForest>,
+    forest: &mut Rc<HamtForest>,
     access_key: AccessKey,
     store: &impl BlockStore,
-) -> Result<[u8; 32]> {
-    let seed = get_random_bytes(&mut thread_rng());
-    let exchange_keypair = SeededExchangeKey::from_seed(seed.clone())?;
+) -> Result<Mnemonic> {
+    // Create a random mnemonic and derive a keypair from it
+    let mnemonic = Mnemonic::new(MnemonicType::Words12, Language::English);
+    let seed = Seed::new(&mnemonic, /* optional password */ "");
+    let exchange_keypair = SeededExchangeKey::from_bip39_seed(seed)?;
 
     // Store the public key inside some public WNFS.
     // Building from scratch in this case. Would actually be stored next to the private forest usually.
@@ -128,16 +131,17 @@ async fn setup_seeded_keypair_access(
     )
     .await?;
 
-    Ok(seed)
+    Ok(mnemonic)
 }
 
-async fn regain_access_from_seed(
-    forest: &PrivateForest,
-    seed: [u8; 32],
+async fn regain_access_from_mnemonic(
+    forest: &HamtForest,
+    mnemonic: Mnemonic,
     store: &impl BlockStore,
 ) -> Result<PrivateNode> {
-    // Re-derive keypair
-    let exchange_keypair = SeededExchangeKey::from_seed(seed)?;
+    // Re-derive the same private key from the seed phrase
+    let seed = Seed::new(&mnemonic, /* optional password */ "");
+    let exchange_keypair = SeededExchangeKey::from_bip39_seed(seed)?;
     let root_did = "did:key:zExample".into();
 
     // Re-load private node from forest
@@ -151,10 +155,17 @@ async fn regain_access_from_seed(
     )
     .await?
     .unwrap_or_default();
-    let label =
-        sharer::create_share_label(counter, root_did, &exchange_keypair.encode_public_key());
-    let node = recipient::receive_share(label, &exchange_keypair, forest, store).await?;
-    node.search_latest(forest, store).await
+
+    let name = sharer::create_share_name(
+        counter,
+        root_did,
+        &exchange_keypair.encode_public_key(),
+        forest,
+    );
+
+    let node = recipient::receive_share(&name, &exchange_keypair, forest, store).await?;
+    let latest_node = node.search_latest(forest, store).await?;
+    Ok(latest_node)
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -166,8 +177,9 @@ struct SeededExchangeKey(RsaPrivateKey);
 struct PublicExchangeKey(RsaPublicKey);
 
 impl SeededExchangeKey {
-    pub fn from_seed(seed: [u8; 32]) -> Result<Self> {
-        let rng = &mut ChaCha12Rng::from_seed(seed);
+    pub fn from_bip39_seed(seed: Seed) -> Result<Self> {
+        let seed_bytes: [u8; 32] = seed.as_bytes()[..32].try_into()?;
+        let rng = &mut ChaCha12Rng::from_seed(seed_bytes);
         let private_key = RsaPrivateKey::new(rng, 2048)?;
         Ok(Self(private_key))
     }
