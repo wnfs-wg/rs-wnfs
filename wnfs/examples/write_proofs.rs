@@ -53,9 +53,7 @@ async fn main() -> Result<()> {
 async fn alice_actions(store: &impl BlockStore) -> Result<(Cid, AccessKey, NameAccumulator)> {
     let rng = &mut thread_rng();
     let forest = &mut Rc::new(HamtForest::new_rsa_2048(rng));
-    let root_dir =
-        &mut PrivateDirectory::new_and_store(&forest.empty_name(), Utc::now(), forest, store, rng)
-            .await?;
+    let root_dir = &mut Rc::new(PrivateDirectory::new(&forest.empty_name(), Utc::now(), rng));
 
     let access_key = root_dir.as_node().store(forest, store, rng).await?;
     let cid = forest.store(store).await?;
