@@ -44,7 +44,7 @@ pub(crate) struct RevisionRef {
 //--------------------------------------------------------------------------------------------------
 
 impl PrivateRef {
-    /// Creates a PrivateRef from provided saturated name and temporal key.
+    /// Creates a PrivateRef from provided revision name hash and temporal key.
     pub(crate) fn with_temporal_key(
         revision_name_hash: HashOutput,
         temporal_key: TemporalKey,
