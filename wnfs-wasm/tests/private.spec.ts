@@ -622,17 +622,17 @@ test.describe("AccessKey", () => {
   test("can encode / decode an access key", async ({ page }) => {
     const [metadataBefore, metadataAfter] = await page.evaluate(async () => {
       const {
-        wnfs: { AccessKey, Namefilter, PrivateFile, PrivateNode, PrivateForest },
+        wnfs: { AccessKey, PrivateFile, PrivateNode, PrivateForest },
         mock: { MemoryBlockStore, Rng },
       } = await window.setup();
 
       
       const rng = new Rng();
       const store = new MemoryBlockStore();
+      const forest = new PrivateForest(rng);
       const time = new Date();
-      const file = new PrivateFile(new Namefilter(), time, rng);
+      const file = new PrivateFile(forest.emptyName(), time, rng);
       const node = file.asNode();
-      const forest = new PrivateForest();
       const [accessKey, newForest] = await node.store(forest, store, rng);
       
       const encodedAccessKey = accessKey.toBytes();
