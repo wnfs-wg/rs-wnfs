@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1688744857318,
+  "lastUpdate": 1688990546988,
   "repoUrl": "https://github.com/wnfs-wg/rs-wnfs",
   "entries": {
     "Rust Benchmark": [
@@ -15133,6 +15133,102 @@ window.BENCHMARK_DATA = {
             "name": "NameAccumulator serialization",
             "value": 1010,
             "range": "± 25",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "philipp.krueger1@gmail.com",
+            "name": "Philipp Krüger",
+            "username": "matheus23"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "394a04899113a662d26a606389a76220cd0eed07",
+          "message": "chore: Write example for seeded WNFS using BIP39 mnemonics (#302)\n\n* Write example for seeded WNFS using BIP39 mnemonics\r\n\r\n* Split out example into functions\r\n\r\n* Make example seed-based\r\n\r\n* Switch back to using BIP39 Mnemonics instead of a seed\r\n\r\n* Update wnfs/examples/mnemonic_based.rs\r\n\r\nCo-authored-by: Stephen Akinyemi <appcypher@outlook.com>\r\nSigned-off-by: Philipp Krüger <philipp.krueger1@gmail.com>\r\n\r\n---------\r\n\r\nSigned-off-by: Philipp Krüger <philipp.krueger1@gmail.com>\r\nCo-authored-by: Stephen Akinyemi <appcypher@outlook.com>",
+          "timestamp": "2023-07-10T13:58:07+02:00",
+          "tree_id": "e3a8b26c1de18f217cc6f05b00b3d339d5564c53",
+          "url": "https://github.com/wnfs-wg/rs-wnfs/commit/394a04899113a662d26a606389a76220cd0eed07"
+        },
+        "date": 1688990545767,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "node set",
+            "value": 7075,
+            "range": "± 63",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node set 1000 consecutive",
+            "value": 4539628,
+            "range": "± 18982",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and get",
+            "value": 168622,
+            "range": "± 250",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and remove",
+            "value": 193115,
+            "range": "± 302",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt load and decode/0",
+            "value": 42896,
+            "range": "± 218",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt set and encode",
+            "value": 180529,
+            "range": "± 725",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt diff",
+            "value": 57997,
+            "range": "± 4603",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt merge",
+            "value": 241728,
+            "range": "± 19269",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameSegment::from_digest",
+            "value": 2315225,
+            "range": "± 222112",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameSegment::new(rng)",
+            "value": 2450363,
+            "range": "± 231545",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameAccumulator::add",
+            "value": 2304953,
+            "range": "± 76157",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameAccumulator serialization",
+            "value": 813,
+            "range": "± 91",
             "unit": "ns/iter"
           }
         ]
