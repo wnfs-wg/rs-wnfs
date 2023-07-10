@@ -49,14 +49,12 @@ pub trait PrivateForest {
     /// use std::rc::Rc;
     /// use chrono::Utc;
     /// use rand::thread_rng;
-    /// use sha3::Sha3_256;
     /// use wnfs::{
     ///     private::{
-    ///         AccessKey, PrivateDirectory, PrivateNode,
+    ///         PrivateDirectory, PrivateNode,
     ///         forest::{hamt::HamtForest, traits::PrivateForest},
     ///     },
     ///     common::MemoryBlockStore,
-    ///     hamt::Hasher,
     /// };
     ///
     /// #[async_std::main]

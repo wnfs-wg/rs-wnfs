@@ -1,12 +1,12 @@
+use blake3::traits::digest::Digest;
 use criterion::{criterion_group, criterion_main, BatchSize, Criterion};
 use rand::{thread_rng, Rng};
-use sha3::Digest;
 use wnfs_nameaccumulator::{AccumulatorSetup, NameAccumulator, NameSegment};
 
 fn name_segment_from_digest(c: &mut Criterion) {
     c.bench_function("NameSegment::from_digest", |b| {
         b.iter_batched(
-            || sha3::Sha3_256::new().chain_update(thread_rng().gen::<[u8; 32]>()),
+            || blake3::Hasher::new().chain_update(thread_rng().gen::<[u8; 32]>()),
             NameSegment::from_digest,
             BatchSize::SmallInput,
         );

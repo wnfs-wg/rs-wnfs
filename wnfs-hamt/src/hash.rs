@@ -1,6 +1,5 @@
 use crate::error::HamtError;
 use anyhow::{bail, Result};
-use sha3::{Digest, Sha3_256};
 use std::fmt::Debug;
 use wnfs_common::{utils, HashOutput, HASH_BYTE_SIZE};
 
@@ -22,7 +21,6 @@ pub const MAX_HASH_NIBBLE_LENGTH: usize = HASH_BYTE_SIZE * 2;
 /// # Examples
 ///
 /// ```
-/// use sha3::{Digest, Sha3_256};
 /// use wnfs_hamt::Hasher;
 /// use wnfs_common::HashOutput;
 ///
@@ -30,9 +28,7 @@ pub const MAX_HASH_NIBBLE_LENGTH: usize = HASH_BYTE_SIZE * 2;
 ///
 /// impl Hasher for MyHasher {
 ///     fn hash<D: AsRef<[u8]>>(data: &D) -> HashOutput {
-///         let mut hasher = Sha3_256::new();
-///         hasher.update(data.as_ref());
-///         hasher.finalize().into()
+///         blake3::hash(data.as_ref()).into()
 ///     }
 /// }
 /// ```
@@ -152,11 +148,9 @@ impl Debug for HashNibbles<'_> {
     }
 }
 
-impl Hasher for Sha3_256 {
+impl Hasher for blake3::Hasher {
     fn hash<D: AsRef<[u8]>>(data: &D) -> HashOutput {
-        let mut hasher = Self::default();
-        hasher.update(data.as_ref());
-        hasher.finalize().into()
+        blake3::hash(data.as_ref()).into()
     }
 }
 

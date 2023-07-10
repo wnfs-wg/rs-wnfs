@@ -3,7 +3,6 @@ use crate::{error::FsError, private::RevisionRef};
 use anyhow::{bail, Result};
 use libipld_core::cid::Cid;
 use rand_core::CryptoRngCore;
-use sha3::Sha3_256;
 use skip_ratchet::Ratchet;
 use std::fmt::Debug;
 use wnfs_common::{BlockStore, CODEC_RAW};
@@ -80,7 +79,8 @@ impl PrivateNodeHeader {
     /// Derives the revision ref of the current header.
     pub(crate) fn derive_revision_ref(&self, setup: &AccumulatorSetup) -> RevisionRef {
         let temporal_key = self.derive_temporal_key();
-        let revision_name_hash = Sha3_256::hash(self.get_revision_name().as_accumulator(setup));
+        let revision_name_hash =
+            blake3::Hasher::hash(self.get_revision_name().as_accumulator(setup));
 
         RevisionRef {
             revision_name_hash,

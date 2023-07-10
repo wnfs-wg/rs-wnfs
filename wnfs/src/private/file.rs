@@ -7,12 +7,12 @@ use crate::{error::FsError, traits::Id, WNFS_VERSION};
 use anyhow::{bail, Result};
 use async_once_cell::OnceCell;
 use async_stream::try_stream;
+use blake3::traits::digest::Digest;
 use chrono::{DateTime, Utc};
 use futures::{future, AsyncRead, Stream, StreamExt, TryStreamExt};
 use libipld_core::cid::Cid;
 use rand_core::CryptoRngCore;
 use serde::{Deserialize, Serialize};
-use sha3::{Digest, Sha3_256};
 use std::{collections::BTreeSet, iter, rc::Rc};
 use wnfs_common::{utils, BlockStore, Metadata, CODEC_RAW, MAX_BLOCK_SIZE};
 use wnfs_nameaccumulator::{AccumulatorSetup, Name, NameSegment};
@@ -493,7 +493,7 @@ impl PrivateFile {
         loop {
             let mut current_block = vec![0u8; MAX_BLOCK_SIZE];
             let nonce = SnapshotKey::generate_nonce(rng);
-            current_block[..NONCE_SIZE].copy_from_slice(&nonce);
+            current_block[..NONCE_SIZE].copy_from_slice(nonce.as_ref());
 
             // read up to MAX_BLOCK_CONTENT_SIZE content
 
@@ -506,7 +506,7 @@ impl PrivateFile {
             current_block.truncate(bytes_written + NONCE_SIZE);
 
             let tag = key.encrypt_in_place(&nonce, &mut current_block[NONCE_SIZE..])?;
-            current_block.extend_from_slice(&tag);
+            current_block.extend_from_slice(tag.as_ref());
 
             let content_cid = store.put_block(current_block, CODEC_RAW).await?;
 
@@ -583,13 +583,13 @@ impl PrivateFile {
 
     fn create_revision_name(file_block_name: &Name, key: &SnapshotKey) -> Name {
         let revision_segment =
-            NameSegment::from_digest(Sha3_256::new().chain_update(key.0.as_bytes()));
+            NameSegment::from_digest(blake3::Hasher::new().chain_update(key.0.as_bytes()));
         file_block_name.with_segments_added(Some(revision_segment))
     }
 
     /// Creates the label for a block of a file.
     fn create_block_label(key: &SnapshotKey, index: usize, file_revision_name: &Name) -> Name {
-        let key_hash = Sha3_256::new()
+        let key_hash = blake3::Hasher::new()
             .chain_update(key.0.as_bytes())
             .chain_update(index.to_le_bytes());
         let elem = NameSegment::from_digest(key_hash);

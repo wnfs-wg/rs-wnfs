@@ -11,7 +11,7 @@ use wnfs_common::{BlockStore, Link};
 //--------------------------------------------------------------------------------------------------
 
 /// This type represents the different kinds of changes to a node.
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum ChangeType {
     Add,
     Remove,
@@ -19,7 +19,7 @@ pub enum ChangeType {
 }
 
 /// Represents a change to some key-value pair of a HAMT node.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct KeyValueChange<K, V> {
     pub r#type: ChangeType,
     pub key: K,
@@ -300,7 +300,7 @@ where
 mod tests {
     use super::{ChangeType::*, *};
     use helper::*;
-    use std::rc::Rc;
+    use std::{collections::BTreeSet, rc::Rc};
     use wnfs_common::MemoryBlockStore;
 
     mod helper {
@@ -358,8 +358,8 @@ mod tests {
         .unwrap();
 
         assert_eq!(
-            changes,
-            vec![
+            changes.into_iter().collect::<BTreeSet<_>>(),
+            BTreeSet::from([
                 KeyValueChange {
                     r#type: Add,
                     key: [2, 0, 0, 0,],
@@ -372,7 +372,7 @@ mod tests {
                     value1: Some(String::from("1")),
                     value2: None,
                 },
-            ]
+            ])
         );
 
         let changes = diff(
@@ -384,8 +384,8 @@ mod tests {
         .unwrap();
 
         assert_eq!(
-            changes,
-            vec![
+            changes.into_iter().collect::<BTreeSet<_>>(),
+            BTreeSet::from([
                 KeyValueChange {
                     r#type: Remove,
                     key: [2, 0, 0, 0,],
@@ -398,7 +398,7 @@ mod tests {
                     value1: Some(String::from("1")),
                     value2: None,
                 },
-            ]
+            ])
         );
     }
 

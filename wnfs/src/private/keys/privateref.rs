@@ -19,7 +19,7 @@ use wnfs_common::HashOutput;
 /// It also includes required key material to decrypt/encrypt any future revisions of the node it points to.
 #[derive(Clone, PartialEq, Eq)]
 pub struct PrivateRef {
-    /// Sha3-256 hash of the revision name. Used as the label for identifying revisions of PrivateNodes in the PrivateForest.
+    /// Blake3 hash of the revision name. Used as the label for identifying revisions of PrivateNodes in the PrivateForest.
     pub revision_name_hash: HashOutput,
     /// Skip-ratchet-derived key. Gives read access to the revision pointed to and any newer revisions.
     pub temporal_key: TemporalKey,
@@ -33,7 +33,7 @@ pub struct PrivateRef {
 /// revisions.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub(crate) struct RevisionRef {
-    /// Sha3-256 hash of the revision name. Used as the label for private nodes in the private forest.
+    /// Blake3 hash of the revision name. Used as the label for private nodes in the private forest.
     pub revision_name_hash: HashOutput,
     /// Skip-ratchet-derived key. Gives read access to the revision pointed to and any newer revisions.
     pub temporal_key: TemporalKey,

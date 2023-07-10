@@ -14,7 +14,6 @@ use chrono::{DateTime, Utc};
 use futures::StreamExt;
 use libipld_core::cid::Cid;
 use rand_core::CryptoRngCore;
-use sha3::Sha3_256;
 use skip_ratchet::{JumpSize, RatchetSeeker};
 use std::{cmp::Ordering, collections::BTreeSet, fmt::Debug, rc::Rc};
 use wnfs_common::BlockStore;
@@ -452,7 +451,8 @@ impl PrivateNode {
 
         current_header.ratchet = search.current().clone();
 
-        let name_hash = Sha3_256::hash(&current_header.get_revision_name().as_accumulator(setup));
+        let name_hash =
+            blake3::Hasher::hash(&current_header.get_revision_name().as_accumulator(setup));
 
         Ok(forest
             .get_multivalue_by_hash(

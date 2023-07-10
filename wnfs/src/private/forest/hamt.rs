@@ -7,7 +7,6 @@ use rand_core::CryptoRngCore;
 use serde::{
     de::Error as DeError, ser::Error as SerError, Deserialize, Deserializer, Serialize, Serializer,
 };
-use sha3::Sha3_256;
 use std::{collections::BTreeSet, rc::Rc};
 use wnfs_common::{AsyncSerialize, BlockStore, HashOutput, Link};
 use wnfs_hamt::{merge, Hamt, Hasher, KeyValueChange, Pair};
@@ -35,7 +34,7 @@ use wnfs_nameaccumulator::{AccumulatorSetup, Name, NameAccumulator};
 /// ```
 #[derive(Debug, Clone)]
 pub struct HamtForest {
-    hamt: Hamt<NameAccumulator, BTreeSet<Cid>, Sha3_256>,
+    hamt: Hamt<NameAccumulator, BTreeSet<Cid>, blake3::Hasher>,
     accumulator: AccumulatorSetup,
 }
 
@@ -125,7 +124,7 @@ impl PrivateForest for HamtForest {
 
     async fn has(&self, name: &Name, store: &impl BlockStore) -> Result<bool> {
         self.has_by_hash(
-            &Sha3_256::hash(name.as_accumulator(&self.accumulator)),
+            &blake3::Hasher::hash(name.as_accumulator(&self.accumulator)),
             store,
         )
         .await
@@ -166,7 +165,7 @@ impl PrivateForest for HamtForest {
         name: &Name,
         store: &impl BlockStore,
     ) -> Result<Option<&BTreeSet<Cid>>> {
-        let name_hash = &Sha3_256::hash(name.as_accumulator(&self.accumulator));
+        let name_hash = &blake3::Hasher::hash(name.as_accumulator(&self.accumulator));
         self.get_encrypted_by_hash(name_hash, store).await
     }
 
@@ -175,7 +174,7 @@ impl PrivateForest for HamtForest {
         name: &Name,
         store: &impl BlockStore,
     ) -> Result<Option<Pair<NameAccumulator, BTreeSet<Cid>>>> {
-        let name_hash = &Sha3_256::hash(name.as_accumulator(&self.accumulator));
+        let name_hash = &blake3::Hasher::hash(name.as_accumulator(&self.accumulator));
         self.hamt.root.remove_by_hash(name_hash, store).await
     }
 }

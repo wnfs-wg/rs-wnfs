@@ -4,13 +4,13 @@ use crate::{
     uint256_serde_be::to_bytes_helper,
 };
 use anyhow::Result;
+use blake3::traits::digest::Digest;
 use num_bigint_dig::{BigUint, ModInverse, RandBigInt, RandPrime};
 use num_integer::Integer;
 use num_traits::One;
 use once_cell::sync::OnceCell;
 use rand_core::CryptoRngCore;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use sha3::{Digest, Sha3_256};
 use std::{hash::Hash, str::FromStr};
 use zeroize::Zeroize;
 
@@ -277,11 +277,15 @@ impl NameAccumulator {
     }
 }
 
-fn poke_fiat_shamir_l_hash(modulus: &BigUint, base: &BigUint, commitment: &BigUint) -> Sha3_256 {
-    let mut hasher = sha3::Sha3_256::new();
-    hasher.update(to_bytes_helper::<256>(modulus));
-    hasher.update(to_bytes_helper::<256>(base));
-    hasher.update(to_bytes_helper::<256>(commitment));
+fn poke_fiat_shamir_l_hash(
+    modulus: &BigUint,
+    base: &BigUint,
+    commitment: &BigUint,
+) -> impl Digest + Clone {
+    let mut hasher = blake3::Hasher::new();
+    hasher.update(&to_bytes_helper::<256>(modulus));
+    hasher.update(&to_bytes_helper::<256>(base));
+    hasher.update(&to_bytes_helper::<256>(commitment));
     hasher
 }
 
@@ -353,7 +357,7 @@ impl NameSegment {
 
     /// Derive a name segment from a seed secret
     pub fn from_seed(seed: impl AsRef<[u8]>) -> Self {
-        Self::from_digest(Sha3_256::new().chain_update(seed))
+        Self::from_digest(blake3::Hasher::new().chain_update(seed))
     }
 }
 

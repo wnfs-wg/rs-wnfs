@@ -1,6 +1,6 @@
+use blake3::traits::digest::Digest;
 use num_bigint_dig::{prime::probably_prime, BigUint};
 use num_traits::One;
-use sha3::Digest;
 
 /// Computes the function "MultiExp" from the paper
 /// "Batching Techniques for Accumulators with Applications to IOPs and Stateless Blockchains"
@@ -46,10 +46,10 @@ pub(crate) fn prime_digest(hasher: impl Digest + Clone, bytes: usize) -> (BigUin
     loop {
         let hash = hasher
             .clone()
-            .chain_update(counter.to_be_bytes())
+            .chain_update(counter.to_le_bytes())
             .finalize();
 
-        let mut candidate = BigUint::from_bytes_be(&hash[..bytes]);
+        let mut candidate = BigUint::from_bytes_le(&hash[..bytes]);
 
         candidate |= BigUint::one();
 
@@ -69,15 +69,31 @@ pub(crate) fn prime_digest_fast(
     bytes: usize,
     counter: u32,
 ) -> Option<BigUint> {
-    let hash = hasher.chain_update(counter.to_be_bytes()).finalize();
+    let hash = hasher.chain_update(counter.to_le_bytes()).finalize();
 
-    let mut to_verify = BigUint::from_bytes_be(&hash[..bytes]);
+    let mut to_verify = BigUint::from_bytes_le(&hash[..bytes]);
     to_verify |= BigUint::one();
 
     if !probably_prime(&to_verify, 20) {
         None
     } else {
         Some(to_verify)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::prime_digest;
+    use blake3::traits::digest::Digest;
+
+    /// This test makes sure we don't accidentally (only intentionally)
+    /// change hash outputs between versions.
+    #[test]
+    fn test_fixture_prime_hash() {
+        let hello_world_hash = blake3::Hasher::new().chain_update(&b"Hello, World!");
+        let (output, counter) = prime_digest(hello_world_hash, 16);
+        assert_eq!(output.to_str_radix(16), "9d139eb0bf1705f72c5a61973b1f92a3");
+        assert_eq!(counter, 13);
     }
 }
 
@@ -92,13 +108,12 @@ mod proptests {
     };
     use rand_chacha::ChaCha12Rng;
     use rand_core::SeedableRng;
-    use sha3::Digest;
     use test_strategy::proptest;
 
     #[proptest(cases = 1000)]
     fn test_prime_digest(#[strategy(vec(any::<u8>(), 0..100))] bytes: Vec<u8>) {
-        let mut hasher = sha3::Sha3_256::new();
-        hasher.update(bytes);
+        let mut hasher = blake3::Hasher::new();
+        hasher.update(&bytes);
 
         let (prime_hash, inc) = prime_digest(hasher.clone(), 16);
         prop_assert!(probably_prime(&prime_hash, 20));

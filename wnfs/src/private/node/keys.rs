@@ -8,9 +8,9 @@ use aes_gcm::{
 };
 use aes_kw::KekAes256;
 use anyhow::Result;
+use blake3::traits::digest::Digest;
 use rand_core::CryptoRngCore;
 use serde::{Deserialize, Serialize};
-use sha3::{Digest, Sha3_256};
 use skip_ratchet::Ratchet;
 use std::fmt::Debug;
 use wnfs_hamt::Hasher;
@@ -49,7 +49,7 @@ impl TemporalKey {
     /// revisions into a SnapshotKey, which only gives read access to the current revision.
     pub fn derive_snapshot_key(&self) -> SnapshotKey {
         let TemporalKey(key) = self;
-        SnapshotKey::from(Sha3_256::hash(&key.as_bytes()))
+        SnapshotKey::from(blake3::Hasher::hash(&key.as_bytes()))
     }
 
     /// Encrypt a cleartext with this temporal key.

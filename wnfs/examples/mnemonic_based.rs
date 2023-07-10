@@ -14,7 +14,7 @@ use wnfs::{
         share::{recipient, sharer},
         AccessKey, ExchangeKey, PrivateDirectory, PrivateKey, PrivateNode, PUBLIC_KEY_EXPONENT,
     },
-    public::{PublicDirectory, PublicLink, PublicNode},
+    public::{PublicDirectory, PublicLink},
 };
 use wnfs_common::{BlockStore, MemoryBlockStore, CODEC_RAW};
 

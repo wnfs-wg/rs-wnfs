@@ -206,7 +206,6 @@ pub mod recipient {
         private::{forest::traits::PrivateForest, AccessKey, PrivateKey, PrivateNode},
     };
     use anyhow::Result;
-    use sha3::Sha3_256;
     use wnfs_common::BlockStore;
     use wnfs_hamt::Hasher;
     use wnfs_nameaccumulator::Name;
@@ -255,7 +254,10 @@ pub mod recipient {
         let setup = sharer_forest.get_accumulator_setup();
         // Get cid to encrypted payload from sharer's forest using share_label
         let access_key_cid = sharer_forest
-            .get_encrypted_by_hash(&Sha3_256::hash(&share_label.as_accumulator(setup)), store)
+            .get_encrypted_by_hash(
+                &blake3::Hasher::hash(&share_label.as_accumulator(setup)),
+                store,
+            )
             .await?
             .ok_or(ShareError::AccessKeyNotFound)?
             .first()
