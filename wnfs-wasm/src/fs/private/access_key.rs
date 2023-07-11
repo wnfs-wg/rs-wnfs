@@ -21,7 +21,7 @@ impl AccessKey {
 
     #[wasm_bindgen(js_name = "getTemporalKey")]
     pub fn get_temporal_key(&self) -> Vec<u8> {
-        self.0.get_temporal_key().unwrap().0.as_bytes().to_vec()
+        self.0.get_temporal_key().unwrap().0.to_vec()
     }
 
     #[wasm_bindgen(js_name = "getContentCid")]
