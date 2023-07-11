@@ -72,8 +72,8 @@ pub trait BlockStore: Sized {
             bail!(BlockStoreError::MaximumBlockSizeExceeded(bytes.len()))
         }
 
-        // Compute the SHA256 hash of the bytes
-        let hash = Code::Sha2_256.digest(bytes);
+        // Compute the Blake3 hash of the bytes
+        let hash = Code::Blake3_256.digest(bytes);
 
         // Represent the hash as a V1 CID
         let cid = Cid::new(Version::V1, codec, hash)?;
