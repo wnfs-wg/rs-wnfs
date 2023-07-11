@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1689089999875,
+  "lastUpdate": 1689090853677,
   "repoUrl": "https://github.com/wnfs-wg/rs-wnfs",
   "entries": {
     "Rust Benchmark": [
@@ -15325,6 +15325,102 @@ window.BENCHMARK_DATA = {
             "name": "NameAccumulator serialization",
             "value": 1050,
             "range": "± 269",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "philipp.krueger1@gmail.com",
+            "name": "Philipp Krüger",
+            "username": "matheus23"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "c17f6bb5bc9369d94d1c57cfa66c6cc2adf8174b",
+          "message": "feat: Switch from AES-GCM to XChaCha20-Poly1305 (#305)\n\n* Switch to XChaCha20-Poly1305\r\n\r\n* Reduce code duplication & remove `AesKey` struct\r\n\r\n* Fix wnfs-wasm",
+          "timestamp": "2023-07-11T17:50:29+02:00",
+          "tree_id": "761b5d0ff60000d29cd1b6dbcc18fa1ab48c624a",
+          "url": "https://github.com/wnfs-wg/rs-wnfs/commit/c17f6bb5bc9369d94d1c57cfa66c6cc2adf8174b"
+        },
+        "date": 1689090852776,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "node set",
+            "value": 8177,
+            "range": "± 240",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node set 1000 consecutive",
+            "value": 5149013,
+            "range": "± 129282",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and get",
+            "value": 188069,
+            "range": "± 8907",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and remove",
+            "value": 216322,
+            "range": "± 8436",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt load and decode/0",
+            "value": 49565,
+            "range": "± 767",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt set and encode",
+            "value": 202366,
+            "range": "± 8075",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt diff",
+            "value": 61593,
+            "range": "± 6352",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt merge",
+            "value": 268019,
+            "range": "± 24637",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameSegment::from_digest",
+            "value": 2893023,
+            "range": "± 397373",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameSegment::new(rng)",
+            "value": 2942104,
+            "range": "± 403535",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameAccumulator::add",
+            "value": 2396809,
+            "range": "± 149678",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameAccumulator serialization",
+            "value": 840,
+            "range": "± 53",
             "unit": "ns/iter"
           }
         ]
