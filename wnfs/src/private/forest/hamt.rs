@@ -394,8 +394,8 @@ mod tests {
 
         let cid = Cid::default();
         let name = forest.empty_name().with_segments_added([
-            NameSegment::from_seed(b"one"),
-            NameSegment::from_seed(b"two"),
+            NameSegment::new_hashed(b"one"),
+            NameSegment::new_hashed(b"two"),
         ]);
 
         forest.put_encrypted(&name, [cid], store).await.unwrap();

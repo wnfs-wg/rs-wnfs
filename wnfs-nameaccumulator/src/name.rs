@@ -1,10 +1,9 @@
 use crate::{
     error::VerificationError,
-    fns::{multi_exp, nlogn_product, prime_digest, prime_digest_fast},
+    fns::{blake3_prime_digest, blake3_prime_digest_fast, multi_exp, nlogn_product},
     uint256_serde_be::to_bytes_helper,
 };
 use anyhow::Result;
-use blake3::traits::digest::Digest;
 use num_bigint_dig::{BigUint, ModInverse, RandBigInt, RandPrime};
 use num_integer::Integer;
 use num_traits::One;
@@ -227,8 +226,8 @@ impl NameAccumulator {
         let witness = self.state.clone();
         self.state = self.state.modpow(&product, &setup.modulus);
 
-        let hasher = poke_fiat_shamir_l_hash(&setup.modulus, &witness, &self.state);
-        let (l, l_hash_inc) = prime_digest(hasher, 16);
+        let data = poke_fiat_shamir_l_hash_data(&setup.modulus, &witness, &self.state);
+        let (l, l_hash_inc) = blake3_prime_digest(data, 16);
 
         let (q, r) = product.div_mod_floor(&l);
 
@@ -277,16 +276,17 @@ impl NameAccumulator {
     }
 }
 
-fn poke_fiat_shamir_l_hash(
+fn poke_fiat_shamir_l_hash_data(
     modulus: &BigUint,
     base: &BigUint,
     commitment: &BigUint,
-) -> impl Digest + Clone {
-    let mut hasher = blake3::Hasher::new();
-    hasher.update(&to_bytes_helper::<256>(modulus));
-    hasher.update(&to_bytes_helper::<256>(base));
-    hasher.update(&to_bytes_helper::<256>(commitment));
-    hasher
+) -> impl AsRef<[u8]> {
+    [
+        to_bytes_helper::<256>(modulus),
+        to_bytes_helper::<256>(base),
+        to_bytes_helper::<256>(commitment),
+    ]
+    .concat()
 }
 
 impl AccumulatorSetup {
@@ -349,15 +349,9 @@ impl NameSegment {
         Self(rng.gen_prime(256))
     }
 
-    /// Derive a name segment by finishing a hasher state
-    /// (which is repeatedly re-hashed with a counter to find a prime).
-    pub fn from_digest(digest: impl Digest + Clone) -> Self {
-        Self(prime_digest(digest, 32).0)
-    }
-
-    /// Derive a name segment from a seed secret
-    pub fn from_seed(seed: impl AsRef<[u8]>) -> Self {
-        Self::from_digest(blake3::Hasher::new().chain_update(seed))
+    /// Derive a name segment as the hash from some data
+    pub fn new_hashed(data: impl AsRef<[u8]>) -> Self {
+        Self(blake3_prime_digest(data, 32).0)
     }
 }
 
@@ -400,8 +394,9 @@ impl<'a> BatchedProofVerification<'a> {
         commitment: &NameAccumulator,
         proof_part: &UnbatchableProofPart,
     ) -> Result<()> {
-        let hasher = poke_fiat_shamir_l_hash(&self.setup.modulus, &base.state, &commitment.state);
-        let l = prime_digest_fast(hasher, 16, proof_part.l_hash_inc)
+        let hasher =
+            poke_fiat_shamir_l_hash_data(&self.setup.modulus, &base.state, &commitment.state);
+        let l = blake3_prime_digest_fast(hasher, 16, proof_part.l_hash_inc)
             .ok_or(VerificationError::LHashNonPrime)?;
 
         if proof_part.r >= l {

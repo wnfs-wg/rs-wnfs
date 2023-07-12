@@ -7,7 +7,6 @@ use crate::{error::FsError, traits::Id, WNFS_VERSION};
 use anyhow::{bail, Result};
 use async_once_cell::OnceCell;
 use async_stream::try_stream;
-use blake3::traits::digest::Digest;
 use chrono::{DateTime, Utc};
 use futures::{future, AsyncRead, Stream, StreamExt, TryStreamExt};
 use libipld_core::cid::Cid;
@@ -415,7 +414,11 @@ impl PrivateFile {
         forest: &impl PrivateForest,
         store: &impl BlockStore,
     ) -> Result<Vec<u8>> {
-        let mut content = Vec::with_capacity(self.get_content_size_upper_bound());
+        // We're not using Vec::with_capacity here because
+        // a call to get_content instead of stream_content seems to
+        // indicate that the content is small enough to fit into
+        // memory. So let's keep allocations low.
+        let mut content = Vec::new();
         self.stream_content(0, forest, store)
             .try_for_each(|chunk| {
                 content.extend_from_slice(&chunk);
@@ -582,19 +585,18 @@ impl PrivateFile {
     }
 
     fn create_revision_name(file_block_name: &Name, key: &SnapshotKey) -> Name {
-        let revision_segment =
-            NameSegment::from_digest(blake3::Hasher::new().chain_update(key.0.as_bytes()));
+        let revision_segment = NameSegment::new_hashed(key.0.as_bytes());
         file_block_name.with_segments_added(Some(revision_segment))
     }
 
     /// Creates the label for a block of a file.
     fn create_block_label(key: &SnapshotKey, index: usize, file_revision_name: &Name) -> Name {
-        let key_hash = blake3::Hasher::new()
-            .chain_update(key.0.as_bytes())
-            .chain_update(index.to_le_bytes());
-        let elem = NameSegment::from_digest(key_hash);
+        let mut vec = Vec::with_capacity(40);
+        vec.extend(key.0.as_bytes()); // 32 bytes
+        vec.extend((index as u64).to_le_bytes()); // 8 bytes
+        let block_segment = NameSegment::new_hashed(vec);
 
-        file_revision_name.with_segments_added(Some(elem))
+        file_revision_name.with_segments_added(Some(block_segment))
     }
 
     /// This should be called to prepare a node for modifications,

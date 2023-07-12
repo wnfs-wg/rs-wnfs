@@ -116,8 +116,7 @@ impl PrivateNodeHeader {
     }
 
     pub(crate) fn derive_revision_segment(&self) -> NameSegment {
-        let hasher = self.ratchet.derive_key(REVISION_SEGMENT_DSS);
-        NameSegment::from_digest(hasher)
+        NameSegment::new_hashed(self.ratchet.key_derivation_data(REVISION_SEGMENT_DSS))
     }
 
     /// Gets the revision name for this node.

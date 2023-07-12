@@ -1,4 +1,4 @@
-use blake3::traits::digest::Digest;
+use blake3::traits::digest::{ExtendableOutput, ExtendableOutputReset};
 use num_bigint_dig::{prime::probably_prime, BigUint};
 use num_traits::One;
 
@@ -41,15 +41,18 @@ pub(crate) fn nlogn_product<A>(factors: &[A], f: fn(&A) -> &BigUint) -> BigUint 
 ///
 /// The output includes both the prime and a 32-bit counter
 /// that helps verifying the prime digest.
-pub(crate) fn prime_digest(hasher: impl Digest + Clone, bytes: usize) -> (BigUint, u32) {
+pub(crate) fn blake3_prime_digest(bytes: impl AsRef<[u8]>, hash_len: usize) -> (BigUint, u32) {
     let mut counter: u32 = 0;
+    let mut hasher = blake3::Hasher::new();
+    let mut hash = vec![0u8; hash_len];
     loop {
-        let hash = hasher
-            .clone()
-            .chain_update(counter.to_le_bytes())
-            .finalize();
+        // We reuse the same `Hasher` struct between iterations to minimize
+        // stack usage. Each `Hasher` allocation is ~2kB for Blake3.
+        hasher.update(bytes.as_ref());
+        hasher.update(&counter.to_le_bytes());
+        hasher.finalize_xof_reset_into(&mut hash);
 
-        let mut candidate = BigUint::from_bytes_le(&hash[..bytes]);
+        let mut candidate = BigUint::from_bytes_le(&hash);
 
         candidate |= BigUint::one();
 
@@ -64,14 +67,18 @@ pub(crate) fn prime_digest(hasher: impl Digest + Clone, bytes: usize) -> (BigUin
 /// Finalizes a digest fast, if it has been computed before given the counter from
 /// a previous invocation of `prime_digest`.
 /// This will make sure that the returned digest is prime.
-pub(crate) fn prime_digest_fast(
-    hasher: impl Digest,
-    bytes: usize,
+pub(crate) fn blake3_prime_digest_fast(
+    bytes: impl AsRef<[u8]>,
+    hash_len: usize,
     counter: u32,
 ) -> Option<BigUint> {
-    let hash = hasher.chain_update(counter.to_le_bytes()).finalize();
+    let mut hash = vec![0u8; hash_len];
+    let mut hasher = blake3::Hasher::new();
+    hasher.update(bytes.as_ref());
+    hasher.update(&counter.to_le_bytes());
+    hasher.finalize_xof_into(&mut hash);
 
-    let mut to_verify = BigUint::from_bytes_le(&hash[..bytes]);
+    let mut to_verify = BigUint::from_bytes_le(&hash);
     to_verify |= BigUint::one();
 
     if !probably_prime(&to_verify, 20) {
@@ -83,15 +90,13 @@ pub(crate) fn prime_digest_fast(
 
 #[cfg(test)]
 mod tests {
-    use super::prime_digest;
-    use blake3::traits::digest::Digest;
+    use super::blake3_prime_digest;
 
     /// This test makes sure we don't accidentally (only intentionally)
     /// change hash outputs between versions.
     #[test]
     fn test_fixture_prime_hash() {
-        let hello_world_hash = blake3::Hasher::new().chain_update(&b"Hello, World!");
-        let (output, counter) = prime_digest(hello_world_hash, 16);
+        let (output, counter) = blake3_prime_digest("Hello, World!", 16);
         assert_eq!(output.to_str_radix(16), "9d139eb0bf1705f72c5a61973b1f92a3");
         assert_eq!(counter, 13);
     }
@@ -100,7 +105,7 @@ mod tests {
 #[cfg(test)]
 mod proptests {
     use super::nlogn_product;
-    use crate::fns::{multi_exp, prime_digest, prime_digest_fast};
+    use crate::fns::{blake3_prime_digest, blake3_prime_digest_fast, multi_exp};
     use num_bigint_dig::{prime::probably_prime, BigUint, RandPrime};
     use num_traits::One;
     use proptest::{
@@ -112,12 +117,9 @@ mod proptests {
 
     #[proptest(cases = 1000)]
     fn test_prime_digest(#[strategy(vec(any::<u8>(), 0..100))] bytes: Vec<u8>) {
-        let mut hasher = blake3::Hasher::new();
-        hasher.update(&bytes);
-
-        let (prime_hash, inc) = prime_digest(hasher.clone(), 16);
+        let (prime_hash, inc) = blake3_prime_digest(&bytes, 16);
         prop_assert!(probably_prime(&prime_hash, 20));
-        prop_assert_eq!(prime_digest_fast(hasher, 16, inc), Some(prime_hash));
+        prop_assert_eq!(blake3_prime_digest_fast(&bytes, 16, inc), Some(prime_hash));
     }
 
     #[proptest(cases = 100)]

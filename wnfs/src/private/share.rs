@@ -192,9 +192,9 @@ pub mod sharer {
         sharer_forest: &impl PrivateForest,
     ) -> Name {
         sharer_forest.empty_name().with_segments_added([
-            NameSegment::from_seed(sharer_root_did.as_bytes()),
-            NameSegment::from_seed(recipient_exchange_key),
-            NameSegment::from_seed(share_count.to_le_bytes()),
+            NameSegment::new_hashed(sharer_root_did.as_bytes()),
+            NameSegment::new_hashed(recipient_exchange_key),
+            NameSegment::new_hashed(share_count.to_le_bytes()),
         ])
     }
 }
