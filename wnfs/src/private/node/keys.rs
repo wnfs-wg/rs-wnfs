@@ -31,14 +31,18 @@ pub struct TemporalKey(pub AesKey);
 // Constants
 //--------------------------------------------------------------------------------------------------
 
-/// The revision segment derivation domain separation string
+/// The revision segment derivation domain separation info
 /// used for salting the hashing function when turning
 /// node names into revisioned node names.
-pub(crate) const REVISION_SEGMENT_DSS: &str = "wnfs/segment deriv from temporal";
-/// The temporal key derivation domain seperation string
+pub(crate) const REVISION_SEGMENT_DSI: &str = "wnfs/segment deriv from temporal";
+/// The block segment derivation domain separation info
+/// used for salting the hashing function when generating
+/// the segments for each file's external content blocks.
+pub(crate) const BLOCK_SEGMENT_DSI: &str = "wnfs/segment deriv for file block";
+/// The temporal key derivation domain seperation info
 /// used for salting the hashing function when deriving
 /// symmetric keys from ratchets.
-pub(crate) const TEMPORAL_KEY_DSS: &str = "wnfs/temporal deriv from ratchet";
+pub(crate) const TEMPORAL_KEY_DSI: &str = "wnfs/temporal deriv from ratchet";
 
 //--------------------------------------------------------------------------------------------------
 // Implementations
@@ -184,7 +188,7 @@ impl From<[u8; KEY_BYTE_SIZE]> for TemporalKey {
 impl From<&Ratchet> for TemporalKey {
     fn from(ratchet: &Ratchet) -> Self {
         Self::from(AesKey::new(
-            ratchet.derive_key(TEMPORAL_KEY_DSS).finalize().into(),
+            ratchet.derive_key(TEMPORAL_KEY_DSI).finalize().into(),
         ))
     }
 }

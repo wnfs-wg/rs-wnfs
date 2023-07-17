@@ -13,6 +13,8 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::{hash::Hash, str::FromStr};
 use zeroize::Zeroize;
 
+const L_HASH_DSI: &str = "wnfs/PoKE*/l 128-bit hash derivation";
+
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
 //--------------------------------------------------------------------------------------------------
@@ -227,7 +229,7 @@ impl NameAccumulator {
         self.state = self.state.modpow(&product, &setup.modulus);
 
         let data = poke_fiat_shamir_l_hash_data(&setup.modulus, &witness, &self.state);
-        let (l, l_hash_inc) = blake3_prime_digest(data, 16);
+        let (l, l_hash_inc) = blake3_prime_digest(L_HASH_DSI, data, 16);
 
         let (q, r) = product.div_mod_floor(&l);
 
@@ -350,8 +352,8 @@ impl NameSegment {
     }
 
     /// Derive a name segment as the hash from some data
-    pub fn new_hashed(data: impl AsRef<[u8]>) -> Self {
-        Self(blake3_prime_digest(data, 32).0)
+    pub fn new_hashed(domain_separation_info: &str, data: impl AsRef<[u8]>) -> Self {
+        Self(blake3_prime_digest(domain_separation_info, data, 32).0)
     }
 }
 
@@ -396,7 +398,7 @@ impl<'a> BatchedProofVerification<'a> {
     ) -> Result<()> {
         let hasher =
             poke_fiat_shamir_l_hash_data(&self.setup.modulus, &base.state, &commitment.state);
-        let l = blake3_prime_digest_fast(hasher, 16, proof_part.l_hash_inc)
+        let l = blake3_prime_digest_fast(L_HASH_DSI, hasher, 16, proof_part.l_hash_inc)
             .ok_or(VerificationError::LHashNonPrime)?;
 
         if proof_part.r >= l {

@@ -106,7 +106,7 @@ async fn setup_seeded_keypair_access(
 
     // The user identity's root DID. In practice this would be e.g. an ed25519 key used
     // for e.g. UCANs or key usually used for authenticating writes.
-    let root_did = "did:key:zExample".into();
+    let root_did = "did:key:zExample";
 
     let counter = recipient::find_latest_share_counter(
         0,
@@ -142,7 +142,7 @@ async fn regain_access_from_mnemonic(
     // Re-derive the same private key from the seed phrase
     let seed = Seed::new(&mnemonic, /* optional password */ "");
     let exchange_keypair = SeededExchangeKey::from_bip39_seed(seed)?;
-    let root_did = "did:key:zExample".into();
+    let root_did = "did:key:zExample";
 
     // Re-load private node from forest
     let counter = recipient::find_latest_share_counter(

@@ -1,7 +1,7 @@
 use super::{
     encrypted::Encrypted, forest::traits::PrivateForest, PrivateFileContentSerializable,
     PrivateNode, PrivateNodeContentSerializable, PrivateNodeHeader, PrivateRef, SnapshotKey,
-    TemporalKey, AUTHENTICATION_TAG_SIZE, NONCE_SIZE,
+    TemporalKey, AUTHENTICATION_TAG_SIZE, BLOCK_SEGMENT_DSI, NONCE_SIZE,
 };
 use crate::{error::FsError, traits::Id, WNFS_VERSION};
 use anyhow::{bail, Result};
@@ -176,7 +176,8 @@ impl PrivateFile {
         rng: &mut impl CryptoRngCore,
     ) -> Result<Self> {
         let header = PrivateNodeHeader::new(parent_name, rng);
-        let content = Self::prepare_content(&header.name, content, forest, store, rng).await?;
+        let content =
+            Self::prepare_content(&header.get_revision_name(), content, forest, store, rng).await?;
 
         Ok(Self {
             header,
@@ -239,8 +240,14 @@ impl PrivateFile {
         rng: &mut impl CryptoRngCore,
     ) -> Result<Self> {
         let header = PrivateNodeHeader::new(parent_name, rng);
-        let content =
-            Self::prepare_content_streaming(&header.name, content, forest, store, rng).await?;
+        let content = Self::prepare_content_streaming(
+            &header.get_revision_name(),
+            content,
+            forest,
+            store,
+            rng,
+        )
+        .await?;
 
         Ok(Self {
             header,
@@ -438,14 +445,20 @@ impl PrivateFile {
         rng: &mut impl CryptoRngCore,
     ) -> Result<()> {
         self.content.metadata = Metadata::new(time);
-        self.content.content =
-            Self::prepare_content_streaming(&self.header.name, content, forest, store, rng).await?;
+        self.content.content = Self::prepare_content_streaming(
+            &self.header.get_revision_name(),
+            content,
+            forest,
+            store,
+            rng,
+        )
+        .await?;
         Ok(())
     }
 
     /// Determines where to put the content of a file. This can either be inline or stored up in chunks in a private forest.
     pub(super) async fn prepare_content(
-        file_name: &Name,
+        file_revision_name: &Name,
         content: Vec<u8>,
         forest: &mut impl PrivateForest,
         store: &impl BlockStore,
@@ -456,7 +469,7 @@ impl PrivateFile {
         let block_count = (content.len() as f64 / MAX_BLOCK_CONTENT_SIZE as f64).ceil() as usize;
 
         for (index, name) in
-            Self::generate_shard_labels(&key, 0, block_count, file_name).enumerate()
+            Self::generate_shard_labels(&key, 0, block_count, file_revision_name).enumerate()
         {
             let start = index * MAX_BLOCK_CONTENT_SIZE;
             let end = content.len().min((index + 1) * MAX_BLOCK_CONTENT_SIZE);
@@ -482,14 +495,13 @@ impl PrivateFile {
     /// Returns an external `FileContent` that contains necessary information
     /// to later retrieve the data.
     pub(super) async fn prepare_content_streaming(
-        file_name: &Name,
+        file_revision_name: &Name,
         mut content: impl AsyncRead + Unpin,
         forest: &mut impl PrivateForest,
         store: &impl BlockStore,
         rng: &mut impl CryptoRngCore,
     ) -> Result<FileContent> {
         let key = SnapshotKey::from(utils::get_random_bytes(rng));
-        let file_revision_name = Self::create_revision_name(file_name, &key);
 
         let mut block_index = 0;
 
@@ -513,7 +525,7 @@ impl PrivateFile {
 
             let content_cid = store.put_block(current_block, CODEC_RAW).await?;
 
-            let name = Self::create_block_label(&key, block_index, &file_revision_name);
+            let name = Self::create_block_name(&key, block_index, file_revision_name);
             forest
                 .put_encrypted(&name, Some(content_cid), store)
                 .await?;
@@ -570,31 +582,25 @@ impl PrivateFile {
         key: &'a SnapshotKey,
         mut index: usize,
         block_count: usize,
-        file_block_name: &'a Name,
+        file_revision_name: &'a Name,
     ) -> impl Iterator<Item = Name> + 'a {
-        let file_revision_name = Self::create_revision_name(file_block_name, key);
         iter::from_fn(move || {
             if index >= block_count {
                 return None;
             }
 
-            let label = Self::create_block_label(key, index, &file_revision_name);
+            let label = Self::create_block_name(key, index, file_revision_name);
             index += 1;
             Some(label)
         })
     }
 
-    fn create_revision_name(file_block_name: &Name, key: &SnapshotKey) -> Name {
-        let revision_segment = NameSegment::new_hashed(key.0.as_bytes());
-        file_block_name.with_segments_added(Some(revision_segment))
-    }
-
     /// Creates the label for a block of a file.
-    fn create_block_label(key: &SnapshotKey, index: usize, file_revision_name: &Name) -> Name {
+    fn create_block_name(key: &SnapshotKey, index: usize, file_revision_name: &Name) -> Name {
         let mut vec = Vec::with_capacity(40);
         vec.extend(key.0.as_bytes()); // 32 bytes
         vec.extend((index as u64).to_le_bytes()); // 8 bytes
-        let block_segment = NameSegment::new_hashed(vec);
+        let block_segment = NameSegment::new_hashed(BLOCK_SEGMENT_DSI, vec);
 
         file_revision_name.with_segments_added(Some(block_segment))
     }

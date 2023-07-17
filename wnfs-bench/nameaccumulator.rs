@@ -6,7 +6,7 @@ fn name_segment_from_digest(c: &mut Criterion) {
     c.bench_function("NameSegment::new_hashed", |b| {
         b.iter_batched(
             || thread_rng().gen::<[u8; 32]>(),
-            NameSegment::new_hashed,
+            |sth| NameSegment::new_hashed("wnfs benchmarks", sth),
             BatchSize::SmallInput,
         );
     });

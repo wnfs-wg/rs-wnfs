@@ -2,6 +2,9 @@ use blake3::traits::digest::{ExtendableOutput, ExtendableOutputReset};
 use num_bigint_dig::{prime::probably_prime, BigUint};
 use num_traits::One;
 
+#[cfg(test)]
+const TEST_DSI: &str = "rs-wnfs tests";
+
 /// Computes the function "MultiExp" from the paper
 /// "Batching Techniques for Accumulators with Applications to IOPs and Stateless Blockchains"
 /// (https://eprint.iacr.org/2018/1188.pdf), Section 3.3
@@ -41,9 +44,13 @@ pub(crate) fn nlogn_product<A>(factors: &[A], f: fn(&A) -> &BigUint) -> BigUint 
 ///
 /// The output includes both the prime and a 32-bit counter
 /// that helps verifying the prime digest.
-pub(crate) fn blake3_prime_digest(bytes: impl AsRef<[u8]>, hash_len: usize) -> (BigUint, u32) {
+pub(crate) fn blake3_prime_digest(
+    domain_separation_info: &str,
+    bytes: impl AsRef<[u8]>,
+    hash_len: usize,
+) -> (BigUint, u32) {
     let mut counter: u32 = 0;
-    let mut hasher = blake3::Hasher::new();
+    let mut hasher = blake3::Hasher::new_derive_key(domain_separation_info);
     let mut hash = vec![0u8; hash_len];
     loop {
         // We reuse the same `Hasher` struct between iterations to minimize
@@ -68,12 +75,13 @@ pub(crate) fn blake3_prime_digest(bytes: impl AsRef<[u8]>, hash_len: usize) -> (
 /// a previous invocation of `prime_digest`.
 /// This will make sure that the returned digest is prime.
 pub(crate) fn blake3_prime_digest_fast(
+    domain_separation_info: &str,
     bytes: impl AsRef<[u8]>,
     hash_len: usize,
     counter: u32,
 ) -> Option<BigUint> {
     let mut hash = vec![0u8; hash_len];
-    let mut hasher = blake3::Hasher::new();
+    let mut hasher = blake3::Hasher::new_derive_key(domain_separation_info);
     hasher.update(bytes.as_ref());
     hasher.update(&counter.to_le_bytes());
     hasher.finalize_xof_into(&mut hash);
@@ -90,13 +98,13 @@ pub(crate) fn blake3_prime_digest_fast(
 
 #[cfg(test)]
 mod tests {
-    use super::blake3_prime_digest;
+    use super::{blake3_prime_digest, TEST_DSI};
 
     /// This test makes sure we don't accidentally (only intentionally)
     /// change hash outputs between versions.
     #[test]
     fn test_fixture_prime_hash() {
-        let (output, counter) = blake3_prime_digest("Hello, World!", 16);
+        let (output, counter) = blake3_prime_digest(TEST_DSI, "Hello, World!", 16);
         assert_eq!(output.to_str_radix(16), "9d139eb0bf1705f72c5a61973b1f92a3");
         assert_eq!(counter, 13);
     }
@@ -104,8 +112,9 @@ mod tests {
 
 #[cfg(test)]
 mod proptests {
-    use super::nlogn_product;
-    use crate::fns::{blake3_prime_digest, blake3_prime_digest_fast, multi_exp};
+    use crate::fns::{
+        blake3_prime_digest, blake3_prime_digest_fast, multi_exp, nlogn_product, TEST_DSI,
+    };
     use num_bigint_dig::{prime::probably_prime, BigUint, RandPrime};
     use num_traits::One;
     use proptest::{
@@ -117,9 +126,12 @@ mod proptests {
 
     #[proptest(cases = 1000)]
     fn test_prime_digest(#[strategy(vec(any::<u8>(), 0..100))] bytes: Vec<u8>) {
-        let (prime_hash, inc) = blake3_prime_digest(&bytes, 16);
+        let (prime_hash, inc) = blake3_prime_digest(TEST_DSI, &bytes, 16);
         prop_assert!(probably_prime(&prime_hash, 20));
-        prop_assert_eq!(blake3_prime_digest_fast(&bytes, 16, inc), Some(prime_hash));
+        prop_assert_eq!(
+            blake3_prime_digest_fast(TEST_DSI, &bytes, 16, inc),
+            Some(prime_hash)
+        );
     }
 
     #[proptest(cases = 100)]

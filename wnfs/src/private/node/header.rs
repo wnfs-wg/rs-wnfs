@@ -1,4 +1,4 @@
-use super::{PrivateNodeHeaderSerializable, TemporalKey, REVISION_SEGMENT_DSS};
+use super::{PrivateNodeHeaderSerializable, TemporalKey, REVISION_SEGMENT_DSI};
 use crate::{error::FsError, private::RevisionRef};
 use anyhow::{bail, Result};
 use libipld_core::cid::Cid;
@@ -116,7 +116,7 @@ impl PrivateNodeHeader {
     }
 
     pub(crate) fn derive_revision_segment(&self) -> NameSegment {
-        NameSegment::new_hashed(self.ratchet.key_derivation_data(REVISION_SEGMENT_DSS))
+        NameSegment::new_hashed(REVISION_SEGMENT_DSI, self.ratchet.key_derivation_data())
     }
 
     /// Gets the revision name for this node.
