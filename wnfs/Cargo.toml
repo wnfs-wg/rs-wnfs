@@ -17,7 +17,6 @@ homepage = "https://fission.codes"
 authors = ["The Fission Authors"]
 
 [dependencies]
-aes-gcm = "0.10"
 aes-kw = { version = "0.2", features = ["alloc"] }
 anyhow = "1.0"
 async-once-cell = "0.4"
@@ -26,6 +25,7 @@ async-stream = "0.3"
 async-trait = "0.1"
 blake3 = { version = "1.4", features = ["traits-preview"] }
 bytes = "1.4.0"
+chacha20poly1305 = "0.10"
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
 futures = "0.3"
 libipld-core = { version = "0.16" }

@@ -129,7 +129,7 @@ impl PrivateNodeHeader {
     /// ```
     /// use std::rc::Rc;
     /// use wnfs::private::{
-    ///     PrivateFile, AesKey,
+    ///     PrivateFile,
     ///     forest::{hamt::HamtForest, traits::PrivateForest},
     /// };
     /// use chrono::Utc;

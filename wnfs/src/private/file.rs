@@ -598,7 +598,7 @@ impl PrivateFile {
     /// Creates the label for a block of a file.
     fn create_block_name(key: &SnapshotKey, index: usize, file_revision_name: &Name) -> Name {
         let mut vec = Vec::with_capacity(40);
-        vec.extend(key.0.as_bytes()); // 32 bytes
+        vec.extend(key.0); // 32 bytes
         vec.extend((index as u64).to_le_bytes()); // 8 bytes
         let block_segment = NameSegment::new_hashed(BLOCK_SEGMENT_DSI, vec);
 

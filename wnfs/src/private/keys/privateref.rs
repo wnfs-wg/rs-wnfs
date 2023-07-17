@@ -1,9 +1,7 @@
-use super::KEY_BYTE_SIZE;
 use crate::{
-    error::{AesError, FsError},
-    private::{PrivateRefSerializable, TemporalKey},
+    error::FsError,
+    private::{PrivateRefSerializable, TemporalKey, KEY_BYTE_SIZE},
 };
-use aes_kw::KekAes256;
 use anyhow::Result;
 use libipld_core::cid::Cid;
 use serde::{de::Error as DeError, ser::Error as SerError, Deserialize, Serialize};
@@ -62,11 +60,9 @@ impl PrivateRef {
         parent_temporal_key: &TemporalKey,
     ) -> Result<PrivateRefSerializable> {
         let snapshot_key = self.temporal_key.derive_snapshot_key();
-        // encrypt ratchet key
-        let temporal_key_as_kek = KekAes256::from(parent_temporal_key.0.clone().bytes());
-        let temporal_key_wrapped = temporal_key_as_kek
-            .wrap_with_padding_vec(self.temporal_key.0.as_bytes())
-            .map_err(|e| AesError::UnableToEncrypt(format!("{e}")))?;
+
+        // encrypt temporal key
+        let temporal_key_wrapped = parent_temporal_key.key_wrap_encrypt(&self.temporal_key.0)?;
 
         Ok(PrivateRefSerializable {
             revision_name_hash: self.revision_name_hash,
@@ -80,25 +76,20 @@ impl PrivateRef {
         private_ref: PrivateRefSerializable,
         parent_temporal_key: &TemporalKey,
     ) -> Result<Self> {
-        // TODO: Move key wrapping & unwrapping logic to impl TemporalKey
-        let temporal_key_as_kek = KekAes256::from(parent_temporal_key.0.clone().bytes());
+        let temporal_key_decrypted =
+            parent_temporal_key.key_wrap_decrypt(&private_ref.temporal_key)?;
 
-        let temporal_key_raw: [u8; KEY_BYTE_SIZE] = temporal_key_as_kek
-            .unwrap_with_padding_vec(&private_ref.temporal_key)
-            .map_err(|e| AesError::UnableToDecrypt(format!("{e}")))?
-            .try_into()
-            .map_err(|e: Vec<u8>| {
+        let temporal_key_raw: [u8; KEY_BYTE_SIZE] =
+            temporal_key_decrypted.try_into().map_err(|e: Vec<u8>| {
                 FsError::InvalidDeserialization(format!(
                     "Expected 32 bytes for ratchet key, but got {}",
                     e.len()
                 ))
             })?;
 
-        let temporal_key = temporal_key_raw.into();
-
         Ok(Self {
             revision_name_hash: private_ref.revision_name_hash,
-            temporal_key,
+            temporal_key: temporal_key_raw.into(),
             content_cid: private_ref.content_cid,
         })
     }
