@@ -46,7 +46,7 @@ pub struct TemporalKey(
 /// The revision segment derivation domain separation info
 /// used for salting the hashing function when turning
 /// node names into revisioned node names.
-pub(crate) const REVISION_SEGMENT_DSI: &str = "wnfs/segment deriv from temporal";
+pub(crate) const REVISION_SEGMENT_DSI: &str = "wnfs/revision segment deriv from ratchet";
 /// The block segment derivation domain separation info
 /// used for salting the hashing function when generating
 /// the segments for each file's external content blocks.
