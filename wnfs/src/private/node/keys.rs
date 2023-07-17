@@ -28,7 +28,7 @@ pub const KEY_BYTE_SIZE: usize = 32;
 pub struct SnapshotKey(
     #[serde(serialize_with = "crate::utils::serialize_byte_slice32")]
     #[serde(deserialize_with = "crate::utils::deserialize_byte_slice32")]
-    pub [u8; KEY_BYTE_SIZE],
+    pub(crate) [u8; KEY_BYTE_SIZE],
 );
 
 /// The key used to encrypt the header section of a node.
@@ -36,7 +36,7 @@ pub struct SnapshotKey(
 pub struct TemporalKey(
     #[serde(serialize_with = "crate::utils::serialize_byte_slice32")]
     #[serde(deserialize_with = "crate::utils::deserialize_byte_slice32")]
-    pub [u8; KEY_BYTE_SIZE],
+    pub(crate) [u8; KEY_BYTE_SIZE],
 );
 
 //--------------------------------------------------------------------------------------------------
@@ -68,7 +68,7 @@ impl TemporalKey {
     /// Turn this TemporalKey, which gives read access to the current revision and any future
     /// revisions into a SnapshotKey, which only gives read access to the current revision.
     pub fn derive_snapshot_key(&self) -> SnapshotKey {
-        SnapshotKey::from(blake3::derive_key(SNAPSHOT_KEY_DSI, &self.0))
+        SnapshotKey(blake3::derive_key(SNAPSHOT_KEY_DSI, &self.0))
     }
 
     /// Encrypt a cleartext with this temporal key.
@@ -191,21 +191,9 @@ impl SnapshotKey {
     }
 }
 
-impl From<[u8; KEY_BYTE_SIZE]> for TemporalKey {
-    fn from(key: [u8; KEY_BYTE_SIZE]) -> Self {
-        Self(key)
-    }
-}
-
 impl From<&Ratchet> for TemporalKey {
     fn from(ratchet: &Ratchet) -> Self {
         let key: [u8; KEY_BYTE_SIZE] = ratchet.derive_key(TEMPORAL_KEY_DSI).finalize().into();
-        Self(key)
-    }
-}
-
-impl From<[u8; KEY_BYTE_SIZE]> for SnapshotKey {
-    fn from(key: [u8; KEY_BYTE_SIZE]) -> Self {
         Self(key)
     }
 }
@@ -229,7 +217,7 @@ mod proptests {
         #[strategy(any::<[u8; KEY_BYTE_SIZE]>())] rng_seed: [u8; KEY_BYTE_SIZE],
         key_bytes: [u8; KEY_BYTE_SIZE],
     ) {
-        let key = SnapshotKey::from(key_bytes);
+        let key = SnapshotKey(key_bytes);
         let rng = &mut ChaCha12Rng::from_seed(rng_seed);
 
         let encrypted = key.encrypt(&data, rng).unwrap();
@@ -251,7 +239,7 @@ mod proptests {
     ) {
         let mut buffer = data.clone();
         let nonce = XNonce::from_slice(&nonce);
-        let key = SnapshotKey::from(key_bytes);
+        let key = SnapshotKey(key_bytes);
 
         let tag = key.encrypt_in_place(nonce, &mut buffer).unwrap();
 

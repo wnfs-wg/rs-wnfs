@@ -89,7 +89,7 @@ impl PrivateRef {
 
         Ok(Self {
             revision_name_hash: private_ref.revision_name_hash,
-            temporal_key: temporal_key_raw.into(),
+            temporal_key: TemporalKey(temporal_key_raw),
             content_cid: private_ref.content_cid,
         })
     }

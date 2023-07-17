@@ -465,7 +465,7 @@ impl PrivateFile {
         rng: &mut impl CryptoRngCore,
     ) -> Result<FileContent> {
         // TODO(appcypher): Use a better heuristic to determine when to use external storage.
-        let key = SnapshotKey::from(utils::get_random_bytes(rng));
+        let key = SnapshotKey(utils::get_random_bytes(rng));
         let block_count = (content.len() as f64 / MAX_BLOCK_CONTENT_SIZE as f64).ceil() as usize;
 
         for (index, name) in
@@ -501,7 +501,7 @@ impl PrivateFile {
         store: &impl BlockStore,
         rng: &mut impl CryptoRngCore,
     ) -> Result<FileContent> {
-        let key = SnapshotKey::from(utils::get_random_bytes(rng));
+        let key = SnapshotKey(utils::get_random_bytes(rng));
 
         let mut block_index = 0;
 
