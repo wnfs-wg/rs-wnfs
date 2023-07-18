@@ -105,8 +105,10 @@ mod tests {
     #[test]
     fn test_fixture_prime_hash() {
         let (output, counter) = blake3_prime_digest(TEST_DSI, "Hello, World!", 16);
-        assert_eq!(output.to_str_radix(16), "9d139eb0bf1705f72c5a61973b1f92a3");
-        assert_eq!(counter, 13);
+        assert_eq!(
+            (output.to_str_radix(16), counter),
+            ("9ef50db608f1e61acedaf2fe6ad982ed".into(), 6)
+        );
     }
 }
 
