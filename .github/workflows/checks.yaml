@@ -83,8 +83,8 @@ jobs:
       - name: Cache Project
         uses: Swatinem/rust-cache@v2
 
-      - name: Run Tests
-        run: cargo test --all-features
+      - name: Run Tests # 3MB of stack space
+        run: RUST_MIN_STACK=3000000 cargo test --all-features
 
   wasm-js-tests:
     strategy:
