@@ -86,9 +86,9 @@ pub(crate) struct PrivateFileContent {
 /// It is stored inline or stored in blocks.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub(crate) enum FileContent {
-    Inline {
-        data: Vec<u8>,
-    },
+    #[serde(rename = "inline")]
+    Inline { data: Vec<u8> },
+    #[serde(rename = "external")]
     External {
         key: SnapshotKey,
 
