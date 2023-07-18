@@ -533,7 +533,7 @@ impl Ord for NameAccumulator {
 
 impl PartialOrd for NameAccumulator {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        self.state.partial_cmp(&other.state)
+        Some(self.cmp(other))
     }
 }
 
