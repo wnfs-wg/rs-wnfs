@@ -102,6 +102,11 @@ impl TemporalKey {
             .unwrap_with_padding_vec(ciphertext)
             .map_err(|e| CryptError::UnableToEncrypt(anyhow!(e)))?)
     }
+
+    /// Return the temporal key's key material.
+    pub fn as_bytes(&self) -> &[u8; KEY_BYTE_SIZE] {
+        &self.0
+    }
 }
 
 impl SnapshotKey {
@@ -201,6 +206,11 @@ impl SnapshotKey {
             .decrypt_in_place_detached(nonce, &[], buffer, tag)
             .map_err(|e| CryptError::UnableToDecrypt(anyhow!(e)))?;
         Ok(())
+    }
+
+    /// Return the snapshot key's key material.
+    pub fn as_bytes(&self) -> &[u8; KEY_BYTE_SIZE] {
+        &self.0
     }
 }
 
