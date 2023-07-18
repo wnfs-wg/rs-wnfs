@@ -14,7 +14,7 @@ use rand_core::CryptoRngCore;
 use serde::{Deserialize, Serialize};
 use std::{collections::BTreeSet, iter, rc::Rc};
 use wnfs_common::{utils, BlockStore, Metadata, CODEC_RAW, MAX_BLOCK_SIZE};
-use wnfs_nameaccumulator::{AccumulatorSetup, Name, NameSegment};
+use wnfs_nameaccumulator::{AccumulatorSetup, Name, NameAccumulator, NameSegment};
 
 //--------------------------------------------------------------------------------------------------
 // Constants
@@ -91,7 +91,14 @@ pub(crate) enum FileContent {
     },
     External {
         key: SnapshotKey,
+
+        #[serde(rename = "baseName")]
+        base_name: NameAccumulator,
+
+        #[serde(rename = "blockCount")]
         block_count: usize,
+
+        #[serde(rename = "blockContentSize")]
         block_content_size: usize,
     },
 }
@@ -316,10 +323,11 @@ impl PrivateFile {
                 FileContent::External {
                     key,
                     block_count,
+                    base_name,
+                    // TODO(matheus23): take block_content_size into account
                     ..
                 } => {
-                    let name = &self.header.name;
-                    for name in Self::generate_shard_labels(key, index, *block_count, name) {
+                    for name in Self::generate_shard_labels(key, index, *block_count, &Name::new(base_name.clone(), [])) {
                         let bytes = Self::decrypt_block(key, &name, forest, store).await?;
                         yield bytes
                     }
@@ -446,18 +454,18 @@ impl PrivateFile {
 
     /// Determines where to put the content of a file. This can either be inline or stored up in chunks in a private forest.
     pub(super) async fn prepare_content(
-        file_revision_name: &Name,
+        base_name: &Name,
         content: Vec<u8>,
         forest: &mut impl PrivateForest,
         store: &impl BlockStore,
         rng: &mut impl CryptoRngCore,
     ) -> Result<FileContent> {
         // TODO(appcypher): Use a better heuristic to determine when to use external storage.
-        let key = SnapshotKey(utils::get_random_bytes(rng));
+        let key = SnapshotKey::new(rng);
         let block_count = (content.len() as f64 / MAX_BLOCK_CONTENT_SIZE as f64).ceil() as usize;
 
         for (index, name) in
-            Self::generate_shard_labels(&key, 0, block_count, file_revision_name).enumerate()
+            Self::generate_shard_labels(&key, 0, block_count, base_name).enumerate()
         {
             let start = index * MAX_BLOCK_CONTENT_SIZE;
             let end = content.len().min((index + 1) * MAX_BLOCK_CONTENT_SIZE);
@@ -473,6 +481,9 @@ impl PrivateFile {
 
         Ok(FileContent::External {
             key,
+            base_name: base_name
+                .as_accumulator(forest.get_accumulator_setup())
+                .clone(),
             block_count,
             block_content_size: MAX_BLOCK_CONTENT_SIZE,
         })
@@ -483,7 +494,7 @@ impl PrivateFile {
     /// Returns an external `FileContent` that contains necessary information
     /// to later retrieve the data.
     pub(super) async fn prepare_content_streaming(
-        file_revision_name: &Name,
+        base_name: &Name,
         mut content: impl AsyncRead + Unpin,
         forest: &mut impl PrivateForest,
         store: &impl BlockStore,
@@ -513,7 +524,7 @@ impl PrivateFile {
 
             let content_cid = store.put_block(current_block, CODEC_RAW).await?;
 
-            let name = Self::create_block_name(&key, block_index, file_revision_name);
+            let name = Self::create_block_name(&key, block_index, base_name);
             forest
                 .put_encrypted(&name, Some(content_cid), store)
                 .await?;
@@ -527,6 +538,9 @@ impl PrivateFile {
 
         Ok(FileContent::External {
             key,
+            base_name: base_name
+                .as_accumulator(forest.get_accumulator_setup())
+                .clone(),
             block_count: block_index,
             block_content_size: MAX_BLOCK_CONTENT_SIZE,
         })
@@ -570,27 +584,27 @@ impl PrivateFile {
         key: &'a SnapshotKey,
         mut index: usize,
         block_count: usize,
-        file_revision_name: &'a Name,
+        base_name: &'a Name,
     ) -> impl Iterator<Item = Name> + 'a {
         iter::from_fn(move || {
             if index >= block_count {
                 return None;
             }
 
-            let label = Self::create_block_name(key, index, file_revision_name);
+            let label = Self::create_block_name(key, index, base_name);
             index += 1;
             Some(label)
         })
     }
 
     /// Creates the label for a block of a file.
-    fn create_block_name(key: &SnapshotKey, index: usize, file_revision_name: &Name) -> Name {
+    fn create_block_name(key: &SnapshotKey, index: usize, base_name: &Name) -> Name {
         let mut vec = Vec::with_capacity(40);
         vec.extend(key.0); // 32 bytes
         vec.extend((index as u64).to_le_bytes()); // 8 bytes
         let block_segment = NameSegment::new_hashed(BLOCK_SEGMENT_DSI, vec);
 
-        file_revision_name.with_segments_added(Some(block_segment))
+        base_name.with_segments_added(Some(block_segment))
     }
 
     /// This should be called to prepare a node for modifications,
