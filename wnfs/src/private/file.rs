@@ -20,9 +20,9 @@ use wnfs_nameaccumulator::{AccumulatorSetup, Name, NameSegment};
 // Constants
 //--------------------------------------------------------------------------------------------------
 
-/// The maximum block size is 2 ^ 18 but the first 12 bytes are reserved for the cipher text's initialization vector.
+/// The maximum block size is 2 ^ 18 but the first 24 bytes are reserved for the cipher text's initialization vector.
 /// The ciphertext then also contains a 16 byte authentication tag.
-/// This leaves a maximum of (2 ^ 18) - 12 - 16 = 262,116 bytes for the actual data.
+/// This leaves a maximum of (2 ^ 18) - 24 - 16 = 262,104 bytes for the actual data.
 ///
 /// More on that [here][priv-file].
 ///
@@ -176,8 +176,7 @@ impl PrivateFile {
         rng: &mut impl CryptoRngCore,
     ) -> Result<Self> {
         let header = PrivateNodeHeader::new(parent_name, rng);
-        let content =
-            Self::prepare_content(&header.get_revision_name(), content, forest, store, rng).await?;
+        let content = Self::prepare_content(header.get_name(), content, forest, store, rng).await?;
 
         Ok(Self {
             header,
@@ -240,14 +239,8 @@ impl PrivateFile {
         rng: &mut impl CryptoRngCore,
     ) -> Result<Self> {
         let header = PrivateNodeHeader::new(parent_name, rng);
-        let content = Self::prepare_content_streaming(
-            &header.get_revision_name(),
-            content,
-            forest,
-            store,
-            rng,
-        )
-        .await?;
+        let content =
+            Self::prepare_content_streaming(header.get_name(), content, forest, store, rng).await?;
 
         Ok(Self {
             header,
@@ -445,14 +438,9 @@ impl PrivateFile {
         rng: &mut impl CryptoRngCore,
     ) -> Result<()> {
         self.content.metadata = Metadata::new(time);
-        self.content.content = Self::prepare_content_streaming(
-            &self.header.get_revision_name(),
-            content,
-            forest,
-            store,
-            rng,
-        )
-        .await?;
+        self.content.content =
+            Self::prepare_content_streaming(self.header.get_name(), content, forest, store, rng)
+                .await?;
         Ok(())
     }
 
