@@ -10,14 +10,38 @@ use rand_core::CryptoRngCore;
 use serde::{Deserialize, Serialize};
 use skip_ratchet::Ratchet;
 use std::fmt::Debug;
+use wnfs_common::utils;
 
 //--------------------------------------------------------------------------------------------------
 // Constants
 //--------------------------------------------------------------------------------------------------
 
+/// The size of the nonce used when encrypting using snapshot keys.
+/// The algorithm used is XChaCha20-Poly1305, i.e. the extended nonce variant,
+/// so it's 196 bit.
 pub(crate) const NONCE_SIZE: usize = 24;
+/// The size of the authentication tag used when encrypting using snapshot keys.
+/// The algorithm used is XChaCha20-Poly1305, so it's 128 bit.
 pub(crate) const AUTHENTICATION_TAG_SIZE: usize = 16;
+/// The general key size used in WNFS: 256-bit
 pub const KEY_BYTE_SIZE: usize = 32;
+
+/// The revision segment derivation domain separation info
+/// used for salting the hashing function when turning
+/// node names into revisioned node names.
+pub(crate) const REVISION_SEGMENT_DSI: &str = "wnfs/revision segment deriv from ratchet";
+/// The block segment derivation domain separation info
+/// used for salting the hashing function when generating
+/// the segments for each file's external content blocks.
+pub(crate) const BLOCK_SEGMENT_DSI: &str = "wnfs/segment deriv for file block";
+/// The temporal key derivation domain seperation info
+/// used for salting the hashing function when deriving
+/// symmetric keys from ratchets.
+pub(crate) const TEMPORAL_KEY_DSI: &str = "wnfs/temporal deriv from ratchet";
+/// The snapshot key derivation domain separation info
+/// used for salting the hashing function when deriving
+/// the snapshot key from the temporal key.
+pub(crate) const SNAPSHOT_KEY_DSI: &str = "wnfs/snapshot key deriv from temporal";
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
@@ -40,31 +64,15 @@ pub struct TemporalKey(
 );
 
 //--------------------------------------------------------------------------------------------------
-// Constants
-//--------------------------------------------------------------------------------------------------
-
-/// The revision segment derivation domain separation info
-/// used for salting the hashing function when turning
-/// node names into revisioned node names.
-pub(crate) const REVISION_SEGMENT_DSI: &str = "wnfs/revision segment deriv from ratchet";
-/// The block segment derivation domain separation info
-/// used for salting the hashing function when generating
-/// the segments for each file's external content blocks.
-pub(crate) const BLOCK_SEGMENT_DSI: &str = "wnfs/segment deriv for file block";
-/// The temporal key derivation domain seperation info
-/// used for salting the hashing function when deriving
-/// symmetric keys from ratchets.
-pub(crate) const TEMPORAL_KEY_DSI: &str = "wnfs/temporal deriv from ratchet";
-/// The snapshot key derivation domain separation info
-/// used for salting the hashing function when deriving
-/// the snapshot key from the temporal key.
-pub(crate) const SNAPSHOT_KEY_DSI: &str = "wnfs/snapshot key deriv from temporal";
-
-//--------------------------------------------------------------------------------------------------
 // Implementations
 //--------------------------------------------------------------------------------------------------
 
 impl TemporalKey {
+    /// Derive a temporal key from the ratchet for use with WNFS.
+    pub fn new(ratchet: &Ratchet) -> Self {
+        Self(ratchet.derive_key(TEMPORAL_KEY_DSI).finalize().into())
+    }
+
     /// Turn this TemporalKey, which gives read access to the current revision and any future
     /// revisions into a SnapshotKey, which only gives read access to the current revision.
     pub fn derive_snapshot_key(&self) -> SnapshotKey {
@@ -97,6 +105,11 @@ impl TemporalKey {
 }
 
 impl SnapshotKey {
+    /// Generate a random snapshot key from given randomness.
+    pub fn new(rng: &mut impl CryptoRngCore) -> Self {
+        Self(utils::get_random_bytes(rng))
+    }
+
     /// Encrypts the given plaintext using the key.
     ///
     /// # Examples
@@ -107,7 +120,7 @@ impl SnapshotKey {
     /// use rand::thread_rng;
     ///
     /// let rng = &mut thread_rng();
-    /// let key = SnapshotKey::from(utils::get_random_bytes(rng));
+    /// let key = SnapshotKey::new(rng);
     ///
     /// let plaintext = b"Hello World!";
     /// let ciphertext = key.encrypt(plaintext, rng).unwrap();
@@ -154,7 +167,7 @@ impl SnapshotKey {
     /// use rand::thread_rng;
     ///
     /// let rng = &mut thread_rng();
-    /// let key = SnapshotKey::from(utils::get_random_bytes(rng));
+    /// let key = SnapshotKey::new(rng);
     ///
     /// let plaintext = b"Hello World!";
     /// let ciphertext = key.encrypt(plaintext, rng).unwrap();
@@ -188,13 +201,6 @@ impl SnapshotKey {
             .decrypt_in_place_detached(nonce, &[], buffer, tag)
             .map_err(|e| CryptError::UnableToDecrypt(anyhow!(e)))?;
         Ok(())
-    }
-}
-
-impl From<&Ratchet> for TemporalKey {
-    fn from(ratchet: &Ratchet) -> Self {
-        let key: [u8; KEY_BYTE_SIZE] = ratchet.derive_key(TEMPORAL_KEY_DSI).finalize().into();
-        Self(key)
     }
 }
 

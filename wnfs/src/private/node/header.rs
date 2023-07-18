@@ -112,7 +112,7 @@ impl PrivateNodeHeader {
     /// ```
     #[inline]
     pub fn derive_temporal_key(&self) -> TemporalKey {
-        TemporalKey::from(&self.ratchet)
+        TemporalKey::new(&self.ratchet)
     }
 
     pub(crate) fn derive_revision_segment(&self) -> NameSegment {
