@@ -30,6 +30,11 @@ pub const KEY_BYTE_SIZE: usize = 32;
 /// used for salting the hashing function when turning
 /// node names into revisioned node names.
 pub(crate) const REVISION_SEGMENT_DSI: &str = "wnfs/revision segment deriv from ratchet";
+/// The hiding segment derivation domain separation info
+/// used for salting the hashing function when generating
+/// the hiding segment from the external file content key,
+/// which is added to a file's name to generate the external content base name.
+pub(crate) const HIDING_SEGMENT_DSI: &str = "wnfs/hiding segment deriv from content key";
 /// The block segment derivation domain separation info
 /// used for salting the hashing function when generating
 /// the segments for each file's external content blocks.

@@ -1,7 +1,7 @@
 use super::{
     encrypted::Encrypted, forest::traits::PrivateForest, PrivateFileContentSerializable,
     PrivateNode, PrivateNodeContentSerializable, PrivateNodeHeader, PrivateRef, SnapshotKey,
-    TemporalKey, AUTHENTICATION_TAG_SIZE, BLOCK_SEGMENT_DSI, NONCE_SIZE,
+    TemporalKey, AUTHENTICATION_TAG_SIZE, BLOCK_SEGMENT_DSI, HIDING_SEGMENT_DSI, NONCE_SIZE,
 };
 use crate::{error::FsError, traits::Id, WNFS_VERSION};
 use anyhow::{bail, Result};
@@ -454,18 +454,18 @@ impl PrivateFile {
 
     /// Determines where to put the content of a file. This can either be inline or stored up in chunks in a private forest.
     pub(super) async fn prepare_content(
-        base_name: &Name,
+        file_name: &Name,
         content: Vec<u8>,
         forest: &mut impl PrivateForest,
         store: &impl BlockStore,
         rng: &mut impl CryptoRngCore,
     ) -> Result<FileContent> {
         // TODO(appcypher): Use a better heuristic to determine when to use external storage.
-        let key = SnapshotKey::new(rng);
+        let (key, base_name) = Self::prepare_key_and_base_name(file_name, rng);
         let block_count = (content.len() as f64 / MAX_BLOCK_CONTENT_SIZE as f64).ceil() as usize;
 
         for (index, name) in
-            Self::generate_shard_labels(&key, 0, block_count, base_name).enumerate()
+            Self::generate_shard_labels(&key, 0, block_count, &base_name).enumerate()
         {
             let start = index * MAX_BLOCK_CONTENT_SIZE;
             let end = content.len().min((index + 1) * MAX_BLOCK_CONTENT_SIZE);
@@ -494,13 +494,13 @@ impl PrivateFile {
     /// Returns an external `FileContent` that contains necessary information
     /// to later retrieve the data.
     pub(super) async fn prepare_content_streaming(
-        base_name: &Name,
+        file_name: &Name,
         mut content: impl AsyncRead + Unpin,
         forest: &mut impl PrivateForest,
         store: &impl BlockStore,
         rng: &mut impl CryptoRngCore,
     ) -> Result<FileContent> {
-        let key = SnapshotKey(utils::get_random_bytes(rng));
+        let (key, base_name) = Self::prepare_key_and_base_name(file_name, rng);
 
         let mut block_index = 0;
 
@@ -524,7 +524,7 @@ impl PrivateFile {
 
             let content_cid = store.put_block(current_block, CODEC_RAW).await?;
 
-            let name = Self::create_block_name(&key, block_index, base_name);
+            let name = Self::create_block_name(&key, block_index, &base_name);
             forest
                 .put_encrypted(&name, Some(content_cid), store)
                 .await?;
@@ -544,6 +544,17 @@ impl PrivateFile {
             block_count: block_index,
             block_content_size: MAX_BLOCK_CONTENT_SIZE,
         })
+    }
+
+    fn prepare_key_and_base_name(
+        file_name: &Name,
+        rng: &mut impl CryptoRngCore,
+    ) -> (SnapshotKey, Name) {
+        let key = SnapshotKey::new(rng);
+        let hiding_segment = NameSegment::new_hashed(HIDING_SEGMENT_DSI, key.as_bytes());
+        let base_name = file_name.with_segments_added(Some(hiding_segment));
+
+        (key, base_name)
     }
 
     /// Gets the upper bound of a file content size.
