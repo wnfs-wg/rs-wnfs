@@ -81,6 +81,22 @@ impl PrivateNode {
         }))
     }
 
+    #[wasm_bindgen(js_name = "searchLatest")]
+    pub fn search_latest(&self, forest: &PrivateForest, store: BlockStore) -> JsResult<Promise> {
+        let node = self.0.clone(); // cheap clone
+        let store = ForeignBlockStore(store);
+        let forest = Rc::clone(&forest.0);
+
+        Ok(future_to_promise(async move {
+            let latest_node = node
+                .search_latest(&forest, &store)
+                .await
+                .map_err(error("Cannot search latest"))?;
+
+            Ok(value!(PrivateNode(latest_node)))
+        }))
+    }
+
     #[wasm_bindgen(js_name = "asDir")]
     pub fn as_dir(&self) -> JsResult<PrivateDirectory> {
         let dir = self
