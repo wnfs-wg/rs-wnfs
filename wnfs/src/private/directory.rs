@@ -276,6 +276,11 @@ impl PrivateDirectory {
         store: &impl BlockStore,
     ) -> Result<SearchResult<Rc<Self>>> {
         let mut working_dir = Rc::clone(self);
+
+        if search_latest {
+            working_dir = working_dir.search_latest(forest, store).await?;
+        }
+
         for (depth, segment) in path_segments.iter().enumerate() {
             match working_dir
                 .lookup_node(segment, search_latest, forest, store)
