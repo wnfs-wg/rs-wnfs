@@ -2139,4 +2139,29 @@ mod tests {
         assert!(old_dir.content.previous.is_empty());
         assert_eq!(new_dir.content.previous.len(), 1);
     }
+
+    #[async_std::test]
+    async fn search_latest_also_searches_the_root() -> Result<()> {
+        let rng = &mut thread_rng();
+        let store = &MemoryBlockStore::new();
+        let forest = &mut HamtForest::new_rsa_2048(rng);
+        let old_dir =
+            PrivateDirectory::new_and_store(&forest.empty_name(), Utc::now(), forest, store, rng)
+                .await?;
+
+        let path = &["some".into(), "test.txt".into()];
+        let content = b"Hello";
+
+        let dir = &mut Rc::clone(&old_dir);
+        dir.write(path, true, Utc::now(), content.to_vec(), forest, store, rng)
+            .await?;
+        dir.as_node().store(forest, store, rng).await?;
+
+        // Now we'll read from the `old_dir` with search_latest: true, this should work.
+        let read_back = old_dir.read(path, true, forest, store).await?;
+
+        assert_eq!(&read_back, content);
+
+        Ok(())
+    }
 }
