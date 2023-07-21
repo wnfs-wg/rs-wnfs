@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1689944493801,
+  "lastUpdate": 1689944536776,
   "repoUrl": "https://github.com/wnfs-wg/rs-wnfs",
   "entries": {
     "Rust Benchmark": [
@@ -16093,6 +16093,102 @@ window.BENCHMARK_DATA = {
             "name": "NameAccumulator serialization",
             "value": 963,
             "range": "± 60",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "49699333+dependabot[bot]@users.noreply.github.com",
+            "name": "dependabot[bot]",
+            "username": "dependabot[bot]"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "070d105d810afb4bd51b21bbbb98abe587d006b8",
+          "message": "chore(npm)(deps-dev): bump webpack from 5.87.0 to 5.88.2 in /wnfs-wasm (#312)\n\nBumps [webpack](https://github.com/webpack/webpack) from 5.87.0 to 5.88.2.\r\n- [Release notes](https://github.com/webpack/webpack/releases)\r\n- [Commits](https://github.com/webpack/webpack/compare/v5.87.0...v5.88.2)\r\n\r\n---\r\nupdated-dependencies:\r\n- dependency-name: webpack\r\n  dependency-type: direct:development\r\n  update-type: version-update:semver-minor\r\n...\r\n\r\nSigned-off-by: dependabot[bot] <support@github.com>\r\nCo-authored-by: dependabot[bot] <49699333+dependabot[bot]@users.noreply.github.com>",
+          "timestamp": "2023-07-21T14:59:05+02:00",
+          "tree_id": "e22c7fc5094c5164a2aa94455eeb07810292a762",
+          "url": "https://github.com/wnfs-wg/rs-wnfs/commit/070d105d810afb4bd51b21bbbb98abe587d006b8"
+        },
+        "date": 1689944535659,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "node set",
+            "value": 5679,
+            "range": "± 76",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node set 1000 consecutive",
+            "value": 2564574,
+            "range": "± 8655",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and get",
+            "value": 114613,
+            "range": "± 220",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and remove",
+            "value": 126158,
+            "range": "± 565",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt load and decode/0",
+            "value": 41667,
+            "range": "± 76",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt set and encode",
+            "value": 111824,
+            "range": "± 2647",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt diff",
+            "value": 50085,
+            "range": "± 3518",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt merge",
+            "value": 145904,
+            "range": "± 11186",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameSegment::new_hashed",
+            "value": 2402359,
+            "range": "± 236714",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameSegment::new(rng)",
+            "value": 2481663,
+            "range": "± 240198",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameAccumulator::add",
+            "value": 2356315,
+            "range": "± 79988",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameAccumulator serialization",
+            "value": 981,
+            "range": "± 24",
             "unit": "ns/iter"
           }
         ]
