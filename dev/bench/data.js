@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1689090853677,
+  "lastUpdate": 1689940299533,
   "repoUrl": "https://github.com/wnfs-wg/rs-wnfs",
   "entries": {
     "Rust Benchmark": [
@@ -15421,6 +15421,102 @@ window.BENCHMARK_DATA = {
             "name": "NameAccumulator serialization",
             "value": 840,
             "range": "± 53",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "philipp.krueger1@gmail.com",
+            "name": "Philipp Krüger",
+            "username": "matheus23"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "e164a1fc80c30d9446404a61b05fd995d7d88c0e",
+          "message": "feat: Switch from SHA3-256 to BLAKE3-256 (#306)\n\nRelease-As: 0.1.23\r\n\r\n* feat: Switch from SHA3-256 to BLAKE3-256\r\n\r\n* Also use Blake3 by default in `BlockStore::create_cid`\r\n\r\n* Also use Blake3 in skip ratchet key derivation\r\n\r\n* Make use of `blake3::derive_key` algorithm\r\n\r\n* Un-expose temporal key bytes\r\n\r\n* Update domain separation string\r\n\r\n* Update prime hash fixture\r\n\r\n* Fix block naming consistency\r\n\r\n* Dedicated APIs for key structs & cleanup\r\n\r\n* Store a `base_name` in `ExternalFileContent`\r\n\r\nThis ensures you can re-generate all block labels, even if you don't have access to the\r\n PrivateNodeHeader`, e.g. when you only have snapshot access.\r\n\r\n* Lint\r\n\r\n* Give tests more stack space\r\n\r\n* Fix wasm-wnfs\r\n\r\n* Make external file content encoding more spec-adhering\r\n\r\n* Add a hiding segment to `base_name`\r\n\r\n* Depend on released skip ratchet crate",
+          "timestamp": "2023-07-21T13:46:05+02:00",
+          "tree_id": "d6afac03d2d773d27934809e6dbf8ffbf1c9d53e",
+          "url": "https://github.com/wnfs-wg/rs-wnfs/commit/e164a1fc80c30d9446404a61b05fd995d7d88c0e"
+        },
+        "date": 1689940298194,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "node set",
+            "value": 7008,
+            "range": "± 462",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node set 1000 consecutive",
+            "value": 2733099,
+            "range": "± 177469",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and get",
+            "value": 134221,
+            "range": "± 8895",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and remove",
+            "value": 147507,
+            "range": "± 9664",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt load and decode/0",
+            "value": 52196,
+            "range": "± 4135",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt set and encode",
+            "value": 129648,
+            "range": "± 8189",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt diff",
+            "value": 54821,
+            "range": "± 5011",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt merge",
+            "value": 160754,
+            "range": "± 19235",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameSegment::new_hashed",
+            "value": 2647437,
+            "range": "± 324259",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameSegment::new(rng)",
+            "value": 2885362,
+            "range": "± 327240",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameAccumulator::add",
+            "value": 2511626,
+            "range": "± 180515",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameAccumulator serialization",
+            "value": 950,
+            "range": "± 484",
             "unit": "ns/iter"
           }
         ]
