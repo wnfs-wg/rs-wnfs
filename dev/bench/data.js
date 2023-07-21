@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1689940299533,
+  "lastUpdate": 1689940316362,
   "repoUrl": "https://github.com/wnfs-wg/rs-wnfs",
   "entries": {
     "Rust Benchmark": [
@@ -15517,6 +15517,102 @@ window.BENCHMARK_DATA = {
             "name": "NameAccumulator serialization",
             "value": 950,
             "range": "± 484",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "philipp.krueger1@gmail.com",
+            "name": "Philipp Krüger",
+            "username": "matheus23"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "00f5b16bc2b97642a9a601f9ab93f4b95f7d0785",
+          "message": "Fix `search_latest` on the root directory and implement `searchLatest` in wasm bindings (#310)\n\n* feat: Switch from SHA3-256 to BLAKE3-256\r\n\r\n* Also use Blake3 by default in `BlockStore::create_cid`\r\n\r\n* Also use Blake3 in skip ratchet key derivation\r\n\r\n* Make use of `blake3::derive_key` algorithm\r\n\r\n* Un-expose temporal key bytes\r\n\r\n* Update domain separation string\r\n\r\n* Update prime hash fixture\r\n\r\n* Fix block naming consistency\r\n\r\n* Dedicated APIs for key structs & cleanup\r\n\r\n* Store a `base_name` in `ExternalFileContent`\r\n\r\nThis ensures you can re-generate all block labels, even if you don't have access to the\r\n PrivateNodeHeader`, e.g. when you only have snapshot access.\r\n\r\n* Lint\r\n\r\n* Give tests more stack space\r\n\r\n* Fix wasm-wnfs\r\n\r\n* Make external file content encoding more spec-adhering\r\n\r\n* Add a hiding segment to `base_name`\r\n\r\n* Depend on released skip ratchet crate\r\n\r\n* Write failing test case\r\n\r\n* Make `search_latest` also effect the root dir\r\n\r\n* Implement `PrivateNode.searchLatest` for wasm\r\n\r\n* Whoops! Uncommented some lines",
+          "timestamp": "2023-07-21T13:46:30+02:00",
+          "tree_id": "71d1bd86405a8a579addcbaa385121b23167c036",
+          "url": "https://github.com/wnfs-wg/rs-wnfs/commit/00f5b16bc2b97642a9a601f9ab93f4b95f7d0785"
+        },
+        "date": 1689940315120,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "node set",
+            "value": 6553,
+            "range": "± 289",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node set 1000 consecutive",
+            "value": 2706600,
+            "range": "± 111245",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and get",
+            "value": 128426,
+            "range": "± 7717",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and remove",
+            "value": 149880,
+            "range": "± 8613",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt load and decode/0",
+            "value": 50024,
+            "range": "± 1904",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt set and encode",
+            "value": 119148,
+            "range": "± 4143",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt diff",
+            "value": 52737,
+            "range": "± 6911",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt merge",
+            "value": 158421,
+            "range": "± 16493",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameSegment::new_hashed",
+            "value": 2532488,
+            "range": "± 357041",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameSegment::new(rng)",
+            "value": 2809380,
+            "range": "± 313313",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameAccumulator::add",
+            "value": 2290311,
+            "range": "± 126695",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameAccumulator serialization",
+            "value": 863,
+            "range": "± 114",
             "unit": "ns/iter"
           }
         ]
