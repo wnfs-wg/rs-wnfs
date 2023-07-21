@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1689940316362,
+  "lastUpdate": 1689941327424,
   "repoUrl": "https://github.com/wnfs-wg/rs-wnfs",
   "entries": {
     "Rust Benchmark": [
@@ -15613,6 +15613,102 @@ window.BENCHMARK_DATA = {
             "name": "NameAccumulator serialization",
             "value": 863,
             "range": "± 114",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "49699333+dependabot[bot]@users.noreply.github.com",
+            "name": "dependabot[bot]",
+            "username": "dependabot[bot]"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "dae24764bb7294c729ad4487ad6168b24a0d9fd4",
+          "message": "chore(rust)(deps): update serde_ipld_dagcbor requirement in /wnfs (#300)\n\nUpdates the requirements on [serde_ipld_dagcbor](https://github.com/ipld/serde_ipld_dagcbor) to permit the latest version.\r\n- [Commits](https://github.com/ipld/serde_ipld_dagcbor/compare/v0.3.0...v0.4.0)\r\n\r\n---\r\nupdated-dependencies:\r\n- dependency-name: serde_ipld_dagcbor\r\n  dependency-type: direct:production\r\n...\r\n\r\nSigned-off-by: dependabot[bot] <support@github.com>\r\nCo-authored-by: dependabot[bot] <49699333+dependabot[bot]@users.noreply.github.com>",
+          "timestamp": "2023-07-21T14:05:47+02:00",
+          "tree_id": "1974117bbdccf592c728b897d0cd23ea733fda69",
+          "url": "https://github.com/wnfs-wg/rs-wnfs/commit/dae24764bb7294c729ad4487ad6168b24a0d9fd4"
+        },
+        "date": 1689941326750,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "node set",
+            "value": 5783,
+            "range": "± 145",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node set 1000 consecutive",
+            "value": 2465759,
+            "range": "± 14545",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and get",
+            "value": 113738,
+            "range": "± 350",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and remove",
+            "value": 124484,
+            "range": "± 315",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt load and decode/0",
+            "value": 41224,
+            "range": "± 67",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt set and encode",
+            "value": 110563,
+            "range": "± 1071",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt diff",
+            "value": 48275,
+            "range": "± 2489",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt merge",
+            "value": 139513,
+            "range": "± 10525",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameSegment::new_hashed",
+            "value": 2357847,
+            "range": "± 238513",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameSegment::new(rng)",
+            "value": 2484696,
+            "range": "± 244972",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameAccumulator::add",
+            "value": 2208372,
+            "range": "± 84787",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameAccumulator serialization",
+            "value": 754,
+            "range": "± 16",
             "unit": "ns/iter"
           }
         ]
