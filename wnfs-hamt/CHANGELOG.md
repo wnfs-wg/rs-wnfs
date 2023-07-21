@@ -6,6 +6,28 @@
   * dev-dependencies
     * wnfs-common bumped from 0.1.19 to 0.1.20
 
+## [0.1.23](https://github.com/wnfs-wg/rs-wnfs/compare/wnfs-hamt-v0.1.22...wnfs-hamt-v0.1.23) (2023-07-21)
+
+
+### Features
+
+* Switch from Namefilter to Name Accumulators ([#247](https://github.com/wnfs-wg/rs-wnfs/issues/247)) ([7026a37](https://github.com/wnfs-wg/rs-wnfs/commit/7026a379443038fa1b0410df1c7d0bc23649f17a))
+* Switch from SHA3-256 to BLAKE3-256 ([#306](https://github.com/wnfs-wg/rs-wnfs/issues/306)) ([e164a1f](https://github.com/wnfs-wg/rs-wnfs/commit/e164a1fc80c30d9446404a61b05fd995d7d88c0e))
+
+
+### Miscellaneous Chores
+
+* **wnfs-nameaccumulator:** Initial release at 0.1.23 ([eb17ea2](https://github.com/wnfs-wg/rs-wnfs/commit/eb17ea2fa03e248a189cb8db04a033ef542f26db))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * wnfs-common bumped from 0.1.22 to 0.1.23
+  * dev-dependencies
+    * wnfs-common bumped from 0.1.22 to 0.1.23
+
 ## [0.1.22](https://github.com/wnfs-wg/rs-wnfs/compare/wnfs-hamt-v0.1.21...wnfs-hamt-v0.1.22) (2023-06-23)
 
 
