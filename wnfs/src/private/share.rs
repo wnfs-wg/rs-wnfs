@@ -192,9 +192,9 @@ pub mod sharer {
         sharer_forest: &impl PrivateForest,
     ) -> Name {
         sharer_forest.empty_name().with_segments_added([
-            NameSegment::from_seed(sharer_root_did.as_bytes()),
-            NameSegment::from_seed(recipient_exchange_key),
-            NameSegment::from_seed(share_count.to_le_bytes()),
+            NameSegment::new_hashed("Testing", sharer_root_did.as_bytes()),
+            NameSegment::new_hashed("Testing", recipient_exchange_key),
+            NameSegment::new_hashed("Testing", share_count.to_le_bytes()),
         ])
     }
 }
@@ -206,7 +206,6 @@ pub mod recipient {
         private::{forest::traits::PrivateForest, AccessKey, PrivateKey, PrivateNode},
     };
     use anyhow::Result;
-    use sha3::Sha3_256;
     use wnfs_common::BlockStore;
     use wnfs_hamt::Hasher;
     use wnfs_nameaccumulator::Name;
@@ -255,7 +254,10 @@ pub mod recipient {
         let setup = sharer_forest.get_accumulator_setup();
         // Get cid to encrypted payload from sharer's forest using share_label
         let access_key_cid = sharer_forest
-            .get_encrypted_by_hash(&Sha3_256::hash(&share_label.as_accumulator(setup)), store)
+            .get_encrypted_by_hash(
+                &blake3::Hasher::hash(&share_label.as_accumulator(setup)),
+                store,
+            )
             .await?
             .ok_or(ShareError::AccessKeyNotFound)?
             .first()

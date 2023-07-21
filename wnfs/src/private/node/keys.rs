@@ -1,24 +1,52 @@
 use crate::error::CryptError;
 use aes_kw::KekAes256;
 use anyhow::{anyhow, Result};
+use blake3::traits::digest::Digest;
 use chacha20poly1305::{
     aead::{Aead, AeadCore, KeyInit},
     AeadInPlace, Tag, XChaCha20Poly1305, XNonce,
 };
 use rand_core::CryptoRngCore;
 use serde::{Deserialize, Serialize};
-use sha3::{Digest, Sha3_256};
 use skip_ratchet::Ratchet;
 use std::fmt::Debug;
-use wnfs_hamt::Hasher;
+use wnfs_common::utils;
 
 //--------------------------------------------------------------------------------------------------
 // Constants
 //--------------------------------------------------------------------------------------------------
 
+/// The size of the nonce used when encrypting using snapshot keys.
+/// The algorithm used is XChaCha20-Poly1305, i.e. the extended nonce variant,
+/// so it's 196 bit.
 pub(crate) const NONCE_SIZE: usize = 24;
+/// The size of the authentication tag used when encrypting using snapshot keys.
+/// The algorithm used is XChaCha20-Poly1305, so it's 128 bit.
 pub(crate) const AUTHENTICATION_TAG_SIZE: usize = 16;
+/// The general key size used in WNFS: 256-bit
 pub const KEY_BYTE_SIZE: usize = 32;
+
+/// The revision segment derivation domain separation info
+/// used for salting the hashing function when turning
+/// node names into revisioned node names.
+pub(crate) const REVISION_SEGMENT_DSI: &str = "wnfs/revision segment deriv from ratchet";
+/// The hiding segment derivation domain separation info
+/// used for salting the hashing function when generating
+/// the hiding segment from the external file content key,
+/// which is added to a file's name to generate the external content base name.
+pub(crate) const HIDING_SEGMENT_DSI: &str = "wnfs/hiding segment deriv from content key";
+/// The block segment derivation domain separation info
+/// used for salting the hashing function when generating
+/// the segments for each file's external content blocks.
+pub(crate) const BLOCK_SEGMENT_DSI: &str = "wnfs/segment deriv for file block";
+/// The temporal key derivation domain seperation info
+/// used for salting the hashing function when deriving
+/// symmetric keys from ratchets.
+pub(crate) const TEMPORAL_KEY_DSI: &str = "wnfs/temporal deriv from ratchet";
+/// The snapshot key derivation domain separation info
+/// used for salting the hashing function when deriving
+/// the snapshot key from the temporal key.
+pub(crate) const SNAPSHOT_KEY_DSI: &str = "wnfs/snapshot key deriv from temporal";
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
@@ -29,7 +57,7 @@ pub const KEY_BYTE_SIZE: usize = 32;
 pub struct SnapshotKey(
     #[serde(serialize_with = "crate::utils::serialize_byte_slice32")]
     #[serde(deserialize_with = "crate::utils::deserialize_byte_slice32")]
-    pub [u8; KEY_BYTE_SIZE],
+    pub(crate) [u8; KEY_BYTE_SIZE],
 );
 
 /// The key used to encrypt the header section of a node.
@@ -37,31 +65,23 @@ pub struct SnapshotKey(
 pub struct TemporalKey(
     #[serde(serialize_with = "crate::utils::serialize_byte_slice32")]
     #[serde(deserialize_with = "crate::utils::deserialize_byte_slice32")]
-    pub [u8; KEY_BYTE_SIZE],
+    pub(crate) [u8; KEY_BYTE_SIZE],
 );
-
-//--------------------------------------------------------------------------------------------------
-// Constants
-//--------------------------------------------------------------------------------------------------
-
-/// The revision segment derivation domain separation string
-/// used for salting the hashing function when turning
-/// node names into revisioned node names.
-pub(crate) const REVISION_SEGMENT_DSS: &str = "wnfs/segment deriv from temporal";
-/// The temporal key derivation domain seperation string
-/// used for salting the hashing function when deriving
-/// symmetric keys from ratchets.
-pub(crate) const TEMPORAL_KEY_DSS: &str = "wnfs/temporal deriv from ratchet";
 
 //--------------------------------------------------------------------------------------------------
 // Implementations
 //--------------------------------------------------------------------------------------------------
 
 impl TemporalKey {
+    /// Derive a temporal key from the ratchet for use with WNFS.
+    pub fn new(ratchet: &Ratchet) -> Self {
+        Self(ratchet.derive_key(TEMPORAL_KEY_DSI).finalize().into())
+    }
+
     /// Turn this TemporalKey, which gives read access to the current revision and any future
     /// revisions into a SnapshotKey, which only gives read access to the current revision.
     pub fn derive_snapshot_key(&self) -> SnapshotKey {
-        SnapshotKey::from(Sha3_256::hash(&self.0))
+        SnapshotKey(blake3::derive_key(SNAPSHOT_KEY_DSI, &self.0))
     }
 
     /// Encrypt a cleartext with this temporal key.
@@ -87,9 +107,19 @@ impl TemporalKey {
             .unwrap_with_padding_vec(ciphertext)
             .map_err(|e| CryptError::UnableToEncrypt(anyhow!(e)))?)
     }
+
+    /// Return the temporal key's key material.
+    pub fn as_bytes(&self) -> &[u8; KEY_BYTE_SIZE] {
+        &self.0
+    }
 }
 
 impl SnapshotKey {
+    /// Generate a random snapshot key from given randomness.
+    pub fn new(rng: &mut impl CryptoRngCore) -> Self {
+        Self(utils::get_random_bytes(rng))
+    }
+
     /// Encrypts the given plaintext using the key.
     ///
     /// # Examples
@@ -100,7 +130,7 @@ impl SnapshotKey {
     /// use rand::thread_rng;
     ///
     /// let rng = &mut thread_rng();
-    /// let key = SnapshotKey::from(utils::get_random_bytes(rng));
+    /// let key = SnapshotKey::new(rng);
     ///
     /// let plaintext = b"Hello World!";
     /// let ciphertext = key.encrypt(plaintext, rng).unwrap();
@@ -147,7 +177,7 @@ impl SnapshotKey {
     /// use rand::thread_rng;
     ///
     /// let rng = &mut thread_rng();
-    /// let key = SnapshotKey::from(utils::get_random_bytes(rng));
+    /// let key = SnapshotKey::new(rng);
     ///
     /// let plaintext = b"Hello World!";
     /// let ciphertext = key.encrypt(plaintext, rng).unwrap();
@@ -182,24 +212,10 @@ impl SnapshotKey {
             .map_err(|e| CryptError::UnableToDecrypt(anyhow!(e)))?;
         Ok(())
     }
-}
 
-impl From<[u8; KEY_BYTE_SIZE]> for TemporalKey {
-    fn from(key: [u8; KEY_BYTE_SIZE]) -> Self {
-        Self(key)
-    }
-}
-
-impl From<&Ratchet> for TemporalKey {
-    fn from(ratchet: &Ratchet) -> Self {
-        let key: [u8; KEY_BYTE_SIZE] = ratchet.derive_key(TEMPORAL_KEY_DSS).finalize().into();
-        Self::from(key)
-    }
-}
-
-impl From<[u8; KEY_BYTE_SIZE]> for SnapshotKey {
-    fn from(key: [u8; KEY_BYTE_SIZE]) -> Self {
-        Self(key)
+    /// Return the snapshot key's key material.
+    pub fn as_bytes(&self) -> &[u8; KEY_BYTE_SIZE] {
+        &self.0
     }
 }
 
@@ -222,7 +238,7 @@ mod proptests {
         #[strategy(any::<[u8; KEY_BYTE_SIZE]>())] rng_seed: [u8; KEY_BYTE_SIZE],
         key_bytes: [u8; KEY_BYTE_SIZE],
     ) {
-        let key = SnapshotKey::from(key_bytes);
+        let key = SnapshotKey(key_bytes);
         let rng = &mut ChaCha12Rng::from_seed(rng_seed);
 
         let encrypted = key.encrypt(&data, rng).unwrap();
@@ -244,7 +260,7 @@ mod proptests {
     ) {
         let mut buffer = data.clone();
         let nonce = XNonce::from_slice(&nonce);
-        let key = SnapshotKey::from(key_bytes);
+        let key = SnapshotKey(key_bytes);
 
         let tag = key.encrypt_in_place(nonce, &mut buffer).unwrap();
 

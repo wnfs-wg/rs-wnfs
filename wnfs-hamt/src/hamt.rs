@@ -9,7 +9,6 @@ use serde::{
     ser::Error as SerError,
     Deserialize, Deserializer, Serialize, Serializer,
 };
-use sha3::Sha3_256;
 use std::{collections::BTreeMap, hash::Hash, rc::Rc, str::FromStr};
 use wnfs_common::{AsyncSerialize, BlockStore, Link};
 
@@ -31,7 +30,7 @@ use wnfs_common::{AsyncSerialize, BlockStore, Link};
 /// println!("HAMT: {:?}", hamt);
 /// ```
 #[derive(Debug, Clone)]
-pub struct Hamt<K, V, H = Sha3_256>
+pub struct Hamt<K, V, H = blake3::Hasher>
 where
     H: Hasher,
 {

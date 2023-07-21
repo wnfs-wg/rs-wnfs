@@ -1,9 +1,8 @@
-use super::{PrivateNodeHeaderSerializable, TemporalKey, REVISION_SEGMENT_DSS};
+use super::{PrivateNodeHeaderSerializable, TemporalKey, REVISION_SEGMENT_DSI};
 use crate::{error::FsError, private::RevisionRef};
 use anyhow::{bail, Result};
 use libipld_core::cid::Cid;
 use rand_core::CryptoRngCore;
-use sha3::Sha3_256;
 use skip_ratchet::Ratchet;
 use std::fmt::Debug;
 use wnfs_common::{BlockStore, CODEC_RAW};
@@ -80,7 +79,8 @@ impl PrivateNodeHeader {
     /// Derives the revision ref of the current header.
     pub(crate) fn derive_revision_ref(&self, setup: &AccumulatorSetup) -> RevisionRef {
         let temporal_key = self.derive_temporal_key();
-        let revision_name_hash = Sha3_256::hash(self.get_revision_name().as_accumulator(setup));
+        let revision_name_hash =
+            blake3::Hasher::hash(self.get_revision_name().as_accumulator(setup));
 
         RevisionRef {
             revision_name_hash,
@@ -112,12 +112,11 @@ impl PrivateNodeHeader {
     /// ```
     #[inline]
     pub fn derive_temporal_key(&self) -> TemporalKey {
-        TemporalKey::from(&self.ratchet)
+        TemporalKey::new(&self.ratchet)
     }
 
     pub(crate) fn derive_revision_segment(&self) -> NameSegment {
-        let hasher = self.ratchet.derive_key(REVISION_SEGMENT_DSS);
-        NameSegment::from_digest(hasher)
+        NameSegment::new_hashed(REVISION_SEGMENT_DSI, self.ratchet.key_derivation_data())
     }
 
     /// Gets the revision name for this node.

@@ -61,6 +61,13 @@ impl AccessKey {
         Ok(&key.temporal_key)
     }
 
+    pub fn get_snapshot_key(&self) -> SnapshotKey {
+        match self {
+            Self::Temporal(t) => t.temporal_key.derive_snapshot_key(),
+            Self::Snapshot(s) => s.snapshot_key.clone(),
+        }
+    }
+
     pub fn get_content_cid(&self) -> &Cid {
         match self {
             Self::Temporal(key) => &key.content_cid,

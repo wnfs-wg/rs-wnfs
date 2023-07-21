@@ -19,7 +19,6 @@ use serde::{
     ser::Error as SerError,
     Deserializer, Serialize, Serializer,
 };
-use sha3::Sha3_256;
 use std::{
     collections::HashMap,
     fmt::{self, Debug, Formatter},
@@ -50,7 +49,7 @@ pub type BitMaskType = [u8; HAMT_BITMASK_BYTE_SIZE];
 ///
 /// assert!(node.is_empty());
 /// ```
-pub struct Node<K, V, H = Sha3_256>
+pub struct Node<K, V, H = blake3::Hasher>
 where
     H: Hasher,
 {
@@ -223,7 +222,6 @@ where
     ///
     /// ```
     /// use std::rc::Rc;
-    /// use sha3::Sha3_256;
     /// use wnfs_hamt::{Node, Hasher};
     /// use wnfs_common::MemoryBlockStore;
     ///
@@ -234,7 +232,7 @@ where
     ///
     ///     node.set("key".into(), 42, store).await.unwrap();
     ///
-    ///     let key_hash = &Sha3_256::hash(&String::from("key"));
+    ///     let key_hash = &blake3::Hasher::hash(&String::from("key"));
     ///     assert_eq!(node.get_by_hash(key_hash, store).await.unwrap(), Some(&42));
     /// }
     /// ```
@@ -262,7 +260,6 @@ where
     ///
     /// ```
     /// use std::rc::Rc;
-    /// use sha3::Sha3_256;
     /// use wnfs_hamt::{Node, Hasher, Pair};
     /// use wnfs_common::MemoryBlockStore;
     ///
@@ -274,7 +271,7 @@ where
     ///     node.set("key".into(), 42, store).await.unwrap();
     ///     assert_eq!(node.get(&String::from("key"), store).await.unwrap(), Some(&42));
     ///
-    ///     let key_hash = &Sha3_256::hash(&String::from("key"));
+    ///     let key_hash = &blake3::Hasher::hash(&String::from("key"));
     ///     let value = node.remove_by_hash(key_hash, store).await.unwrap();
     ///
     ///     assert_eq!(value, Some(Pair::new("key".into(), 42)));
@@ -613,7 +610,6 @@ where
     ///
     /// ```
     /// use std::rc::Rc;
-    /// use sha3::Sha3_256;
     /// use wnfs_hamt::{Node, HashPrefix, Hasher};
     /// use wnfs_common::{MemoryBlockStore, utils};
     ///
@@ -694,7 +690,6 @@ where
     ///
     /// ```
     /// use std::rc::Rc;
-    /// use sha3::Sha3_256;
     /// use wnfs_hamt::{Node, Hasher};
     /// use wnfs_common::MemoryBlockStore;
     ///

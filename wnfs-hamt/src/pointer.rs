@@ -248,13 +248,12 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use sha3::Sha3_256;
     use wnfs_common::{dagcbor, MemoryBlockStore};
 
     #[async_std::test]
     async fn pointer_can_encode_decode_as_cbor() {
         let store = &MemoryBlockStore::default();
-        let pointer: Pointer<String, i32, Sha3_256> = Pointer::Values(vec![
+        let pointer: Pointer<String, i32, blake3::Hasher> = Pointer::Values(vec![
             Pair {
                 key: "James".into(),
                 value: 4500,
@@ -267,7 +266,8 @@ mod tests {
 
         let encoded_pointer = dagcbor::async_encode(&pointer, store).await.unwrap();
         let decoded_pointer =
-            dagcbor::decode::<Pointer<String, i32, Sha3_256>>(encoded_pointer.as_ref()).unwrap();
+            dagcbor::decode::<Pointer<String, i32, blake3::Hasher>>(encoded_pointer.as_ref())
+                .unwrap();
 
         assert_eq!(pointer, decoded_pointer);
     }

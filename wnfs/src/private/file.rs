@@ -1,7 +1,7 @@
 use super::{
     encrypted::Encrypted, forest::traits::PrivateForest, PrivateFileContentSerializable,
     PrivateNode, PrivateNodeContentSerializable, PrivateNodeHeader, PrivateRef, SnapshotKey,
-    TemporalKey, AUTHENTICATION_TAG_SIZE, NONCE_SIZE,
+    TemporalKey, AUTHENTICATION_TAG_SIZE, BLOCK_SEGMENT_DSI, HIDING_SEGMENT_DSI, NONCE_SIZE,
 };
 use crate::{error::FsError, traits::Id, WNFS_VERSION};
 use anyhow::{bail, Result};
@@ -12,18 +12,17 @@ use futures::{future, AsyncRead, Stream, StreamExt, TryStreamExt};
 use libipld_core::cid::Cid;
 use rand_core::CryptoRngCore;
 use serde::{Deserialize, Serialize};
-use sha3::{Digest, Sha3_256};
 use std::{collections::BTreeSet, iter, rc::Rc};
 use wnfs_common::{utils, BlockStore, Metadata, CODEC_RAW, MAX_BLOCK_SIZE};
-use wnfs_nameaccumulator::{AccumulatorSetup, Name, NameSegment};
+use wnfs_nameaccumulator::{AccumulatorSetup, Name, NameAccumulator, NameSegment};
 
 //--------------------------------------------------------------------------------------------------
 // Constants
 //--------------------------------------------------------------------------------------------------
 
-/// The maximum block size is 2 ^ 18 but the first 12 bytes are reserved for the cipher text's initialization vector.
+/// The maximum block size is 2 ^ 18 but the first 24 bytes are reserved for the cipher text's initialization vector.
 /// The ciphertext then also contains a 16 byte authentication tag.
-/// This leaves a maximum of (2 ^ 18) - 12 - 16 = 262,116 bytes for the actual data.
+/// This leaves a maximum of (2 ^ 18) - 24 - 16 = 262,104 bytes for the actual data.
 ///
 /// More on that [here][priv-file].
 ///
@@ -87,12 +86,19 @@ pub(crate) struct PrivateFileContent {
 /// It is stored inline or stored in blocks.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub(crate) enum FileContent {
-    Inline {
-        data: Vec<u8>,
-    },
+    #[serde(rename = "inline")]
+    Inline { data: Vec<u8> },
+    #[serde(rename = "external")]
     External {
         key: SnapshotKey,
+
+        #[serde(rename = "baseName")]
+        base_name: NameAccumulator,
+
+        #[serde(rename = "blockCount")]
         block_count: usize,
+
+        #[serde(rename = "blockContentSize")]
         block_content_size: usize,
     },
 }
@@ -177,7 +183,7 @@ impl PrivateFile {
         rng: &mut impl CryptoRngCore,
     ) -> Result<Self> {
         let header = PrivateNodeHeader::new(parent_name, rng);
-        let content = Self::prepare_content(&header.name, content, forest, store, rng).await?;
+        let content = Self::prepare_content(header.get_name(), content, forest, store, rng).await?;
 
         Ok(Self {
             header,
@@ -241,7 +247,7 @@ impl PrivateFile {
     ) -> Result<Self> {
         let header = PrivateNodeHeader::new(parent_name, rng);
         let content =
-            Self::prepare_content_streaming(&header.name, content, forest, store, rng).await?;
+            Self::prepare_content_streaming(header.get_name(), content, forest, store, rng).await?;
 
         Ok(Self {
             header,
@@ -317,10 +323,11 @@ impl PrivateFile {
                 FileContent::External {
                     key,
                     block_count,
+                    base_name,
+                    // TODO(matheus23): take block_content_size into account
                     ..
                 } => {
-                    let name = &self.header.name;
-                    for name in Self::generate_shard_labels(key, index, *block_count, name) {
+                    for name in Self::generate_shard_labels(key, index, *block_count, &Name::new(base_name.clone(), [])) {
                         let bytes = Self::decrypt_block(key, &name, forest, store).await?;
                         yield bytes
                     }
@@ -415,7 +422,11 @@ impl PrivateFile {
         forest: &impl PrivateForest,
         store: &impl BlockStore,
     ) -> Result<Vec<u8>> {
-        let mut content = Vec::with_capacity(self.get_content_size_upper_bound());
+        // We're not using Vec::with_capacity here because
+        // a call to get_content instead of stream_content seems to
+        // indicate that the content is small enough to fit into
+        // memory. So let's keep allocations low.
+        let mut content = Vec::new();
         self.stream_content(0, forest, store)
             .try_for_each(|chunk| {
                 content.extend_from_slice(&chunk);
@@ -436,7 +447,8 @@ impl PrivateFile {
     ) -> Result<()> {
         self.content.metadata = Metadata::new(time);
         self.content.content =
-            Self::prepare_content_streaming(&self.header.name, content, forest, store, rng).await?;
+            Self::prepare_content_streaming(self.header.get_name(), content, forest, store, rng)
+                .await?;
         Ok(())
     }
 
@@ -449,11 +461,11 @@ impl PrivateFile {
         rng: &mut impl CryptoRngCore,
     ) -> Result<FileContent> {
         // TODO(appcypher): Use a better heuristic to determine when to use external storage.
-        let key = SnapshotKey::from(utils::get_random_bytes(rng));
+        let (key, base_name) = Self::prepare_key_and_base_name(file_name, rng);
         let block_count = (content.len() as f64 / MAX_BLOCK_CONTENT_SIZE as f64).ceil() as usize;
 
         for (index, name) in
-            Self::generate_shard_labels(&key, 0, block_count, file_name).enumerate()
+            Self::generate_shard_labels(&key, 0, block_count, &base_name).enumerate()
         {
             let start = index * MAX_BLOCK_CONTENT_SIZE;
             let end = content.len().min((index + 1) * MAX_BLOCK_CONTENT_SIZE);
@@ -469,6 +481,9 @@ impl PrivateFile {
 
         Ok(FileContent::External {
             key,
+            base_name: base_name
+                .as_accumulator(forest.get_accumulator_setup())
+                .clone(),
             block_count,
             block_content_size: MAX_BLOCK_CONTENT_SIZE,
         })
@@ -485,8 +500,7 @@ impl PrivateFile {
         store: &impl BlockStore,
         rng: &mut impl CryptoRngCore,
     ) -> Result<FileContent> {
-        let key = SnapshotKey::from(utils::get_random_bytes(rng));
-        let file_revision_name = Self::create_revision_name(file_name, &key);
+        let (key, base_name) = Self::prepare_key_and_base_name(file_name, rng);
 
         let mut block_index = 0;
 
@@ -510,7 +524,7 @@ impl PrivateFile {
 
             let content_cid = store.put_block(current_block, CODEC_RAW).await?;
 
-            let name = Self::create_block_label(&key, block_index, &file_revision_name);
+            let name = Self::create_block_name(&key, block_index, &base_name);
             forest
                 .put_encrypted(&name, Some(content_cid), store)
                 .await?;
@@ -524,9 +538,23 @@ impl PrivateFile {
 
         Ok(FileContent::External {
             key,
+            base_name: base_name
+                .as_accumulator(forest.get_accumulator_setup())
+                .clone(),
             block_count: block_index,
             block_content_size: MAX_BLOCK_CONTENT_SIZE,
         })
+    }
+
+    fn prepare_key_and_base_name(
+        file_name: &Name,
+        rng: &mut impl CryptoRngCore,
+    ) -> (SnapshotKey, Name) {
+        let key = SnapshotKey::new(rng);
+        let hiding_segment = NameSegment::new_hashed(HIDING_SEGMENT_DSI, key.as_bytes());
+        let base_name = file_name.with_segments_added(Some(hiding_segment));
+
+        (key, base_name)
     }
 
     /// Gets the upper bound of a file content size.
@@ -567,33 +595,27 @@ impl PrivateFile {
         key: &'a SnapshotKey,
         mut index: usize,
         block_count: usize,
-        file_block_name: &'a Name,
+        base_name: &'a Name,
     ) -> impl Iterator<Item = Name> + 'a {
-        let file_revision_name = Self::create_revision_name(file_block_name, key);
         iter::from_fn(move || {
             if index >= block_count {
                 return None;
             }
 
-            let label = Self::create_block_label(key, index, &file_revision_name);
+            let label = Self::create_block_name(key, index, base_name);
             index += 1;
             Some(label)
         })
     }
 
-    fn create_revision_name(file_block_name: &Name, key: &SnapshotKey) -> Name {
-        let revision_segment = NameSegment::from_digest(Sha3_256::new().chain_update(key.0));
-        file_block_name.with_segments_added(Some(revision_segment))
-    }
-
     /// Creates the label for a block of a file.
-    fn create_block_label(key: &SnapshotKey, index: usize, file_revision_name: &Name) -> Name {
-        let key_hash = Sha3_256::new()
-            .chain_update(key.0)
-            .chain_update(index.to_le_bytes());
-        let elem = NameSegment::from_digest(key_hash);
+    fn create_block_name(key: &SnapshotKey, index: usize, base_name: &Name) -> Name {
+        let mut vec = Vec::with_capacity(40);
+        vec.extend(key.0); // 32 bytes
+        vec.extend((index as u64).to_le_bytes()); // 8 bytes
+        let block_segment = NameSegment::new_hashed(BLOCK_SEGMENT_DSI, vec);
 
-        file_revision_name.with_segments_added(Some(elem))
+        base_name.with_segments_added(Some(block_segment))
     }
 
     /// This should be called to prepare a node for modifications,

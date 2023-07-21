@@ -140,7 +140,7 @@ impl<F: PrivateForest> PrivateNodeHistory<F> {
         // That would need an additional API that allows 'selecting' one of the forks before moving on.
         // Then this function would derive the nth-previous ratchet by "peeking" ahead the current
         // self.ratchets iterator for n (the "# of revisions back" usize attached to the previous pointer)
-        let temporal_key = TemporalKey::from(previous_ratchet);
+        let temporal_key = TemporalKey::new(previous_ratchet);
         let Some((_, first_backpointer)) = self
             .previous
             .iter()
