@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1689941370324,
+  "lastUpdate": 1689941427929,
   "repoUrl": "https://github.com/wnfs-wg/rs-wnfs",
   "entries": {
     "Rust Benchmark": [
@@ -15805,6 +15805,102 @@ window.BENCHMARK_DATA = {
             "name": "NameAccumulator serialization",
             "value": 910,
             "range": "± 242",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "49699333+dependabot[bot]@users.noreply.github.com",
+            "name": "dependabot[bot]",
+            "username": "dependabot[bot]"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "543634b37bfd2cf5d0f441d70cea20dbdb29322c",
+          "message": "chore(npm)(deps-dev): bump html-webpack-plugin in /wnfs-wasm (#289)\n\nBumps [html-webpack-plugin](https://github.com/jantimon/html-webpack-plugin) from 5.5.1 to 5.5.3.\r\n- [Release notes](https://github.com/jantimon/html-webpack-plugin/releases)\r\n- [Changelog](https://github.com/jantimon/html-webpack-plugin/blob/main/CHANGELOG.md)\r\n- [Commits](https://github.com/jantimon/html-webpack-plugin/compare/v5.5.1...v5.5.3)\r\n\r\n---\r\nupdated-dependencies:\r\n- dependency-name: html-webpack-plugin\r\n  dependency-type: direct:development\r\n  update-type: version-update:semver-patch\r\n...\r\n\r\nSigned-off-by: dependabot[bot] <support@github.com>\r\nCo-authored-by: dependabot[bot] <49699333+dependabot[bot]@users.noreply.github.com>",
+          "timestamp": "2023-07-21T14:06:29+02:00",
+          "tree_id": "fefec31dff2d0406109e1a5439220ab4ff8a7f4d",
+          "url": "https://github.com/wnfs-wg/rs-wnfs/commit/543634b37bfd2cf5d0f441d70cea20dbdb29322c"
+        },
+        "date": 1689941427210,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "node set",
+            "value": 6801,
+            "range": "± 89",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node set 1000 consecutive",
+            "value": 2927992,
+            "range": "± 8814",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and get",
+            "value": 137944,
+            "range": "± 1652",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and remove",
+            "value": 149960,
+            "range": "± 326",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt load and decode/0",
+            "value": 49431,
+            "range": "± 132",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt set and encode",
+            "value": 133684,
+            "range": "± 693",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt diff",
+            "value": 57612,
+            "range": "± 4005",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt merge",
+            "value": 166686,
+            "range": "± 12675",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameSegment::new_hashed",
+            "value": 2830955,
+            "range": "± 286945",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameSegment::new(rng)",
+            "value": 2903958,
+            "range": "± 349363",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameAccumulator::add",
+            "value": 2623321,
+            "range": "± 109967",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameAccumulator serialization",
+            "value": 955,
+            "range": "± 63",
             "unit": "ns/iter"
           }
         ]
