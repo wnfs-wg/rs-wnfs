@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1689944536776,
+  "lastUpdate": 1689944600888,
   "repoUrl": "https://github.com/wnfs-wg/rs-wnfs",
   "entries": {
     "Rust Benchmark": [
@@ -16189,6 +16189,102 @@ window.BENCHMARK_DATA = {
             "name": "NameAccumulator serialization",
             "value": 981,
             "range": "± 24",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "49699333+dependabot[bot]@users.noreply.github.com",
+            "name": "dependabot[bot]",
+            "username": "dependabot[bot]"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "8f1601506ec382d117e06a8ea76f8ab29e9ec9bf",
+          "message": "chore(npm)(deps-dev): bump ts-loader from 9.4.3 to 9.4.4 in /wnfs-wasm (#299)\n\nBumps [ts-loader](https://github.com/TypeStrong/ts-loader) from 9.4.3 to 9.4.4.\r\n- [Release notes](https://github.com/TypeStrong/ts-loader/releases)\r\n- [Changelog](https://github.com/TypeStrong/ts-loader/blob/main/CHANGELOG.md)\r\n- [Commits](https://github.com/TypeStrong/ts-loader/compare/v9.4.3...v9.4.4)\r\n\r\n---\r\nupdated-dependencies:\r\n- dependency-name: ts-loader\r\n  dependency-type: direct:development\r\n  update-type: version-update:semver-patch\r\n...\r\n\r\nSigned-off-by: dependabot[bot] <support@github.com>\r\nCo-authored-by: dependabot[bot] <49699333+dependabot[bot]@users.noreply.github.com>",
+          "timestamp": "2023-07-21T14:59:19+02:00",
+          "tree_id": "b12c62ca15e65072cc35e6952b1607ddd03b8e09",
+          "url": "https://github.com/wnfs-wg/rs-wnfs/commit/8f1601506ec382d117e06a8ea76f8ab29e9ec9bf"
+        },
+        "date": 1689944600159,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "node set",
+            "value": 6051,
+            "range": "± 62",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node set 1000 consecutive",
+            "value": 2511129,
+            "range": "± 15355",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and get",
+            "value": 114460,
+            "range": "± 535",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and remove",
+            "value": 125392,
+            "range": "± 339",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt load and decode/0",
+            "value": 41341,
+            "range": "± 56",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt set and encode",
+            "value": 112153,
+            "range": "± 446",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt diff",
+            "value": 48389,
+            "range": "± 3394",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt merge",
+            "value": 140605,
+            "range": "± 10601",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameSegment::new_hashed",
+            "value": 2412220,
+            "range": "± 223812",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameSegment::new(rng)",
+            "value": 2451144,
+            "range": "± 259474",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameAccumulator::add",
+            "value": 2213234,
+            "range": "± 76783",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameAccumulator serialization",
+            "value": 754,
+            "range": "± 21",
             "unit": "ns/iter"
           }
         ]
