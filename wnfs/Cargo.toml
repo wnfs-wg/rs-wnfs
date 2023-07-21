@@ -35,7 +35,7 @@ proptest = { version = "1.1", optional = true }
 rand_core = "0.6"
 semver = { version = "1.0", features = ["serde"] }
 serde = { version = "1.0", features = ["rc"] }
-serde_ipld_dagcbor = "0.3.0"
+serde_ipld_dagcbor = "0.4.0"
 skip_ratchet = { version = "0.3.0", features = ["serde"] }
 thiserror = "1.0"
 wnfs-common = { path = "../wnfs-common", version = "0.1.22" }
