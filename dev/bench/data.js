@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1689941327424,
+  "lastUpdate": 1689941370324,
   "repoUrl": "https://github.com/wnfs-wg/rs-wnfs",
   "entries": {
     "Rust Benchmark": [
@@ -15709,6 +15709,102 @@ window.BENCHMARK_DATA = {
             "name": "NameAccumulator serialization",
             "value": 754,
             "range": "± 16",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "49699333+dependabot[bot]@users.noreply.github.com",
+            "name": "dependabot[bot]",
+            "username": "dependabot[bot]"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "17ac6a7628dc31fa11794118c136322ebf56a476",
+          "message": "chore(npm)(deps-dev): bump uint8arrays from 4.0.3 to 4.0.4 in /wnfs-wasm (#290)\n\nBumps [uint8arrays](https://github.com/achingbrain/uint8arrays) from 4.0.3 to 4.0.4.\r\n- [Release notes](https://github.com/achingbrain/uint8arrays/releases)\r\n- [Changelog](https://github.com/achingbrain/uint8arrays/blob/master/CHANGELOG.md)\r\n- [Commits](https://github.com/achingbrain/uint8arrays/compare/v4.0.3...v4.0.4)\r\n\r\n---\r\nupdated-dependencies:\r\n- dependency-name: uint8arrays\r\n  dependency-type: direct:development\r\n  update-type: version-update:semver-patch\r\n...\r\n\r\nSigned-off-by: dependabot[bot] <support@github.com>\r\nCo-authored-by: dependabot[bot] <49699333+dependabot[bot]@users.noreply.github.com>",
+          "timestamp": "2023-07-21T14:06:07+02:00",
+          "tree_id": "34f70980a8f4ad14595c3efb9bd7ef44a90108a2",
+          "url": "https://github.com/wnfs-wg/rs-wnfs/commit/17ac6a7628dc31fa11794118c136322ebf56a476"
+        },
+        "date": 1689941368897,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "node set",
+            "value": 6549,
+            "range": "± 219",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node set 1000 consecutive",
+            "value": 2855227,
+            "range": "± 76439",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and get",
+            "value": 132914,
+            "range": "± 4814",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and remove",
+            "value": 142843,
+            "range": "± 3396",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt load and decode/0",
+            "value": 47839,
+            "range": "± 2110",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt set and encode",
+            "value": 130095,
+            "range": "± 2563",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt diff",
+            "value": 56520,
+            "range": "± 4196",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt merge",
+            "value": 163477,
+            "range": "± 12982",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameSegment::new_hashed",
+            "value": 2819967,
+            "range": "± 313384",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameSegment::new(rng)",
+            "value": 2768553,
+            "range": "± 343439",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameAccumulator::add",
+            "value": 2531830,
+            "range": "± 115181",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameAccumulator serialization",
+            "value": 910,
+            "range": "± 242",
             "unit": "ns/iter"
           }
         ]
