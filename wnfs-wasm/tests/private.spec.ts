@@ -500,6 +500,72 @@ test.describe("PrivateFile", () => {
   });
 });
 
+test.describe("PrivateNode", () => {
+  test("load returns what was stored", async ({ page }) => {
+    const [metadataBefore, metadataAfter] = await page.evaluate(async () => {
+      const {
+        wnfs: { PrivateFile, PrivateNode, PrivateForest },
+        mock: { MemoryBlockStore, Rng },
+      } = await window.setup();
+
+      const rng = new Rng();
+      const store = new MemoryBlockStore();
+      const forest = new PrivateForest(rng);
+      const time = new Date();
+      const file = new PrivateFile(forest.emptyName(), time, rng);
+      const node = file.asNode();
+      const [privateRef, newForest] = await node.store(forest, store, rng);
+      const fetched = await PrivateNode.load(privateRef, newForest, store);
+      const metadataBefore = node.asFile().metadata();
+      const metadataAfter = fetched.asFile().metadata();
+      return [metadataBefore, metadataAfter];
+    });
+
+    expect(metadataBefore).toBeDefined();
+    expect(metadataAfter).toBeDefined();
+    expect(metadataBefore.created).toEqual(metadataAfter.created);
+    expect(metadataBefore.modified).toEqual(metadataAfter.modified);
+  });
+
+  test("searchLatest finds latest", async ({ page }) => {
+    const [lsResultBefore, lsResultAfter] = await page.evaluate(async () => {
+      const {
+        wnfs: { PrivateDirectory, PrivateNode, PrivateForest },
+        mock: { MemoryBlockStore, Rng },
+      } = await window.setup();
+
+      const rng = new Rng();
+      const store = new MemoryBlockStore();
+      const forest0 = new PrivateForest(rng);
+      const time = new Date();
+
+      // Create a root directory and store
+      const rootDir0 = new PrivateDirectory(forest0.emptyName(), time, rng);
+      const [accessKey, forest1] = await rootDir0.store(forest0, store, rng);
+
+      // Write something to the directory and store it
+      const { rootDir: rootDir1, forest: forest2 } = await rootDir0.write(["some", "file.txt"], true, new Uint8Array([0]), time, forest1, store, rng);
+      const [_, forest3] = await rootDir1.asNode().store(forest2, store, rng);
+
+      // loading back the *old* directory using its access key should give an empty directory:
+      const oldNode = await PrivateNode.load(accessKey, forest3, store);
+      const { result: lsResultBefore } = await oldNode.asDir().ls([], false, forest3, store);
+
+      // loading back the directory with search latest should work:
+      const latestNode = await oldNode.searchLatest(forest3, store);
+      const { result: lsResultAfter } = await latestNode.asDir().ls([], false, forest3, store);
+
+      return [lsResultBefore, lsResultAfter];
+    });
+
+    expect(lsResultBefore).toBeDefined();
+    expect(lsResultAfter).toBeDefined();
+    expect(lsResultBefore).toEqual([]);
+    expect(lsResultAfter.length).toEqual(1);
+    expect(lsResultAfter[0].name).toEqual("some");
+  })
+})
+
 test.describe("PrivateForest", () => {
   test("store returns a PrivateRef", async ({ page }) => {
     const result = await page.evaluate(async () => {
@@ -526,32 +592,6 @@ test.describe("PrivateForest", () => {
     expect(result.label.length).toEqual(32);
     expect(result.temporalKey.length).toEqual(32);
     expect(result.contentCid).toBeDefined();
-  });
-
-  test("load returns what was stored", async ({ page }) => {
-    const [metadataBefore, metadataAfter] = await page.evaluate(async () => {
-      const {
-        wnfs: { PrivateFile, PrivateNode, PrivateForest },
-        mock: { MemoryBlockStore, Rng },
-      } = await window.setup();
-
-      const rng = new Rng();
-      const store = new MemoryBlockStore();
-      const forest = new PrivateForest(rng);
-      const time = new Date();
-      const file = new PrivateFile(forest.emptyName(), time, rng);
-      const node = file.asNode();
-      const [privateRef, newForest] = await node.store(forest, store, rng);
-      const fetched = await PrivateNode.load(privateRef, newForest, store);
-      const metadataBefore = node.asFile().metadata();
-      const metadataAfter = fetched.asFile().metadata();
-      return [metadataBefore, metadataAfter];
-    });
-
-    expect(metadataBefore).toBeDefined();
-    expect(metadataAfter).toBeDefined();
-    expect(metadataBefore.created).toEqual(metadataAfter.created);
-    expect(metadataBefore.modified).toEqual(metadataAfter.modified);
   });
 
   test("diff gets changes in forests", async ({ page }) => {
@@ -626,7 +666,7 @@ test.describe("AccessKey", () => {
         mock: { MemoryBlockStore, Rng },
       } = await window.setup();
 
-      
+
       const rng = new Rng();
       const store = new MemoryBlockStore();
       const forest = new PrivateForest(rng);
@@ -634,16 +674,16 @@ test.describe("AccessKey", () => {
       const file = new PrivateFile(forest.emptyName(), time, rng);
       const node = file.asNode();
       const [accessKey, newForest] = await node.store(forest, store, rng);
-      
+
       const encodedAccessKey = accessKey.toBytes();
       const decodedAccessKey = AccessKey.fromBytes(encodedAccessKey);
-      
+
       const fetched = await PrivateNode.load(decodedAccessKey, newForest, store);
       const metadataBefore = node.asFile().metadata();
       const metadataAfter = fetched.asFile().metadata();
       return [metadataBefore, metadataAfter];
     });
-    
+
     expect(metadataBefore).toBeDefined();
     expect(metadataAfter).toBeDefined();
     expect(metadataBefore.created).toEqual(metadataAfter.created);
