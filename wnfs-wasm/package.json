@@ -9,7 +9,7 @@
     "style-loader": "^3.3.3",
     "text-encoding": "^0.7.0",
     "ts-loader": "^9.4.4",
-    "typescript": "^5.0.4",
+    "typescript": "^5.1.6",
     "uint8arrays": "^4.0.4",
     "webpack": "^5.88.2",
     "webpack-cli": "^5.1.4",
