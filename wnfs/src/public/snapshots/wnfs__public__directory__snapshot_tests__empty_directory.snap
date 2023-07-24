@@ -1,0 +1,18 @@
+---
+source: wnfs/src/public/directory.rs
+expression: mock_dir
+---
+{
+  "value": {
+    "wnfs/pub/dir": {
+      "metadata": {
+        "created": -4960082003,
+        "modified": -4960082003
+      },
+      "previous": [],
+      "userland": {},
+      "version": "0.2.0"
+    }
+  },
+  "cbor": "oWx3bmZzL3B1Yi9kaXKkZ3ZlcnNpb25lMC4yLjBobWV0YWRhdGGiZ2NyZWF0ZWQ7AAAAASek2FJobW9kaWZpZWQ7AAAAASek2FJocHJldmlvdXOAaHVzZXJsYW5koA=="
+}

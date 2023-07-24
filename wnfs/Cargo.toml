@@ -28,6 +28,7 @@ bytes = "1.4.0"
 chacha20poly1305 = "0.10"
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
 futures = "0.3"
+insta = { version = "1.30", features = ["json"] }
 libipld-core = { version = "0.16" }
 multihash = "0.19"
 once_cell = "1.16"
@@ -35,20 +36,24 @@ proptest = { version = "1.1", optional = true }
 rand_core = "0.6"
 semver = { version = "1.0", features = ["serde"] }
 serde = { version = "1.0", features = ["rc"] }
-serde_ipld_dagcbor = "0.4.0"
-skip_ratchet = { version = "0.3.0", features = ["serde"] }
+serde_ipld_dagcbor = "0.4"
+sha3 = "0.10"
+skip_ratchet = { version = "0.3", features = ["serde"] }
 thiserror = "1.0"
-wnfs-common = { path = "../wnfs-common", version = "0.1.23" }
-wnfs-hamt = { path = "../wnfs-hamt", version = "0.1.23" }
-wnfs-nameaccumulator = { path = "../wnfs-nameaccumulator", version = "0.1.23" }
+wnfs-common = { path = "../wnfs-common", version = "0.1", features = ["test_utils"] }
+wnfs-hamt = { path = "../wnfs-hamt", version = "0.1" }
+wnfs-nameaccumulator = { path = "../wnfs-nameaccumulator", version = "0.1" }
 
 [dev-dependencies]
 async-std = { version = "1.11", features = ["attributes"] }
 env_logger = "0.10"
+fake = { version = "2.6.1", features = ["chrono"] }
+insta = "1.30"
 proptest = "1.1"
 rand = "0.8"
 rand_chacha = "0.3"
 rsa = "0.9"
+serde_json = "1.0.103"
 sha2 = "0.10"
 test-log = "0.2"
 test-strategy = "0.3"

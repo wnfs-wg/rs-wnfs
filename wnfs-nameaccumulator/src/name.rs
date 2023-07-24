@@ -629,18 +629,15 @@ mod tests {
     use rand_chacha::ChaCha12Rng;
     use std::io::Cursor;
     use test_strategy::proptest;
+    use wnfs_common::{decode, encode};
 
     #[test]
     fn name_segment_serialize_roundtrip() {
         let rng = &mut thread_rng();
         let segment = NameSegment::new(rng);
 
-        let ipld = libipld::serde::to_ipld(&segment).unwrap();
-        let mut bytes = Vec::new();
-        ipld.encode(DagCborCodec, &mut bytes).unwrap();
-
-        let ipld = Ipld::decode(DagCborCodec, &mut Cursor::new(bytes)).unwrap();
-        let segment_back = libipld::serde::from_ipld::<NameSegment>(ipld).unwrap();
+        let bytes = encode(&segment, DagCborCodec).unwrap();
+        let segment_back: NameSegment = decode(&bytes, DagCborCodec).unwrap();
 
         assert_eq!(segment_back, segment);
     }
@@ -777,5 +774,40 @@ mod tests {
         let bytes = to_bytes_helper::<8>(&num);
         let parsed = BigUint::from_bytes_be(bytes.as_ref());
         prop_assert_eq!(parsed, num);
+    }
+}
+
+#[cfg(test)]
+mod snapshot_tests {
+    use super::*;
+    use crate::NameSegment;
+    use rand_chacha::ChaCha12Rng;
+    use rand_core::SeedableRng;
+    use serde_json::Value;
+    use wnfs_common::{
+        utils::{MockData, MockStore},
+        BlockStore,
+    };
+
+    #[async_std::test]
+    async fn name_accumulator() {
+        let rng = &mut ChaCha12Rng::seed_from_u64(0);
+        let store = &MockStore::default();
+        let setup = &AccumulatorSetup::from_rsa_2048(rng);
+        let mut acc = NameAccumulator::empty(setup);
+
+        acc.add(
+            &[
+                NameSegment::new(rng),
+                NameSegment::new(rng),
+                NameSegment::new(rng),
+            ],
+            setup,
+        );
+
+        let cid = store.put_serializable(&acc).await.unwrap();
+        let mock_name: MockData<Value> = store.get_deserializable(&cid).await.unwrap();
+
+        insta::assert_json_snapshot!(mock_name);
     }
 }

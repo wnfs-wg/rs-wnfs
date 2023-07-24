@@ -483,3 +483,46 @@ mod tests {
         assert_eq!(retrieved_conflict, private_node_conflict);
     }
 }
+
+#[cfg(test)]
+mod snapshot_tests {
+    use super::*;
+    use rand_chacha::ChaCha12Rng;
+    use rand_core::SeedableRng;
+    use serde_json::Value;
+    use wnfs_common::utils::{MockData, MockStore};
+    use wnfs_nameaccumulator::NameSegment;
+
+    #[async_std::test]
+    async fn hamt() {
+        let rng = &mut ChaCha12Rng::seed_from_u64(0);
+        let store = &MockStore::default();
+        let forest = &mut Rc::new(HamtForest::new_rsa_2048(rng));
+        let base_name = forest.empty_name();
+        let name_segments = [
+            vec![NameSegment::new(rng)],
+            vec![NameSegment::new(rng), NameSegment::new(rng)],
+            vec![
+                NameSegment::new(rng),
+                NameSegment::new(rng),
+                NameSegment::new(rng),
+            ],
+        ];
+
+        for segments in name_segments {
+            forest
+                .put_encrypted(
+                    &base_name.with_segments_added(segments),
+                    [Cid::default()],
+                    store,
+                )
+                .await
+                .unwrap();
+        }
+
+        let cid = forest.store(store).await.unwrap();
+        let mock_store: MockData<Value> = store.get_deserializable(&cid).await.unwrap();
+
+        insta::assert_json_snapshot!(mock_store);
+    }
+}

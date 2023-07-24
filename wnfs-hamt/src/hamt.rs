@@ -223,7 +223,8 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use wnfs_common::{dagcbor, MemoryBlockStore};
+    use libipld::cbor::DagCborCodec;
+    use wnfs_common::{async_encode, decode, MemoryBlockStore};
 
     #[async_std::test]
     async fn hamt_can_encode_decode_as_cbor() {
@@ -231,9 +232,33 @@ mod tests {
         let root = Rc::new(Node::default());
         let hamt: Hamt<String, i32> = Hamt::with_root(root);
 
-        let encoded_hamt = dagcbor::async_encode(&hamt, store).await.unwrap();
-        let decoded_hamt = dagcbor::decode::<Hamt<String, i32>>(encoded_hamt.as_ref()).unwrap();
+        let encoded_hamt = async_encode(&hamt, store, DagCborCodec).await.unwrap();
+        let decoded_hamt: Hamt<String, i32> = decode(encoded_hamt.as_ref(), DagCborCodec).unwrap();
 
         assert_eq!(hamt, decoded_hamt);
+    }
+}
+
+#[cfg(test)]
+mod snapshot_tests {
+    use super::*;
+    use serde_json::Value;
+    use wnfs_common::utils::{MockData, MockStore};
+
+    #[async_std::test]
+    async fn root_tree() {
+        let store = &MockStore::default();
+        let node = &mut Rc::new(Node::<[u8; 4], String>::default());
+        for i in 0..99_u32 {
+            node.set(i.to_le_bytes(), i.to_string(), store)
+                .await
+                .unwrap();
+        }
+
+        let hamt = Hamt::with_root(Rc::clone(node));
+        let cid = store.put_async_serializable(&hamt).await.unwrap();
+        let mock_hamt: MockData<Value> = store.get_deserializable(&cid).await.unwrap();
+
+        insta::assert_json_snapshot!(mock_hamt);
     }
 }

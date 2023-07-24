@@ -2,11 +2,6 @@ use crate::HashOutput;
 use anyhow::Result;
 use futures::{AsyncRead, AsyncReadExt};
 use libipld::IpldCodec;
-#[cfg(any(test, feature = "test_utils"))]
-use proptest::{
-    strategy::{Strategy, ValueTree},
-    test_runner::TestRunner,
-};
 use rand_core::CryptoRngCore;
 use serde::de::Visitor;
 use std::fmt;
@@ -16,12 +11,6 @@ use std::fmt;
 //--------------------------------------------------------------------------------------------------
 
 pub struct ByteArrayVisitor<const N: usize>;
-
-#[cfg(any(test, feature = "test_utils"))]
-pub trait Sampleable {
-    type Value;
-    fn sample(&self, runner: &mut TestRunner) -> Self::Value;
-}
 
 //--------------------------------------------------------------------------------------------------
 // Implementations
@@ -40,20 +29,6 @@ impl<'de, const N: usize> Visitor<'de> for ByteArrayVisitor<N> {
     {
         let bytes: [u8; N] = v.try_into().map_err(E::custom)?;
         Ok(bytes)
-    }
-}
-
-#[cfg(any(test, feature = "test_utils"))]
-impl<V, S> Sampleable for S
-where
-    S: Strategy<Value = V>,
-{
-    type Value = V;
-
-    fn sample(&self, runner: &mut TestRunner) -> Self::Value {
-        self.new_tree(runner)
-            .expect("Couldn't generate test value")
-            .current()
     }
 }
 

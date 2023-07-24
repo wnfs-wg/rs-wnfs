@@ -388,11 +388,7 @@ impl PublicDirectory {
         let dir = self.get_or_create_leaf_dir_mut(path, time, store).await?;
 
         match dir.lookup_node_mut(filename, store).await? {
-            Some(PublicNode::File(file)) => {
-                let file = file.prepare_next_revision();
-                file.userland = content_cid;
-                file.metadata.upsert_mtime(time);
-            }
+            Some(PublicNode::File(file)) => file.write(time, content_cid),
             Some(PublicNode::Dir(_)) => bail!(FsError::DirectoryAlreadyExists),
             None => {
                 dir.userland.insert(
@@ -743,7 +739,6 @@ impl RemembersCid for PublicDirectory {
     }
 }
 
-/// Implements async deserialization for serde serializable types.
 #[async_trait(?Send)]
 impl AsyncSerialize for PublicDirectory {
     async fn async_serialize<S, B>(&self, serializer: S, store: &B) -> Result<S::Ok, S::Error>
@@ -1194,5 +1189,78 @@ mod tests {
             yet_another_dir.previous.iter().collect::<Vec<_>>(),
             vec![previous_cid]
         );
+    }
+}
+
+#[cfg(test)]
+mod snapshot_tests {
+    use super::*;
+    use fake::{faker::chrono::en::DateTime, Fake};
+    use rand_chacha::ChaCha12Rng;
+    use rand_core::SeedableRng;
+    use serde_json::Value;
+    use wnfs_common::utils::{MockData, MockStore};
+
+    #[async_std::test]
+    async fn empty_directory() {
+        let rng = &mut ChaCha12Rng::seed_from_u64(0);
+        let store = &MockStore::default();
+
+        let root_dir = &mut Rc::new(PublicDirectory::new(DateTime().fake_with_rng(rng)));
+        let cid = root_dir.store(store).await.unwrap();
+
+        let mock_dir: MockData<Value> = store.get_deserializable(&cid).await.unwrap();
+
+        insta::assert_json_snapshot!(mock_dir);
+    }
+
+    #[async_std::test]
+    async fn directory_with_children() {
+        let rng = &mut ChaCha12Rng::seed_from_u64(0);
+        let store = &MockStore::default();
+        let root_dir = &mut Rc::new(PublicDirectory::new(DateTime().fake_with_rng(rng)));
+        let paths = [
+            vec!["text.txt".into()],
+            vec!["music".into(), "jazz".into()],
+            vec!["videos".into(), "movies".into(), "anime".into()],
+        ];
+
+        for path in paths.iter() {
+            root_dir
+                .write(path, Cid::default(), DateTime().fake_with_rng(rng), store)
+                .await
+                .unwrap();
+        }
+
+        let cid = root_dir.store(store).await.unwrap();
+
+        let mock_dir: MockData<Value> = store.get_deserializable(&cid).await.unwrap();
+        insta::assert_json_snapshot!(mock_dir);
+    }
+
+    #[async_std::test]
+    async fn directory_with_previous_links() {
+        let rng = &mut ChaCha12Rng::seed_from_u64(0);
+        let store = &MockStore::default();
+        let paths = [
+            vec!["text.txt".into()],
+            vec!["music".into(), "jazz".into()],
+            vec!["videos".into(), "movies".into(), "anime".into()],
+        ];
+
+        let root_dir = &mut Rc::new(PublicDirectory::new(DateTime().fake_with_rng(rng)));
+        let _ = root_dir.store(store).await.unwrap();
+
+        for path in paths.iter() {
+            root_dir
+                .write(path, Cid::default(), DateTime().fake_with_rng(rng), store)
+                .await
+                .unwrap();
+        }
+
+        let cid = root_dir.store(store).await.unwrap();
+        let mock_dir: MockData<Value> = store.get_deserializable(&cid).await.unwrap();
+
+        insta::assert_json_snapshot!(mock_dir);
     }
 }

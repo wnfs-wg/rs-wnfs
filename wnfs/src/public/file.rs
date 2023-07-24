@@ -74,6 +74,14 @@ impl PublicFile {
         cloned
     }
 
+    /// Writes a new content cid to the file.
+    /// This will create a new revision of the file.
+    pub(crate) fn write(self: &mut Rc<Self>, time: DateTime<Utc>, content_cid: Cid) {
+        let file = self.prepare_next_revision();
+        file.userland = content_cid;
+        file.metadata.upsert_mtime(time);
+    }
+
     /// Gets the previous value of the file.
     ///
     /// # Examples
@@ -254,5 +262,50 @@ mod tests {
             yet_another_file.previous.iter().collect::<Vec<_>>(),
             vec![previous_cid]
         );
+    }
+}
+
+#[cfg(test)]
+mod snapshot_tests {
+    use super::*;
+    use fake::{faker::chrono::en::DateTime, Fake};
+    use rand_chacha::ChaCha12Rng;
+    use rand_core::SeedableRng;
+    use serde_json::Value;
+    use wnfs_common::utils::{MockData, MockStore};
+
+    #[async_std::test]
+    async fn simple_file() {
+        let rng = &mut ChaCha12Rng::seed_from_u64(0);
+        let store = &MockStore::default();
+
+        let file = &mut Rc::new(PublicFile::new(
+            DateTime().fake_with_rng(rng),
+            Cid::default(),
+        ));
+        let cid = file.store(store).await.unwrap();
+
+        let mock_file: MockData<Value> = store.get_deserializable(&cid).await.unwrap();
+
+        insta::assert_json_snapshot!(mock_file);
+    }
+
+    #[async_std::test]
+    async fn file_with_previous_links() {
+        let rng = &mut ChaCha12Rng::seed_from_u64(0);
+        let store = &MockStore::default();
+
+        let file = &mut Rc::new(PublicFile::new(
+            DateTime().fake_with_rng(rng),
+            Cid::default(),
+        ));
+        let _ = file.store(store).await.unwrap();
+
+        file.write(DateTime().fake_with_rng(rng), Cid::default());
+        let cid = file.store(store).await.unwrap();
+
+        let mock_file: MockData<Value> = store.get_deserializable(&cid).await.unwrap();
+
+        insta::assert_json_snapshot!(mock_file);
     }
 }

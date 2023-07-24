@@ -120,3 +120,24 @@ impl From<&AccessKey> for Vec<u8> {
         serde_ipld_dagcbor::to_vec(key).unwrap()
     }
 }
+
+//--------------------------------------------------------------------------------------------------
+// Tests
+//--------------------------------------------------------------------------------------------------
+
+// #[cfg(test)]
+// mod snapshot_tests {
+//     use super::*;
+//     use rand_chacha::ChaCha12Rng;
+//     use rand_core::SeedableRng;
+//     use serde_json::Value;
+//     use wnfs_common::utils::{MockData, MockStore};
+//     use wnfs_nameaccumulator::NameSegment;
+
+//     #[async_std::test]
+//     async fn access_key() {
+//         let rng = &mut ChaCha12Rng::seed_from_u64(0);
+//         let store = &MockStore::default();
+//         insta::assert_json_snapshot!(mock);
+//     }
+// }

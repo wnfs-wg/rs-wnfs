@@ -270,15 +270,16 @@ impl<'de> Deserialize<'de> for NodeType {
 
 #[cfg(test)]
 mod tests {
-    use crate::{dagcbor, Metadata};
+    use crate::{decode, encode, Metadata};
     use chrono::Utc;
+    use libipld::cbor::DagCborCodec;
 
     #[async_std::test]
     async fn metadata_can_encode_decode_as_cbor() {
         let metadata = Metadata::new(Utc::now());
 
-        let encoded_metadata = dagcbor::encode(&metadata).unwrap();
-        let decoded_metadata = dagcbor::decode::<Metadata>(encoded_metadata.as_ref()).unwrap();
+        let encoded_metadata = encode(&metadata, DagCborCodec).unwrap();
+        let decoded_metadata: Metadata = decode(encoded_metadata.as_ref(), DagCborCodec).unwrap();
 
         assert_eq!(metadata, decoded_metadata);
     }

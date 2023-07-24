@@ -420,3 +420,47 @@ mod tests {
         assert_eq!(content, b"hello world".to_vec());
     }
 }
+
+#[cfg(test)]
+mod snapshot_tests {
+    use super::*;
+    use fake::{faker::chrono::en::DateTime, Fake};
+    use rand_chacha::ChaCha12Rng;
+    use rand_core::SeedableRng;
+    use serde_json::Value;
+    use wnfs_common::utils::{MockData, MockStore};
+
+    #[async_std::test]
+    async fn root_tree() {
+        let rng = &mut ChaCha12Rng::seed_from_u64(0);
+        let store = &MockStore::default();
+        let paths = [
+            (["public".into()], vec!["text.txt".into()]),
+            (["exchange".into()], vec!["music".into(), "jazz".into()]),
+            (
+                ["private".into()],
+                vec!["videos".into(), "movies".into(), "anime".into()],
+            ),
+        ];
+
+        let mut root_tree = RootTree::with_store(store);
+        root_tree.create_private_root("private").await.unwrap();
+
+        for (root, path) in paths.iter() {
+            root_tree
+                .write(
+                    root,
+                    path,
+                    b"hello world".to_vec(),
+                    DateTime().fake_with_rng(rng),
+                )
+                .await
+                .unwrap();
+        }
+
+        let root_cid = root_tree.store(store).await.unwrap();
+        let mock_root: MockData<Value> = store.get_deserializable(&root_cid).await.unwrap();
+
+        insta::assert_json_snapshot!(mock_root);
+    }
+}

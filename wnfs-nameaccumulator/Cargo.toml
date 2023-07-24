@@ -31,8 +31,12 @@ thiserror = "1.0"
 zeroize = "1.6"
 
 [dev-dependencies]
+async-std = { version = "1.12.0", features = ["attributes"] }
 hex = "0.4.3"
+insta = { version = "1.31.0", features = ["json"] }
 proptest = "1.1"
 rand = "0.8.5"
 rand_chacha = "0.3"
+serde_json = "1.0.103"
 test-strategy = "0.3"
+wnfs-common = { path = "../wnfs-common", features = ["test_utils"] }

@@ -1194,9 +1194,10 @@ mod proptests {
     use crate::strategies::{
         node_from_operations, operations, operations_and_shuffled, Operations,
     };
+    use libipld::cbor::DagCborCodec;
     use proptest::prelude::*;
     use test_strategy::proptest;
-    use wnfs_common::{dagcbor, MemoryBlockStore};
+    use wnfs_common::{async_encode, decode, MemoryBlockStore};
 
     fn small_key() -> impl Strategy<Value = String> {
         (0..1000).prop_map(|i| format!("key {i}"))
@@ -1258,8 +1259,9 @@ mod proptests {
             let store = &MemoryBlockStore::default();
             let node = node_from_operations(&operations, store).await.unwrap();
 
-            let encoded_node = dagcbor::async_encode(&node, store).await.unwrap();
-            let decoded_node = dagcbor::decode::<Node<String, u64>>(encoded_node.as_ref()).unwrap();
+            let encoded_node = async_encode(&node, store, DagCborCodec).await.unwrap();
+            let decoded_node: Node<String, u64> =
+                decode(encoded_node.as_ref(), DagCborCodec).unwrap();
 
             assert_eq!(*node, decoded_node);
         })
@@ -1301,5 +1303,28 @@ mod proptests {
         let map2 = HashMap::from(&shuffled);
 
         prop_assert_eq!(map1, map2);
+    }
+}
+
+#[cfg(test)]
+mod snapshot_tests {
+    use super::*;
+    use serde_json::Value;
+    use wnfs_common::utils::{MockData, MockStore};
+
+    #[async_std::test]
+    async fn root_tree() {
+        let store = &MockStore::default();
+        let node = &mut Rc::new(Node::<[u8; 4], String>::default());
+        for i in 0..99_u32 {
+            node.set(i.to_le_bytes(), i.to_string(), store)
+                .await
+                .unwrap();
+        }
+
+        let cid = store.put_async_serializable(node).await.unwrap();
+        let mock_node: MockData<Value> = store.get_deserializable(&cid).await.unwrap();
+
+        insta::assert_json_snapshot!(mock_node);
     }
 }

@@ -1,0 +1,19 @@
+---
+source: wnfs/src/root_tree.rs
+expression: mock_root
+---
+{
+  "value": {
+    "exchange": {
+      "/": "baguqeeragjec6eh2s266qag6r5ron3yquzu5e6n6zwxi6faapadjwuu3x2wq"
+    },
+    "forest": {
+      "/": "baguqeeragp3qvtr2aerrxri3utap3zrbdn7htr52rwnz6ghb4ucbhrmh5vcq"
+    },
+    "public": {
+      "/": "baguqeeraysd4t6w32j4jefgwvwrreanf7cbrsojaxafzoqflr5q32mj3roha"
+    },
+    "version": "0.2.0"
+  },
+  "cbor": "pGZmb3Jlc3TYKlgmAAGpAhIgM/cKzjoBIxvFG6TA/eYhG355x7qNm58Y4eUEE8WH7UVmcHVibGlj2CpYJgABqQISIMSHyfrb0niSFNatoxIBpfiDGTkguAuXQKuPYb0xO4uOZ3ZlcnNpb25lMC4yLjBoZXhjaGFuZ2XYKlgmAAGpAhIgMkgvEPqWvegA3o9i5u8QpmnSeb7Nro8UAHgGm1Kbvq0="
+}

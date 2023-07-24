@@ -1,0 +1,24 @@
+---
+source: wnfs/src/public/file.rs
+expression: mock_file
+---
+{
+  "value": {
+    "wnfs/pub/file": {
+      "metadata": {
+        "created": -4960082003,
+        "modified": -4178922002
+      },
+      "previous": [
+        {
+          "/": "baguqeera6wx5nzcz7etzbolgowujylbhgfbrnw37szwe3qetdsdx7np2tyfq"
+        }
+      ],
+      "userland": {
+        "/": "baeaaaaa"
+      },
+      "version": "0.2.0"
+    }
+  },
+  "cbor": "oW13bmZzL3B1Yi9maWxlpGd2ZXJzaW9uZTAuMi4waG1ldGFkYXRhomdjcmVhdGVkOwAAAAEnpNhSaG1vZGlmaWVkOvkVShFocHJldmlvdXOB2CpYJgABqQISIPWv1uRZ+SeQuWZ1qJwsJzFDFtt/lmxNwJMch3+1+p4LaHVzZXJsYW5k2CpFAAEAAAA="
+}
