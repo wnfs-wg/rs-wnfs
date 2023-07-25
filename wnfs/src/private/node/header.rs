@@ -2,6 +2,7 @@ use super::{PrivateNodeHeaderSerializable, TemporalKey, REVISION_SEGMENT_DSI};
 use crate::{error::FsError, private::RevisionRef};
 use anyhow::{bail, Result};
 use libipld_core::cid::Cid;
+use once_cell::sync::OnceCell;
 use rand_core::CryptoRngCore;
 use skip_ratchet::Ratchet;
 use std::fmt::Debug;
@@ -42,6 +43,8 @@ pub struct PrivateNodeHeader {
     pub(crate) ratchet: Ratchet,
     /// Stores the name of this node for easier lookup.
     pub(crate) name: Name,
+    /// Stores a cache of the name with the revision segment added
+    pub(crate) revision_name: OnceCell<Name>,
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -57,6 +60,7 @@ impl PrivateNodeHeader {
             name: parent_name.with_segments_added(Some(inumber.clone())),
             ratchet: Ratchet::from_rng(rng),
             inumber,
+            revision_name: OnceCell::new(),
         }
     }
 
@@ -146,9 +150,11 @@ impl PrivateNodeHeader {
     ///
     /// println!("Revision name: {:?}", revision_name);
     /// ```
-    pub fn get_revision_name(&self) -> Name {
-        self.name
-            .with_segments_added(Some(self.derive_revision_segment()))
+    pub fn get_revision_name(&self) -> &Name {
+        self.revision_name.get_or_init(|| {
+            self.name
+                .with_segments_added(Some(self.derive_revision_segment()))
+        })
     }
 
     /// Gets the name for this node.
@@ -183,6 +189,7 @@ impl PrivateNodeHeader {
             inumber: serializable.inumber,
             ratchet: serializable.ratchet,
             name: Name::new(serializable.name, []),
+            revision_name: OnceCell::new(),
         }
     }
 

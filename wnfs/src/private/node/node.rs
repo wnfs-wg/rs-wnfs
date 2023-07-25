@@ -435,7 +435,7 @@ impl PrivateNode {
             current_header.ratchet = current.clone();
 
             let has_curr = forest
-                .has(&current_header.get_revision_name(), store)
+                .has(current_header.get_revision_name(), store)
                 .await?;
 
             let ord = if has_curr {
