@@ -67,17 +67,24 @@ impl PrivateNodeHeader {
     /// Advances the ratchet.
     pub(crate) fn advance_ratchet(&mut self) {
         self.ratchet.inc();
+        self.revision_name = OnceCell::new();
     }
 
     /// Updates the name to the child of given parent name.
     pub(crate) fn update_name(&mut self, parent_name: &Name) {
-        self.name = parent_name.clone();
-        self.name.add_segments(Some(self.inumber.clone()));
+        self.name = parent_name.with_segments_added(Some(self.inumber.clone()));
+        self.revision_name = OnceCell::new();
+    }
+
+    /// Sets the ratchet and makes sure any caches are cleared.
+    pub(crate) fn update_ratchet(&mut self, ratchet: Ratchet) {
+        self.ratchet = ratchet;
+        self.revision_name = OnceCell::new();
     }
 
     /// Resets the ratchet.
     pub(crate) fn reset_ratchet(&mut self, rng: &mut impl CryptoRngCore) {
-        self.ratchet = Ratchet::from_rng(rng)
+        self.update_ratchet(Ratchet::from_rng(rng));
     }
 
     /// Derives the revision ref of the current header.
