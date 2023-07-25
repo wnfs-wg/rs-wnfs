@@ -35,7 +35,7 @@ use wnfs_nameaccumulator::{AccumulatorSetup, Name, NameSegment};
 ///
 /// println!("Header: {:#?}", file.header);
 /// ```
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Eq)]
 pub struct PrivateNodeHeader {
     /// A unique identifier of the node.
     pub(crate) inumber: NameSegment,
@@ -226,5 +226,11 @@ impl PrivateNodeHeader {
             header.name = name;
         }
         Ok(header)
+    }
+}
+
+impl PartialEq for PrivateNodeHeader {
+    fn eq(&self, other: &Self) -> bool {
+        self.inumber == other.inumber && self.ratchet == other.ratchet && self.name == other.name
     }
 }
