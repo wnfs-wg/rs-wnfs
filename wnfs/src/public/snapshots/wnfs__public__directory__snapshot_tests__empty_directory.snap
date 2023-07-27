@@ -1,6 +1,6 @@
 ---
 source: wnfs/src/public/directory.rs
-expression: mock_dir
+expression: dir
 ---
 {
   "value": {

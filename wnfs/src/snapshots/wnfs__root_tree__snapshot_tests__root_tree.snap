@@ -1,19 +1,19 @@
 ---
 source: wnfs/src/root_tree.rs
-expression: mock_root
+expression: root
 ---
 {
   "value": {
     "exchange": {
-      "/": "baguqeerakk72hviewjx4cibo5ebfgth4wwrix4nsqjejw55qgtjp3qkgk2jq"
+      "/": "bafyreib36f4dcqhrnuaxusq3do45zs23k6jwfm6npmokoditzd3jsdsf6m"
     },
     "forest": {
-      "/": "baguqeera423434njlujn2o2irs5guffyo4rlmdiw5r3a2b5e2f33uuxowm7q"
+      "/": "bafyreicjmichihglcljiow3bbjqtwe62iebm2pcf4jg6w235nkkwibov3u"
     },
     "public": {
-      "/": "baguqeeraopujbxp5qqfe55k3xw7bwfmz6ibjo7apppfa7iiazcipqlnnmkra"
+      "/": "bafyreifwohv47533ovjxgigigwtvlh7cs2iya32p5wmf4xcdf7ilhxrtcy"
     },
     "version": "0.2.0"
   },
-  "cbor": "pGZmb3Jlc3TYKlgmAAGpAhIg5rfN8aldEt07SIy6ahS4dyK2DRbsdg0HpNF3ulLusz9mcHVibGlj2CpYJgABqQISIHPokN39hApO9Vu9vhsVmfICl3wPe8oPoQDIkPgtrWKiZ3ZlcnNpb25lMC4yLjBoZXhjaGFuZ2XYKlgmAAGpAhIgUr+j1QSyb8EgLukCU0z8taKL8bKCSJt3sDTS/cFGVpM="
+  "cbor": "pGZmb3Jlc3TYKlglAAFxEiBJYgR0HMsS0odbYQphOxPaQQLNPEXiTetrfWqVZAXV3WZwdWJsaWPYKlglAAFxEiC2cevP93t1U3MgyDWnVZ/ilpGAb0/tmF5cQy/Qs94zFmd2ZXJzaW9uZTAuMi4waGV4Y2hhbmdl2CpYJQABcRIgO/F4MUDxbQF6ShsbudzLW1eTYrPNexynDRPI9pkORfM="
 }

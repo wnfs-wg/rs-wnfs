@@ -2170,3 +2170,140 @@ mod tests {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod snapshot_tests {
+    use super::*;
+    use crate::private::{forest::hamt::HamtForest, FileContent};
+    use bytes::Bytes;
+    use fake::{faker::chrono::en::DateTime, Fake};
+    use rand_chacha::ChaCha12Rng;
+    use rand_core::SeedableRng;
+    use wnfs_common::utils::MockStore;
+
+    async fn walk_dir(
+        forest: &mut Rc<HamtForest>,
+        store: &mut MockStore,
+        root_dir: &Rc<PrivateDirectory>,
+        rng: &mut impl CryptoRngCore,
+    ) -> Result<()> {
+        let mut stack = vec![root_dir.clone()];
+        while let Some(dir) = stack.pop() {
+            let private_ref: PrivateRef = dir.store(forest, store, rng).await?;
+            let temporal_key = private_ref.temporal_key;
+            let snapshot_key = temporal_key.derive_snapshot_key();
+            store.add_cid_handler(
+                private_ref.content_cid,
+                Box::new(move |bytes| Ok(Bytes::from(snapshot_key.decrypt(bytes.as_ref())?))),
+            );
+            store.add_cid_handler(
+                dir.header
+                    .store(store, forest.get_accumulator_setup())
+                    .await?,
+                Box::new(move |bytes| {
+                    Ok(Bytes::from(temporal_key.key_wrap_decrypt(bytes.as_ref())?))
+                }),
+            );
+
+            let entries = dir.ls(&[], true, forest, store).await?;
+            for (name, _) in entries.iter() {
+                let node = dir.lookup_node(name, true, forest, store).await?;
+                match node.as_ref() {
+                    Some(PrivateNode::Dir(dir)) => {
+                        stack.push(dir.clone());
+                    }
+                    Some(PrivateNode::File(file)) => {
+                        let private_ref: PrivateRef = file.store(forest, store, rng).await?;
+                        let temporal_key = private_ref.temporal_key;
+                        let snapshot_key = temporal_key.derive_snapshot_key();
+                        store.add_cid_handler(
+                            private_ref.content_cid,
+                            Box::new(move |bytes| {
+                                Ok(Bytes::from(snapshot_key.decrypt(bytes.as_ref())?))
+                            }),
+                        );
+                        store.add_cid_handler(
+                            file.header
+                                .store(store, forest.get_accumulator_setup())
+                                .await?,
+                            Box::new(move |bytes| {
+                                Ok(Bytes::from(temporal_key.key_wrap_decrypt(bytes.as_ref())?))
+                            }),
+                        );
+                        if let FileContent::External {
+                            key, block_count, ..
+                        } = &file.content.content
+                        {
+                            for name in PrivateFile::generate_shard_labels(
+                                key,
+                                0,
+                                *block_count,
+                                &file.header.name,
+                            ) {
+                                match forest.get_encrypted(&name, store).await? {
+                                    Some(cids) => {
+                                        let key = key.clone();
+                                        store.add_cid_handler(
+                                            *cids.first().unwrap(),
+                                            Box::new(move |bytes| {
+                                                Ok(Bytes::from(key.decrypt(bytes.as_ref())?))
+                                            }),
+                                        )
+                                    }
+                                    None => unreachable!(), // ???
+                                };
+                            }
+                        }
+                    }
+                    None => unreachable!(),
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    #[async_std::test]
+    async fn test_private_fs() -> Result<()> {
+        let rng = &mut ChaCha12Rng::seed_from_u64(0);
+        let store = &mut MockStore::default();
+        let forest = &mut Rc::new(HamtForest::new_rsa_2048(rng));
+        let base_name = forest.empty_name();
+        let paths = [
+            vec!["text.txt".into()],
+            vec!["music".into(), "jazz".into()],
+            vec!["videos".into(), "movies".into(), "anime".into()],
+        ];
+
+        let root_dir = &mut Rc::new(PrivateDirectory::new(
+            &base_name,
+            DateTime().fake_with_rng(rng),
+            rng,
+        ));
+
+        for path in paths.iter() {
+            root_dir
+                .write(
+                    path,
+                    true,
+                    DateTime().fake_with_rng(rng),
+                    b"Hello World".to_vec(),
+                    forest,
+                    store,
+                    rng,
+                )
+                .await
+                .unwrap();
+        }
+
+        let _ = root_dir.store(forest, store, rng).await.unwrap();
+        forest.store(store).await.unwrap();
+
+        walk_dir(forest, store, root_dir, rng).await.unwrap();
+
+        let values = store.get_values()?;
+        insta::assert_json_snapshot!(values);
+
+        Ok(())
+    }
+}

@@ -1,6 +1,6 @@
 ---
 source: wnfs/src/public/directory.rs
-expression: mock_dir
+expression: dir
 ---
 {
   "value": {
@@ -12,17 +12,17 @@ expression: mock_dir
       "previous": [],
       "userland": {
         "music": {
-          "/": "baguqeeraa6kc3xtxhalqmzlrpal5k6v5zgx3bfjjyjqay3lpotkgqb3ntzfq"
+          "/": "bafyreifgdness6tqtowfjxhmn2cddq5g3tsf7tw7mem3ahjgsyvytkncf4"
         },
         "text.txt": {
-          "/": "baguqeeraj32obrt2su5uwuvhgo3swbdrdacg3ryqkbtqhmc5ocfmu5vdszwa"
+          "/": "bafyreiew5kef2punbfeks2uivinhxkwwjbctdt6lw5gijb3yfzpsemnt6u"
         },
         "videos": {
-          "/": "baguqeerajosmwcy7zv7jyrhzjxdl7ogpqrmyd4mnf2fayivonuuqrbejyq3q"
+          "/": "bafyreifdumqng3yx44bdtoydj35zorq4g3zqhu7i3yasc2cm7rnxktvpbi"
         }
       },
       "version": "0.2.0"
     }
   },
-  "cbor": "oWx3bmZzL3B1Yi9kaXKkZ3ZlcnNpb25lMC4yLjBobWV0YWRhdGGiZ2NyZWF0ZWQ7AAAAASek2FJobW9kaWZpZWQ7AAAAASek2FJocHJldmlvdXOAaHVzZXJsYW5ko2VtdXNpY9gqWCYAAakCEiAHlC3edzgXBmVxeBfVer3Jr7CVKcJgDG1vdNRoB22eS2Z2aWRlb3PYKlgmAAGpAhIgS6TLCx/NfpxE+U3Gv7jPhFmB8Y0uigwirm0pCISJxDdodGV4dC50eHTYKlgmAAGpAhIgTvTgxnqVO0tSpzO3KwRxGARtxxBQZwOwXXCKynajlmw="
+  "cbor": "oWx3bmZzL3B1Yi9kaXKkZ3ZlcnNpb25lMC4yLjBobWV0YWRhdGGiZ2NyZWF0ZWQ7AAAAASek2FJobW9kaWZpZWQ7AAAAASek2FJocHJldmlvdXOAaHVzZXJsYW5ko2VtdXNpY9gqWCUAAXESIKYbSSl6cJusVNzsboQxw6bc5F/O32EZsB0mliuJqaIvZnZpZGVvc9gqWCUAAXESIKOjINNvF+cCObsDTvuXRhw28wPT6N4BIWhM/Ft1Tq8KaHRleHQudHh02CpYJQABcRIgluqIXT6NCUipaoiqGnuq1khFMc/Lt0yEh3guXyIxs/U="
 }

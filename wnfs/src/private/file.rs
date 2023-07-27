@@ -591,7 +591,7 @@ impl PrivateFile {
     }
 
     /// Generates the labels for the shards of a file.
-    fn generate_shard_labels<'a>(
+    pub(crate) fn generate_shard_labels<'a>(
         key: &'a SnapshotKey,
         mut index: usize,
         block_count: usize,

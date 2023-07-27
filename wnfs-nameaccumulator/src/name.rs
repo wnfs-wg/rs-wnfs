@@ -783,11 +783,7 @@ mod snapshot_tests {
     use crate::NameSegment;
     use rand_chacha::ChaCha12Rng;
     use rand_core::SeedableRng;
-    use serde_json::Value;
-    use wnfs_common::{
-        utils::{MockData, MockStore},
-        BlockStore,
-    };
+    use wnfs_common::{utils::MockStore, BlockStore};
 
     #[async_std::test]
     async fn name_accumulator() {
@@ -806,8 +802,8 @@ mod snapshot_tests {
         );
 
         let cid = store.put_serializable(&acc).await.unwrap();
-        let mock_name: MockData<Value> = store.get_deserializable(&cid).await.unwrap();
+        let name = store.get_block_snapshot(&cid).await.unwrap();
 
-        insta::assert_json_snapshot!(mock_name);
+        insta::assert_json_snapshot!(name);
     }
 }

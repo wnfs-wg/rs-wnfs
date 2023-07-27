@@ -125,19 +125,32 @@ impl From<&AccessKey> for Vec<u8> {
 // Tests
 //--------------------------------------------------------------------------------------------------
 
-// #[cfg(test)]
-// mod snapshot_tests {
-//     use super::*;
-//     use rand_chacha::ChaCha12Rng;
-//     use rand_core::SeedableRng;
-//     use serde_json::Value;
-//     use wnfs_common::utils::{MockData, MockStore};
-//     use wnfs_nameaccumulator::NameSegment;
+#[cfg(test)]
+mod snapshot_tests {
+    use super::*;
+    use rand::Rng;
+    use rand_chacha::ChaCha12Rng;
+    use rand_core::SeedableRng;
+    use wnfs_common::{utils::MockStore, BlockStore};
 
-//     #[async_std::test]
-//     async fn access_key() {
-//         let rng = &mut ChaCha12Rng::seed_from_u64(0);
-//         let store = &MockStore::default();
-//         insta::assert_json_snapshot!(mock);
-//     }
-// }
+    #[async_std::test]
+    async fn access_key() {
+        let rng = &mut ChaCha12Rng::seed_from_u64(0);
+        let store = &MockStore::default();
+
+        let private_ref =
+            PrivateRef::with_temporal_key(rng.gen(), TemporalKey(rng.gen()), Cid::default());
+
+        let temporal_access_key = AccessKey::Temporal(TemporalAccessKey::from(&private_ref));
+        let snapshot_access_key = AccessKey::Snapshot(SnapshotAccessKey::from(&private_ref));
+
+        let temp_cid = store.put_serializable(&temporal_access_key).await.unwrap();
+        let snap_cid = store.put_serializable(&snapshot_access_key).await.unwrap();
+
+        let temp_key = store.get_block_snapshot(&temp_cid).await.unwrap();
+        let snap_key = store.get_block_snapshot(&snap_cid).await.unwrap();
+
+        insta::assert_json_snapshot!(temp_key);
+        insta::assert_json_snapshot!(snap_key);
+    }
+}

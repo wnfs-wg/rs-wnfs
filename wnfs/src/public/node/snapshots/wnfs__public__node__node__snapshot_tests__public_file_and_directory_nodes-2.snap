@@ -1,6 +1,6 @@
 ---
 source: wnfs/src/public/node/node.rs
-expression: mock_file
+expression: file
 ---
 {
   "value": {

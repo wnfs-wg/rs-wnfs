@@ -427,8 +427,7 @@ mod snapshot_tests {
     use fake::{faker::chrono::en::DateTime, Fake};
     use rand_chacha::ChaCha12Rng;
     use rand_core::SeedableRng;
-    use serde_json::Value;
-    use wnfs_common::utils::{MockData, MockStore};
+    use wnfs_common::utils::MockStore;
 
     #[async_std::test]
     async fn root_tree() {
@@ -459,8 +458,8 @@ mod snapshot_tests {
         }
 
         let root_cid = root_tree.store(store).await.unwrap();
-        let mock_root: MockData<Value> = store.get_deserializable(&root_cid).await.unwrap();
+        let root = store.get_block_snapshot(&root_cid).await.unwrap();
 
-        insta::assert_json_snapshot!(mock_root);
+        insta::assert_json_snapshot!(root);
     }
 }

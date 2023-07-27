@@ -242,8 +242,7 @@ mod tests {
 #[cfg(test)]
 mod snapshot_tests {
     use super::*;
-    use serde_json::Value;
-    use wnfs_common::utils::{MockData, MockStore};
+    use wnfs_common::utils::MockStore;
 
     #[async_std::test]
     async fn root_tree() {
@@ -257,8 +256,8 @@ mod snapshot_tests {
 
         let hamt = Hamt::with_root(Rc::clone(node));
         let cid = store.put_async_serializable(&hamt).await.unwrap();
-        let mock_hamt: MockData<Value> = store.get_deserializable(&cid).await.unwrap();
+        let hamt = store.get_block_snapshot(&cid).await.unwrap();
 
-        insta::assert_json_snapshot!(mock_hamt);
+        insta::assert_json_snapshot!(hamt);
     }
 }

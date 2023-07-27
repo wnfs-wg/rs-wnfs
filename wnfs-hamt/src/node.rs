@@ -1309,8 +1309,7 @@ mod proptests {
 #[cfg(test)]
 mod snapshot_tests {
     use super::*;
-    use serde_json::Value;
-    use wnfs_common::utils::{MockData, MockStore};
+    use wnfs_common::utils::MockStore;
 
     #[async_std::test]
     async fn root_tree() {
@@ -1323,8 +1322,8 @@ mod snapshot_tests {
         }
 
         let cid = store.put_async_serializable(node).await.unwrap();
-        let mock_node: MockData<Value> = store.get_deserializable(&cid).await.unwrap();
+        let node = store.get_block_snapshot(&cid).await.unwrap();
 
-        insta::assert_json_snapshot!(mock_node);
+        insta::assert_json_snapshot!(node);
     }
 }

@@ -357,8 +357,7 @@ mod snapshot_tests {
     use fake::{faker::chrono::en::DateTime, Fake};
     use rand_chacha::ChaCha12Rng;
     use rand_core::SeedableRng;
-    use serde_json::Value;
-    use wnfs_common::utils::{MockData, MockStore};
+    use wnfs_common::utils::MockStore;
 
     #[async_std::test]
     async fn public_file_and_directory_nodes() {
@@ -372,10 +371,36 @@ mod snapshot_tests {
         let dir_cid = dir_node.store(store).await.unwrap();
         let file_cid = file_node.store(store).await.unwrap();
 
-        let mock_dir: MockData<Value> = store.get_deserializable(&dir_cid).await.unwrap();
-        let mock_file: MockData<Value> = store.get_deserializable(&file_cid).await.unwrap();
+        let dir = store.get_block_snapshot(&dir_cid).await.unwrap();
+        let file = store.get_block_snapshot(&file_cid).await.unwrap();
 
-        insta::assert_json_snapshot!(mock_dir);
-        insta::assert_json_snapshot!(mock_file);
+        insta::assert_json_snapshot!(dir);
+        insta::assert_json_snapshot!(file);
+    }
+
+    #[async_std::test]
+    async fn public_fs() {
+        let rng = &mut ChaCha12Rng::seed_from_u64(0);
+        let store = &MockStore::default();
+        let paths = [
+            vec!["text.txt".into()],
+            vec!["music".into(), "jazz".into()],
+            vec!["videos".into(), "movies".into(), "anime".into()],
+        ];
+
+        let root_dir = &mut Rc::new(PublicDirectory::new(DateTime().fake_with_rng(rng)));
+        let _ = root_dir.store(store).await.unwrap();
+
+        for path in paths.iter() {
+            root_dir
+                .write(path, Cid::default(), DateTime().fake_with_rng(rng), store)
+                .await
+                .unwrap();
+        }
+
+        let _ = root_dir.store(store).await.unwrap();
+
+        let values = store.get_values().unwrap();
+        insta::assert_json_snapshot!(values)
     }
 }

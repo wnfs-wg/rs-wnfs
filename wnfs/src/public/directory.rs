@@ -676,7 +676,7 @@ impl PublicDirectory {
     ///
     ///     assert_eq!(
     ///         dir,
-    ///         store.get_deserializable(&cid).await.unwrap()
+    ///         store.get_block_snapshot(&cid).await.unwrap()
     ///     );
     /// }
     /// ```
@@ -1198,8 +1198,7 @@ mod snapshot_tests {
     use fake::{faker::chrono::en::DateTime, Fake};
     use rand_chacha::ChaCha12Rng;
     use rand_core::SeedableRng;
-    use serde_json::Value;
-    use wnfs_common::utils::{MockData, MockStore};
+    use wnfs_common::utils::MockStore;
 
     #[async_std::test]
     async fn empty_directory() {
@@ -1209,9 +1208,9 @@ mod snapshot_tests {
         let root_dir = &mut Rc::new(PublicDirectory::new(DateTime().fake_with_rng(rng)));
         let cid = root_dir.store(store).await.unwrap();
 
-        let mock_dir: MockData<Value> = store.get_deserializable(&cid).await.unwrap();
+        let dir = store.get_block_snapshot(&cid).await.unwrap();
 
-        insta::assert_json_snapshot!(mock_dir);
+        insta::assert_json_snapshot!(dir);
     }
 
     #[async_std::test]
@@ -1234,8 +1233,8 @@ mod snapshot_tests {
 
         let cid = root_dir.store(store).await.unwrap();
 
-        let mock_dir: MockData<Value> = store.get_deserializable(&cid).await.unwrap();
-        insta::assert_json_snapshot!(mock_dir);
+        let dir = store.get_block_snapshot(&cid).await.unwrap();
+        insta::assert_json_snapshot!(dir);
     }
 
     #[async_std::test]
@@ -1259,8 +1258,8 @@ mod snapshot_tests {
         }
 
         let cid = root_dir.store(store).await.unwrap();
-        let mock_dir: MockData<Value> = store.get_deserializable(&cid).await.unwrap();
+        let dir = store.get_block_snapshot(&cid).await.unwrap();
 
-        insta::assert_json_snapshot!(mock_dir);
+        insta::assert_json_snapshot!(dir);
     }
 }

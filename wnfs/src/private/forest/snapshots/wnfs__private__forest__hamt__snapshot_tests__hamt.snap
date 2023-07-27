@@ -1,6 +1,6 @@
 ---
 source: wnfs/src/private/forest/hamt.rs
-expression: mock_store
+expression: store
 ---
 {
   "value": {

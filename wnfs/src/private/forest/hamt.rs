@@ -489,8 +489,7 @@ mod snapshot_tests {
     use super::*;
     use rand_chacha::ChaCha12Rng;
     use rand_core::SeedableRng;
-    use serde_json::Value;
-    use wnfs_common::utils::{MockData, MockStore};
+    use wnfs_common::utils::MockStore;
     use wnfs_nameaccumulator::NameSegment;
 
     #[async_std::test]
@@ -521,8 +520,8 @@ mod snapshot_tests {
         }
 
         let cid = forest.store(store).await.unwrap();
-        let mock_store: MockData<Value> = store.get_deserializable(&cid).await.unwrap();
+        let store = store.get_block_snapshot(&cid).await.unwrap();
 
-        insta::assert_json_snapshot!(mock_store);
+        insta::assert_json_snapshot!(store);
     }
 }

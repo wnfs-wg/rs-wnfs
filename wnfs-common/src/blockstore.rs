@@ -91,7 +91,7 @@ pub trait BlockStore: Sized {
 ///
 /// IPFS is basically a glorified HashMap.
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
-pub struct MemoryBlockStore(RefCell<HashMap<Cid, Bytes>>);
+pub struct MemoryBlockStore(pub(crate) RefCell<HashMap<Cid, Bytes>>);
 
 impl MemoryBlockStore {
     /// Creates a new in-memory block store.

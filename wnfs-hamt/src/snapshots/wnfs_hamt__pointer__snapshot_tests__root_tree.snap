@@ -1,6 +1,6 @@
 ---
 source: wnfs-hamt/src/pointer.rs
-expression: mock_ptr
+expression: ptr
 ---
 {
   "value": [

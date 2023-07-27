@@ -46,6 +46,7 @@ wnfs-nameaccumulator = { path = "../wnfs-nameaccumulator", version = "0.1" }
 
 [dev-dependencies]
 async-std = { version = "1.11", features = ["attributes"] }
+bytes = "1.4.0"
 env_logger = "0.10"
 fake = { version = "2.6.1", features = ["chrono"] }
 insta = "1.30"

@@ -1,6 +1,6 @@
 ---
 source: wnfs-nameaccumulator/src/name.rs
-expression: mock_name
+expression: name
 ---
 {
   "value": {

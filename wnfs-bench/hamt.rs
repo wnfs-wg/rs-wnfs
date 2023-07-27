@@ -5,7 +5,7 @@ use criterion::{
 };
 use proptest::{arbitrary::any, collection::vec, test_runner::TestRunner};
 use std::{cmp, rc::Rc, sync::Arc};
-use wnfs_common::{dagcbor, utils::Sampleable, BlockStore, Link, MemoryBlockStore};
+use wnfs_common::{utils::Sampleable, BlockStore, Link, MemoryBlockStore};
 use wnfs_hamt::{
     diff, merge,
     strategies::{generate_kvs, node_from_kvs, node_from_operations, operations},

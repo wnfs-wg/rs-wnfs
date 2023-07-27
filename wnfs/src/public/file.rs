@@ -271,8 +271,7 @@ mod snapshot_tests {
     use fake::{faker::chrono::en::DateTime, Fake};
     use rand_chacha::ChaCha12Rng;
     use rand_core::SeedableRng;
-    use serde_json::Value;
-    use wnfs_common::utils::{MockData, MockStore};
+    use wnfs_common::utils::MockStore;
 
     #[async_std::test]
     async fn simple_file() {
@@ -285,9 +284,9 @@ mod snapshot_tests {
         ));
         let cid = file.store(store).await.unwrap();
 
-        let mock_file: MockData<Value> = store.get_deserializable(&cid).await.unwrap();
+        let file = store.get_block_snapshot(&cid).await.unwrap();
 
-        insta::assert_json_snapshot!(mock_file);
+        insta::assert_json_snapshot!(file);
     }
 
     #[async_std::test]
@@ -304,8 +303,8 @@ mod snapshot_tests {
         file.write(DateTime().fake_with_rng(rng), Cid::default());
         let cid = file.store(store).await.unwrap();
 
-        let mock_file: MockData<Value> = store.get_deserializable(&cid).await.unwrap();
+        let file = store.get_block_snapshot(&cid).await.unwrap();
 
-        insta::assert_json_snapshot!(mock_file);
+        insta::assert_json_snapshot!(file);
     }
 }
