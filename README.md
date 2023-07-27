@@ -81,10 +81,10 @@ This library is designed with WebAssembly in mind. You can follow instructions o
 
   - [rust-analyzer][rust-analyzer-guide] is the go-to IDE tool for Rust and if you have it set up, you may want to set the `rust-analyzer.cargo.target` [setting][vscode-settings] to `wasm32-unknown-unknown`
 
-  - Install wasm-pack
+  - Install wasm-bindgen
 
     ```bash
-    cargo install wasm-pack
+    cargo install wasm-bindgen
     ```
 
   - Install [playwright][playwright-guide] binaries

@@ -112,16 +112,22 @@ jobs:
           node-version: '16.x'
           registry-url: 'https://registry.npmjs.org'
 
-      - name: Install wasm-pack
-        run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+      - name: Install wasm-bindgen
+        uses: "actions-rs/cargo@v1"
+        with:
+          args: "--force wasm-bindgen"
+          command: install
 
-      # Builds output via wasm-pack and renames package.json name
+      - name: Install binaryen
+        run: sudo apt update && sudo apt install binaryen -y
+
+      # Build and rename package.json name
       - name: Build
         run: ./scripts/rs-wnfs.sh build --wasm
         shell: bash
 
       - name: Publish to npm
-        run: wasm-pack publish
-        working-directory: wnfs-wasm/pkg
+        run: npm publish
+        working-directory: wnfs-wasm
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

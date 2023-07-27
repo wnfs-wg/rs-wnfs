@@ -17,10 +17,10 @@ WNFS file trees can serialize and be deserialized from [IPLD graphs][ipld-spec] 
 
 ## Setting up the Project
 
-- Install `wasm-pack`
+- Install `wasm-bindgen`
 
   ```bash
-  cargo install wasm-pack
+  cargo install wasm-bindgen
   ```
 
 - Install dependencies
@@ -38,7 +38,7 @@ WNFS file trees can serialize and be deserialized from [IPLD graphs][ipld-spec] 
 - Build project
 
   ```bash
-  wasm-pack build
+  yarn run build
   ```
 
 ## Usage
@@ -150,7 +150,7 @@ console.log("Files in /pictures directory:", result);
 - Run tests
 
   ```bash
-  yarn playwright test
+  yarn run test
   ```
 
 ## Publishing Package
@@ -161,11 +161,7 @@ console.log("Files in /pictures directory:", result);
   rs-wnfs build --wasm
   ```
 
-- Publish from the `pkg` directory
-
-  ```bash
-  cd pkg
-  ```
+- Publish
 
   ```bash
   npm publish

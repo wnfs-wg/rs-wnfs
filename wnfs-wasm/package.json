@@ -1,10 +1,133 @@
 {
+  "name": "wnfs",
+  "collaborators": [
+    "The Fission Authors"
+  ],
+  "description": "WebNative Filesystem API (WebAssembly)",
+  "version": "0.1.23",
+  "license": "Apache-2.0",
+  "homepage": "https://fission.codes",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/wnfs-wg/rs-wnfs/tree/main/wnfs-wasm"
+  },
+  "keywords": [
+    "wnfs",
+    "wasm",
+    "webnative",
+    "ipfs",
+    "decentralisation"
+  ],
+  "type": "module",
+  "main": "dist/nodejs/wnfs_wasm.cjs",
+  "module": "dist/bundler/wnfs_wasm.js",
+  "types": "dist/nodejs/wnfs_wasm.d.ts",
+  "exports": {
+    ".": {
+      "workerd": "./dist/web/workerd.js",
+      "node": "./dist/nodejs/wnfs_wasm.cjs",
+      "default": "./dist/bundler/wnfs_wasm.js",
+      "types": "./dist/nodejs/wnfs_wasm.d.ts"
+    },
+    "./nodejs": {
+      "default": "./dist/nodejs/wnfs_wasm.cjs",
+      "types": "./dist/nodejs/wnfs_wasm.d.ts"
+    },
+    "./web": {
+      "default": "./dist/web/wnfs_wasm.js",
+      "types": "./dist/web/wnfs_wasm.d.ts"
+    },
+    "./workerd": {
+      "default": "./dist/web/workerd.js",
+      "types": "./dist/web/wnfs_wasm.d.ts"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "export PROFILE=dev && export TARGET_DIR=debug && npm run build:all",
+    "release": "export PROFILE=release && export TARGET_DIR=release && npm run build:all",
+    "build:all": "wireit",
+    "test": "yarn playwright test"
+  },
+  "wireit": {
+    "compile": {
+      "command": "cargo build --target wasm32-unknown-unknown --profile $PROFILE",
+      "env": {
+        "PROFILE": {
+          "external": true
+        }
+      }
+    },
+    "opt": {
+      "command": "wasm-opt -O1 ../target/wasm32-unknown-unknown/$TARGET_DIR/wnfs_wasm.wasm -o ../target/wasm32-unknown-unknown/$TARGET_DIR/wnfs_wasm.wasm",
+      "env": {
+        "TARGET_DIR": {
+          "external": true
+        }
+      },
+      "dependencies": [
+        "compile"
+      ]
+    },
+    "bindgen:bundler": {
+      "command": "wasm-bindgen --weak-refs --target bundler --out-dir dist/bundler ../target/wasm32-unknown-unknown/$TARGET_DIR/wnfs_wasm.wasm",
+      "env": {
+        "TARGET_DIR": {
+          "external": true
+        }
+      },
+      "dependencies": [
+        "opt"
+      ],
+      "output": [
+        "dist/bundler"
+      ]
+    },
+    "bindgen:nodejs": {
+      "command": "wasm-bindgen --weak-refs --target nodejs --out-dir dist/nodejs ../target/wasm32-unknown-unknown/$TARGET_DIR/wnfs_wasm.wasm && move-file dist/nodejs/wnfs_wasm.js dist/nodejs/wnfs_wasm.cjs",
+      "env": {
+        "TARGET_DIR": {
+          "external": true
+        }
+      },
+      "dependencies": [
+        "opt"
+      ],
+      "output": [
+        "dist/nodejs"
+      ]
+    },
+    "bindgen:web": {
+      "command": "wasm-bindgen --weak-refs --target web --out-dir dist/web ../target/wasm32-unknown-unknown/$TARGET_DIR/wnfs_wasm.wasm && cpy --flat src/loaders/workerd.js dist/web",
+      "env": {
+        "TARGET_DIR": {
+          "external": true
+        }
+      },
+      "dependencies": [
+        "opt"
+      ],
+      "output": [
+        "dist/web"
+      ]
+    },
+    "build:all": {
+      "dependencies": [
+        "bindgen:bundler",
+        "bindgen:nodejs",
+        "bindgen:web"
+      ]
+    }
+  },
   "devDependencies": {
     "@playwright/test": "^1.36.1",
-    "@wasm-tool/wasm-pack-plugin": "^1.7.0",
+    "cpy-cli": "^5.0.0",
     "css-loader": "^6.8.1",
     "file-loader": "^6.2.0",
     "html-webpack-plugin": "^5.5.3",
+    "move-file-cli": "^3.0.0",
     "multiformats": "^12.0.1",
     "style-loader": "^3.3.3",
     "text-encoding": "^0.7.0",
@@ -13,6 +136,7 @@
     "uint8arrays": "^4.0.4",
     "webpack": "^5.88.2",
     "webpack-cli": "^5.1.4",
-    "webpack-dev-server": "^4.15.1"
+    "webpack-dev-server": "^4.15.1",
+    "wireit": "^0.10.0"
   }
 }
