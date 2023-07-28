@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1690218113753,
+  "lastUpdate": 1690559384794,
   "repoUrl": "https://github.com/wnfs-wg/rs-wnfs",
   "entries": {
     "Rust Benchmark": [
@@ -16477,6 +16477,102 @@ window.BENCHMARK_DATA = {
             "name": "NameAccumulator serialization",
             "value": 1005,
             "range": "± 430",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "7957636+bgins@users.noreply.github.com",
+            "name": "Brian Ginsburg",
+            "username": "bgins"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "5920442677ea39997ca1e86d224d89b242cb48ca",
+          "message": "chore: Update JS binding and packaging (#318)\n\n* Update JS binding and packaging\r\n\r\nCo-authored-by: Philipp Krüger <philipp.krueger1@gmail.com>\r\nSigned-off-by: Brian Ginsburg <7957636+bgins@users.noreply.github.com>",
+          "timestamp": "2023-07-28T08:45:58-07:00",
+          "tree_id": "34c6c213b7b96028d54e0f615610841c0f4bf2d2",
+          "url": "https://github.com/wnfs-wg/rs-wnfs/commit/5920442677ea39997ca1e86d224d89b242cb48ca"
+        },
+        "date": 1690559384007,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "node set",
+            "value": 5711,
+            "range": "± 102",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node set 1000 consecutive",
+            "value": 2548701,
+            "range": "± 7707",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and get",
+            "value": 114374,
+            "range": "± 303",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and remove",
+            "value": 125595,
+            "range": "± 212",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt load and decode/0",
+            "value": 41561,
+            "range": "± 217",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt set and encode",
+            "value": 111349,
+            "range": "± 543",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt diff",
+            "value": 50158,
+            "range": "± 3510",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt merge",
+            "value": 145759,
+            "range": "± 11027",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameSegment::new_hashed",
+            "value": 2389304,
+            "range": "± 228348",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameSegment::new(rng)",
+            "value": 2460352,
+            "range": "± 231487",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameAccumulator::add",
+            "value": 2355014,
+            "range": "± 71894",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameAccumulator serialization",
+            "value": 1000,
+            "range": "± 28",
             "unit": "ns/iter"
           }
         ]
