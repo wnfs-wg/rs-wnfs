@@ -20,7 +20,7 @@ WNFS file trees can serialize and be deserialized from [IPLD graphs][ipld-spec] 
 - Install `wasm-bindgen`
 
   ```bash
-  cargo install wasm-bindgen
+  cargo install wasm-bindgen-cli
   ```
 
 - Install dependencies

@@ -135,7 +135,7 @@ build_accumulator() {
 build_wasm() {
     display_header "💿 | BUILDING WNFS-WASM PROJECT | 💿"
     cd $script_dir/../wnfs-wasm
-    WASM_BINDGEN_WEAKREF=1 npm run build
+    npm run build
 	sed -i.bak \
         -e 's/"name": "wnfs-wasm"/"name": "wnfs"/g' \
         package.json

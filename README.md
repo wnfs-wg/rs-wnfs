@@ -84,7 +84,7 @@ This library is designed with WebAssembly in mind. You can follow instructions o
   - Install wasm-bindgen
 
     ```bash
-    cargo install wasm-bindgen
+    cargo install wasm-bindgen-cli
     ```
 
   - Install [playwright][playwright-guide] binaries
