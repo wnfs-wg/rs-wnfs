@@ -46,8 +46,8 @@
     "dist"
   ],
   "scripts": {
-    "build": "export PROFILE=dev && export TARGET_DIR=debug && npm run build:all",
-    "release": "export PROFILE=release && export TARGET_DIR=release && npm run build:all",
+    "build": "export PROFILE=dev && export TARGET_DIR=debug && yarn run build:all",
+    "release": "export PROFILE=release && export TARGET_DIR=release && yarn run build:all",
     "build:all": "wireit",
     "test": "yarn playwright test"
   },
