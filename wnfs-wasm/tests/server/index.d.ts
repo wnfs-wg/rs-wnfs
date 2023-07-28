@@ -14,22 +14,22 @@ declare global {
         createRecipientExchangeRoot: typeof import("../mock").createRecipientExchangeRoot;
       };
       wnfs: {
-        PublicDirectory: typeof import("../../pkg/index").PublicDirectory;
-        PublicFile: typeof import("../../pkg/index").PublicFile;
-        PublicNode: typeof import("../../pkg/index").PublicNode;
-        PrivateDirectory: typeof import("../../pkg/index").PrivateDirectory;
-        PrivateForest: typeof import("../../pkg/index").PrivateForest;
-        PrivateFile: typeof import("../../pkg/index").PrivateFile;
-        PrivateNode: typeof import("../../pkg/index").PrivateNode;
-        Name: typeof import("../../pkg/index").Name;
-        NameAccumulator: typeof import("../../pkg/index").NameAccumulator;
-        AccessKey: typeof import("../../pkg/index").AccessKey;
-        share: typeof import("../../pkg/index").share;
-        findLatestShareCounter: typeof import("../../pkg/index").findLatestShareCounter;
-        receiveShare: typeof import("../../pkg/index").receiveShare;
-        createShareName: typeof import("../../pkg/index").createShareName;
+        PublicDirectory: typeof import("../../dist/bundler/wnfs_wasm").PublicDirectory;
+        PublicFile: typeof import("../../dist/bundler/wnfs_wasm").PublicFile;
+        PublicNode: typeof import("../../dist/bundler/wnfs_wasm").PublicNode;
+        PrivateDirectory: typeof import("../../dist/bundler/wnfs_wasm").PrivateDirectory;
+        PrivateForest: typeof import("../../dist/bundler/wnfs_wasm").PrivateForest;
+        PrivateFile: typeof import("../../dist/bundler/wnfs_wasm").PrivateFile;
+        PrivateNode: typeof import("../../dist/bundler/wnfs_wasm").PrivateNode;
+        Name: typeof import("../../dist/bundler/wnfs_wasm").Name;
+        NameAccumulator: typeof import("../../dist/bundler/wnfs_wasm").NameAccumulator;
+        AccessKey: typeof import("../../dist/bundler/wnfs_wasm").AccessKey;
+        share: typeof import("../../dist/bundler/wnfs_wasm").share;
+        findLatestShareCounter: typeof import("../../dist/bundler/wnfs_wasm").findLatestShareCounter;
+        receiveShare: typeof import("../../dist/bundler/wnfs_wasm").receiveShare;
+        createShareName: typeof import("../../dist/bundler/wnfs_wasm").createShareName;
       };
-      setPanicHook: typeof import("../../pkg/index").setPanicHook;
+      setPanicHook: typeof import("../../dist/bundler/wnfs_wasm").setPanicHook;
     }>;
   }
 }

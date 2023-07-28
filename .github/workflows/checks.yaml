@@ -112,11 +112,14 @@ jobs:
       - name: Cache Project (Rust)
         uses: Swatinem/rust-cache@v2
 
-      - name: Install Wasm Pack
+      - name: Install Wasm Bindgen CLI
         uses: "actions-rs/cargo@v1"
         with:
-          args: "--force wasm-pack"
+          args: "--force wasm-bindgen-cli"
           command: install
+
+      - name: Install Binaryen
+        run: brew install binaryen
 
       - name: Setup WebAssembly Toolchain
         run: rustup target add wasm32-unknown-unknown
@@ -127,8 +130,8 @@ jobs:
       - name: Install Playwright
         run: npx playwright install --with-deps
 
-      - name: Run Webpack
-        run: cd tests/server && npx webpack
+      - name: Build
+        run: yarn run build
 
       - name: Run Playwright Tests
-        run: yarn playwright test
+        run: yarn run test

@@ -8,7 +8,7 @@ import {
   PrivateForest,
   AccessKey,
   PublicDirectory,
-} from "../pkg";
+} from "../dist/bundler/wnfs_wasm";
 
 /** A mock CID. */
 const sampleCID = CID.parse(

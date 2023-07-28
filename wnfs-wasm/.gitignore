@@ -1,10 +1,10 @@
 test-results/
 package-lock.json
 playwright-report/
-pkg/
 node_modules/
 yarn-error.log
 
 dist/
 tests/dist/
 build/
+.wireit/
