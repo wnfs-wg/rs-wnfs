@@ -112,13 +112,13 @@ jobs:
       - name: Cache Project (Rust)
         uses: Swatinem/rust-cache@v2
 
-      - name: Install Wasm Pack
+      - name: Install Wasm Bindgen CLI
         uses: "actions-rs/cargo@v1"
         with:
-          args: "--force wasm-bindgen"
+          args: "--force wasm-bindgen-cli"
           command: install
 
-      - name: Install binaryen
+      - name: Install Binaryen
         run: sudo apt update && sudo apt install binaryen -y
 
       - name: Setup WebAssembly Toolchain

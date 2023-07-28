@@ -112,13 +112,13 @@ jobs:
           node-version: '16.x'
           registry-url: 'https://registry.npmjs.org'
 
-      - name: Install wasm-bindgen
+      - name: Install Wasm Bindgen CLI
         uses: "actions-rs/cargo@v1"
         with:
-          args: "--force wasm-bindgen"
+          args: "--force wasm-bindgen-cli"
           command: install
 
-      - name: Install binaryen
+      - name: Install Binaryen
         run: sudo apt update && sudo apt install binaryen -y
 
       # Build and rename package.json name
