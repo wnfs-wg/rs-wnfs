@@ -430,7 +430,7 @@ mod snapshot_tests {
     use wnfs_common::utils::MockStore;
 
     #[async_std::test]
-    async fn root_tree() {
+    async fn test_root_tree() {
         let rng = &mut ChaCha12Rng::seed_from_u64(0);
         let store = &MockStore::default();
         let paths = [

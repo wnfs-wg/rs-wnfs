@@ -249,7 +249,6 @@ where
 mod tests {
     use super::*;
     use libipld::cbor::DagCborCodec;
-    use sha3::Sha3_256;
     use wnfs_common::{async_encode, decode, MemoryBlockStore};
 
     #[async_std::test]
@@ -277,13 +276,12 @@ mod tests {
 #[cfg(test)]
 mod snapshot_tests {
     use super::*;
-    use sha3::Sha3_256;
     use wnfs_common::utils::MockStore;
 
     #[async_std::test]
-    async fn root_tree() {
+    async fn test_pointer() {
         let store = &MockStore::default();
-        let pointer: Pointer<String, i32, Sha3_256> = Pointer::Values(vec![
+        let pointer: Pointer<String, i32, blake3::Hasher> = Pointer::Values(vec![
             Pair {
                 key: "James".into(),
                 value: 4500,

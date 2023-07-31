@@ -274,7 +274,7 @@ mod snapshot_tests {
     use wnfs_common::utils::MockStore;
 
     #[async_std::test]
-    async fn simple_file() {
+    async fn test_simple_file() {
         let rng = &mut ChaCha12Rng::seed_from_u64(0);
         let store = &MockStore::default();
 
@@ -290,7 +290,7 @@ mod snapshot_tests {
     }
 
     #[async_std::test]
-    async fn file_with_previous_links() {
+    async fn test_file_with_previous_links() {
         let rng = &mut ChaCha12Rng::seed_from_u64(0);
         let store = &MockStore::default();
 

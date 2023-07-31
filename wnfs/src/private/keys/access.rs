@@ -134,7 +134,7 @@ mod snapshot_tests {
     use wnfs_common::{utils::MockStore, BlockStore};
 
     #[async_std::test]
-    async fn access_key() {
+    async fn test_access_key() {
         let rng = &mut ChaCha12Rng::seed_from_u64(0);
         let store = &MockStore::default();
 

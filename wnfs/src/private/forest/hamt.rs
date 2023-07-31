@@ -493,7 +493,7 @@ mod snapshot_tests {
     use wnfs_nameaccumulator::NameSegment;
 
     #[async_std::test]
-    async fn hamt() {
+    async fn test_hamt() {
         let rng = &mut ChaCha12Rng::seed_from_u64(0);
         let store = &MockStore::default();
         let forest = &mut Rc::new(HamtForest::new_rsa_2048(rng));

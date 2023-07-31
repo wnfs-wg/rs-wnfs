@@ -1201,7 +1201,7 @@ mod snapshot_tests {
     use wnfs_common::utils::MockStore;
 
     #[async_std::test]
-    async fn empty_directory() {
+    async fn test_empty_directory() {
         let rng = &mut ChaCha12Rng::seed_from_u64(0);
         let store = &MockStore::default();
 
@@ -1214,7 +1214,7 @@ mod snapshot_tests {
     }
 
     #[async_std::test]
-    async fn directory_with_children() {
+    async fn test_directory_with_children() {
         let rng = &mut ChaCha12Rng::seed_from_u64(0);
         let store = &MockStore::default();
         let root_dir = &mut Rc::new(PublicDirectory::new(DateTime().fake_with_rng(rng)));
@@ -1238,7 +1238,7 @@ mod snapshot_tests {
     }
 
     #[async_std::test]
-    async fn directory_with_previous_links() {
+    async fn test_directory_with_previous_links() {
         let rng = &mut ChaCha12Rng::seed_from_u64(0);
         let store = &MockStore::default();
         let paths = [

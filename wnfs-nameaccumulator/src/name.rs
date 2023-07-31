@@ -786,7 +786,7 @@ mod snapshot_tests {
     use wnfs_common::{utils::MockStore, BlockStore};
 
     #[async_std::test]
-    async fn name_accumulator() {
+    async fn test_name_accumulator() {
         let rng = &mut ChaCha12Rng::seed_from_u64(0);
         let store = &MockStore::default();
         let setup = &AccumulatorSetup::from_rsa_2048(rng);

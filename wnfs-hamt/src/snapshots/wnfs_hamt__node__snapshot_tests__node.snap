@@ -1,0 +1,123 @@
+---
+source: wnfs-hamt/src/node.rs
+expression: node
+---
+{
+  "value": [
+    [
+      255,
+      255
+    ],
+    [
+      {
+        "/": "bafyr4idsyg5m4q44nzbhajeyoy5u7u2e7kpgxrn7zawmz3c7qj2liaq4wi"
+      },
+      {
+        "/": "bafyr4ih3ktr62wkganijvnq3weppt4veiw5btltbqybcswfzddwdwqfs24"
+      },
+      [
+        [
+          [
+            62,
+            0,
+            0,
+            0
+          ],
+          "62"
+        ],
+        [
+          [
+            87,
+            0,
+            0,
+            0
+          ],
+          "87"
+        ],
+        [
+          [
+            24,
+            0,
+            0,
+            0
+          ],
+          "24"
+        ]
+      ],
+      {
+        "/": "bafyr4iad7hmvahtrxfgxwdbeyj6llrgoyybuqxantw5rl4aecrvmx6wkgu"
+      },
+      {
+        "/": "bafyr4iexcscovivfp4eegzdfxy2srgpdcth6cs5n7fivke6p6kelyweuee"
+      },
+      {
+        "/": "bafyr4igyoe5h2hgjh72qir65vjrdfm6ouq36nrpbmvgsdhkosvxqhyv35q"
+      },
+      [
+        [
+          [
+            38,
+            0,
+            0,
+            0
+          ],
+          "38"
+        ],
+        [
+          [
+            4,
+            0,
+            0,
+            0
+          ],
+          "4"
+        ],
+        [
+          [
+            63,
+            0,
+            0,
+            0
+          ],
+          "63"
+        ]
+      ],
+      {
+        "/": "bafyr4ihzd7cn4kvamrt6fbj7b4pf6fkoxfs5mjrcvjagnxqbbgdxh2mfja"
+      },
+      {
+        "/": "bafyr4ic3cqnejo63kietxrqiylpibf4x463hxqmguxsx36xlcemuog5rmq"
+      },
+      {
+        "/": "bafyr4idzgoeguue4w7sdzkn5ny4vg25jasaivt63zesp7jkgqzhg3mrhme"
+      },
+      [
+        [
+          [
+            58,
+            0,
+            0,
+            0
+          ],
+          "58"
+        ]
+      ],
+      {
+        "/": "bafyr4iejpho7mf2s35ayttlhxwa6dkp4ebiz47uzghdgdc5y5qqb4kkoru"
+      },
+      {
+        "/": "bafyr4ifrelqkr7tng55a3ax2a4piofu4zuhxyadkzxqiazrnpgqda7wfam"
+      },
+      {
+        "/": "bafyr4iakypmw5shzpr3di3tlqeb3brajxwqkxeobsdflibwvwlkuhoh4nu"
+      },
+      {
+        "/": "bafyr4ibopt25caskw3f4y3gdztas7vgmmq44rg74pm5rdci3ydvmvnczcy"
+      },
+      {
+        "/": "bafyr4idb5vahf42vfi4efoxxvc6ogft53amtmrasp6kohpr2mx7ofwrkqa"
+      }
+    ]
+  ],
+  "cbor": "goIY/xj/kNgqWCUAAXEeIHLBus5DnG5CcCSYdjtP00T6nmvFv8gszOxfgnS0Ahyy2CpYJQABcR4g+1Tj7VlGA1CathuxHvnypEW6Ga5hhgIpWLkY7DtAsteDgoQYPgAAAGI2MoKEGFcAAABiODeChBgYAAAAYjI02CpYJQABcR4gA/nZUB5xuU17DCTCfLXEzsYDSFwNnbsV8AQUasv6yjXYKlglAAFxHiCXFITqoqV/CENkZb41KJnjFM/hS635UVUTz/KIvFiUIdgqWCUAAXEeINhxOn0cyT/1BEfdqmIys86kN+bF4WVNIZ1OlW8D4rvsg4KEGCYAAABiMziChAQAAABhNIKEGD8AAABiNjPYKlglAAFxHiD5H8TeKqBkZ+KFPw8eXxVOuWXWJiKqQGbeAQmHc+mFSNgqWCUAAXEeIFsUGkS721IJO8YIwt6Al5fntnvBhqXlffrrERlHG7Fk2CpYJQABcR4geTOIalCct+Q8qb1uOVNrqQSAis/byST/pUaGTm2yJ2GBgoQYOgAAAGI1ONgqWCUAAXEeIIl53fYXUt9Bic1nvYHhqfwgUZ5+mTHGYYu47CAeKU6N2CpYJQABcR4gsSLgqP5tN3oNgvoHHocWnM0PfABqzeCAZi15oDB+xQPYKlglAAFxHiAKw9luyPl8djRua4EDsMQJvaCrkcGQyrQG1bLVQ7j8bdgqWCUAAXEeIC589dECSrbLzGzDzMEv1MxkOcib/Hs7EYkbwOrKtFkW2CpYJQABcR4gYe1AcvNVKjhCuveovOMWfdgZNkQSf5Tjvjpl/uLaKoA="
+}

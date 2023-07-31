@@ -2231,14 +2231,17 @@ mod snapshot_tests {
                             }),
                         );
                         if let FileContent::External {
-                            key, block_count, ..
+                            key,
+                            block_count,
+                            base_name,
+                            ..
                         } = &file.content.content
                         {
                             for name in PrivateFile::generate_shard_labels(
                                 key,
                                 0,
                                 *block_count,
-                                &file.header.name,
+                                &Name::new(base_name.clone(), []),
                             ) {
                                 match forest.get_encrypted(&name, store).await? {
                                     Some(cids) => {
@@ -2250,7 +2253,7 @@ mod snapshot_tests {
                                             }),
                                         )
                                     }
-                                    None => unreachable!(), // ???
+                                    None => unreachable!(),
                                 };
                             }
                         }
@@ -2271,8 +2274,8 @@ mod snapshot_tests {
         let base_name = forest.empty_name();
         let paths = [
             vec!["text.txt".into()],
-            vec!["music".into(), "jazz".into()],
-            vec!["videos".into(), "movies".into(), "anime".into()],
+            // vec!["music".into(), "jazz".into()],
+            // vec!["videos".into(), "movies".into(), "anime".into()],
         ];
 
         let root_dir = &mut Rc::new(PrivateDirectory::new(

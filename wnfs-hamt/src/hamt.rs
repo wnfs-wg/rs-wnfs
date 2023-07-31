@@ -245,7 +245,7 @@ mod snapshot_tests {
     use wnfs_common::utils::MockStore;
 
     #[async_std::test]
-    async fn root_tree() {
+    async fn test_hamt() {
         let store = &MockStore::default();
         let node = &mut Rc::new(Node::<[u8; 4], String>::default());
         for i in 0..99_u32 {
