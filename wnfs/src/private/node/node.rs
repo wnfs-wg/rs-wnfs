@@ -432,10 +432,10 @@ impl PrivateNode {
 
         loop {
             let current = search.current();
-            current_header.ratchet = current.clone();
+            current_header.update_ratchet(current.clone());
 
             let has_curr = forest
-                .has(&current_header.get_revision_name(), store)
+                .has(current_header.get_revision_name(), store)
                 .await?;
 
             let ord = if has_curr {
@@ -449,7 +449,7 @@ impl PrivateNode {
             }
         }
 
-        current_header.ratchet = search.current().clone();
+        current_header.update_ratchet(search.current().clone());
 
         let name_hash =
             blake3::Hasher::hash(&current_header.get_revision_name().as_accumulator(setup));

@@ -117,7 +117,7 @@ impl<F: PrivateForest> PrivateNodeHistory<F> {
             return Ok(None);
         };
 
-        self.header.ratchet = previous_ratchet;
+        self.header.update_ratchet(previous_ratchet);
 
         let setup = self.forest.get_accumulator_setup();
         let previous_node = PrivateNode::from_private_ref(

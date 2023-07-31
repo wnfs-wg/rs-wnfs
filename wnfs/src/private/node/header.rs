@@ -2,6 +2,7 @@ use super::{PrivateNodeHeaderSerializable, TemporalKey, REVISION_SEGMENT_DSI};
 use crate::{error::FsError, private::RevisionRef};
 use anyhow::{bail, Result};
 use libipld_core::cid::Cid;
+use once_cell::sync::OnceCell;
 use rand_core::CryptoRngCore;
 use skip_ratchet::Ratchet;
 use std::fmt::Debug;
@@ -34,7 +35,7 @@ use wnfs_nameaccumulator::{AccumulatorSetup, Name, NameSegment};
 ///
 /// println!("Header: {:#?}", file.header);
 /// ```
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Eq)]
 pub struct PrivateNodeHeader {
     /// A unique identifier of the node.
     pub(crate) inumber: NameSegment,
@@ -42,6 +43,8 @@ pub struct PrivateNodeHeader {
     pub(crate) ratchet: Ratchet,
     /// Stores the name of this node for easier lookup.
     pub(crate) name: Name,
+    /// Stores a cache of the name with the revision segment added
+    pub(crate) revision_name: OnceCell<Name>,
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -57,23 +60,31 @@ impl PrivateNodeHeader {
             name: parent_name.with_segments_added(Some(inumber.clone())),
             ratchet: Ratchet::from_rng(rng),
             inumber,
+            revision_name: OnceCell::new(),
         }
     }
 
     /// Advances the ratchet.
     pub(crate) fn advance_ratchet(&mut self) {
         self.ratchet.inc();
+        self.revision_name = OnceCell::new();
     }
 
     /// Updates the name to the child of given parent name.
     pub(crate) fn update_name(&mut self, parent_name: &Name) {
-        self.name = parent_name.clone();
-        self.name.add_segments(Some(self.inumber.clone()));
+        self.name = parent_name.with_segments_added(Some(self.inumber.clone()));
+        self.revision_name = OnceCell::new();
+    }
+
+    /// Sets the ratchet and makes sure any caches are cleared.
+    pub(crate) fn update_ratchet(&mut self, ratchet: Ratchet) {
+        self.ratchet = ratchet;
+        self.revision_name = OnceCell::new();
     }
 
     /// Resets the ratchet.
     pub(crate) fn reset_ratchet(&mut self, rng: &mut impl CryptoRngCore) {
-        self.ratchet = Ratchet::from_rng(rng)
+        self.update_ratchet(Ratchet::from_rng(rng));
     }
 
     /// Derives the revision ref of the current header.
@@ -146,9 +157,11 @@ impl PrivateNodeHeader {
     ///
     /// println!("Revision name: {:?}", revision_name);
     /// ```
-    pub fn get_revision_name(&self) -> Name {
-        self.name
-            .with_segments_added(Some(self.derive_revision_segment()))
+    pub fn get_revision_name(&self) -> &Name {
+        self.revision_name.get_or_init(|| {
+            self.name
+                .with_segments_added(Some(self.derive_revision_segment()))
+        })
     }
 
     /// Gets the name for this node.
@@ -183,6 +196,7 @@ impl PrivateNodeHeader {
             inumber: serializable.inumber,
             ratchet: serializable.ratchet,
             name: Name::new(serializable.name, []),
+            revision_name: OnceCell::new(),
         }
     }
 
@@ -212,5 +226,11 @@ impl PrivateNodeHeader {
             header.name = name;
         }
         Ok(header)
+    }
+}
+
+impl PartialEq for PrivateNodeHeader {
+    fn eq(&self, other: &Self) -> bool {
+        self.inumber == other.inumber && self.ratchet == other.ratchet && self.name == other.name
     }
 }
