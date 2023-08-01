@@ -400,7 +400,7 @@ mod snapshot_tests {
 
         let _ = root_dir.store(store).await.unwrap();
 
-        let values = store.get_values().unwrap();
+        let values = store.get_all_block_snapshots().unwrap();
         insta::assert_json_snapshot!(values)
     }
 }

@@ -13,9 +13,11 @@ use crate::{
 };
 use anyhow::{bail, Result};
 use chrono::{DateTime, Utc};
+#[cfg(test)]
+use fake::{faker::chrono::en::DateTime, Fake};
 use libipld_core::cid::Cid;
 #[cfg(test)]
-use rand::rngs::ThreadRng;
+use rand_chacha::{rand_core::SeedableRng, ChaCha12Rng};
 use rand_core::CryptoRngCore;
 use semver::Version;
 use serde::{Deserialize, Serialize};
@@ -74,10 +76,10 @@ where
         }
     }
 
-    pub async fn create_private_root(&mut self, name: &str) -> Result<()> {
+    pub async fn create_private_root(&mut self, name: &str, time: DateTime<Utc>) -> Result<()> {
         let root = PrivateDirectory::new_and_store(
             &self.forest.empty_name(),
-            Utc::now(),
+            time,
             &mut self.forest,
             self.store,
             &mut self.rng,
@@ -299,7 +301,12 @@ where
         }
     }
 
-    pub async fn store(&self, store: &B) -> Result<Cid> {
+    pub async fn store(&mut self, store: &B) -> Result<Cid> {
+        for (_, root) in self.private_map.iter() {
+            root.store(&mut self.forest, self.store, &mut self.rng)
+                .await?;
+        }
+
         let serializable = RootTreeSerializable {
             public: self.public_root.store(store).await?,
             exchange: self.exchange_root.store(store).await?,
@@ -333,16 +340,18 @@ where
 }
 
 #[cfg(test)]
-impl<'a, B: BlockStore> RootTree<'a, B, ThreadRng> {
-    pub fn with_store(store: &'a B) -> RootTree<'a, B, ThreadRng> {
-        let mut rng = rand::thread_rng();
+impl<'a, B: BlockStore> RootTree<'a, B, ChaCha12Rng> {
+    pub fn with_store(store: &'a B) -> RootTree<'a, B, ChaCha12Rng> {
+        let mut rng = ChaCha12Rng::seed_from_u64(0);
+        let time = DateTime().fake_with_rng(&mut rng);
         let forest = Rc::new(HamtForest::new(AccumulatorSetup::trusted(&mut rng)));
+
         Self {
             store,
             rng,
             forest,
-            public_root: Rc::new(PublicDirectory::new(Utc::now())),
-            exchange_root: Rc::new(PublicDirectory::new(Utc::now())),
+            public_root: Rc::new(PublicDirectory::new(time)),
+            exchange_root: Rc::new(PublicDirectory::new(time)),
             private_map: HashMap::default(),
         }
     }
@@ -360,7 +369,10 @@ mod tests {
     async fn test_roots_read_write() {
         let store = MemoryBlockStore::default();
         let mut root_tree = RootTree::with_store(&store);
-        root_tree.create_private_root("private").await.unwrap();
+        root_tree
+            .create_private_root("private", Utc::now())
+            .await
+            .unwrap();
 
         // Public root
 
@@ -424,15 +436,16 @@ mod tests {
 #[cfg(test)]
 mod snapshot_tests {
     use super::*;
+    use crate::utils;
     use fake::{faker::chrono::en::DateTime, Fake};
     use rand_chacha::ChaCha12Rng;
     use rand_core::SeedableRng;
     use wnfs_common::utils::MockStore;
 
     #[async_std::test]
-    async fn test_root_tree() {
+    async fn test_root_filesystems() {
         let rng = &mut ChaCha12Rng::seed_from_u64(0);
-        let store = &MockStore::default();
+        let store = &mut MockStore::default();
         let paths = [
             (["public".into()], vec!["text.txt".into()]),
             (["exchange".into()], vec!["music".into(), "jazz".into()]),
@@ -443,7 +456,10 @@ mod snapshot_tests {
         ];
 
         let mut root_tree = RootTree::with_store(store);
-        root_tree.create_private_root("private").await.unwrap();
+        root_tree
+            .create_private_root("private", DateTime().fake_with_rng(rng))
+            .await
+            .unwrap();
 
         for (root, path) in paths.iter() {
             root_tree
@@ -457,9 +473,17 @@ mod snapshot_tests {
                 .unwrap();
         }
 
-        let root_cid = root_tree.store(store).await.unwrap();
-        let root = store.get_block_snapshot(&root_cid).await.unwrap();
+        let _ = root_tree.store(store).await.unwrap();
+        let forest = &mut Rc::clone(&root_tree.forest);
+        let root_dir = root_tree
+            .private_map
+            .get(&vec!["private".to_string()])
+            .unwrap();
 
-        insta::assert_json_snapshot!(root);
+        utils::walk_dir(store, forest, root_dir, rng).await.unwrap();
+
+        let values = store.get_all_block_snapshots().unwrap();
+
+        insta::assert_json_snapshot!(values);
     }
 }

@@ -1,4 +1,4 @@
-use crate::{BlockStore, BlockStoreError, MemoryBlockStore, CODEC_DAG_CBOR, CODEC_RAW};
+use crate::{encode, BlockStore, MemoryBlockStore, CODEC_DAG_CBOR, CODEC_RAW};
 use anyhow::Result;
 use base64_serde::base64_serde_type;
 use bytes::Bytes;
@@ -14,7 +14,10 @@ use proptest::{
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::{collections::HashMap, io::Cursor};
+use std::{
+    collections::{BTreeMap, HashMap},
+    io::Cursor,
+};
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
@@ -61,7 +64,7 @@ impl MockStore {
         })
     }
 
-    pub fn get_values(&self) -> Result<Vec<BlockSnapshot>> {
+    pub fn get_all_block_snapshots(&self) -> Result<BTreeMap<String, BlockSnapshot>> {
         self.inner
             .0
             .borrow()
@@ -69,22 +72,25 @@ impl MockStore {
             .map(|(cid, v)| {
                 let cbor_bytes = match cid.codec() {
                     CODEC_DAG_CBOR => v.clone(),
-                    CODEC_RAW => {
-                        self.cid_handlers
-                            .get(cid)
-                            .ok_or(BlockStoreError::CIDNotFound(*cid))?(v)?
-                    }
+                    CODEC_RAW => match self.cid_handlers.get(cid) {
+                        Some(func) => func(v)?,
+                        None => Bytes::from(encode(v, DagCborCodec)?),
+                    },
                     _ => unimplemented!(),
                 };
+
                 let ipld = Ipld::decode(DagCborCodec, &mut Cursor::new(cbor_bytes.clone()))?;
                 let mut json_bytes = Vec::new();
                 ipld.encode(DagJsonCodec, &mut json_bytes)?;
 
                 let value = serde_json::from_slice(&json_bytes)?;
-                Ok(BlockSnapshot {
-                    value,
-                    cbor: cbor_bytes.to_vec(),
-                })
+                Ok((
+                    cid.to_string(),
+                    BlockSnapshot {
+                        value,
+                        cbor: cbor_bytes.to_vec(),
+                    },
+                ))
             })
             .collect()
     }
