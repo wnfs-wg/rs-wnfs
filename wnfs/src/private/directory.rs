@@ -1204,7 +1204,7 @@ impl PrivateDirectory {
     ///         .await
     ///         .unwrap();
     ///
-    ///     let result = root_dir
+    ///     root_dir
     ///         .cp(
     ///             &["code".into(), "python".into(), "hello.py".into()],
     ///             &["code".into(), "hello.py".into()],
