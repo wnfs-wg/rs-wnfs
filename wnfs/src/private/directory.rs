@@ -602,11 +602,9 @@ impl PrivateDirectory {
     ///        .await?;
     ///     // Clone the forest that was used to write the file
     ///     // Open the file mutably
-    ///     let file = {
-    ///         root_dir
-    ///             .open_file_mut(hello_py, true, Utc::now(), forest, store, rng)
-    ///             .await?
-    ///     };
+    ///     let file = root_dir
+    ///         .open_file_mut(hello_py, true, Utc::now(), forest, store, rng)
+    ///         .await?;
     ///     // Define the content that will replace what is already in the file
     ///     let new_file_content = b"print('hello world 2')";
     ///     // Set the contents of the file, waiting for result and expecting no errors

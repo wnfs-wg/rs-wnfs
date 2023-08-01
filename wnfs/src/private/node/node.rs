@@ -123,9 +123,7 @@ impl PrivateNode {
         match self {
             Self::File(file_rc) => {
                 let file = Rc::make_mut(file_rc);
-
-                file.prepare_key_rotation(parent_name, forest, store, rng)
-                    .await?;
+                file.prepare_key_rotation(parent_name, rng).await?;
             }
             Self::Dir(dir_rc) => {
                 let dir = Rc::make_mut(dir_rc);
