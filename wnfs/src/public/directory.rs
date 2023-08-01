@@ -676,7 +676,7 @@ impl PublicDirectory {
     ///
     ///     assert_eq!(
     ///         dir,
-    ///         store.get_block_snapshot(&cid).await.unwrap()
+    ///         store.get_deserializable(&cid).await.unwrap()
     ///     );
     /// }
     /// ```
