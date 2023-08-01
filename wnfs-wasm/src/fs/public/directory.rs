@@ -211,6 +211,30 @@ impl PublicDirectory {
         }))
     }
 
+    /// Copies a specific node to another location.
+    pub fn cp(
+        &self,
+        path_segments_from: &Array,
+        path_segments_to: &Array,
+        time: &Date,
+        store: BlockStore,
+    ) -> JsResult<Promise> {
+        let mut directory = Rc::clone(&self.0);
+        let store = ForeignBlockStore(store);
+        let time = DateTime::<Utc>::from(time);
+        let path_segments_from = utils::convert_path_segments(path_segments_from)?;
+        let path_segments_to = utils::convert_path_segments(path_segments_to)?;
+
+        Ok(future_to_promise(async move {
+            (&mut directory)
+                .cp(&path_segments_from, &path_segments_to, time, &store)
+                .await
+                .map_err(error("Cannot copy content between directories"))?;
+
+            Ok(utils::create_public_op_result(directory, JsValue::NULL)?)
+        }))
+    }
+
     /// Creates a new directory at the specified path.
     ///
     /// This method acts like `mkdir -p` in Unix because it creates intermediate directories if they do not exist.
