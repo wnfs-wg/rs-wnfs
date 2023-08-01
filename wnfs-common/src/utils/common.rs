@@ -1,10 +1,11 @@
 use crate::HashOutput;
 use anyhow::Result;
+use bytes::Bytes;
 use futures::{AsyncRead, AsyncReadExt};
-use libipld::IpldCodec;
+use libipld::{Cid, IpldCodec};
 use rand_core::CryptoRngCore;
-use serde::de::Visitor;
-use std::fmt;
+use serde::{de::Visitor, Deserialize, Serialize, Serializer};
+use std::{cell::RefCell, collections::HashMap, fmt};
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
@@ -106,4 +107,38 @@ pub fn to_hash_output(bytes: &[u8]) -> HashOutput {
 /// Tries to convert a u64 value to IPLD codec.
 pub fn u64_to_ipld(value: u64) -> Result<IpldCodec> {
     Ok(value.try_into()?)
+}
+
+pub(crate) fn serialize_cid_map<S>(
+    map: &RefCell<HashMap<Cid, Bytes>>,
+    serializer: S,
+) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    let map = map
+        .borrow()
+        .iter()
+        .map(|(cid, bytes)| (cid.to_string(), bytes.to_vec()))
+        .collect::<HashMap<_, _>>();
+
+    map.serialize(serializer)
+}
+
+pub(crate) fn deserialize_cid_map<'de, D>(
+    deserializer: D,
+) -> Result<RefCell<HashMap<Cid, Bytes>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let map = HashMap::<String, Vec<u8>>::deserialize(deserializer)?;
+    let map = map
+        .into_iter()
+        .map(|(cid, bytes)| {
+            let cid = cid.parse::<Cid>().map_err(serde::de::Error::custom)?;
+            Ok((cid, bytes.into()))
+        })
+        .collect::<Result<_, _>>()?;
+
+    Ok(RefCell::new(map))
 }

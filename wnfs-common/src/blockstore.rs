@@ -91,7 +91,11 @@ pub trait BlockStore: Sized {
 ///
 /// IPFS is basically a glorified HashMap.
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
-pub struct MemoryBlockStore(pub(crate) RefCell<HashMap<Cid, Bytes>>);
+pub struct MemoryBlockStore(
+    #[serde(serialize_with = "crate::utils::serialize_cid_map")]
+    #[serde(deserialize_with = "crate::utils::deserialize_cid_map")]
+    pub(crate) RefCell<HashMap<Cid, Bytes>>,
+);
 
 impl MemoryBlockStore {
     /// Creates a new in-memory block store.
