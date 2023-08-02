@@ -656,6 +656,81 @@ impl PublicDirectory {
         Ok(())
     }
 
+    /// Copies a file or directory from one path to another.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use anyhow::Result;
+    /// use std::rc::Rc;
+    /// use libipld_core::cid::Cid;
+    /// use chrono::Utc;
+    /// use rand::thread_rng;
+    /// use wnfs::{
+    ///     public::PublicDirectory,
+    ///     common::{BlockStore, MemoryBlockStore},
+    /// };
+    ///
+    /// #[async_std::main]
+    /// async fn main() -> Result<()> {
+    ///     let dir = &mut Rc::new(PublicDirectory::new(Utc::now()));
+    ///     let store = &MemoryBlockStore::new();
+    ///
+    ///     dir
+    ///         .write(
+    ///             &["code".into(), "python".into(), "hello.py".into()],
+    ///             Cid::default(),
+    ///             Utc::now(),
+    ///             store
+    ///         )
+    ///         .await?;
+    ///
+    ///     dir
+    ///         .cp(
+    ///             &["code".into(), "python".into(), "hello.py".into()],
+    ///             &["code".into(), "hello.py".into()],
+    ///             Utc::now(),
+    ///             store
+    ///         )
+    ///         .await?;
+    ///
+    ///     let result = dir
+    ///         .ls(&["code".into()], store)
+    ///         .await?;
+    ///
+    ///     assert_eq!(result.len(), 2);
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
+    pub async fn cp(
+        self: &mut Rc<Self>,
+        path_segments_from: &[String],
+        path_segments_to: &[String],
+        time: DateTime<Utc>,
+        store: &impl BlockStore,
+    ) -> Result<()> {
+        let (path, filename) = utils::split_last(path_segments_to)?;
+        let Some(mut node) = self.get_node(path_segments_from, store).await?.cloned() else {
+            bail!(FsError::NotFound);
+        };
+
+        let SearchResult::Found(dir) = self.get_leaf_dir_mut(path, store).await? else {
+            bail!(FsError::NotFound);
+        };
+
+        ensure!(
+            !dir.userland.contains_key(filename),
+            FsError::FileAlreadyExists
+        );
+
+        node.upsert_mtime(time);
+
+        dir.userland.insert(filename.clone(), PublicLink::new(node));
+
+        Ok(())
+    }
+
     #[async_recursion(?Send)]
     /// Stores directory in provided block store.
     ///

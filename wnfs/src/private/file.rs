@@ -260,6 +260,56 @@ impl PrivateFile {
         })
     }
 
+    /// Create a copy of this file without re-encrypting the actual content
+    /// (if the ciphertext is external ciphertext), so this is really fast
+    /// even if the file contains gigabytes of data.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use anyhow::Result;
+    /// use std::rc::Rc;
+    /// use chrono::Utc;
+    /// use rand::thread_rng;
+    /// use wnfs::{
+    ///     private::{PrivateDirectory, PrivateFile, forest::{hamt::HamtForest, traits::PrivateForest}},
+    ///     common::{MemoryBlockStore, utils::get_random_bytes},
+    /// };
+    ///
+    /// #[async_std::main]
+    /// async fn main() -> Result<()> {
+    ///     let store = &MemoryBlockStore::new();
+    ///     let rng = &mut thread_rng();
+    ///     let forest = &mut Rc::new(HamtForest::new_rsa_2048(rng));
+    ///
+    ///     let file = PrivateFile::with_content(
+    ///         &forest.empty_name(),
+    ///         Utc::now(),
+    ///         get_random_bytes::<100>(rng).to_vec(),
+    ///         forest,
+    ///         store,
+    ///         rng,
+    ///     )
+    ///     .await?;
+    ///
+    ///     let root_dir = &mut Rc::new(PrivateDirectory::new(&forest.empty_name(), Utc::now(), rng));
+    ///
+    ///     let copy = root_dir
+    ///         .open_file_mut(&["some".into(), "copy.txt".into()], true, Utc::now(), forest, store, rng)
+    ///         .await?;
+    ///
+    ///     copy.copy_content_from(&file, Utc::now());
+    ///
+    ///     assert_eq!(file.get_content(forest, store).await?, copy.get_content(forest, store).await?);
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
+    pub fn copy_content_from(&mut self, other: &Self, time: DateTime<Utc>) {
+        self.content.metadata.upsert_mtime(time);
+        self.content.content = other.content.content.clone();
+    }
+
     /// Streams the content of a file as chunk of blocks.
     ///
     /// # Examples
@@ -663,23 +713,15 @@ impl PrivateFile {
     /// will update the name to be the sub-name of given parent name,
     /// so it inherits the write access rules from the new parent and
     /// resets the `persisted_as` pointer.
-    /// Will copy and re-encrypt all external content.
     pub(crate) async fn prepare_key_rotation(
         &mut self,
         parent_name: &Name,
-        forest: &mut impl PrivateForest,
-        store: &impl BlockStore,
         rng: &mut impl CryptoRngCore,
     ) -> Result<()> {
-        let content = self.get_content(forest, store).await?;
-
         self.header.inumber = NameSegment::new(rng);
         self.header.update_name(parent_name);
         self.header.reset_ratchet(rng);
         self.content.persisted_as = OnceCell::new();
-
-        let content = Self::prepare_content(&self.header.name, content, forest, store, rng).await?;
-        self.content.content = content;
 
         Ok(())
     }

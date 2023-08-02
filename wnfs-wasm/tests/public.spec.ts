@@ -225,6 +225,52 @@ test.describe("PublicDirectory", () => {
     expect(imagesContent[0].name).toEqual("cats");
   });
 
+  test("cp can copy content between directories", async ({ page }) => {
+    const [imagesContent, picturesContent] = await page.evaluate(async () => {
+      const {
+        wnfs: { PublicDirectory },
+        mock: { MemoryBlockStore, sampleCID },
+      } = await window.setup();
+
+      const time = new Date();
+      const store = new MemoryBlockStore();
+      const root = new PublicDirectory(time);
+
+      var { rootDir } = await root.write(
+        ["pictures", "cats", "luna.jpeg"],
+        sampleCID,
+        time,
+        store
+      );
+
+      var { rootDir } = await rootDir.write(
+        ["pictures", "cats", "tabby.png"],
+        sampleCID,
+        time,
+        store
+      );
+
+      var { rootDir } = await rootDir.mkdir(["images"], time, store);
+
+      var { rootDir } = await rootDir.cp(
+        ["pictures", "cats"],
+        ["images", "cats"],
+        time,
+        store
+      );
+
+      const imagesContent = await rootDir.ls(["images"], store);
+
+      const picturesContent = await rootDir.ls(["pictures"], store);
+
+      return [imagesContent, picturesContent];
+    });
+
+    expect(imagesContent.length).toEqual(1);
+    expect(picturesContent.length).toEqual(1);
+    expect(imagesContent[0].name).toEqual("cats");
+  });
+
   test("A PublicDirectory has the correct metadata", async ({ page }) => {
     const result = await page.evaluate(async () => {
       const {
