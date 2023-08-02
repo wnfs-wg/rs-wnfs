@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1690807153027,
+  "lastUpdate": 1690963995575,
   "repoUrl": "https://github.com/wnfs-wg/rs-wnfs",
   "entries": {
     "Rust Benchmark": [
@@ -16669,6 +16669,102 @@ window.BENCHMARK_DATA = {
             "name": "NameAccumulator serialization",
             "value": 890,
             "range": "± 354",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "philipp.krueger1@gmail.com",
+            "name": "Philipp Krüger",
+            "username": "matheus23"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "cebb956cdaf88ed6e2eb09b784eeec5d61bdf4c8",
+          "message": "feat: Implement public directory cp & more efficient copy for `PrivateFile` (#319)\n\n* Implement `cp` for public directories\r\n\r\n* Implement leaner copy algorithms\r\n\r\n* Write wasm bindings for public cp & tests",
+          "timestamp": "2023-08-02T10:08:54+02:00",
+          "tree_id": "95b8232facae7d9d98959c4cb2e31ecf49b7e732",
+          "url": "https://github.com/wnfs-wg/rs-wnfs/commit/cebb956cdaf88ed6e2eb09b784eeec5d61bdf4c8"
+        },
+        "date": 1690963994727,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "node set",
+            "value": 6244,
+            "range": "± 499",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node set 1000 consecutive",
+            "value": 2561670,
+            "range": "± 173547",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and get",
+            "value": 127370,
+            "range": "± 8413",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and remove",
+            "value": 129852,
+            "range": "± 7357",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt load and decode/0",
+            "value": 46282,
+            "range": "± 2747",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt set and encode",
+            "value": 117791,
+            "range": "± 8639",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt diff",
+            "value": 47987,
+            "range": "± 6518",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt merge",
+            "value": 138963,
+            "range": "± 12348",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameSegment::new_hashed",
+            "value": 2202782,
+            "range": "± 221284",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameSegment::new(rng)",
+            "value": 2308534,
+            "range": "± 226917",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameAccumulator::add",
+            "value": 2036730,
+            "range": "± 104873",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameAccumulator serialization",
+            "value": 816,
+            "range": "± 71",
             "unit": "ns/iter"
           }
         ]
