@@ -20,22 +20,20 @@ pub enum AccessKey {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
 pub struct TemporalAccessKey {
     #[serde(with = "serde_byte_array")]
     pub(crate) label: HashOutput,
-    #[serde(rename = "contentCid")]
     pub(crate) content_cid: Cid,
-    #[serde(rename = "temporalKey")]
     pub(crate) temporal_key: TemporalKey,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
 pub struct SnapshotAccessKey {
     #[serde(with = "serde_byte_array")]
     pub label: HashOutput,
-    #[serde(rename = "contentCid")]
     pub content_cid: Cid,
-    #[serde(rename = "snapshotKey")]
     pub snapshot_key: SnapshotKey,
 }
 
