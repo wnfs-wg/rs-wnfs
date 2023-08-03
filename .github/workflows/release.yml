@@ -121,6 +121,10 @@ jobs:
       - name: Install Binaryen
         run: sudo apt update && sudo apt install binaryen -y
 
+      - name: Install Node Dependencies
+        run: yarn
+        working-directory: wnfs-wasm
+
       # Build and rename package.json name
       - name: Build
         run: ./scripts/rs-wnfs.sh build --wasm
