@@ -12,6 +12,20 @@
   * dependencies
     * wnfs bumped from 0.1.19 to 0.1.20
 
+## [0.1.24](https://github.com/wnfs-wg/rs-wnfs/compare/wnfs-wasm-v0.1.23...wnfs-wasm-v0.1.24) (2023-08-03)
+
+
+### Features
+
+* Implement public directory cp & more efficient copy for `PrivateFile` ([#319](https://github.com/wnfs-wg/rs-wnfs/issues/319)) ([cebb956](https://github.com/wnfs-wg/rs-wnfs/commit/cebb956cdaf88ed6e2eb09b784eeec5d61bdf4c8))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * wnfs bumped from 0.1.23 to 0.1.24
+
 ## [0.1.23](https://github.com/wnfs-wg/rs-wnfs/compare/wnfs-wasm-v0.1.22...wnfs-wasm-v0.1.23) (2023-07-21)
 
 
