@@ -179,7 +179,7 @@ impl Metadata {
     /// assert_eq!(metadata.0.get("foo"), None);
     /// ```
     ///
-    /// Returns Some<Ipld> if the key existed prior to this call, otherwise None.
+    /// Returns `Some<Ipld>` if the key existed prior to this call, otherwise None.
     pub fn delete(&mut self, key: &str) -> Option<Ipld> {
         self.0.remove(key)
     }

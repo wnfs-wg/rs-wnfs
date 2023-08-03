@@ -33,7 +33,7 @@ pub const MAX_BLOCK_CONTENT_SIZE: usize = MAX_BLOCK_SIZE - NONCE_SIZE - AUTHENTI
 // Type Definitions
 //--------------------------------------------------------------------------------------------------
 
-/// Represents a file in the WNFS private filesystem.
+/// A file in the WNFS private file system.
 ///
 /// # Examples
 ///

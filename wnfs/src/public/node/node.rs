@@ -19,7 +19,7 @@ use wnfs_common::{AsyncSerialize, BlockStore, RemembersCid};
 // Type Definitions
 //--------------------------------------------------------------------------------------------------
 
-/// Represents a node in the WNFS public file system. This can either be a file or a directory.
+/// A node in the WNFS public file system. This can either be a file or a directory.
 ///
 /// # Examples
 ///

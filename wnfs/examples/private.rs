@@ -7,12 +7,14 @@ use libipld_core::cid::Cid;
 use rand::thread_rng;
 use rand_core::CryptoRngCore;
 use std::rc::Rc;
-use wnfs::private::{
-    forest::{hamt::HamtForest, traits::PrivateForest},
-    AccessKey, PrivateDirectory, PrivateNode,
+use wnfs::{
+    common::{BlockStore, MemoryBlockStore},
+    nameaccumulator::AccumulatorSetup,
+    private::{
+        forest::{hamt::HamtForest, traits::PrivateForest},
+        AccessKey, PrivateDirectory, PrivateNode,
+    },
 };
-use wnfs_common::{BlockStore, MemoryBlockStore};
-use wnfs_nameaccumulator::AccumulatorSetup;
 
 #[async_std::main]
 async fn main() -> Result<()> {

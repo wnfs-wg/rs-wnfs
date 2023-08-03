@@ -9,6 +9,7 @@ use rsa::{traits::PublicKeyParts, BigUint, Oaep, RsaPrivateKey, RsaPublicKey};
 use sha2::Sha256;
 use std::rc::Rc;
 use wnfs::{
+    common::{BlockStore, MemoryBlockStore, CODEC_RAW},
     private::{
         forest::{hamt::HamtForest, traits::PrivateForest},
         share::{recipient, sharer},
@@ -16,7 +17,6 @@ use wnfs::{
     },
     public::{PublicDirectory, PublicLink},
 };
-use wnfs_common::{BlockStore, MemoryBlockStore, CODEC_RAW};
 
 //--------------------------------------------------------------------------------------------------
 // Example Code

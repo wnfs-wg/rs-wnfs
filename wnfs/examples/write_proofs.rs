@@ -3,16 +3,18 @@ use chrono::Utc;
 use libipld_core::cid::Cid;
 use rand::thread_rng;
 use std::{collections::BTreeSet, rc::Rc};
-use wnfs::private::{
-    forest::{
-        hamt::HamtForest,
-        proofs::{ForestProofs, ProvingHamtForest},
-        traits::PrivateForest,
+use wnfs::{
+    common::{BlockStore, MemoryBlockStore},
+    nameaccumulator::NameAccumulator,
+    private::{
+        forest::{
+            hamt::HamtForest,
+            proofs::{ForestProofs, ProvingHamtForest},
+            traits::PrivateForest,
+        },
+        AccessKey, PrivateDirectory, PrivateNode,
     },
-    AccessKey, PrivateDirectory, PrivateNode,
 };
-use wnfs_common::{BlockStore, MemoryBlockStore};
-use wnfs_nameaccumulator::NameAccumulator;
 
 #[async_std::main]
 async fn main() -> Result<()> {

@@ -1,3 +1,5 @@
+//! Primitives for working with the public file system.
+
 mod directory;
 mod file;
 mod link;

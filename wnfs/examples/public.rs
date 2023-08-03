@@ -5,8 +5,7 @@ use anyhow::Result;
 use chrono::Utc;
 use libipld_core::cid::Cid;
 use std::rc::Rc;
-use wnfs::public::PublicDirectory;
-use wnfs_common::MemoryBlockStore;
+use wnfs::{common::MemoryBlockStore, public::PublicDirectory};
 
 #[async_std::main]
 async fn main() -> Result<()> {

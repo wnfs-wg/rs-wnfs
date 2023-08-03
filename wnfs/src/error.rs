@@ -1,4 +1,4 @@
-//! Errors
+//! WNFS Errors
 
 use semver::Version;
 use skip_ratchet::PreviousErr;

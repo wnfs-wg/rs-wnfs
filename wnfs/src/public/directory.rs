@@ -30,7 +30,7 @@ use wnfs_common::{
 pub type PublicPathNodes = PathNodes<PublicDirectory>;
 pub type PublicPathNodesResult = PathNodesResult<PublicDirectory>;
 
-/// Represents a directory in the WNFS public filesystem.
+/// A directory in the WNFS public file system.
 ///
 /// # Examples
 ///

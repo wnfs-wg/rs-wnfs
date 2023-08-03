@@ -17,26 +17,26 @@ use std::{cell::RefCell, collections::HashMap};
 
 /// The value representing the DAG-JSON codec.
 ///
-/// - https://ipld.io/docs/codecs/#known-codecs
-/// - https://github.com/multiformats/multicodec/blob/master/table.csv
+/// - <https://ipld.io/docs/codecs/#known-codecs>
+/// - <https://github.com/multiformats/multicodec/blob/master/table.csv>
 pub const CODEC_DAG_JSON: u64 = 0x0129;
 
 /// The value representing the DAG-CBOR codec.
 ///
-/// - https://ipld.io/docs/codecs/#known-codecs
-/// - https://github.com/multiformats/multicodec/blob/master/table.csv
+/// - <https://ipld.io/docs/codecs/#known-codecs>
+/// - <https://github.com/multiformats/multicodec/blob/master/table.csv>
 pub const CODEC_DAG_CBOR: u64 = 0x71;
 
 /// The value representing the DAG-Protobuf codec.
 ///
-/// - https://ipld.io/docs/codecs/#known-codecs
-/// - https://github.com/multiformats/multicodec/blob/master/table.csv
+/// - <https://ipld.io/docs/codecs/#known-codecs>
+/// - <https://github.com/multiformats/multicodec/blob/master/table.csv>
 pub const CODEC_DAG_PB: u64 = 0x70;
 
 /// The value representing the raw codec.
 ///
-/// - https://ipld.io/docs/codecs/#known-codecs
-/// - https://github.com/multiformats/multicodec/blob/master/table.csv
+/// - <https://ipld.io/docs/codecs/#known-codecs>
+/// - <https://github.com/multiformats/multicodec/blob/master/table.csv>
 pub const CODEC_RAW: u64 = 0x55;
 
 //--------------------------------------------------------------------------------------------------
@@ -49,18 +49,27 @@ pub trait BlockStore: Sized {
     async fn get_block(&self, cid: &Cid) -> Result<Bytes>;
     async fn put_block(&self, bytes: impl Into<Bytes>, codec: u64) -> Result<Cid>;
 
-    async fn get_deserializable<V: DeserializeOwned>(&self, cid: &Cid) -> Result<V> {
+    async fn get_deserializable<V>(&self, cid: &Cid) -> Result<V>
+    where
+        V: DeserializeOwned,
+    {
         let bytes = self.get_block(cid).await?;
         let ipld = decode(bytes.as_ref(), DagCborCodec)?;
         Ok(ipld_serde::from_ipld::<V>(ipld)?)
     }
 
-    async fn put_serializable<V: Serialize>(&self, value: &V) -> Result<Cid> {
+    async fn put_serializable<V>(&self, value: &V) -> Result<Cid>
+    where
+        V: Serialize,
+    {
         let bytes = encode(&ipld_serde::to_ipld(value)?, DagCborCodec)?;
         self.put_block(bytes, CODEC_DAG_CBOR).await
     }
 
-    async fn put_async_serializable<V: AsyncSerialize>(&self, value: &V) -> Result<Cid> {
+    async fn put_async_serializable<V>(&self, value: &V) -> Result<Cid>
+    where
+        V: AsyncSerialize,
+    {
         let ipld = value.async_serialize_ipld(self).await?;
         let bytes = encode(&ipld, DagCborCodec)?;
         self.put_block(bytes, CODEC_DAG_CBOR).await
@@ -129,7 +138,6 @@ impl BlockStore for MemoryBlockStore {
         // Insert the bytes into the HashMap using the CID as the key
         self.0.borrow_mut().insert(cid, bytes);
 
-        // Return Ok status with the generated CID
         Ok(cid)
     }
 }
@@ -138,9 +146,11 @@ impl BlockStore for MemoryBlockStore {
 // Tests
 //--------------------------------------------------------------------------------------------------
 
-/// The following methods are generic functions that can be used to test any type that conforms to the BlockStore trait.
-/// In utilizing this structure, externally defined types can still test for retrieval, duplication, and serialization compatibility.
-pub async fn bs_retrieval_test<T: BlockStore + Send + 'static>(store: &T) -> Result<()> {
+/// Tests the retrieval property of a BlockStore-conforming type.
+pub async fn bs_retrieval_test<T>(store: &T) -> Result<()>
+where
+    T: BlockStore + Send + 'static,
+{
     // Example objects to insert and remove from the blockstore
     let first_bytes = vec![1, 2, 3, 4, 5];
     let second_bytes = b"hello world".to_vec();
@@ -157,12 +167,14 @@ pub async fn bs_retrieval_test<T: BlockStore + Send + 'static>(store: &T) -> Res
     assert_eq!(first_loaded, first_bytes);
     assert_eq!(second_loaded, second_bytes);
 
-    // Return Ok
     Ok(())
 }
 
-// Generic function used to test any type that conforms to the BlockStore trait
-pub async fn bs_duplication_test<T: BlockStore + Send + 'static>(store: &T) -> Result<()> {
+/// Tests the duplication of a BlockStore-conforming type.
+pub async fn bs_duplication_test<T>(store: &T) -> Result<()>
+where
+    T: BlockStore + Send + 'static,
+{
     // Example objects to insert and remove from the blockstore
     let first_bytes = vec![1, 2, 3, 4, 5];
     let second_bytes = first_bytes.clone();
@@ -181,30 +193,34 @@ pub async fn bs_duplication_test<T: BlockStore + Send + 'static>(store: &T) -> R
     // Assert that the objects are the same as the ones we inserted
     assert_eq!(first_loaded, first_bytes);
     assert_eq!(second_loaded, second_bytes);
+
     // Assert that the objects we loaded are the same
     assert_eq!(first_loaded, second_loaded);
-    // Return Ok
+
     Ok(())
 }
 
-pub async fn bs_serialization_test<
+/// Tests the serialization of a BlockStore-conforming type.
+pub async fn bs_serialization_test<T>(store: &T) -> Result<()>
+where
     T: BlockStore + Send + Serialize + 'static + for<'de> Deserialize<'de>,
->(
-    store: &T,
-) -> Result<()> {
+{
     // Example objects to insert and remove from the blockstore
     let bytes = vec![1, 2, 3, 4, 5];
+
     // Insert the object into the blockstore
     let cid = store.put_serializable(&bytes).await?;
+
     // Serialize the BlockStore
     let serial_store: Vec<u8> = encode(&store, DagCborCodec)?;
     // Construct a new BlockStore from the Serialized object
     let deserial_store: T = decode(&serial_store, DagCborCodec)?;
     // Retrieve the object from the blockstore
     let loaded: Vec<u8> = deserial_store.get_deserializable(&cid).await?;
+
     // Assert that the objects are the same as the ones we inserted
     assert_eq!(loaded, bytes);
-    // Return Ok
+
     Ok(())
 }
 

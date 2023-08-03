@@ -10,11 +10,13 @@ use chrono::Utc;
 use libipld_core::cid::Cid;
 use rand::thread_rng;
 use std::rc::Rc;
-use wnfs::private::{
-    forest::{hamt::HamtForest, traits::PrivateForest},
-    PrivateDirectory, PrivateNode,
+use wnfs::{
+    common::{BlockStore, MemoryBlockStore},
+    private::{
+        forest::{hamt::HamtForest, traits::PrivateForest},
+        PrivateDirectory, PrivateNode,
+    },
 };
-use wnfs_common::{BlockStore, MemoryBlockStore};
 
 #[async_std::main]
 async fn main() -> Result<()> {

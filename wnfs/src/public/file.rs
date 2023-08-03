@@ -10,7 +10,7 @@ use serde::{de::Error as DeError, Deserialize, Deserializer, Serialize, Serializ
 use std::{collections::BTreeSet, rc::Rc};
 use wnfs_common::{BlockStore, Metadata, RemembersCid};
 
-/// Represents a file in the WNFS public filesystem.
+/// A file in the WNFS public file system.
 ///
 /// # Examples
 ///

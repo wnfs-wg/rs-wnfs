@@ -24,7 +24,7 @@ use wnfs_nameaccumulator::Name;
 // Type Definitions
 //--------------------------------------------------------------------------------------------------
 
-/// Represents a node in the WNFS private file system. This can either be a file or a directory.
+/// A node in the WNFS private file system. This can either be a file or a directory.
 ///
 /// # Examples
 ///

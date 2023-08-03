@@ -24,7 +24,7 @@ use wnfs_nameaccumulator::{Name, NameSegment};
 pub type PrivatePathNodes = PathNodes<PrivateDirectory>;
 pub type PrivatePathNodesResult = PathNodesResult<PrivateDirectory>;
 
-/// Represents a directory in the WNFS private filesystem.
+/// A directory in the WNFS private file system.
 ///
 /// # Examples
 ///
