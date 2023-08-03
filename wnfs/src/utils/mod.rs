@@ -2,6 +2,6 @@ mod common;
 #[cfg(test)]
 mod test;
 
-pub use common::*;
+pub(crate) use common::*;
 #[cfg(test)]
 pub(crate) use test::*;

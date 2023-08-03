@@ -36,6 +36,8 @@ proptest = { version = "1.1", optional = true }
 rand_core = "0.6"
 semver = { version = "1.0", features = ["serde"] }
 serde = { version = "1.0", features = ["rc"] }
+serde-byte-array = "0.1"
+serde_bytes = "0.11"
 serde_ipld_dagcbor = "0.4"
 sha3 = "0.10"
 skip_ratchet = { version = "0.3", features = ["serde"] }

@@ -21,8 +21,7 @@ pub enum AccessKey {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct TemporalAccessKey {
-    #[serde(serialize_with = "crate::utils::serialize_byte_slice32")]
-    #[serde(deserialize_with = "crate::utils::deserialize_byte_slice32")]
+    #[serde(with = "serde_byte_array")]
     pub(crate) label: HashOutput,
     #[serde(rename = "contentCid")]
     pub(crate) content_cid: Cid,
@@ -32,8 +31,7 @@ pub struct TemporalAccessKey {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct SnapshotAccessKey {
-    #[serde(serialize_with = "crate::utils::serialize_byte_slice32")]
-    #[serde(deserialize_with = "crate::utils::deserialize_byte_slice32")]
+    #[serde(with = "serde_byte_array")]
     pub label: HashOutput,
     #[serde(rename = "contentCid")]
     pub content_cid: Cid,

@@ -52,12 +52,11 @@ pub(crate) struct PrivateNodeHeaderSerializable {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct PrivateRefSerializable {
-    #[serde(serialize_with = "crate::utils::serialize_byte_slice32")]
-    #[serde(deserialize_with = "crate::utils::deserialize_byte_slice32")]
+    #[serde(with = "serde_byte_array")]
     pub label: HashOutput,
     #[serde(rename = "snapshotKey")]
     pub snapshot_key: SnapshotKey,
-    #[serde(rename = "temporalKey")]
+    #[serde(with = "serde_bytes")]
     pub temporal_key: Vec<u8>,
     #[serde(rename = "contentCid")]
     pub content_cid: Cid,

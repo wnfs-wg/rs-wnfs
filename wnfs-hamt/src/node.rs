@@ -19,6 +19,7 @@ use serde::{
     ser::Error as SerError,
     Deserializer, Serialize, Serializer,
 };
+use serde_byte_array::ByteArray;
 use std::{
     collections::HashMap,
     fmt::{self, Debug, Formatter},
@@ -753,7 +754,7 @@ impl<K, V, H: Hasher> Node<K, V, H> {
         K: Serialize,
         V: Serialize,
     {
-        let bitmask_ipld = ipld_serde::to_ipld(self.bitmask.as_raw_slice())?;
+        let bitmask_ipld = ipld_serde::to_ipld(ByteArray::from(self.bitmask.into_inner()))?;
         let pointers_ipld = {
             let mut tmp = Vec::with_capacity(self.pointers.len());
             for pointer in self.pointers.iter() {
@@ -823,9 +824,10 @@ where
     where
         D: Deserializer<'de>,
     {
-        let (bitmask, pointers): (BitMaskType, Vec<Pointer<K, V, H>>) =
+        let (bytes, pointers): (ByteArray<2>, Vec<Pointer<K, V, H>>) =
             Deserialize::deserialize(deserializer)?;
-        let bitmask = BitArray::<BitMaskType>::from(bitmask);
+
+        let bitmask = BitArray::<BitMaskType>::from(bytes.into_array());
         if bitmask.len() != HAMT_BITMASK_BIT_SIZE {
             return Err(serde::de::Error::custom(format!(
                 "invalid bitmask length, expected {HAMT_BITMASK_BIT_SIZE}, but got {}",
