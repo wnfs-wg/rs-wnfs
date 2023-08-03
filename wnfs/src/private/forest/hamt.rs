@@ -451,13 +451,10 @@ mod tests {
 
         let private_ref_conflict = access_key_conflict.derive_private_ref().unwrap();
 
-        assert_eq!(
-            private_ref.revision_name_hash,
-            private_ref_conflict.revision_name_hash
-        );
+        assert_eq!(private_ref.label, private_ref_conflict.label);
 
         let ciphertext_entries = forest
-            .get_encrypted_by_hash(&private_ref.revision_name_hash, store)
+            .get_encrypted_by_hash(&private_ref.label, store)
             .await
             .unwrap()
             .unwrap();

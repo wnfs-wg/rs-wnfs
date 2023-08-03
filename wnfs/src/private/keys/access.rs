@@ -92,7 +92,7 @@ impl AccessKey {
 impl From<&PrivateRef> for TemporalAccessKey {
     fn from(private_ref: &PrivateRef) -> Self {
         Self {
-            label: private_ref.revision_name_hash,
+            label: private_ref.label,
             content_cid: private_ref.content_cid,
             temporal_key: private_ref.temporal_key.clone(),
         }
@@ -102,7 +102,7 @@ impl From<&PrivateRef> for TemporalAccessKey {
 impl From<&PrivateRef> for SnapshotAccessKey {
     fn from(private_ref: &PrivateRef) -> Self {
         Self {
-            label: private_ref.revision_name_hash,
+            label: private_ref.label,
             content_cid: private_ref.content_cid,
             snapshot_key: private_ref.temporal_key.derive_snapshot_key(),
         }
