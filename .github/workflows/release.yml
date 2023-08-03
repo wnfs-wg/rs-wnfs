@@ -103,6 +103,7 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           override: true
+          target: wasm32-unknown-unknown
           profile: minimal
           toolchain: stable
 
