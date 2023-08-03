@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1690963995575,
+  "lastUpdate": 1691069876452,
   "repoUrl": "https://github.com/wnfs-wg/rs-wnfs",
   "entries": {
     "Rust Benchmark": [
@@ -16765,6 +16765,102 @@ window.BENCHMARK_DATA = {
             "name": "NameAccumulator serialization",
             "value": 816,
             "range": "± 71",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "philipp.krueger1@gmail.com",
+            "name": "Philipp Krüger",
+            "username": "matheus23"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "89b779cd8257eccdf69089acbda5660498548117",
+          "message": "chore: Fix CI: Run `yarn install` before npm publishing & use non-version dev-dependency (#322)\n\n* Run `yarn install` in publish step\r\n\r\n* Don't use `version = ` in dev-dependency with path",
+          "timestamp": "2023-08-03T15:33:14+02:00",
+          "tree_id": "d6e1e6eecc84560e3dfe11d19224b2699291c384",
+          "url": "https://github.com/wnfs-wg/rs-wnfs/commit/89b779cd8257eccdf69089acbda5660498548117"
+        },
+        "date": 1691069875014,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "node set",
+            "value": 6672,
+            "range": "± 596",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node set 1000 consecutive",
+            "value": 2779156,
+            "range": "± 154655",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and get",
+            "value": 137136,
+            "range": "± 8320",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and remove",
+            "value": 147337,
+            "range": "± 9397",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt load and decode/0",
+            "value": 51333,
+            "range": "± 3130",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt set and encode",
+            "value": 125499,
+            "range": "± 7402",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt diff",
+            "value": 53829,
+            "range": "± 7250",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt merge",
+            "value": 152526,
+            "range": "± 16334",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameSegment::new_hashed",
+            "value": 2277069,
+            "range": "± 263983",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameSegment::new(rng)",
+            "value": 2372983,
+            "range": "± 287330",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameAccumulator::add",
+            "value": 2151807,
+            "range": "± 128186",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameAccumulator serialization",
+            "value": 818,
+            "range": "± 306",
             "unit": "ns/iter"
           }
         ]
