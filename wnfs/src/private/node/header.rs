@@ -1,5 +1,8 @@
 use super::{PrivateNodeHeaderSerializable, TemporalKey, REVISION_SEGMENT_DSI};
-use crate::{error::FsError, private::RevisionRef};
+use crate::{
+    error::FsError,
+    private::{forest::traits::PrivateForest, RevisionRef},
+};
 use anyhow::{bail, Result};
 use libipld_core::cid::Cid;
 use once_cell::sync::OnceCell;
@@ -8,7 +11,7 @@ use skip_ratchet::Ratchet;
 use std::fmt::Debug;
 use wnfs_common::{BlockStore, CODEC_RAW};
 use wnfs_hamt::Hasher;
-use wnfs_nameaccumulator::{AccumulatorSetup, Name, NameSegment};
+use wnfs_nameaccumulator::{Name, NameSegment};
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
@@ -88,10 +91,10 @@ impl PrivateNodeHeader {
     }
 
     /// Derives the revision ref of the current header.
-    pub(crate) fn derive_revision_ref(&self, setup: &AccumulatorSetup) -> RevisionRef {
+    pub(crate) fn derive_revision_ref(&self, forest: &impl PrivateForest) -> RevisionRef {
         let temporal_key = self.derive_temporal_key();
         let revision_name_hash =
-            blake3::Hasher::hash(self.get_revision_name().as_accumulator(setup));
+            blake3::Hasher::hash(&forest.get_accumulated_name(self.get_revision_name()));
 
         RevisionRef {
             revision_name_hash,
@@ -173,21 +176,23 @@ impl PrivateNodeHeader {
 
     /// Encrypts this private node header in an block, then stores that in the given
     /// BlockStore and returns its CID.
-    pub async fn store(&self, store: &impl BlockStore, setup: &AccumulatorSetup) -> Result<Cid> {
+    ///
+    /// This *does not* store the block itself in the forest, only the the given block store.
+    pub async fn store(&self, store: &impl BlockStore, forest: &impl PrivateForest) -> Result<Cid> {
         let temporal_key = self.derive_temporal_key();
-        let cbor_bytes = serde_ipld_dagcbor::to_vec(&self.to_serializable(setup))?;
+        let cbor_bytes = serde_ipld_dagcbor::to_vec(&self.to_serializable(forest))?;
         let ciphertext = temporal_key.key_wrap_encrypt(&cbor_bytes)?;
         store.put_block(ciphertext, CODEC_RAW).await
     }
 
     pub(crate) fn to_serializable(
         &self,
-        setup: &AccumulatorSetup,
+        forest: &impl PrivateForest,
     ) -> PrivateNodeHeaderSerializable {
         PrivateNodeHeaderSerializable {
             inumber: self.inumber.clone(),
             ratchet: self.ratchet.clone(),
-            name: self.name.as_accumulator(setup).clone(),
+            name: forest.get_accumulated_name(&self.name),
         }
     }
 
@@ -205,9 +210,9 @@ impl PrivateNodeHeader {
     pub(crate) async fn load(
         cid: &Cid,
         temporal_key: &TemporalKey,
+        forest: &impl PrivateForest,
         store: &impl BlockStore,
         parent_name: Option<Name>,
-        setup: &AccumulatorSetup,
     ) -> Result<Self> {
         let ciphertext = store.get_block(cid).await?;
         let cbor_bytes = temporal_key.key_wrap_decrypt(&ciphertext)?;
@@ -216,8 +221,8 @@ impl PrivateNodeHeader {
         let mut header = Self::from_serializable(decoded);
         if let Some(parent_name) = parent_name {
             let name = parent_name.with_segments_added([header.inumber.clone()]);
-            let mounted_acc = name.as_accumulator(setup);
-            if mounted_acc != &serialized_name {
+            let mounted_acc = forest.get_accumulated_name(&name);
+            if mounted_acc != serialized_name {
                 bail!(FsError::MountPointAndDeserializedNameMismatch(
                     format!("{mounted_acc:?}"),
                     format!("{serialized_name:?}"),

@@ -14,7 +14,7 @@ use rand_core::CryptoRngCore;
 use serde::{Deserialize, Serialize};
 use std::{collections::BTreeSet, iter, rc::Rc};
 use wnfs_common::{utils, BlockStore, Metadata, CODEC_RAW, MAX_BLOCK_SIZE};
-use wnfs_nameaccumulator::{AccumulatorSetup, Name, NameAccumulator, NameSegment};
+use wnfs_nameaccumulator::{Name, NameAccumulator, NameSegment};
 
 //--------------------------------------------------------------------------------------------------
 // Constants
@@ -531,9 +531,7 @@ impl PrivateFile {
 
         Ok(FileContent::External {
             key,
-            base_name: base_name
-                .as_accumulator(forest.get_accumulator_setup())
-                .clone(),
+            base_name: forest.get_accumulated_name(&base_name),
             block_count,
             block_content_size: MAX_BLOCK_CONTENT_SIZE,
         })
@@ -588,9 +586,7 @@ impl PrivateFile {
 
         Ok(FileContent::External {
             key,
-            base_name: base_name
-                .as_accumulator(forest.get_accumulator_setup())
-                .clone(),
+            base_name: forest.get_accumulated_name(&base_name),
             block_count: block_index,
             block_content_size: MAX_BLOCK_CONTENT_SIZE,
         })
@@ -696,15 +692,6 @@ impl PrivateFile {
         Ok(cloned)
     }
 
-    /// Returns the private ref, if this file has been `.store()`ed before.
-    pub(crate) fn derive_private_ref(&self, setup: &AccumulatorSetup) -> Option<PrivateRef> {
-        self.content.persisted_as.get().map(|content_cid| {
-            self.header
-                .derive_revision_ref(setup)
-                .into_private_ref(*content_cid)
-        })
-    }
-
     /// This prepares this file for key rotation, usually for moving or
     /// copying the file to some other place.
     ///
@@ -733,8 +720,7 @@ impl PrivateFile {
         store: &impl BlockStore,
         rng: &mut impl CryptoRngCore,
     ) -> Result<PrivateRef> {
-        let setup = &forest.get_accumulator_setup().clone();
-        let header_cid = self.header.store(store, setup).await?;
+        let header_cid = self.header.store(store, forest).await?;
         let temporal_key = self.header.derive_temporal_key();
         let snapshot_key = temporal_key.derive_snapshot_key();
         let name_with_revision = self.header.get_revision_name();
@@ -750,7 +736,7 @@ impl PrivateFile {
 
         Ok(self
             .header
-            .derive_revision_ref(setup)
+            .derive_revision_ref(forest)
             .into_private_ref(content_cid))
     }
 
@@ -759,9 +745,9 @@ impl PrivateFile {
         serializable: PrivateFileContentSerializable,
         temporal_key: &TemporalKey,
         cid: Cid,
+        forest: &impl PrivateForest,
         store: &impl BlockStore,
         parent_name: Option<Name>,
-        setup: &AccumulatorSetup,
     ) -> Result<Self> {
         if serializable.version.major != 0 || serializable.version.minor != 2 {
             bail!(FsError::UnexpectedVersion(serializable.version));
@@ -777,9 +763,9 @@ impl PrivateFile {
         let header = PrivateNodeHeader::load(
             &serializable.header_cid,
             temporal_key,
+            forest,
             store,
             parent_name,
-            setup,
         )
         .await?;
         Ok(Self { header, content })
