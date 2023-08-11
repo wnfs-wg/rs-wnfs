@@ -226,6 +226,8 @@ impl PrivateNodeHeader {
 
 impl PartialEq for PrivateNodeHeader {
     fn eq(&self, other: &Self) -> bool {
-        self.inumber == other.inumber && self.ratchet == other.ratchet && self.name == other.name
+        // We skip equality-checking the name, since it depends on where the node header was mounted.
+        // The inumber should suffice as identifier, the ratchet covers the revision part.
+        self.inumber == other.inumber && self.ratchet == other.ratchet
     }
 }
