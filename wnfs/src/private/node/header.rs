@@ -5,7 +5,6 @@ use crate::{
 };
 use anyhow::{bail, Result};
 use libipld_core::cid::Cid;
-use once_cell::sync::OnceCell;
 use rand_core::CryptoRngCore;
 use skip_ratchet::Ratchet;
 use std::fmt::Debug;
@@ -46,8 +45,6 @@ pub struct PrivateNodeHeader {
     pub(crate) ratchet: Ratchet,
     /// Stores the name of this node for easier lookup.
     pub(crate) name: Name,
-    /// Stores a cache of the name with the revision segment added
-    pub(crate) revision_name: OnceCell<Name>,
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -63,26 +60,22 @@ impl PrivateNodeHeader {
             name: parent_name.with_segments_added(Some(inumber.clone())),
             ratchet: Ratchet::from_rng(rng),
             inumber,
-            revision_name: OnceCell::new(),
         }
     }
 
     /// Advances the ratchet.
     pub(crate) fn advance_ratchet(&mut self) {
         self.ratchet.inc();
-        self.revision_name = OnceCell::new();
     }
 
     /// Updates the name to the child of given parent name.
     pub(crate) fn update_name(&mut self, parent_name: &Name) {
         self.name = parent_name.with_segments_added(Some(self.inumber.clone()));
-        self.revision_name = OnceCell::new();
     }
 
     /// Sets the ratchet and makes sure any caches are cleared.
     pub(crate) fn update_ratchet(&mut self, ratchet: Ratchet) {
         self.ratchet = ratchet;
-        self.revision_name = OnceCell::new();
     }
 
     /// Resets the ratchet.
@@ -94,7 +87,7 @@ impl PrivateNodeHeader {
     pub(crate) fn derive_revision_ref(&self, forest: &impl PrivateForest) -> RevisionRef {
         let temporal_key = self.derive_temporal_key();
         let revision_name_hash =
-            blake3::Hasher::hash(&forest.get_accumulated_name(self.get_revision_name()));
+            blake3::Hasher::hash(&forest.get_accumulated_name(&self.get_revision_name()));
 
         RevisionRef {
             revision_name_hash,
@@ -160,11 +153,9 @@ impl PrivateNodeHeader {
     ///
     /// println!("Revision name: {:?}", revision_name);
     /// ```
-    pub fn get_revision_name(&self) -> &Name {
-        self.revision_name.get_or_init(|| {
-            self.name
-                .with_segments_added(Some(self.derive_revision_segment()))
-        })
+    pub fn get_revision_name(&self) -> Name {
+        self.name
+            .with_segments_added(Some(self.derive_revision_segment()))
     }
 
     /// Gets the name for this node.
@@ -201,7 +192,6 @@ impl PrivateNodeHeader {
             inumber: serializable.inumber,
             ratchet: serializable.ratchet,
             name: Name::new(serializable.name, []),
-            revision_name: OnceCell::new(),
         }
     }
 

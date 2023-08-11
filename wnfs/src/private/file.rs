@@ -731,7 +731,7 @@ impl PrivateFile {
             .await?;
 
         forest
-            .put_encrypted(name_with_revision, [header_cid, content_cid], store)
+            .put_encrypted(&name_with_revision, [header_cid, content_cid], store)
             .await?;
 
         Ok(self
