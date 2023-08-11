@@ -678,13 +678,15 @@ mod tests {
         let file_private_ref = file_node.store(forest, store, rng).await.unwrap();
         let dir_private_ref = dir_node.store(forest, store, rng).await.unwrap();
 
-        let deserialized_file_node = PrivateNode::load(&file_private_ref, forest, store, None)
-            .await
-            .unwrap();
+        let deserialized_file_node =
+            PrivateNode::load(&file_private_ref, forest, store, Some(forest.empty_name()))
+                .await
+                .unwrap();
 
-        let deserialized_dir_node = PrivateNode::load(&dir_private_ref, forest, store, None)
-            .await
-            .unwrap();
+        let deserialized_dir_node =
+            PrivateNode::load(&dir_private_ref, forest, store, Some(forest.empty_name()))
+                .await
+                .unwrap();
 
         assert_eq!(file_node, deserialized_file_node);
         assert_eq!(dir_node, deserialized_dir_node);
