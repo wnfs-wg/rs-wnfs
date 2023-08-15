@@ -805,6 +805,7 @@ impl PrivateFileContent {
         )?)
     }
 
+    #[allow(clippy::suspicious)]
     pub(crate) async fn store(
         &self,
         header_cid: Cid,
