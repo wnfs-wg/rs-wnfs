@@ -331,6 +331,7 @@ impl PrivateDirectory {
         Ok(SearchResult::Found(working_dir))
     }
 
+    #[allow(clippy::suspicious)]
     pub(crate) async fn get_or_create_leaf_dir_mut<'a>(
         self: &'a mut Rc<Self>,
         path_segments: &[String],
@@ -609,6 +610,7 @@ impl PrivateDirectory {
     ///     Ok(())
     /// }
     /// ```
+    #[allow(clippy::suspicious)]
     pub async fn open_file_mut<'a>(
         self: &'a mut Rc<Self>,
         path_segments: &[String],
@@ -1352,6 +1354,7 @@ impl PrivateDirectoryContent {
     ///
     /// The header cid is required as it's not stored in the PrivateDirectoryContent itself, but
     /// stored in the serialized format.
+    #[allow(clippy::suspicious)]
     pub(crate) async fn store(
         &self,
         header_cid: Cid,
