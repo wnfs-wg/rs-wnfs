@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1691073909498,
+  "lastUpdate": 1692093449038,
   "repoUrl": "https://github.com/wnfs-wg/rs-wnfs",
   "entries": {
     "Rust Benchmark": [
@@ -16957,6 +16957,102 @@ window.BENCHMARK_DATA = {
             "name": "NameAccumulator serialization",
             "value": 1000,
             "range": "± 62",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "philipp.krueger1@gmail.com",
+            "name": "Philipp Krüger",
+            "username": "matheus23"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "aa44005ff7269ef0af745c742e895e4ae6316fa1",
+          "message": "chore: Release 0.1.24 (#329)\n\nRelease-As: 0.1.24\r\n\r\nAlso ignore incorrect clippy `needless_pass_by_ref_mut` lint until https://github.com/rust-lang/rust-clippy/pull/11314 is merged.",
+          "timestamp": "2023-08-15T11:51:58+02:00",
+          "tree_id": "d723105d9e43f9223510cb06f4ca16e171beeed8",
+          "url": "https://github.com/wnfs-wg/rs-wnfs/commit/aa44005ff7269ef0af745c742e895e4ae6316fa1"
+        },
+        "date": 1692093447828,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "node set",
+            "value": 6947,
+            "range": "± 90",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node set 1000 consecutive",
+            "value": 2940369,
+            "range": "± 8021",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and get",
+            "value": 135991,
+            "range": "± 217",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and remove",
+            "value": 149086,
+            "range": "± 276",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt load and decode/0",
+            "value": 49443,
+            "range": "± 77",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt set and encode",
+            "value": 132015,
+            "range": "± 654",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt diff",
+            "value": 57307,
+            "range": "± 4588",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt merge",
+            "value": 166741,
+            "range": "± 12745",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameSegment::new_hashed",
+            "value": 3022092,
+            "range": "± 355810",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameSegment::new(rng)",
+            "value": 3096944,
+            "range": "± 318667",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameAccumulator::add",
+            "value": 2729981,
+            "range": "± 138165",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameAccumulator serialization",
+            "value": 1011,
+            "range": "± 28",
             "unit": "ns/iter"
           }
         ]
