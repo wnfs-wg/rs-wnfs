@@ -168,7 +168,7 @@ impl PrivateNodeHeader {
     /// Encrypts this private node header in an block, then stores that in the given
     /// BlockStore and returns its CID.
     ///
-    /// This *does not* store the block itself in the forest, only the the given block store.
+    /// This *does not* store the block itself in the forest, only in the given block store.
     pub async fn store(&self, store: &impl BlockStore, forest: &impl PrivateForest) -> Result<Cid> {
         let temporal_key = self.derive_temporal_key();
         let cbor_bytes = serde_ipld_dagcbor::to_vec(&self.to_serializable(forest))?;
