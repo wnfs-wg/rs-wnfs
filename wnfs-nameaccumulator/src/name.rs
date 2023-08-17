@@ -25,11 +25,10 @@ const L_HASH_DSI: &str = "wnfs/PoKE*/l 128-bit hash derivation";
 /// However, these names are based on RSA accumulators to make it possible
 /// to prove a relationship between two names, e.g a file being contained in
 /// a sub-directory of a directory while leaking as little information as possible.
-#[derive(Clone, Debug, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Name {
     relative_to: NameAccumulator,
     segments: Vec<NameSegment>,
-    accumulated: OnceCell<(NameAccumulator, ElementsProof)>,
 }
 
 /// Represents a setup needed for RSA accumulator operation.
@@ -52,7 +51,7 @@ pub struct NameAccumulator {
 
 /// A name accumluator segment. A name accumulator commits to a set of these.
 /// They are represented as 256-bit prime numbers.
-#[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct NameSegment(
     /// Invariant: Must be a 256-bit prime
     BigUint,
@@ -116,7 +115,6 @@ impl Name {
         Self {
             relative_to,
             segments: segments.into_iter().collect(),
-            accumulated: OnceCell::new(),
         }
     }
 
@@ -129,7 +127,6 @@ impl Name {
     /// Remove the last name segment, if possible.
     pub fn up(&mut self) {
         self.segments.pop();
-        self.accumulated = OnceCell::new();
     }
 
     /// Return the parent name, if possible.
@@ -149,7 +146,6 @@ impl Name {
 
     pub fn add_segments(&mut self, segments: impl IntoIterator<Item = NameSegment>) {
         self.segments.extend(segments);
-        self.accumulated = OnceCell::new();
     }
 
     pub fn with_segments_added(&self, segments: impl IntoIterator<Item = NameSegment>) -> Self {
@@ -163,20 +159,18 @@ impl Name {
     /// this name is relative to.
     ///
     /// This proof process is memoized. Running it twice won't duplicate work.
-    pub fn as_proven_accumulator(
+    pub fn into_proven_accumulator(
         &self,
         setup: &AccumulatorSetup,
-    ) -> &(NameAccumulator, ElementsProof) {
-        self.accumulated.get_or_init(|| {
-            let mut name = self.relative_to.clone();
-            let proof = name.add(self.segments.iter(), setup);
-            (name, proof)
-        })
+    ) -> (NameAccumulator, ElementsProof) {
+        let mut name = self.relative_to.clone();
+        let proof = name.add(self.segments.iter(), setup);
+        (name, proof)
     }
 
     /// Return what name accumulator this name commits to.
-    pub fn as_accumulator(&self, setup: &AccumulatorSetup) -> &NameAccumulator {
-        &self.as_proven_accumulator(setup).0
+    pub fn into_accumulator(&self, setup: &AccumulatorSetup) -> NameAccumulator {
+        self.into_proven_accumulator(setup).0
     }
 }
 
@@ -498,27 +492,6 @@ impl Serialize for UnbatchableProofPart {
     }
 }
 
-impl PartialEq for Name {
-    fn eq(&self, other: &Self) -> bool {
-        let left = self
-            .accumulated
-            .get()
-            .map(|x| &x.0)
-            .or(self.segments.is_empty().then_some(&self.relative_to));
-        let right = other
-            .accumulated
-            .get()
-            .map(|x| &x.0)
-            .or(other.segments.is_empty().then_some(&other.relative_to));
-
-        if let (Some(left), Some(right)) = (left, right) {
-            return left == right;
-        }
-
-        self.relative_to == other.relative_to && self.segments == other.segments
-    }
-}
-
 impl PartialEq for NameAccumulator {
     fn eq(&self, other: &Self) -> bool {
         self.state == other.state
@@ -687,17 +660,17 @@ mod tests {
         ]);
         name_image.add_segments([root_dir_segment, pics_dir_segment, image_file_segment]);
 
-        let (accum_note, proof_note) = name_note.as_proven_accumulator(setup);
-        let (accum_image, proof_image) = name_image.as_proven_accumulator(setup);
+        let (accum_note, proof_note) = name_note.into_proven_accumulator(setup);
+        let (accum_image, proof_image) = name_image.into_proven_accumulator(setup);
 
         let mut batched_proof = BatchedProofPart::new();
-        batched_proof.add(proof_note, setup);
-        batched_proof.add(proof_image, setup);
+        batched_proof.add(&proof_note, setup);
+        batched_proof.add(&proof_image, setup);
 
-        let name_base = Name::empty(setup).as_accumulator(setup).clone();
+        let name_base = Name::empty(setup).into_accumulator(setup);
         let mut verification = BatchedProofVerification::new(setup);
-        verification.add(&name_base, accum_note, &proof_note.part)?;
-        verification.add(&name_base, accum_image, &proof_image.part)?;
+        verification.add(&name_base, &accum_note, &proof_note.part)?;
+        verification.add(&name_base, &accum_image, &proof_image.part)?;
         verification.verify(&batched_proof)?;
 
         Ok(())

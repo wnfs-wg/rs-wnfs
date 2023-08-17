@@ -251,11 +251,10 @@ pub mod recipient {
         sharer_forest: &impl PrivateForest,
         store: &impl BlockStore,
     ) -> Result<PrivateNode> {
-        let setup = sharer_forest.get_accumulator_setup();
         // Get cid to encrypted payload from sharer's forest using share_label
         let access_key_cid = sharer_forest
             .get_encrypted_by_hash(
-                &blake3::Hasher::hash(&share_label.as_accumulator(setup)),
+                &blake3::Hasher::hash(&sharer_forest.get_accumulated_name(share_label)),
                 store,
             )
             .await?

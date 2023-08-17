@@ -1,14 +1,16 @@
 use super::{PrivateNodeHeaderSerializable, TemporalKey, REVISION_SEGMENT_DSI};
-use crate::{error::FsError, private::RevisionRef};
+use crate::{
+    error::FsError,
+    private::{forest::traits::PrivateForest, RevisionRef},
+};
 use anyhow::{bail, Result};
 use libipld_core::cid::Cid;
-use once_cell::sync::OnceCell;
 use rand_core::CryptoRngCore;
 use skip_ratchet::Ratchet;
 use std::fmt::Debug;
 use wnfs_common::{BlockStore, CODEC_RAW};
 use wnfs_hamt::Hasher;
-use wnfs_nameaccumulator::{AccumulatorSetup, Name, NameSegment};
+use wnfs_nameaccumulator::{Name, NameSegment};
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
@@ -43,8 +45,6 @@ pub struct PrivateNodeHeader {
     pub(crate) ratchet: Ratchet,
     /// Stores the name of this node for easier lookup.
     pub(crate) name: Name,
-    /// Stores a cache of the name with the revision segment added
-    pub(crate) revision_name: OnceCell<Name>,
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -60,26 +60,22 @@ impl PrivateNodeHeader {
             name: parent_name.with_segments_added(Some(inumber.clone())),
             ratchet: Ratchet::from_rng(rng),
             inumber,
-            revision_name: OnceCell::new(),
         }
     }
 
     /// Advances the ratchet.
     pub(crate) fn advance_ratchet(&mut self) {
         self.ratchet.inc();
-        self.revision_name = OnceCell::new();
     }
 
     /// Updates the name to the child of given parent name.
     pub(crate) fn update_name(&mut self, parent_name: &Name) {
         self.name = parent_name.with_segments_added(Some(self.inumber.clone()));
-        self.revision_name = OnceCell::new();
     }
 
     /// Sets the ratchet and makes sure any caches are cleared.
     pub(crate) fn update_ratchet(&mut self, ratchet: Ratchet) {
         self.ratchet = ratchet;
-        self.revision_name = OnceCell::new();
     }
 
     /// Resets the ratchet.
@@ -88,9 +84,9 @@ impl PrivateNodeHeader {
     }
 
     /// Derives the revision ref of the current header.
-    pub(crate) fn derive_revision_ref(&self, setup: &AccumulatorSetup) -> RevisionRef {
+    pub(crate) fn derive_revision_ref(&self, forest: &impl PrivateForest) -> RevisionRef {
         let temporal_key = self.derive_temporal_key();
-        let label = blake3::Hasher::hash(self.get_revision_name().as_accumulator(setup));
+        let label = blake3::Hasher::hash(&forest.get_accumulated_name(&self.get_revision_name()));
 
         RevisionRef {
             label,
@@ -156,11 +152,9 @@ impl PrivateNodeHeader {
     ///
     /// println!("Revision name: {:?}", revision_name);
     /// ```
-    pub fn get_revision_name(&self) -> &Name {
-        self.revision_name.get_or_init(|| {
-            self.name
-                .with_segments_added(Some(self.derive_revision_segment()))
-        })
+    pub fn get_revision_name(&self) -> Name {
+        self.name
+            .with_segments_added(Some(self.derive_revision_segment()))
     }
 
     /// Gets the name for this node.
@@ -172,21 +166,23 @@ impl PrivateNodeHeader {
 
     /// Encrypts this private node header in an block, then stores that in the given
     /// BlockStore and returns its CID.
-    pub async fn store(&self, store: &impl BlockStore, setup: &AccumulatorSetup) -> Result<Cid> {
+    ///
+    /// This *does not* store the block itself in the forest, only in the given block store.
+    pub async fn store(&self, store: &impl BlockStore, forest: &impl PrivateForest) -> Result<Cid> {
         let temporal_key = self.derive_temporal_key();
-        let cbor_bytes = serde_ipld_dagcbor::to_vec(&self.to_serializable(setup))?;
+        let cbor_bytes = serde_ipld_dagcbor::to_vec(&self.to_serializable(forest))?;
         let ciphertext = temporal_key.key_wrap_encrypt(&cbor_bytes)?;
         store.put_block(ciphertext, CODEC_RAW).await
     }
 
     pub(crate) fn to_serializable(
         &self,
-        setup: &AccumulatorSetup,
+        forest: &impl PrivateForest,
     ) -> PrivateNodeHeaderSerializable {
         PrivateNodeHeaderSerializable {
             inumber: self.inumber.clone(),
             ratchet: self.ratchet.clone(),
-            name: self.name.as_accumulator(setup).clone(),
+            name: forest.get_accumulated_name(&self.name),
         }
     }
 
@@ -195,7 +191,6 @@ impl PrivateNodeHeader {
             inumber: serializable.inumber,
             ratchet: serializable.ratchet,
             name: Name::new(serializable.name, []),
-            revision_name: OnceCell::new(),
         }
     }
 
@@ -204,9 +199,9 @@ impl PrivateNodeHeader {
     pub(crate) async fn load(
         cid: &Cid,
         temporal_key: &TemporalKey,
+        forest: &impl PrivateForest,
         store: &impl BlockStore,
         parent_name: Option<Name>,
-        setup: &AccumulatorSetup,
     ) -> Result<Self> {
         let ciphertext = store.get_block(cid).await?;
         let cbor_bytes = temporal_key.key_wrap_decrypt(&ciphertext)?;
@@ -215,8 +210,8 @@ impl PrivateNodeHeader {
         let mut header = Self::from_serializable(decoded);
         if let Some(parent_name) = parent_name {
             let name = parent_name.with_segments_added([header.inumber.clone()]);
-            let mounted_acc = name.as_accumulator(setup);
-            if mounted_acc != &serialized_name {
+            let mounted_acc = forest.get_accumulated_name(&name);
+            if mounted_acc != serialized_name {
                 bail!(FsError::MountPointAndDeserializedNameMismatch(
                     format!("{mounted_acc:?}"),
                     format!("{serialized_name:?}"),
@@ -230,6 +225,8 @@ impl PrivateNodeHeader {
 
 impl PartialEq for PrivateNodeHeader {
     fn eq(&self, other: &Self) -> bool {
-        self.inumber == other.inumber && self.ratchet == other.ratchet && self.name == other.name
+        // We skip equality-checking the name, since it depends on where the node header was mounted.
+        // The inumber should suffice as identifier, the ratchet covers the revision part.
+        self.inumber == other.inumber && self.ratchet == other.ratchet
     }
 }

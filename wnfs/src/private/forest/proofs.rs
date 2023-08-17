@@ -10,8 +10,8 @@ use std::{
 use wnfs_common::{BlockStore, HashOutput};
 use wnfs_hamt::Pair;
 use wnfs_nameaccumulator::{
-    AccumulatorSetup, BatchedProofPart, BatchedProofVerification, Name, NameAccumulator,
-    UnbatchableProofPart,
+    AccumulatorSetup, BatchedProofPart, BatchedProofVerification, ElementsProof, Name,
+    NameAccumulator, UnbatchableProofPart,
 };
 
 /// This holds proofs that added, removed or changed labels in the private forest correspond
@@ -51,16 +51,16 @@ impl ForestProofs {
     }
 
     /// Prove given name, add its proof to the struct and return the accumulated name
-    pub fn add_and_prove_name<'a>(
+    pub fn add_and_prove_name(
         &mut self,
-        name: &'a Name,
+        name: &Name,
         setup: &AccumulatorSetup,
-    ) -> Result<&'a NameAccumulator> {
-        let (accumulated, proof) = name.as_proven_accumulator(setup);
+    ) -> Result<NameAccumulator> {
+        let (accumulated, proof) = name.into_proven_accumulator(setup);
         let base = NameAccumulator::from_state(proof.base.clone());
         let commitment = accumulated.clone();
 
-        self.batched_proof_part.add(proof, setup);
+        self.batched_proof_part.add(&proof, setup);
         self.proofs_by_commitment
             .insert(commitment, (base, proof.part.clone()));
 
@@ -160,6 +160,10 @@ impl PrivateForest for ProvingHamtForest {
         self.forest.get_accumulator_setup()
     }
 
+    fn get_proven_name(&self, name: &Name) -> (NameAccumulator, ElementsProof) {
+        self.forest.get_proven_name(name)
+    }
+
     async fn has_by_hash(&self, name_hash: &HashOutput, store: &impl BlockStore) -> Result<bool> {
         self.forest.has_by_hash(name_hash, store).await
     }
@@ -168,12 +172,12 @@ impl PrivateForest for ProvingHamtForest {
         self.forest.has(name, store).await
     }
 
-    async fn put_encrypted<'a>(
+    async fn put_encrypted(
         &mut self,
-        name: &'a Name,
+        name: &Name,
         values: impl IntoIterator<Item = Cid>,
         store: &impl BlockStore,
-    ) -> Result<&'a NameAccumulator> {
+    ) -> Result<NameAccumulator> {
         let ProvingHamtForest { forest, proofs } = self;
 
         proofs.add_and_prove_name(name, forest.get_accumulator_setup())?;

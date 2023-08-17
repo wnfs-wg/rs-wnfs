@@ -1,6 +1,5 @@
 {
   "wnfs": "0.1.23",
-  "wnfs-bench": "0.1.23",
   "wnfs-common": "0.1.23",
   "wnfs-hamt": "0.1.23",
   "wnfs-nameaccumulator": "0.1.23",

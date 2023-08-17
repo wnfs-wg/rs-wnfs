@@ -10,7 +10,7 @@ use libipld_core::cid::Cid;
 use std::collections::BTreeSet;
 use wnfs_common::{BlockStore, HashOutput};
 use wnfs_hamt::Pair;
-use wnfs_nameaccumulator::{AccumulatorSetup, Name, NameAccumulator};
+use wnfs_nameaccumulator::{AccumulatorSetup, ElementsProof, Name, NameAccumulator};
 
 /// A trait representing a (usually serializable) mapping from
 /// WNFS names to a set of encrypted ciphertext blocks.
@@ -40,6 +40,20 @@ pub trait PrivateForest {
     /// It's used for the cryptographic accumulator operations underlying
     /// the private forest name accumulators.
     fn get_accumulator_setup(&self) -> &AccumulatorSetup;
+
+    /// Accumulate all segments inside a name into a NameAccumulator and
+    /// also return an ElementsProof witnessing the Name being accumulated correctly.
+    ///
+    /// This is a function on `PrivateForest` so it can implement a cache on this
+    /// somewhat expensive operation.
+    fn get_proven_name(&self, name: &Name) -> (NameAccumulator, ElementsProof);
+
+    /// Accumulate all segments inside a name into a NameAccumulator.
+    ///
+    /// The default implementation simply returns `self.get_proven_name(name).0`.
+    fn get_accumulated_name(&self, name: &Name) -> NameAccumulator {
+        self.get_proven_name(name).0
+    }
 
     /// Checks that a value with the given saturated name hash key exists.
     ///
@@ -80,12 +94,12 @@ pub trait PrivateForest {
     async fn has(&self, name: &Name, store: &impl BlockStore) -> Result<bool>;
 
     /// Adds new encrypted values at the given key.
-    async fn put_encrypted<'a>(
+    async fn put_encrypted(
         &mut self,
-        name: &'a Name,
+        name: &Name,
         values: impl IntoIterator<Item = Cid>,
         store: &impl BlockStore,
-    ) -> Result<&'a NameAccumulator>;
+    ) -> Result<NameAccumulator>;
 
     /// Gets the CIDs to blocks of ciphertext by hash of name.
     async fn get_encrypted_by_hash<'b>(
@@ -119,17 +133,18 @@ pub trait PrivateForest {
         temporal_key: &'a TemporalKey,
         store: &'a impl BlockStore,
         parent_name: Option<Name>,
-    ) -> LocalBoxStream<'a, Result<PrivateNode>> {
+    ) -> LocalBoxStream<'a, Result<PrivateNode>>
+    where
+        Self: Sized,
+    {
         Box::pin(stream! {
             match self
                 .get_encrypted_by_hash(label, store)
                 .await
             {
                 Ok(Some(cids)) => {
-                    let setup = self.get_accumulator_setup();
-
                     for cid in cids {
-                        match PrivateNode::from_cid(*cid, temporal_key, store, parent_name.clone(), setup).await {
+                        match PrivateNode::from_cid(*cid, temporal_key, self, store, parent_name.clone()).await {
                             Ok(node) => yield Ok(node),
                             Err(e) if e.downcast_ref::<CryptError>().is_some() => {
                                 // we likely matched a PrivateNodeHeader instead of a PrivateNode.

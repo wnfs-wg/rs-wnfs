@@ -14,7 +14,7 @@ use rand_core::CryptoRngCore;
 use serde::{Deserialize, Serialize};
 use std::{collections::BTreeSet, iter, rc::Rc};
 use wnfs_common::{utils, BlockStore, Metadata, CODEC_RAW, MAX_BLOCK_SIZE};
-use wnfs_nameaccumulator::{AccumulatorSetup, Name, NameAccumulator, NameSegment};
+use wnfs_nameaccumulator::{Name, NameAccumulator, NameSegment};
 
 //--------------------------------------------------------------------------------------------------
 // Constants
@@ -256,6 +256,56 @@ impl PrivateFile {
         })
     }
 
+    /// Create a copy of this file without re-encrypting the actual content
+    /// (if the ciphertext is external ciphertext), so this is really fast
+    /// even if the file contains gigabytes of data.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use anyhow::Result;
+    /// use std::rc::Rc;
+    /// use chrono::Utc;
+    /// use rand::thread_rng;
+    /// use wnfs::{
+    ///     private::{PrivateDirectory, PrivateFile, forest::{hamt::HamtForest, traits::PrivateForest}},
+    ///     common::{MemoryBlockStore, utils::get_random_bytes},
+    /// };
+    ///
+    /// #[async_std::main]
+    /// async fn main() -> Result<()> {
+    ///     let store = &MemoryBlockStore::new();
+    ///     let rng = &mut thread_rng();
+    ///     let forest = &mut Rc::new(HamtForest::new_rsa_2048(rng));
+    ///
+    ///     let file = PrivateFile::with_content(
+    ///         &forest.empty_name(),
+    ///         Utc::now(),
+    ///         get_random_bytes::<100>(rng).to_vec(),
+    ///         forest,
+    ///         store,
+    ///         rng,
+    ///     )
+    ///     .await?;
+    ///
+    ///     let root_dir = &mut Rc::new(PrivateDirectory::new(&forest.empty_name(), Utc::now(), rng));
+    ///
+    ///     let copy = root_dir
+    ///         .open_file_mut(&["some".into(), "copy.txt".into()], true, Utc::now(), forest, store, rng)
+    ///         .await?;
+    ///
+    ///     copy.copy_content_from(&file, Utc::now());
+    ///
+    ///     assert_eq!(file.get_content(forest, store).await?, copy.get_content(forest, store).await?);
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
+    pub fn copy_content_from(&mut self, other: &Self, time: DateTime<Utc>) {
+        self.content.metadata.upsert_mtime(time);
+        self.content.content = other.content.content.clone();
+    }
+
     /// Streams the content of a file as chunk of blocks.
     ///
     /// # Examples
@@ -477,9 +527,7 @@ impl PrivateFile {
 
         Ok(FileContent::External {
             key,
-            base_name: base_name
-                .as_accumulator(forest.get_accumulator_setup())
-                .clone(),
+            base_name: forest.get_accumulated_name(&base_name),
             block_count,
             block_content_size: MAX_BLOCK_CONTENT_SIZE,
         })
@@ -534,9 +582,7 @@ impl PrivateFile {
 
         Ok(FileContent::External {
             key,
-            base_name: base_name
-                .as_accumulator(forest.get_accumulator_setup())
-                .clone(),
+            base_name: forest.get_accumulated_name(&base_name),
             block_count: block_index,
             block_content_size: MAX_BLOCK_CONTENT_SIZE,
         })
@@ -642,15 +688,6 @@ impl PrivateFile {
         Ok(cloned)
     }
 
-    /// Returns the private ref, if this file has been `.store()`ed before.
-    pub(crate) fn derive_private_ref(&self, setup: &AccumulatorSetup) -> Option<PrivateRef> {
-        self.content.persisted_as.get().map(|content_cid| {
-            self.header
-                .derive_revision_ref(setup)
-                .into_private_ref(*content_cid)
-        })
-    }
-
     /// This prepares this file for key rotation, usually for moving or
     /// copying the file to some other place.
     ///
@@ -659,23 +696,15 @@ impl PrivateFile {
     /// will update the name to be the sub-name of given parent name,
     /// so it inherits the write access rules from the new parent and
     /// resets the `persisted_as` pointer.
-    /// Will copy and re-encrypt all external content.
     pub(crate) async fn prepare_key_rotation(
         &mut self,
         parent_name: &Name,
-        forest: &mut impl PrivateForest,
-        store: &impl BlockStore,
         rng: &mut impl CryptoRngCore,
     ) -> Result<()> {
-        let content = self.get_content(forest, store).await?;
-
         self.header.inumber = NameSegment::new(rng);
         self.header.update_name(parent_name);
         self.header.reset_ratchet(rng);
         self.content.persisted_as = OnceCell::new();
-
-        let content = Self::prepare_content(&self.header.name, content, forest, store, rng).await?;
-        self.content.content = content;
 
         Ok(())
     }
@@ -687,8 +716,7 @@ impl PrivateFile {
         store: &impl BlockStore,
         rng: &mut impl CryptoRngCore,
     ) -> Result<PrivateRef> {
-        let setup = &forest.get_accumulator_setup().clone();
-        let header_cid = self.header.store(store, setup).await?;
+        let header_cid = self.header.store(store, forest).await?;
         let temporal_key = self.header.derive_temporal_key();
         let snapshot_key = temporal_key.derive_snapshot_key();
         let name_with_revision = self.header.get_revision_name();
@@ -699,12 +727,12 @@ impl PrivateFile {
             .await?;
 
         forest
-            .put_encrypted(name_with_revision, [header_cid, content_cid], store)
+            .put_encrypted(&name_with_revision, [header_cid, content_cid], store)
             .await?;
 
         Ok(self
             .header
-            .derive_revision_ref(setup)
+            .derive_revision_ref(forest)
             .into_private_ref(content_cid))
     }
 
@@ -713,9 +741,9 @@ impl PrivateFile {
         serializable: PrivateFileContentSerializable,
         temporal_key: &TemporalKey,
         cid: Cid,
+        forest: &impl PrivateForest,
         store: &impl BlockStore,
         parent_name: Option<Name>,
-        setup: &AccumulatorSetup,
     ) -> Result<Self> {
         if serializable.version.major != 0 || serializable.version.minor != 2 {
             bail!(FsError::UnexpectedVersion(serializable.version));
@@ -731,9 +759,9 @@ impl PrivateFile {
         let header = PrivateNodeHeader::load(
             &serializable.header_cid,
             temporal_key,
+            forest,
             store,
             parent_name,
-            setup,
         )
         .await?;
         Ok(Self { header, content })
@@ -759,6 +787,7 @@ impl PrivateFileContent {
         )?)
     }
 
+    #[allow(clippy::suspicious)]
     pub(crate) async fn store(
         &self,
         header_cid: Cid,

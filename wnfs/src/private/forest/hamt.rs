@@ -3,6 +3,7 @@ use crate::error::FsError;
 use anyhow::Result;
 use async_trait::async_trait;
 use libipld_core::{cid::Cid, ipld::Ipld};
+use quick_cache::sync::Cache;
 use rand_core::CryptoRngCore;
 use serde::{
     de::Error as DeError, ser::Error as SerError, Deserialize, Deserializer, Serialize, Serializer,
@@ -10,7 +11,13 @@ use serde::{
 use std::{collections::BTreeSet, rc::Rc};
 use wnfs_common::{AsyncSerialize, BlockStore, HashOutput, Link};
 use wnfs_hamt::{merge, Hamt, Hasher, KeyValueChange, Pair};
-use wnfs_nameaccumulator::{AccumulatorSetup, Name, NameAccumulator};
+use wnfs_nameaccumulator::{AccumulatorSetup, ElementsProof, Name, NameAccumulator};
+
+const APPROX_CACHE_ENTRY_SIZE: usize =
+    std::mem::size_of::<(Name, NameAccumulator, ElementsProof)>();
+/// This gives us a *very rough* 2 MB limit on the cache.
+/// It's sligthly more, since the `NameSegment`s inside the `Name`s aren't accounted for.
+const NAME_CACHE_CAPACITY: usize = 2_000_000 / APPROX_CACHE_ENTRY_SIZE;
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
@@ -36,6 +43,7 @@ use wnfs_nameaccumulator::{AccumulatorSetup, Name, NameAccumulator};
 pub struct HamtForest {
     hamt: Hamt<NameAccumulator, BTreeSet<Cid>, blake3::Hasher>,
     accumulator: AccumulatorSetup,
+    name_cache: Rc<Cache<Name, (NameAccumulator, ElementsProof)>>,
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -48,6 +56,7 @@ impl HamtForest {
         Self {
             hamt: Hamt::new(),
             accumulator: setup,
+            name_cache: Rc::new(Cache::new(NAME_CACHE_CAPACITY)),
         }
     }
 
@@ -113,6 +122,17 @@ impl PrivateForest for HamtForest {
         &self.accumulator
     }
 
+    fn get_proven_name(&self, name: &Name) -> (NameAccumulator, ElementsProof) {
+        match self
+            .name_cache
+            .get_or_insert_with(name, || Ok(name.into_proven_accumulator(&self.accumulator)))
+        {
+            // Neat trick to avoid .unwrap():
+            Ok(r) => r,
+            Err(r) => r,
+        }
+    }
+
     async fn has_by_hash(&self, name_hash: &HashOutput, store: &impl BlockStore) -> Result<bool> {
         Ok(self
             .hamt
@@ -124,31 +144,31 @@ impl PrivateForest for HamtForest {
 
     async fn has(&self, name: &Name, store: &impl BlockStore) -> Result<bool> {
         self.has_by_hash(
-            &blake3::Hasher::hash(name.as_accumulator(&self.accumulator)),
+            &blake3::Hasher::hash(&self.get_accumulated_name(name)),
             store,
         )
         .await
     }
 
-    async fn put_encrypted<'a>(
+    async fn put_encrypted(
         &mut self,
-        name: &'a Name,
+        name: &Name,
         values: impl IntoIterator<Item = Cid>,
         store: &impl BlockStore,
-    ) -> Result<&'a NameAccumulator> {
-        let name = name.as_accumulator(&self.accumulator);
+    ) -> Result<NameAccumulator> {
+        let accumulator = self.get_accumulated_name(name);
 
-        match self.hamt.root.get_mut(name, store).await? {
+        match self.hamt.root.get_mut(&accumulator, store).await? {
             Some(cids) => cids.extend(values),
             None => {
                 self.hamt
                     .root
-                    .set(name.clone(), values.into_iter().collect(), store)
+                    .set(accumulator.clone(), values.into_iter().collect(), store)
                     .await?;
             }
         }
 
-        Ok(name)
+        Ok(accumulator)
     }
 
     #[inline]
@@ -165,7 +185,7 @@ impl PrivateForest for HamtForest {
         name: &Name,
         store: &impl BlockStore,
     ) -> Result<Option<&BTreeSet<Cid>>> {
-        let name_hash = &blake3::Hasher::hash(name.as_accumulator(&self.accumulator));
+        let name_hash = &blake3::Hasher::hash(&self.get_accumulated_name(name));
         self.get_encrypted_by_hash(name_hash, store).await
     }
 
@@ -174,7 +194,7 @@ impl PrivateForest for HamtForest {
         name: &Name,
         store: &impl BlockStore,
     ) -> Result<Option<Pair<NameAccumulator, BTreeSet<Cid>>>> {
-        let name_hash = &blake3::Hasher::hash(name.as_accumulator(&self.accumulator));
+        let name_hash = &blake3::Hasher::hash(&self.get_accumulated_name(name));
         self.hamt.root.remove_by_hash(name_hash, store).await
     }
 }
@@ -189,6 +209,10 @@ impl PrivateForest for Rc<HamtForest> {
         (**self).get_accumulator_setup()
     }
 
+    fn get_proven_name(&self, name: &Name) -> (NameAccumulator, ElementsProof) {
+        (**self).get_proven_name(name)
+    }
+
     async fn has_by_hash(&self, name_hash: &HashOutput, store: &impl BlockStore) -> Result<bool> {
         (**self).has_by_hash(name_hash, store).await
     }
@@ -197,12 +221,12 @@ impl PrivateForest for Rc<HamtForest> {
         (**self).has(name, store).await
     }
 
-    async fn put_encrypted<'a>(
+    async fn put_encrypted(
         &mut self,
-        name: &'a Name,
+        name: &Name,
         values: impl IntoIterator<Item = Cid>,
         store: &impl BlockStore,
-    ) -> Result<&'a NameAccumulator> {
+    ) -> Result<NameAccumulator> {
         Rc::make_mut(self).put_encrypted(name, values, store).await
     }
 
@@ -309,12 +333,16 @@ impl HamtForest {
         )
         .await?;
 
+        // TODO(matheus23) Should we find some way to sensibly merge caches?
+        let name_cache = self.name_cache.clone();
+
         Ok(Self {
             hamt: Hamt {
                 version: self.hamt.version.clone(),
                 root: merged_root,
             },
             accumulator: self.accumulator.clone(),
+            name_cache,
         })
     }
 }
@@ -367,7 +395,11 @@ impl<'de> Deserialize<'de> for HamtForest {
         let accumulator =
             AccumulatorSetup::deserialize(accumulator_ipld).map_err(serde::de::Error::custom)?;
 
-        Ok(Self { hamt, accumulator })
+        Ok(Self {
+            hamt,
+            accumulator,
+            name_cache: Rc::new(Cache::new(NAME_CACHE_CAPACITY)),
+        })
     }
 }
 

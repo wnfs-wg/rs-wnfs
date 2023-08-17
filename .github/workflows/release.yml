@@ -32,7 +32,7 @@ jobs:
     steps:
       - name: Run release-please
         id: release
-        uses: google-github-actions/release-please-action@v3
+        uses: google-github-actions/release-please-action@v3.7.10
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           default-branch: main
@@ -103,6 +103,7 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           override: true
+          target: wasm32-unknown-unknown
           profile: minimal
           toolchain: stable
 
@@ -120,6 +121,10 @@ jobs:
 
       - name: Install Binaryen
         run: sudo apt update && sudo apt install binaryen -y
+
+      - name: Install Node Dependencies
+        run: yarn
+        working-directory: wnfs-wasm
 
       # Build and rename package.json name
       - name: Build

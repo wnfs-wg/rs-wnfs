@@ -15,7 +15,7 @@ use std::{
     rc::Rc,
 };
 use wnfs_common::{utils::error, BlockStore, Metadata, PathNodes, PathNodesResult, CODEC_RAW};
-use wnfs_nameaccumulator::{AccumulatorSetup, Name, NameSegment};
+use wnfs_nameaccumulator::{Name, NameSegment};
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
@@ -331,6 +331,7 @@ impl PrivateDirectory {
         Ok(SearchResult::Found(working_dir))
     }
 
+    #[allow(clippy::suspicious)]
     pub(crate) async fn get_or_create_leaf_dir_mut<'a>(
         self: &'a mut Rc<Self>,
         path_segments: &[String],
@@ -391,15 +392,6 @@ impl PrivateDirectory {
         cloned.header.advance_ratchet();
 
         Ok(cloned)
-    }
-
-    /// Returns the private ref, if this directory has been `.store()`ed before.
-    pub(crate) fn derive_private_ref(&self, setup: &AccumulatorSetup) -> Option<PrivateRef> {
-        self.content.persisted_as.get().map(|content_cid| {
-            self.header
-                .derive_revision_ref(setup)
-                .into_private_ref(*content_cid)
-        })
     }
 
     /// This prepares this directory for key rotation, usually for moving or
@@ -602,11 +594,9 @@ impl PrivateDirectory {
     ///        .await?;
     ///     // Clone the forest that was used to write the file
     ///     // Open the file mutably
-    ///     let file = {
-    ///         root_dir
-    ///             .open_file_mut(hello_py, true, Utc::now(), forest, store, rng)
-    ///             .await?
-    ///     };
+    ///     let file = root_dir
+    ///         .open_file_mut(hello_py, true, Utc::now(), forest, store, rng)
+    ///         .await?;
     ///     // Define the content that will replace what is already in the file
     ///     let new_file_content = b"print('hello world 2')";
     ///     // Set the contents of the file, waiting for result and expecting no errors
@@ -620,6 +610,7 @@ impl PrivateDirectory {
     ///     Ok(())
     /// }
     /// ```
+    #[allow(clippy::suspicious)]
     pub async fn open_file_mut<'a>(
         self: &'a mut Rc<Self>,
         path_segments: &[String],
@@ -1204,7 +1195,7 @@ impl PrivateDirectory {
     ///         .await
     ///         .unwrap();
     ///
-    ///     let result = root_dir
+    ///     root_dir
     ///         .cp(
     ///             &["code".into(), "python".into(), "hello.py".into()],
     ///             &["code".into(), "hello.py".into()],
@@ -1259,8 +1250,7 @@ impl PrivateDirectory {
         store: &impl BlockStore,
         rng: &mut impl CryptoRngCore,
     ) -> Result<PrivateRef> {
-        let setup = &forest.get_accumulator_setup().clone();
-        let header_cid = self.header.store(store, setup).await?;
+        let header_cid = self.header.store(store, forest).await?;
         let temporal_key = self.header.derive_temporal_key();
         let name_with_revision = self.header.get_revision_name();
 
@@ -1270,12 +1260,12 @@ impl PrivateDirectory {
             .await?;
 
         forest
-            .put_encrypted(name_with_revision, [header_cid, content_cid], store)
+            .put_encrypted(&name_with_revision, [header_cid, content_cid], store)
             .await?;
 
         Ok(self
             .header
-            .derive_revision_ref(setup)
+            .derive_revision_ref(forest)
             .into_private_ref(content_cid))
     }
 
@@ -1284,9 +1274,9 @@ impl PrivateDirectory {
         serializable: PrivateDirectoryContentSerializable,
         temporal_key: &TemporalKey,
         cid: Cid,
+        forest: &impl PrivateForest,
         store: &impl BlockStore,
         parent_name: Option<Name>,
-        setup: &AccumulatorSetup,
     ) -> Result<Self> {
         if serializable.version.major != 0 || serializable.version.minor != 2 {
             bail!(FsError::UnexpectedVersion(serializable.version));
@@ -1309,9 +1299,9 @@ impl PrivateDirectory {
         let header = PrivateNodeHeader::load(
             &serializable.header_cid,
             temporal_key,
+            forest,
             store,
             parent_name,
-            setup,
         )
         .await?;
         Ok(Self { header, content })
@@ -1364,6 +1354,7 @@ impl PrivateDirectoryContent {
     ///
     /// The header cid is required as it's not stored in the PrivateDirectoryContent itself, but
     /// stored in the serialized format.
+    #[allow(clippy::suspicious)]
     pub(crate) async fn store(
         &self,
         header_cid: Cid,
