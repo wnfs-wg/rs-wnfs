@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1692274395250,
+  "lastUpdate": 1692292588231,
   "repoUrl": "https://github.com/wnfs-wg/rs-wnfs",
   "entries": {
     "Rust Benchmark": [
@@ -17245,6 +17245,102 @@ window.BENCHMARK_DATA = {
             "name": "NameAccumulator serialization",
             "value": 800,
             "range": "± 16",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "appcypher@outlook.com",
+            "name": "Stephen Akinyemi",
+            "username": "appcypher"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "ca8798bb0d47c5561400ceea3cd01be79e6ac452",
+          "message": "chore: data format snapshot tests (#314)\n\n* Add old snapshot impl\r\n\r\n* Update snapshots\r\n\r\n* Add support for snapshotting the entire fs public and private\r\n\r\n* Fix file extarnalcontent name issue\r\n\r\n* Fix non determinism in snapshot tests\r\n\r\n* Fix memoryblockstore serde issue\r\n\r\n* Fix doc\r\n\r\n* Fix wait-timeout dep issue\r\n\r\n* PrivateRef renames and serialization changes\r\n\r\n* Use serde_bytes and serde_byte_array for bytes and vecs\r\n\r\n* serde rename_all\r\n\r\n* Fixes from reviews\r\n\r\n* Fix Ipld decode issue\r\n\r\n* Fix snap files\r\n\r\n* Rebase fix\r\n\r\n---------\r\n\r\nSigned-off-by: Stephen Akinyemi <appcypher@outlook.com>",
+          "timestamp": "2023-08-17T18:12:52+01:00",
+          "tree_id": "2cfa13c95e909843be74c6db0f941b0cb7c6f7ee",
+          "url": "https://github.com/wnfs-wg/rs-wnfs/commit/ca8798bb0d47c5561400ceea3cd01be79e6ac452"
+        },
+        "date": 1692292587076,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "node set",
+            "value": 7101,
+            "range": "± 478",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node set 1000 consecutive",
+            "value": 2916622,
+            "range": "± 223811",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and get",
+            "value": 130123,
+            "range": "± 6181",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and remove",
+            "value": 142882,
+            "range": "± 12477",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt load and decode/0",
+            "value": 49719,
+            "range": "± 3036",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt set and encode",
+            "value": 118723,
+            "range": "± 7100",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt diff",
+            "value": 53883,
+            "range": "± 5218",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt merge",
+            "value": 161034,
+            "range": "± 18323",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameSegment::new_hashed",
+            "value": 2530051,
+            "range": "± 291450",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameSegment::new(rng)",
+            "value": 2621512,
+            "range": "± 298520",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameAccumulator::add",
+            "value": 2326309,
+            "range": "± 146297",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameAccumulator serialization",
+            "value": 886,
+            "range": "± 349",
             "unit": "ns/iter"
           }
         ]
