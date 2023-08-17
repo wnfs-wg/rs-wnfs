@@ -483,13 +483,10 @@ mod tests {
 
         let private_ref_conflict = access_key_conflict.derive_private_ref().unwrap();
 
-        assert_eq!(
-            private_ref.revision_name_hash,
-            private_ref_conflict.revision_name_hash
-        );
+        assert_eq!(private_ref.label, private_ref_conflict.label);
 
         let ciphertext_entries = forest
-            .get_encrypted_by_hash(&private_ref.revision_name_hash, store)
+            .get_encrypted_by_hash(&private_ref.label, store)
             .await
             .unwrap()
             .unwrap();
@@ -513,5 +510,47 @@ mod tests {
 
         assert_eq!(retrieved, private_node);
         assert_eq!(retrieved_conflict, private_node_conflict);
+    }
+}
+
+#[cfg(test)]
+mod snapshot_tests {
+    use super::*;
+    use rand_chacha::ChaCha12Rng;
+    use rand_core::SeedableRng;
+    use wnfs_common::utils::SnapshotBlockStore;
+    use wnfs_nameaccumulator::NameSegment;
+
+    #[async_std::test]
+    async fn test_hamt() {
+        let rng = &mut ChaCha12Rng::seed_from_u64(0);
+        let store = &SnapshotBlockStore::default();
+        let forest = &mut Rc::new(HamtForest::new_rsa_2048(rng));
+        let base_name = forest.empty_name();
+        let name_segments = [
+            vec![NameSegment::new(rng)],
+            vec![NameSegment::new(rng), NameSegment::new(rng)],
+            vec![
+                NameSegment::new(rng),
+                NameSegment::new(rng),
+                NameSegment::new(rng),
+            ],
+        ];
+
+        for segments in name_segments {
+            forest
+                .put_encrypted(
+                    &base_name.with_segments_added(segments),
+                    [Cid::default()],
+                    store,
+                )
+                .await
+                .unwrap();
+        }
+
+        let cid = forest.store(store).await.unwrap();
+        let store = store.get_block_snapshot(&cid).await.unwrap();
+
+        insta::assert_json_snapshot!(store);
     }
 }

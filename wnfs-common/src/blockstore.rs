@@ -1,8 +1,9 @@
-use crate::{dagcbor, AsyncSerialize, BlockStoreError, MAX_BLOCK_SIZE};
+use crate::{decode, encode, AsyncSerialize, BlockStoreError, MAX_BLOCK_SIZE};
 use anyhow::{bail, Result};
 use async_trait::async_trait;
 use bytes::Bytes;
 use libipld::{
+    cbor::DagCborCodec,
     cid::Version,
     multihash::{Code, MultihashDigest},
     serde as ipld_serde, Cid,
@@ -50,18 +51,18 @@ pub trait BlockStore: Sized {
 
     async fn get_deserializable<V: DeserializeOwned>(&self, cid: &Cid) -> Result<V> {
         let bytes = self.get_block(cid).await?;
-        let ipld = dagcbor::decode(bytes.as_ref())?;
+        let ipld = decode(bytes.as_ref(), DagCborCodec)?;
         Ok(ipld_serde::from_ipld::<V>(ipld)?)
     }
 
     async fn put_serializable<V: Serialize>(&self, value: &V) -> Result<Cid> {
-        let bytes = dagcbor::encode(&ipld_serde::to_ipld(value)?)?;
+        let bytes = encode(&ipld_serde::to_ipld(value)?, DagCborCodec)?;
         self.put_block(bytes, CODEC_DAG_CBOR).await
     }
 
     async fn put_async_serializable<V: AsyncSerialize>(&self, value: &V) -> Result<Cid> {
         let ipld = value.async_serialize_ipld(self).await?;
-        let bytes = dagcbor::encode(&ipld)?;
+        let bytes = encode(&ipld, DagCborCodec)?;
         self.put_block(bytes, CODEC_DAG_CBOR).await
     }
 
@@ -90,7 +91,11 @@ pub trait BlockStore: Sized {
 ///
 /// IPFS is basically a glorified HashMap.
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
-pub struct MemoryBlockStore(RefCell<HashMap<String, Bytes>>);
+pub struct MemoryBlockStore(
+    #[serde(serialize_with = "crate::utils::serialize_cid_map")]
+    #[serde(deserialize_with = "crate::utils::deserialize_cid_map")]
+    pub(crate) RefCell<HashMap<Cid, Bytes>>,
+);
 
 impl MemoryBlockStore {
     /// Creates a new in-memory block store.
@@ -106,7 +111,7 @@ impl BlockStore for MemoryBlockStore {
         let bytes = self
             .0
             .borrow()
-            .get(&cid.to_string())
+            .get(cid)
             .ok_or(BlockStoreError::CIDNotFound(*cid))?
             .clone();
 
@@ -122,7 +127,7 @@ impl BlockStore for MemoryBlockStore {
         let cid = self.create_cid(&bytes, codec)?;
 
         // Insert the bytes into the HashMap using the CID as the key
-        self.0.borrow_mut().insert(cid.to_string(), bytes);
+        self.0.borrow_mut().insert(cid, bytes);
 
         // Return Ok status with the generated CID
         Ok(cid)
@@ -192,9 +197,9 @@ pub async fn bs_serialization_test<
     // Insert the object into the blockstore
     let cid = store.put_serializable(&bytes).await?;
     // Serialize the BlockStore
-    let serial_store: Vec<u8> = dagcbor::encode(&store)?;
+    let serial_store: Vec<u8> = encode(&store, DagCborCodec)?;
     // Construct a new BlockStore from the Serialized object
-    let deserial_store: T = dagcbor::decode(&serial_store)?;
+    let deserial_store: T = decode(&serial_store, DagCborCodec)?;
     // Retrieve the object from the blockstore
     let loaded: Vec<u8> = deserial_store.get_deserializable(&cid).await?;
     // Assert that the objects are the same as the ones we inserted

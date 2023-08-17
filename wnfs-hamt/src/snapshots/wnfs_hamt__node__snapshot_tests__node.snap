@@ -1,0 +1,124 @@
+---
+source: wnfs-hamt/src/node.rs
+expression: node
+---
+{
+  "value": [
+    {
+      "/": {
+        "bytes": "//8"
+      }
+    },
+    [
+      {
+        "/": "bafyr4ieu6bkebm4wnidg35ht634g6crheexkmjgj7ydy4s4vciqwknvj2y"
+      },
+      {
+        "/": "bafyr4ibf3xts4e5lyutfcbl3z6mr2ub3yeq7ztuvlubmj56lqy44khuesq"
+      },
+      [
+        [
+          [
+            62,
+            0,
+            0,
+            0
+          ],
+          "62"
+        ],
+        [
+          [
+            87,
+            0,
+            0,
+            0
+          ],
+          "87"
+        ],
+        [
+          [
+            24,
+            0,
+            0,
+            0
+          ],
+          "24"
+        ]
+      ],
+      {
+        "/": "bafyr4igat27wtxad3it2conbavlglndlgfrmpcksmcg2n5m7fwsotwfme4"
+      },
+      {
+        "/": "bafyr4ie3nvpfqmedgi4tbeypikcxrh7vydzo3pr246ykb46ato5mgo7i4e"
+      },
+      {
+        "/": "bafyr4ibdl2emldhhi3xtxqbgrnalzola35tqhpfutbtvjrru5v7aqtjrxy"
+      },
+      [
+        [
+          [
+            38,
+            0,
+            0,
+            0
+          ],
+          "38"
+        ],
+        [
+          [
+            4,
+            0,
+            0,
+            0
+          ],
+          "4"
+        ],
+        [
+          [
+            63,
+            0,
+            0,
+            0
+          ],
+          "63"
+        ]
+      ],
+      {
+        "/": "bafyr4igwgoz5ljcl3rvhkueualixhp45ihn5bogkn7emmkluels45gvuie"
+      },
+      {
+        "/": "bafyr4ic2kzon4twlsilhhlssgxgn7chv22lsnt3juc3weeye3p5fsiod7i"
+      },
+      {
+        "/": "bafyr4ifenfmnyyztpmhikclvlzuwiidtzs5vcryjdtf6kqbapojcjkzze4"
+      },
+      [
+        [
+          [
+            58,
+            0,
+            0,
+            0
+          ],
+          "58"
+        ]
+      ],
+      {
+        "/": "bafyr4ibhrdbjd6fiwf3y7ck3qxb7wwc3vejhvmsaoe2omujfqcwt27stx4"
+      },
+      {
+        "/": "bafyr4ibfaexqjhfn557cmuyvmksgqikfgf3asoj4cmypi6zvgyugnl3cy4"
+      },
+      {
+        "/": "bafyr4ifl5uglwufirm5uexvzs57j5hzlxu3ybzt3kbdwgvr2naouyey5km"
+      },
+      {
+        "/": "bafyr4ie2cyh4gcjdlvg3qjxghbleviq5yobbivv3qhx74tl2wlw5xmhweu"
+      },
+      {
+        "/": "bafyr4ibkwabgy76xwvjky5pqmx42kryeeu3weftx6hxtsilfdmsdyfwgyq"
+      }
+    ]
+  ],
+  "bytes": "gkL//5DYKlglAAFxHiCU8FRAs5ZqBm308/b4bwonIS6mJMn+B45LlRIhZTap1tgqWCUAAXEeICXd5y4Tq8UmUQV7z5kdUDvBIfzOlV0CxPfLhjnFHoSUg4KEGD4AAABiNjKChBhXAAAAYjg3goQYGAAAAGIyNNgqWCUAAXEeIMCev2ncA9onoTmhBVZltGsxYseJUmCNpvWfLaTp2Kwn2CpYJQABcR4gm21eWDCDMjkwkw9ChXif9cDy7b4657Cg88CbusM76OHYKlglAAFxHiAjXojFjOdG7zvAJotAvLlg32cDvLSYZ1TGNO1+CE0xvoOChBgmAAAAYjM4goQEAAAAYTSChBg/AAAAYjYz2CpYJQABcR4g1jOz1aRL3Gp1UJQC0XO/nUHb0LjKb8jGKXQi5c6atEHYKlglAAFxHiBaVlzeTsuSFnOuUjXM34j11pcmz2mgt2ITBNv6WSHD+tgqWCUAAXEeIKRpWNxjM3sOhQl1XmlkIHPMu1FHCRzL5UAge5IkqzkngYKEGDoAAABiNTjYKlglAAFxHiAniMKR+Kixd4+JW4XD+1hbqRJ6skBxNOZRJYCtPX5Tv9gqWCUAAXEeICUBLwScre9+JlMVYqRoIUUxdgk5PBMw9Hs1Nihmr2LH2CpYJQABcR4gq+0Mu1CoiztCXrmXfp6fK703gOZ7UEdjVjpoHUwTHVPYKlglAAFxHiCaFg/DCSNdTbgm5jhWSqIdw4IUVruB7/5NerLt27D2JdgqWCUAAXEeICqwAmx/17VSrHXwZfmlRwQlN2IWd/HvOSFlGyQ8FsbE"
+}

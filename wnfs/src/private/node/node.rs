@@ -474,7 +474,7 @@ impl PrivateNode {
         parent_name: Option<Name>,
     ) -> Result<PrivateNode> {
         let cid = match forest
-            .get_encrypted_by_hash(&private_ref.revision_name_hash, store)
+            .get_encrypted_by_hash(&private_ref.label, store)
             .await?
         {
             Some(cids) if cids.contains(&private_ref.content_cid) => private_ref.content_cid,

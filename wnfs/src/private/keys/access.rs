@@ -20,24 +20,20 @@ pub enum AccessKey {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
 pub struct TemporalAccessKey {
-    #[serde(serialize_with = "crate::utils::serialize_byte_slice32")]
-    #[serde(deserialize_with = "crate::utils::deserialize_byte_slice32")]
+    #[serde(with = "serde_byte_array")]
     pub(crate) label: HashOutput,
-    #[serde(rename = "contentCid")]
     pub(crate) content_cid: Cid,
-    #[serde(rename = "temporalKey")]
     pub(crate) temporal_key: TemporalKey,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
 pub struct SnapshotAccessKey {
-    #[serde(serialize_with = "crate::utils::serialize_byte_slice32")]
-    #[serde(deserialize_with = "crate::utils::deserialize_byte_slice32")]
+    #[serde(with = "serde_byte_array")]
     pub label: HashOutput,
-    #[serde(rename = "contentCid")]
     pub content_cid: Cid,
-    #[serde(rename = "snapshotKey")]
     pub snapshot_key: SnapshotKey,
 }
 
@@ -92,7 +88,7 @@ impl AccessKey {
 impl From<&PrivateRef> for TemporalAccessKey {
     fn from(private_ref: &PrivateRef) -> Self {
         Self {
-            label: private_ref.revision_name_hash,
+            label: private_ref.label,
             content_cid: private_ref.content_cid,
             temporal_key: private_ref.temporal_key.clone(),
         }
@@ -102,7 +98,7 @@ impl From<&PrivateRef> for TemporalAccessKey {
 impl From<&PrivateRef> for SnapshotAccessKey {
     fn from(private_ref: &PrivateRef) -> Self {
         Self {
-            label: private_ref.revision_name_hash,
+            label: private_ref.label,
             content_cid: private_ref.content_cid,
             snapshot_key: private_ref.temporal_key.derive_snapshot_key(),
         }
@@ -118,5 +114,39 @@ impl From<&[u8]> for AccessKey {
 impl From<&AccessKey> for Vec<u8> {
     fn from(key: &AccessKey) -> Self {
         serde_ipld_dagcbor::to_vec(key).unwrap()
+    }
+}
+
+//--------------------------------------------------------------------------------------------------
+// Tests
+//--------------------------------------------------------------------------------------------------
+
+#[cfg(test)]
+mod snapshot_tests {
+    use super::*;
+    use rand::Rng;
+    use rand_chacha::ChaCha12Rng;
+    use rand_core::SeedableRng;
+    use wnfs_common::{utils::SnapshotBlockStore, BlockStore};
+
+    #[async_std::test]
+    async fn test_access_key() {
+        let rng = &mut ChaCha12Rng::seed_from_u64(0);
+        let store = &SnapshotBlockStore::default();
+
+        let private_ref =
+            PrivateRef::with_temporal_key(rng.gen(), TemporalKey(rng.gen()), Cid::default());
+
+        let temporal_access_key = AccessKey::Temporal(TemporalAccessKey::from(&private_ref));
+        let snapshot_access_key = AccessKey::Snapshot(SnapshotAccessKey::from(&private_ref));
+
+        let temp_cid = store.put_serializable(&temporal_access_key).await.unwrap();
+        let snap_cid = store.put_serializable(&snapshot_access_key).await.unwrap();
+
+        let temp_key = store.get_block_snapshot(&temp_cid).await.unwrap();
+        let snap_key = store.get_block_snapshot(&snap_cid).await.unwrap();
+
+        insta::assert_json_snapshot!(temp_key);
+        insta::assert_json_snapshot!(snap_key);
     }
 }

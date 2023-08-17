@@ -1,0 +1,24 @@
+---
+source: wnfs/src/private/keys/access.rs
+expression: snap_key
+---
+{
+  "value": {
+    "wnfs/share/snapshot": {
+      "contentCid": {
+        "/": "baeaaaaa"
+      },
+      "label": {
+        "/": {
+          "bytes": "f7J7lBYC0B0RVCIRE0/HGqyuVON+fQB7u3tV7/BiooQ"
+        }
+      },
+      "snapshotKey": {
+        "/": {
+          "bytes": "owWtrui+W7imdTj+i77J6G/5RT1Rlu9ACfMsYCdULCI"
+        }
+      }
+    }
+  },
+  "bytes": "oXN3bmZzL3NoYXJlL3NuYXBzaG90o2VsYWJlbFggf7J7lBYC0B0RVCIRE0/HGqyuVON+fQB7u3tV7/BiooRqY29udGVudENpZNgqRQABAAAAa3NuYXBzaG90S2V5WCCjBa2u6L5buKZ1OP6Lvsnob/lFPVGW70AJ8yxgJ1QsIg=="
+}

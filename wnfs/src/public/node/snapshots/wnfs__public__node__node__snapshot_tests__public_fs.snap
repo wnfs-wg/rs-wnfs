@@ -1,0 +1,118 @@
+---
+source: wnfs/src/public/node/node.rs
+expression: values
+---
+{
+  "bafyr4iaf7cxur6cz5723jjxmzjlhfszen6xvkn27b5mvtfrnurtmqggnnq": {
+    "value": {
+      "wnfs/pub/dir": {
+        "metadata": {
+          "created": 0,
+          "modified": 0
+        },
+        "previous": [],
+        "userland": {
+          "jazz": {
+            "/": "bafyr4ifdbpj2udunaj7wpyb3by7zivabfva3qtwbnv232ysw5vut7vzx6e"
+          }
+        },
+        "version": "0.2.0"
+      }
+    },
+    "bytes": "oWx3bmZzL3B1Yi9kaXKkZ3ZlcnNpb25lMC4yLjBobWV0YWRhdGGiZ2NyZWF0ZWQAaG1vZGlmaWVkAGhwcmV2aW91c4BodXNlcmxhbmShZGphenrYKlglAAFxHiCjC9OqDo0Cf2fgOw4/lFQBLUG4TsFtdb1iVu1pP9c38Q=="
+  },
+  "bafyr4icgnjcomojc4uglskm6kmzzzfanxywt5inqcfl7i3kyvcpdqedb2a": {
+    "value": {
+      "wnfs/pub/dir": {
+        "metadata": {
+          "created": 0,
+          "modified": 0
+        },
+        "previous": [
+          {
+            "/": "bafyr4ihn7m344bbloghcqupxlygkskyhmpg5vgqw6ybin4unpcrksuttmy"
+          }
+        ],
+        "userland": {
+          "music": {
+            "/": "bafyr4iaf7cxur6cz5723jjxmzjlhfszen6xvkn27b5mvtfrnurtmqggnnq"
+          },
+          "text.txt": {
+            "/": "bafyr4ifdbpj2udunaj7wpyb3by7zivabfva3qtwbnv232ysw5vut7vzx6e"
+          },
+          "videos": {
+            "/": "bafyr4igv4cb3jiade36ged6hqwdfdu2wpnauksli6emabfgofuphtz27rm"
+          }
+        },
+        "version": "0.2.0"
+      }
+    },
+    "bytes": "oWx3bmZzL3B1Yi9kaXKkZ3ZlcnNpb25lMC4yLjBobWV0YWRhdGGiZ2NyZWF0ZWQAaG1vZGlmaWVkAGhwcmV2aW91c4HYKlglAAFxHiDt+zfOBCtxjihR914MqSsHY83amhb2AobyjXiiqVJzZmh1c2VybGFuZKNlbXVzaWPYKlglAAFxHiAF+K9I+Fnv9bSm7MpWcsskb69VN18PWVmWLaRmyBjNbGZ2aWRlb3PYKlglAAFxHiDV4IO0oAMm/GIPx4WGUdNWe0FFSWjxGACUzi0eeedfi2h0ZXh0LnR4dNgqWCUAAXEeIKML06oOjQJ/Z+A7Dj+UVAEtQbhOwW11vWJW7Wk/1zfx"
+  },
+  "bafyr4ifdbpj2udunaj7wpyb3by7zivabfva3qtwbnv232ysw5vut7vzx6e": {
+    "value": {
+      "wnfs/pub/file": {
+        "metadata": {
+          "created": 0,
+          "modified": 0
+        },
+        "previous": [],
+        "userland": {
+          "/": "baeaaaaa"
+        },
+        "version": "0.2.0"
+      }
+    },
+    "bytes": "oW13bmZzL3B1Yi9maWxlpGd2ZXJzaW9uZTAuMi4waG1ldGFkYXRhomdjcmVhdGVkAGhtb2RpZmllZABocHJldmlvdXOAaHVzZXJsYW5k2CpFAAEAAAA="
+  },
+  "bafyr4igv4cb3jiade36ged6hqwdfdu2wpnauksli6emabfgofuphtz27rm": {
+    "value": {
+      "wnfs/pub/dir": {
+        "metadata": {
+          "created": 0,
+          "modified": 0
+        },
+        "previous": [],
+        "userland": {
+          "movies": {
+            "/": "bafyr4ih5spegjcwiwushnajtz4mpo54mwnyti5hvstc34jieou23co5mom"
+          }
+        },
+        "version": "0.2.0"
+      }
+    },
+    "bytes": "oWx3bmZzL3B1Yi9kaXKkZ3ZlcnNpb25lMC4yLjBobWV0YWRhdGGiZ2NyZWF0ZWQAaG1vZGlmaWVkAGhwcmV2aW91c4BodXNlcmxhbmShZm1vdmllc9gqWCUAAXEeIP2TyGSKyLUkdoEzzxj3d4yzcTR09ZTFviUEdTWxO6xz"
+  },
+  "bafyr4ih5spegjcwiwushnajtz4mpo54mwnyti5hvstc34jieou23co5mom": {
+    "value": {
+      "wnfs/pub/dir": {
+        "metadata": {
+          "created": 0,
+          "modified": 0
+        },
+        "previous": [],
+        "userland": {
+          "anime": {
+            "/": "bafyr4ifdbpj2udunaj7wpyb3by7zivabfva3qtwbnv232ysw5vut7vzx6e"
+          }
+        },
+        "version": "0.2.0"
+      }
+    },
+    "bytes": "oWx3bmZzL3B1Yi9kaXKkZ3ZlcnNpb25lMC4yLjBobWV0YWRhdGGiZ2NyZWF0ZWQAaG1vZGlmaWVkAGhwcmV2aW91c4BodXNlcmxhbmShZWFuaW1l2CpYJQABcR4gowvTqg6NAn9n4DsOP5RUAS1BuE7BbXW9YlbtaT/XN/E="
+  },
+  "bafyr4ihn7m344bbloghcqupxlygkskyhmpg5vgqw6ybin4unpcrksuttmy": {
+    "value": {
+      "wnfs/pub/dir": {
+        "metadata": {
+          "created": 0,
+          "modified": 0
+        },
+        "previous": [],
+        "userland": {},
+        "version": "0.2.0"
+      }
+    },
+    "bytes": "oWx3bmZzL3B1Yi9kaXKkZ3ZlcnNpb25lMC4yLjBobWV0YWRhdGGiZ2NyZWF0ZWQAaG1vZGlmaWVkAGhwcmV2aW91c4BodXNlcmxhbmSg"
+  }
+}

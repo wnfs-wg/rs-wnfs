@@ -74,6 +74,14 @@ impl PublicFile {
         cloned
     }
 
+    /// Writes a new content cid to the file.
+    /// This will create a new revision of the file.
+    pub(crate) fn write(self: &mut Rc<Self>, time: DateTime<Utc>, content_cid: Cid) {
+        let file = self.prepare_next_revision();
+        file.userland = content_cid;
+        file.metadata.upsert_mtime(time);
+    }
+
     /// Gets the previous value of the file.
     ///
     /// # Examples
@@ -254,5 +262,41 @@ mod tests {
             yet_another_file.previous.iter().collect::<Vec<_>>(),
             vec![previous_cid]
         );
+    }
+}
+
+#[cfg(test)]
+mod snapshot_tests {
+    use super::*;
+    use chrono::TimeZone;
+    use wnfs_common::utils::SnapshotBlockStore;
+
+    #[async_std::test]
+    async fn test_simple_file() {
+        let store = &SnapshotBlockStore::default();
+        let time = Utc.with_ymd_and_hms(1970, 1, 1, 0, 0, 0).unwrap();
+
+        let file = &mut Rc::new(PublicFile::new(time, Cid::default()));
+        let cid = file.store(store).await.unwrap();
+
+        let file = store.get_block_snapshot(&cid).await.unwrap();
+
+        insta::assert_json_snapshot!(file);
+    }
+
+    #[async_std::test]
+    async fn test_file_with_previous_links() {
+        let store = &SnapshotBlockStore::default();
+        let time = Utc.with_ymd_and_hms(1970, 1, 1, 0, 0, 0).unwrap();
+
+        let file = &mut Rc::new(PublicFile::new(time, Cid::default()));
+        let _ = file.store(store).await.unwrap();
+
+        file.write(time, Cid::default());
+        let cid = file.store(store).await.unwrap();
+
+        let file = store.get_block_snapshot(&cid).await.unwrap();
+
+        insta::assert_json_snapshot!(file);
     }
 }

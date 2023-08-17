@@ -92,7 +92,9 @@ impl<'de, T> Deserialize<'de> for Encrypted<T> {
     where
         D: serde::Deserializer<'de>,
     {
-        Ok(Self::from_ciphertext(Vec::<u8>::deserialize(deserializer)?))
+        Ok(Self::from_ciphertext(serde_bytes::deserialize(
+            deserializer,
+        )?))
     }
 }
 
@@ -101,7 +103,7 @@ impl<T> Serialize for Encrypted<T> {
     where
         S: serde::Serializer,
     {
-        self.ciphertext.serialize(serializer)
+        serde_bytes::serialize(&self.ciphertext, serializer)
     }
 }
 

@@ -1,0 +1,17 @@
+---
+source: wnfs-hamt/src/pointer.rs
+expression: ptr
+---
+{
+  "value": [
+    [
+      "James",
+      4500
+    ],
+    [
+      "Peter",
+      2000
+    ]
+  ],
+  "bytes": "goJlSmFtZXMZEZSCZVBldGVyGQfQ"
+}

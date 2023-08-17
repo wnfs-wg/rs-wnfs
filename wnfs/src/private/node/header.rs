@@ -86,11 +86,10 @@ impl PrivateNodeHeader {
     /// Derives the revision ref of the current header.
     pub(crate) fn derive_revision_ref(&self, forest: &impl PrivateForest) -> RevisionRef {
         let temporal_key = self.derive_temporal_key();
-        let revision_name_hash =
-            blake3::Hasher::hash(&forest.get_accumulated_name(&self.get_revision_name()));
+        let label = blake3::Hasher::hash(&forest.get_accumulated_name(&self.get_revision_name()));
 
         RevisionRef {
-            revision_name_hash,
+            label,
             temporal_key,
         }
     }

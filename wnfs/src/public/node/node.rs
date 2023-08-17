@@ -350,3 +350,55 @@ mod tests {
         assert_eq!(loaded_dir_node, dir_node);
     }
 }
+
+#[cfg(test)]
+mod snapshot_tests {
+    use super::*;
+    use chrono::TimeZone;
+    use wnfs_common::utils::SnapshotBlockStore;
+
+    #[async_std::test]
+    async fn public_file_and_directory_nodes() {
+        let store = &SnapshotBlockStore::default();
+        let time = Utc.with_ymd_and_hms(1970, 1, 1, 0, 0, 0).unwrap();
+
+        let dir_node: PublicNode = PublicDirectory::new(time).into();
+        let file_node: PublicNode = PublicFile::new(time, Cid::default()).into();
+
+        let dir_cid = dir_node.store(store).await.unwrap();
+        let file_cid = file_node.store(store).await.unwrap();
+
+        let dir = store.get_block_snapshot(&dir_cid).await.unwrap();
+        let file = store.get_block_snapshot(&file_cid).await.unwrap();
+
+        insta::assert_json_snapshot!(dir);
+        insta::assert_json_snapshot!(file);
+    }
+
+    #[async_std::test]
+    async fn public_fs() {
+        let store = &SnapshotBlockStore::default();
+        let time = Utc.with_ymd_and_hms(1970, 1, 1, 0, 0, 0).unwrap();
+
+        let paths = [
+            vec!["text.txt".into()],
+            vec!["music".into(), "jazz".into()],
+            vec!["videos".into(), "movies".into(), "anime".into()],
+        ];
+
+        let root_dir = &mut Rc::new(PublicDirectory::new(time));
+        let _ = root_dir.store(store).await.unwrap();
+
+        for path in paths.iter() {
+            root_dir
+                .write(path, Cid::default(), time, store)
+                .await
+                .unwrap();
+        }
+
+        let _ = root_dir.store(store).await.unwrap();
+
+        let values = store.get_all_block_snapshots().unwrap();
+        insta::assert_json_snapshot!(values)
+    }
+}

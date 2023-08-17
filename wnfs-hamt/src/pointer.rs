@@ -248,7 +248,8 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use wnfs_common::{dagcbor, MemoryBlockStore};
+    use libipld::cbor::DagCborCodec;
+    use wnfs_common::{async_encode, decode, MemoryBlockStore};
 
     #[async_std::test]
     async fn pointer_can_encode_decode_as_cbor() {
@@ -264,11 +265,36 @@ mod tests {
             },
         ]);
 
-        let encoded_pointer = dagcbor::async_encode(&pointer, store).await.unwrap();
-        let decoded_pointer =
-            dagcbor::decode::<Pointer<String, i32, blake3::Hasher>>(encoded_pointer.as_ref())
-                .unwrap();
+        let encoded_pointer = async_encode(&pointer, store, DagCborCodec).await.unwrap();
+        let decoded_pointer: Pointer<String, i32, blake3::Hasher> =
+            decode(encoded_pointer.as_ref(), DagCborCodec).unwrap();
 
         assert_eq!(pointer, decoded_pointer);
+    }
+}
+
+#[cfg(test)]
+mod snapshot_tests {
+    use super::*;
+    use wnfs_common::utils::SnapshotBlockStore;
+
+    #[async_std::test]
+    async fn test_pointer() {
+        let store = &SnapshotBlockStore::default();
+        let pointer: Pointer<String, i32, blake3::Hasher> = Pointer::Values(vec![
+            Pair {
+                key: "James".into(),
+                value: 4500,
+            },
+            Pair {
+                key: "Peter".into(),
+                value: 2000,
+            },
+        ]);
+
+        let cid = store.put_async_serializable(&pointer).await.unwrap();
+        let ptr = store.get_block_snapshot(&cid).await.unwrap();
+
+        insta::assert_json_snapshot!(ptr);
     }
 }

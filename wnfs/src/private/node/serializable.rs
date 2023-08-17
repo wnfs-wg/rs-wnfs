@@ -21,9 +21,9 @@ pub(crate) enum PrivateNodeContentSerializable {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub(crate) struct PrivateFileContentSerializable {
     pub version: Version,
-    #[serde(rename = "headerCid")]
     pub header_cid: Cid,
     pub previous: Vec<(usize, Encrypted<Cid>)>,
     pub metadata: Metadata,
@@ -31,10 +31,10 @@ pub(crate) struct PrivateFileContentSerializable {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub(crate) struct PrivateDirectoryContentSerializable {
     pub version: Version,
     pub previous: Vec<(usize, Encrypted<Cid>)>,
-    #[serde(rename = "headerCid")]
     pub header_cid: Cid,
     pub metadata: Metadata,
     pub entries: BTreeMap<String, PrivateRefSerializable>,
@@ -51,13 +51,12 @@ pub(crate) struct PrivateNodeHeaderSerializable {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub(crate) struct PrivateRefSerializable {
-    #[serde(rename = "name")]
-    pub revision_name_hash: HashOutput,
-    #[serde(rename = "snapshotKey")]
+    #[serde(with = "serde_byte_array")]
+    pub label: HashOutput,
     pub snapshot_key: SnapshotKey,
-    #[serde(rename = "temporalKey")]
+    #[serde(with = "serde_bytes")]
     pub temporal_key: Vec<u8>,
-    #[serde(rename = "contentCid")]
     pub content_cid: Cid,
 }

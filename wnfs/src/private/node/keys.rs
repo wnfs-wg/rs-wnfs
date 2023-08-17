@@ -54,19 +54,11 @@ pub(crate) const SNAPSHOT_KEY_DSI: &str = "wnfs/snapshot key deriv from temporal
 
 /// The key used to encrypt the content of a node.
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
-pub struct SnapshotKey(
-    #[serde(serialize_with = "crate::utils::serialize_byte_slice32")]
-    #[serde(deserialize_with = "crate::utils::deserialize_byte_slice32")]
-    pub(crate) [u8; KEY_BYTE_SIZE],
-);
+pub struct SnapshotKey(#[serde(with = "serde_byte_array")] pub(crate) [u8; KEY_BYTE_SIZE]);
 
 /// The key used to encrypt the header section of a node.
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
-pub struct TemporalKey(
-    #[serde(serialize_with = "crate::utils::serialize_byte_slice32")]
-    #[serde(deserialize_with = "crate::utils::deserialize_byte_slice32")]
-    pub(crate) [u8; KEY_BYTE_SIZE],
-);
+pub struct TemporalKey(#[serde(with = "serde_byte_array")] pub(crate) [u8; KEY_BYTE_SIZE]);
 
 //--------------------------------------------------------------------------------------------------
 // Implementations

@@ -19,6 +19,7 @@ use serde::{
     ser::Error as SerError,
     Deserializer, Serialize, Serializer,
 };
+use serde_byte_array::ByteArray;
 use std::{
     collections::HashMap,
     fmt::{self, Debug, Formatter},
@@ -753,7 +754,7 @@ impl<K, V, H: Hasher> Node<K, V, H> {
         K: Serialize,
         V: Serialize,
     {
-        let bitmask_ipld = ipld_serde::to_ipld(self.bitmask.as_raw_slice())?;
+        let bitmask_ipld = ipld_serde::to_ipld(ByteArray::from(self.bitmask.into_inner()))?;
         let pointers_ipld = {
             let mut tmp = Vec::with_capacity(self.pointers.len());
             for pointer in self.pointers.iter() {
@@ -823,9 +824,10 @@ where
     where
         D: Deserializer<'de>,
     {
-        let (bitmask, pointers): (BitMaskType, Vec<Pointer<K, V, H>>) =
+        let (bytes, pointers): (ByteArray<2>, Vec<Pointer<K, V, H>>) =
             Deserialize::deserialize(deserializer)?;
-        let bitmask = BitArray::<BitMaskType>::from(bitmask);
+
+        let bitmask = BitArray::<BitMaskType>::from(bytes.into_array());
         if bitmask.len() != HAMT_BITMASK_BIT_SIZE {
             return Err(serde::de::Error::custom(format!(
                 "invalid bitmask length, expected {HAMT_BITMASK_BIT_SIZE}, but got {}",
@@ -1194,9 +1196,10 @@ mod proptests {
     use crate::strategies::{
         node_from_operations, operations, operations_and_shuffled, Operations,
     };
+    use libipld::cbor::DagCborCodec;
     use proptest::prelude::*;
     use test_strategy::proptest;
-    use wnfs_common::{dagcbor, MemoryBlockStore};
+    use wnfs_common::{async_encode, decode, MemoryBlockStore};
 
     fn small_key() -> impl Strategy<Value = String> {
         (0..1000).prop_map(|i| format!("key {i}"))
@@ -1258,8 +1261,9 @@ mod proptests {
             let store = &MemoryBlockStore::default();
             let node = node_from_operations(&operations, store).await.unwrap();
 
-            let encoded_node = dagcbor::async_encode(&node, store).await.unwrap();
-            let decoded_node = dagcbor::decode::<Node<String, u64>>(encoded_node.as_ref()).unwrap();
+            let encoded_node = async_encode(&node, store, DagCborCodec).await.unwrap();
+            let decoded_node: Node<String, u64> =
+                decode(encoded_node.as_ref(), DagCborCodec).unwrap();
 
             assert_eq!(*node, decoded_node);
         })
@@ -1301,5 +1305,27 @@ mod proptests {
         let map2 = HashMap::from(&shuffled);
 
         prop_assert_eq!(map1, map2);
+    }
+}
+
+#[cfg(test)]
+mod snapshot_tests {
+    use super::*;
+    use wnfs_common::utils::SnapshotBlockStore;
+
+    #[async_std::test]
+    async fn test_node() {
+        let store = &SnapshotBlockStore::default();
+        let node = &mut Rc::new(Node::<[u8; 4], String>::default());
+        for i in 0..99_u32 {
+            node.set(i.to_le_bytes(), i.to_string(), store)
+                .await
+                .unwrap();
+        }
+
+        let cid = store.put_async_serializable(node).await.unwrap();
+        let node = store.get_block_snapshot(&cid).await.unwrap();
+
+        insta::assert_json_snapshot!(node);
     }
 }

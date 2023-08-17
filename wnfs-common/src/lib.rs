@@ -30,3 +30,11 @@ pub const MAX_BLOCK_SIZE: usize = usize::pow(2, 18);
 
 /// The general size of digests in WNFS.
 pub type HashOutput = [u8; HASH_BYTE_SIZE];
+
+//--------------------------------------------------------------------------------------------------
+// Re-exports
+//--------------------------------------------------------------------------------------------------
+
+pub mod libipld {
+    pub use libipld::*;
+}

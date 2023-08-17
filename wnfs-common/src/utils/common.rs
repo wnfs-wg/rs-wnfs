@@ -1,61 +1,11 @@
 use crate::HashOutput;
 use anyhow::Result;
+use bytes::Bytes;
 use futures::{AsyncRead, AsyncReadExt};
-use libipld::IpldCodec;
-#[cfg(any(test, feature = "test_utils"))]
-use proptest::{
-    strategy::{Strategy, ValueTree},
-    test_runner::TestRunner,
-};
+use libipld::{Cid, IpldCodec};
 use rand_core::CryptoRngCore;
-use serde::de::Visitor;
-use std::fmt;
-
-//--------------------------------------------------------------------------------------------------
-// Type Definitions
-//--------------------------------------------------------------------------------------------------
-
-pub struct ByteArrayVisitor<const N: usize>;
-
-#[cfg(any(test, feature = "test_utils"))]
-pub trait Sampleable {
-    type Value;
-    fn sample(&self, runner: &mut TestRunner) -> Self::Value;
-}
-
-//--------------------------------------------------------------------------------------------------
-// Implementations
-//--------------------------------------------------------------------------------------------------
-
-impl<'de, const N: usize> Visitor<'de> for ByteArrayVisitor<N> {
-    type Value = [u8; N];
-
-    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        write!(formatter, "a byte array of length {N}")
-    }
-
-    fn visit_bytes<E>(self, v: &[u8]) -> Result<Self::Value, E>
-    where
-        E: serde::de::Error,
-    {
-        let bytes: [u8; N] = v.try_into().map_err(E::custom)?;
-        Ok(bytes)
-    }
-}
-
-#[cfg(any(test, feature = "test_utils"))]
-impl<V, S> Sampleable for S
-where
-    S: Strategy<Value = V>,
-{
-    type Value = V;
-
-    fn sample(&self, runner: &mut TestRunner) -> Self::Value {
-        self.new_tree(runner)
-            .expect("Couldn't generate test value")
-            .current()
-    }
-}
+use serde::{Deserialize, Serialize, Serializer};
+use std::{cell::RefCell, collections::HashMap};
 
 //--------------------------------------------------------------------------------------------------
 // Functions
@@ -131,4 +81,38 @@ pub fn to_hash_output(bytes: &[u8]) -> HashOutput {
 /// Tries to convert a u64 value to IPLD codec.
 pub fn u64_to_ipld(value: u64) -> Result<IpldCodec> {
     Ok(value.try_into()?)
+}
+
+pub(crate) fn serialize_cid_map<S>(
+    map: &RefCell<HashMap<Cid, Bytes>>,
+    serializer: S,
+) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    let map = map
+        .borrow()
+        .iter()
+        .map(|(cid, bytes)| (cid.to_string(), bytes.to_vec()))
+        .collect::<HashMap<_, _>>();
+
+    map.serialize(serializer)
+}
+
+pub(crate) fn deserialize_cid_map<'de, D>(
+    deserializer: D,
+) -> Result<RefCell<HashMap<Cid, Bytes>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let map = HashMap::<String, Vec<u8>>::deserialize(deserializer)?;
+    let map = map
+        .into_iter()
+        .map(|(cid, bytes)| {
+            let cid = cid.parse::<Cid>().map_err(serde::de::Error::custom)?;
+            Ok((cid, bytes.into()))
+        })
+        .collect::<Result<_, _>>()?;
+
+    Ok(RefCell::new(map))
 }

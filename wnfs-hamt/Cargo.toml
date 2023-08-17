@@ -26,6 +26,7 @@ blake3 = { version = "1.4", features = ["traits-preview"] }
 chrono = { version = "0.4.23", default-features = false, features = ["clock", "std"] }
 either = "1.8"
 futures = "0.3"
+insta = { version = "1.30", features = ["json"] }
 libipld = { version = "0.16", features = ["dag-cbor", "derive", "serde-codec"] }
 log = { version = "0.4", optional = true }
 multihash = "0.18"
@@ -34,13 +35,16 @@ proptest = { version = "1.1", optional = true }
 rand_core = "0.6"
 semver = { version = "1.0", features = ["serde"] }
 serde = { version = "1.0", features = ["rc"] }
+serde-byte-array = "0.1.2"
 thiserror = "1.0"
 wnfs-common = { path = "../wnfs-common", version = "0.1.23" }
 
 [dev-dependencies]
 async-std = { version = "1.11", features = ["attributes"] }
+insta = "1.30"
 proptest = "1.1"
 rand = "0.8"
+serde_json = "1.0.103"
 test-strategy = "0.3"
 wnfs-common = { path = "../wnfs-common", features = ["test_utils"] }
 

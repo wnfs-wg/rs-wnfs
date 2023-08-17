@@ -1,0 +1,24 @@
+---
+source: wnfs/src/public/file.rs
+expression: file
+---
+{
+  "value": {
+    "wnfs/pub/file": {
+      "metadata": {
+        "created": 0,
+        "modified": 0
+      },
+      "previous": [
+        {
+          "/": "bafyr4ifdbpj2udunaj7wpyb3by7zivabfva3qtwbnv232ysw5vut7vzx6e"
+        }
+      ],
+      "userland": {
+        "/": "baeaaaaa"
+      },
+      "version": "0.2.0"
+    }
+  },
+  "bytes": "oW13bmZzL3B1Yi9maWxlpGd2ZXJzaW9uZTAuMi4waG1ldGFkYXRhomdjcmVhdGVkAGhtb2RpZmllZABocHJldmlvdXOB2CpYJQABcR4gowvTqg6NAn9n4DsOP5RUAS1BuE7BbXW9YlbtaT/XN/FodXNlcmxhbmTYKkUAAQAAAA=="
+}

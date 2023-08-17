@@ -1,0 +1,18 @@
+---
+source: wnfs/src/public/directory.rs
+expression: dir
+---
+{
+  "value": {
+    "wnfs/pub/dir": {
+      "metadata": {
+        "created": 0,
+        "modified": 0
+      },
+      "previous": [],
+      "userland": {},
+      "version": "0.2.0"
+    }
+  },
+  "bytes": "oWx3bmZzL3B1Yi9kaXKkZ3ZlcnNpb25lMC4yLjBobWV0YWRhdGGiZ2NyZWF0ZWQAaG1vZGlmaWVkAGhwcmV2aW91c4BodXNlcmxhbmSg"
+}
