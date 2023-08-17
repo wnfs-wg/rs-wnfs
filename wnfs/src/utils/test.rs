@@ -34,9 +34,7 @@ pub(crate) async fn walk_dir(
             }),
         );
         store.add_block_handler(
-            dir.header
-                .store(store, forest.get_accumulator_setup())
-                .await?,
+            dir.header.store(store, forest).await?,
             Box::new(move |bytes| {
                 Ok(decode(
                     &temporal_key.key_wrap_decrypt(bytes.as_ref())?,
@@ -66,9 +64,7 @@ pub(crate) async fn walk_dir(
                         }),
                     );
                     store.add_block_handler(
-                        file.header
-                            .store(store, forest.get_accumulator_setup())
-                            .await?,
+                        file.header.store(store, forest).await?,
                         Box::new(move |bytes| {
                             Ok(decode(
                                 &temporal_key.key_wrap_decrypt(bytes.as_ref())?,
