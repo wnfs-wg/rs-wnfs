@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.1.24](https://github.com/wnfs-wg/rs-wnfs/compare/wnfs-v0.1.23...wnfs-v0.1.24) (2023-08-17)
+
+
+### Features
+
+* Implement public directory cp & more efficient copy for `PrivateFile` ([#319](https://github.com/wnfs-wg/rs-wnfs/issues/319)) ([cebb956](https://github.com/wnfs-wg/rs-wnfs/commit/cebb956cdaf88ed6e2eb09b784eeec5d61bdf4c8))
+
+
+### Bug Fixes
+
+* Improve performance of `get_revision_name()` ([#317](https://github.com/wnfs-wg/rs-wnfs/issues/317)) ([55cf2e0](https://github.com/wnfs-wg/rs-wnfs/commit/55cf2e013cb84cbaab2086c83866f93ecadb0a88))
+* More reliably cache `NameAccumulator` modexps ([#326](https://github.com/wnfs-wg/rs-wnfs/issues/326)) ([380ee8c](https://github.com/wnfs-wg/rs-wnfs/commit/380ee8c7b07a73912100c2689334596e3ad8d9c0))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * wnfs-nameaccumulator bumped from 0.1.23 to 0.1.24
+
 ## [0.1.23](https://github.com/wnfs-wg/rs-wnfs/compare/wnfs-v0.1.22...wnfs-v0.1.23) (2023-07-21)
 
 
