@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.24](https://github.com/wnfs-wg/rs-wnfs/compare/wnfs-nameaccumulator-v0.1.23...wnfs-nameaccumulator-v0.1.24) (2023-08-17)
+
+
+### Bug Fixes
+
+* More reliably cache `NameAccumulator` modexps ([#326](https://github.com/wnfs-wg/rs-wnfs/issues/326)) ([380ee8c](https://github.com/wnfs-wg/rs-wnfs/commit/380ee8c7b07a73912100c2689334596e3ad8d9c0))
+
 ## [0.1.23](https://github.com/wnfs-wg/rs-wnfs/compare/wnfs-nameaccumulator-v0.1.22...wnfs-nameaccumulator-v0.1.23) (2023-07-21)
 
 
