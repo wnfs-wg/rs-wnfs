@@ -13,5 +13,5 @@ expression: ptr
       2000
     ]
   ],
-  "cbor": "goJlSmFtZXMZEZSCZVBldGVyGQfQ"
+  "bytes": "goJlSmFtZXMZEZSCZVBldGVyGQfQ"
 }
