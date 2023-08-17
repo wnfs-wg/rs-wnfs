@@ -7,7 +7,7 @@ use async_recursion::async_recursion;
 use rand_core::CryptoRngCore;
 use std::rc::Rc;
 use wnfs_common::BlockStore;
-use wnfs_nameaccumulator::{AccumulatorSetup, Name};
+use wnfs_nameaccumulator::Name;
 
 #[derive(Debug)]
 pub(crate) enum PrivateLink {
@@ -133,14 +133,6 @@ impl PrivateLink {
     #[inline]
     pub(crate) fn with_file(file: PrivateFile) -> Self {
         Self::from(PrivateNode::File(Rc::new(file)))
-    }
-
-    #[allow(dead_code)]
-    pub(crate) fn get_ref(&self, setup: &AccumulatorSetup) -> Option<PrivateRef> {
-        match self {
-            Self::Encrypted { private_ref, .. } => Some(private_ref.clone()),
-            Self::Decrypted { node } => node.derive_private_ref(setup),
-        }
     }
 }
 

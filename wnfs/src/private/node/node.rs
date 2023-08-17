@@ -18,7 +18,7 @@ use skip_ratchet::{JumpSize, RatchetSeeker};
 use std::{cmp::Ordering, collections::BTreeSet, fmt::Debug, rc::Rc};
 use wnfs_common::BlockStore;
 use wnfs_hamt::Hasher;
-use wnfs_nameaccumulator::{AccumulatorSetup, Name};
+use wnfs_nameaccumulator::Name;
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
@@ -413,7 +413,6 @@ impl PrivateNode {
         store: &impl BlockStore,
     ) -> Result<Vec<PrivateNode>> {
         let header = self.get_header();
-        let setup = forest.get_accumulator_setup();
         let mountpoint = header.name.parent().unwrap_or_else(|| forest.empty_name());
 
         let current_name = &header.get_revision_name();
@@ -433,7 +432,7 @@ impl PrivateNode {
             current_header.update_ratchet(current.clone());
 
             let has_curr = forest
-                .has(current_header.get_revision_name(), store)
+                .has(&current_header.get_revision_name(), store)
                 .await?;
 
             let ord = if has_curr {
@@ -450,7 +449,7 @@ impl PrivateNode {
         current_header.update_ratchet(search.current().clone());
 
         let name_hash =
-            blake3::Hasher::hash(&current_header.get_revision_name().as_accumulator(setup));
+            blake3::Hasher::hash(&forest.get_accumulated_name(&current_header.get_revision_name()));
 
         Ok(forest
             .get_multivalue_by_hash(
@@ -482,17 +481,15 @@ impl PrivateNode {
             _ => bail!(FsError::NotFound),
         };
 
-        let setup = forest.get_accumulator_setup();
-
-        Self::from_cid(cid, &private_ref.temporal_key, store, parent_name, setup).await
+        Self::from_cid(cid, &private_ref.temporal_key, forest, store, parent_name).await
     }
 
     pub(crate) async fn from_cid(
         cid: Cid,
         temporal_key: &TemporalKey,
+        forest: &impl PrivateForest,
         store: &impl BlockStore,
         parent_name: Option<Name>,
-        setup: &AccumulatorSetup,
     ) -> Result<PrivateNode> {
         let encrypted_bytes = store.get_block(&cid).await?;
         let snapshot_key = temporal_key.derive_snapshot_key();
@@ -504,9 +501,9 @@ impl PrivateNode {
                     file,
                     temporal_key,
                     cid,
+                    forest,
                     store,
                     parent_name,
-                    setup,
                 )
                 .await?;
                 PrivateNode::File(Rc::new(file))
@@ -516,22 +513,14 @@ impl PrivateNode {
                     dir,
                     temporal_key,
                     cid,
+                    forest,
                     store,
                     parent_name,
-                    setup,
                 )
                 .await?;
                 PrivateNode::Dir(Rc::new(dir))
             }
         })
-    }
-
-    /// Returns the private ref, if this node has been `.store()`ed before.
-    pub(crate) fn derive_private_ref(&self, setup: &AccumulatorSetup) -> Option<PrivateRef> {
-        match self {
-            Self::File(file) => file.derive_private_ref(setup),
-            Self::Dir(dir) => dir.derive_private_ref(setup),
-        }
     }
 
     pub(crate) fn get_persisted_as(&self) -> &OnceCell<Cid> {
@@ -689,13 +678,15 @@ mod tests {
         let file_private_ref = file_node.store(forest, store, rng).await.unwrap();
         let dir_private_ref = dir_node.store(forest, store, rng).await.unwrap();
 
-        let deserialized_file_node = PrivateNode::load(&file_private_ref, forest, store, None)
-            .await
-            .unwrap();
+        let deserialized_file_node =
+            PrivateNode::load(&file_private_ref, forest, store, Some(forest.empty_name()))
+                .await
+                .unwrap();
 
-        let deserialized_dir_node = PrivateNode::load(&dir_private_ref, forest, store, None)
-            .await
-            .unwrap();
+        let deserialized_dir_node =
+            PrivateNode::load(&dir_private_ref, forest, store, Some(forest.empty_name()))
+                .await
+                .unwrap();
 
         assert_eq!(file_node, deserialized_file_node);
         assert_eq!(dir_node, deserialized_dir_node);

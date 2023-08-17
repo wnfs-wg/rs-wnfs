@@ -119,11 +119,10 @@ impl<F: PrivateForest> PrivateNodeHistory<F> {
 
         self.header.update_ratchet(previous_ratchet);
 
-        let setup = self.forest.get_accumulator_setup();
         let previous_node = PrivateNode::from_private_ref(
             &self
                 .header
-                .derive_revision_ref(setup)
+                .derive_revision_ref(&self.forest)
                 .into_private_ref(previous_cid),
             &self.forest,
             store,
