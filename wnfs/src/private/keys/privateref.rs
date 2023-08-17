@@ -25,7 +25,7 @@ pub struct PrivateRef {
     pub content_cid: Cid,
 }
 
-// TODO(appcypher): Remove RevisionRef.
+// TODO(appcypher): Remove RevisionRef eventually.
 /// A pointer to a specific revision in the private forest
 /// together with the TemporalKey to decrypt any of these
 /// revisions.

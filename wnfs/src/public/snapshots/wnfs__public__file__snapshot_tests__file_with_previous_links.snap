@@ -6,12 +6,12 @@ expression: file
   "value": {
     "wnfs/pub/file": {
       "metadata": {
-        "created": -4960082003,
-        "modified": -4178922002
+        "created": 0,
+        "modified": 0
       },
       "previous": [
         {
-          "/": "bafyr4ic4b5jidnfuoa5jjitsjkga64lwjdh4tw6pp2bpszxdmfhjtsazgm"
+          "/": "bafyr4ifdbpj2udunaj7wpyb3by7zivabfva3qtwbnv232ysw5vut7vzx6e"
         }
       ],
       "userland": {
@@ -20,5 +20,5 @@ expression: file
       "version": "0.2.0"
     }
   },
-  "cbor": "oW13bmZzL3B1Yi9maWxlpGd2ZXJzaW9uZTAuMi4waG1ldGFkYXRhomdjcmVhdGVkOwAAAAEnpNhSaG1vZGlmaWVkOvkVShFocHJldmlvdXOB2CpYJQABcR4gXA9SgbS0cDqUonJKjA9xdkjPydvPfoL5ZuNhTpnIGTNodXNlcmxhbmTYKkUAAQAAAA=="
+  "cbor": "oW13bmZzL3B1Yi9maWxlpGd2ZXJzaW9uZTAuMi4waG1ldGFkYXRhomdjcmVhdGVkAGhtb2RpZmllZABocHJldmlvdXOB2CpYJQABcR4gowvTqg6NAn9n4DsOP5RUAS1BuE7BbXW9YlbtaT/XN/FodXNlcmxhbmTYKkUAAQAAAA=="
 }

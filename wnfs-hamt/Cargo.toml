@@ -46,7 +46,7 @@ proptest = "1.1"
 rand = "0.8"
 serde_json = "1.0.103"
 test-strategy = "0.3"
-wnfs-common = { path = "../wnfs-common", version = "0.1.23", features = ["test_utils"] }
+wnfs-common = { path = "../wnfs-common", features = ["test_utils"] }
 
 [features]
 test_utils = ["proptest"]

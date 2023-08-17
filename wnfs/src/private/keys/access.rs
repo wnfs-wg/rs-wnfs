@@ -127,12 +127,12 @@ mod snapshot_tests {
     use rand::Rng;
     use rand_chacha::ChaCha12Rng;
     use rand_core::SeedableRng;
-    use wnfs_common::{utils::MockStore, BlockStore};
+    use wnfs_common::{utils::SnapshotBlockStore, BlockStore};
 
     #[async_std::test]
     async fn test_access_key() {
         let rng = &mut ChaCha12Rng::seed_from_u64(0);
-        let store = &MockStore::default();
+        let store = &SnapshotBlockStore::default();
 
         let private_ref =
             PrivateRef::with_temporal_key(rng.gen(), TemporalKey(rng.gen()), Cid::default());

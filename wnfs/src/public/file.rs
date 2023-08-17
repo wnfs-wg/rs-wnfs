@@ -268,20 +268,15 @@ mod tests {
 #[cfg(test)]
 mod snapshot_tests {
     use super::*;
-    use fake::{faker::chrono::en::DateTime, Fake};
-    use rand_chacha::ChaCha12Rng;
-    use rand_core::SeedableRng;
-    use wnfs_common::utils::MockStore;
+    use chrono::TimeZone;
+    use wnfs_common::utils::SnapshotBlockStore;
 
     #[async_std::test]
     async fn test_simple_file() {
-        let rng = &mut ChaCha12Rng::seed_from_u64(0);
-        let store = &MockStore::default();
+        let store = &SnapshotBlockStore::default();
+        let time = Utc.with_ymd_and_hms(1970, 1, 1, 0, 0, 0).unwrap();
 
-        let file = &mut Rc::new(PublicFile::new(
-            DateTime().fake_with_rng(rng),
-            Cid::default(),
-        ));
+        let file = &mut Rc::new(PublicFile::new(time, Cid::default()));
         let cid = file.store(store).await.unwrap();
 
         let file = store.get_block_snapshot(&cid).await.unwrap();
@@ -291,16 +286,13 @@ mod snapshot_tests {
 
     #[async_std::test]
     async fn test_file_with_previous_links() {
-        let rng = &mut ChaCha12Rng::seed_from_u64(0);
-        let store = &MockStore::default();
+        let store = &SnapshotBlockStore::default();
+        let time = Utc.with_ymd_and_hms(1970, 1, 1, 0, 0, 0).unwrap();
 
-        let file = &mut Rc::new(PublicFile::new(
-            DateTime().fake_with_rng(rng),
-            Cid::default(),
-        ));
+        let file = &mut Rc::new(PublicFile::new(time, Cid::default()));
         let _ = file.store(store).await.unwrap();
 
-        file.write(DateTime().fake_with_rng(rng), Cid::default());
+        file.write(time, Cid::default());
         let cid = file.store(store).await.unwrap();
 
         let file = store.get_block_snapshot(&cid).await.unwrap();

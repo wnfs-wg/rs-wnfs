@@ -276,11 +276,11 @@ mod tests {
 #[cfg(test)]
 mod snapshot_tests {
     use super::*;
-    use wnfs_common::utils::MockStore;
+    use wnfs_common::utils::SnapshotBlockStore;
 
     #[async_std::test]
     async fn test_pointer() {
-        let store = &MockStore::default();
+        let store = &SnapshotBlockStore::default();
         let pointer: Pointer<String, i32, blake3::Hasher> = Pointer::Values(vec![
             Pair {
                 key: "James".into(),

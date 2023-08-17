@@ -3,148 +3,116 @@ source: wnfs/src/public/node/node.rs
 expression: values
 ---
 {
-  "bafyr4iabtqzkuir5mr55kuokqzdpj7q2dcbejuyd2uqui6jkcmnpjldmey": {
+  "bafyr4iaf7cxur6cz5723jjxmzjlhfszen6xvkn27b5mvtfrnurtmqggnnq": {
     "value": {
       "wnfs/pub/dir": {
         "metadata": {
-          "created": 476749353,
-          "modified": 476749353
+          "created": 0,
+          "modified": 0
         },
         "previous": [],
         "userland": {
           "jazz": {
-            "/": "bafyr4id4segpuyypyi37szhrd2di5dl2veuxvyhwsztfusjhsfecw6qdp4"
+            "/": "bafyr4ifdbpj2udunaj7wpyb3by7zivabfva3qtwbnv232ysw5vut7vzx6e"
           }
         },
         "version": "0.2.0"
       }
     },
-    "cbor": "oWx3bmZzL3B1Yi9kaXKkZ3ZlcnNpb25lMC4yLjBobWV0YWRhdGGiZ2NyZWF0ZWQaHGqeKWhtb2RpZmllZBocap4paHByZXZpb3VzgGh1c2VybGFuZKFkamF6etgqWCUAAXEeIHyRDPpjD8I3+WTxHoaOjXqpKXrg9pZmWkknkUgregN/"
+    "cbor": "oWx3bmZzL3B1Yi9kaXKkZ3ZlcnNpb25lMC4yLjBobWV0YWRhdGGiZ2NyZWF0ZWQAaG1vZGlmaWVkAGhwcmV2aW91c4BodXNlcmxhbmShZGphenrYKlglAAFxHiCjC9OqDo0Cf2fgOw4/lFQBLUG4TsFtdb1iVu1pP9c38Q=="
   },
-  "bafyr4icdm3h26vsdhxbofycvkvvqfqpbllxynfzkmvmgobhzs2kxb2ql6i": {
-    "value": {
-      "wnfs/pub/file": {
-        "metadata": {
-          "created": -4178922002,
-          "modified": -4178922002
-        },
-        "previous": [],
-        "userland": {
-          "/": "baeaaaaa"
-        },
-        "version": "0.2.0"
-      }
-    },
-    "cbor": "oW13bmZzL3B1Yi9maWxlpGd2ZXJzaW9uZTAuMi4waG1ldGFkYXRhomdjcmVhdGVkOvkVShFobW9kaWZpZWQ6+RVKEWhwcmV2aW91c4BodXNlcmxhbmTYKkUAAQAAAA=="
-  },
-  "bafyr4id4segpuyypyi37szhrd2di5dl2veuxvyhwsztfusjhsfecw6qdp4": {
-    "value": {
-      "wnfs/pub/file": {
-        "metadata": {
-          "created": 476749353,
-          "modified": 476749353
-        },
-        "previous": [],
-        "userland": {
-          "/": "baeaaaaa"
-        },
-        "version": "0.2.0"
-      }
-    },
-    "cbor": "oW13bmZzL3B1Yi9maWxlpGd2ZXJzaW9uZTAuMi4waG1ldGFkYXRhomdjcmVhdGVkGhxqnilobW9kaWZpZWQaHGqeKWhwcmV2aW91c4BodXNlcmxhbmTYKkUAAQAAAA=="
-  },
-  "bafyr4if6ntyz7t2ztxx6e265glfj5kkjjbay4uxvrbov4udbt2sm2wxtzq": {
+  "bafyr4icgnjcomojc4uglskm6kmzzzfanxywt5inqcfl7i3kyvcpdqedb2a": {
     "value": {
       "wnfs/pub/dir": {
         "metadata": {
-          "created": -7670907671,
-          "modified": -7670907671
-        },
-        "previous": [],
-        "userland": {
-          "anime": {
-            "/": "bafyr4igwh4qgnltrsnhisimydrxf4juzbiysz2cxtmp2ipd3fbzsnmdi7y"
-          }
-        },
-        "version": "0.2.0"
-      }
-    },
-    "cbor": "oWx3bmZzL3B1Yi9kaXKkZ3ZlcnNpb25lMC4yLjBobWV0YWRhdGGiZ2NyZWF0ZWQ7AAAAAck4wxZobW9kaWZpZWQ7AAAAAck4wxZocHJldmlvdXOAaHVzZXJsYW5koWVhbmltZdgqWCUAAXEeINY/IGaucZNOiSGYHG5eJpkKMSzoV5sfpDx7KHMmsGj+"
-  },
-  "bafyr4ighuzozkfmhcnfuxllvdgiqiynfpqbeuzedk4gnnt4s7jrzdom2ui": {
-    "value": {
-      "wnfs/pub/dir": {
-        "metadata": {
-          "created": -4960082003,
-          "modified": -4960082003
+          "created": 0,
+          "modified": 0
         },
         "previous": [
           {
-            "/": "bafyr4igmvov6zv5fap45nc4i2ra6edrh7xpq5kvatu2ux34tydrnk6uwgm"
+            "/": "bafyr4ihn7m344bbloghcqupxlygkskyhmpg5vgqw6ybin4unpcrksuttmy"
           }
         ],
         "userland": {
           "music": {
-            "/": "bafyr4iabtqzkuir5mr55kuokqzdpj7q2dcbejuyd2uqui6jkcmnpjldmey"
+            "/": "bafyr4iaf7cxur6cz5723jjxmzjlhfszen6xvkn27b5mvtfrnurtmqggnnq"
           },
           "text.txt": {
-            "/": "bafyr4icdm3h26vsdhxbofycvkvvqfqpbllxynfzkmvmgobhzs2kxb2ql6i"
+            "/": "bafyr4ifdbpj2udunaj7wpyb3by7zivabfva3qtwbnv232ysw5vut7vzx6e"
           },
           "videos": {
-            "/": "bafyr4igxlgcg3pymdvih7bfe2wngpyet4jqaqp6vccqvw2twdzg7jgzgsm"
+            "/": "bafyr4igv4cb3jiade36ged6hqwdfdu2wpnauksli6emabfgofuphtz27rm"
           }
         },
         "version": "0.2.0"
       }
     },
-    "cbor": "oWx3bmZzL3B1Yi9kaXKkZ3ZlcnNpb25lMC4yLjBobWV0YWRhdGGiZ2NyZWF0ZWQ7AAAAASek2FJobW9kaWZpZWQ7AAAAASek2FJocHJldmlvdXOB2CpYJQABcR4gzKur7NelA/nWi4jUQeIOJ/3fDqqgnTVL75PA4tV6ljNodXNlcmxhbmSjZW11c2lj2CpYJQABcR4gAZwyqiI9ZHvVUcqGRvT+GhiCRNMD1SFEeSoTGvSsbCZmdmlkZW9z2CpYJQABcR4g11mEbb8MHVB/hKTVmmfgk+JgCD/VEKFbanYeTfSbJpNodGV4dC50eHTYKlglAAFxHiBDZs+vVkM9wuLgVVVrAsHhWu+GlyplWGcE+ZaVcOoL8g=="
+    "cbor": "oWx3bmZzL3B1Yi9kaXKkZ3ZlcnNpb25lMC4yLjBobWV0YWRhdGGiZ2NyZWF0ZWQAaG1vZGlmaWVkAGhwcmV2aW91c4HYKlglAAFxHiDt+zfOBCtxjihR914MqSsHY83amhb2AobyjXiiqVJzZmh1c2VybGFuZKNlbXVzaWPYKlglAAFxHiAF+K9I+Fnv9bSm7MpWcsskb69VN18PWVmWLaRmyBjNbGZ2aWRlb3PYKlglAAFxHiDV4IO0oAMm/GIPx4WGUdNWe0FFSWjxGACUzi0eeedfi2h0ZXh0LnR4dNgqWCUAAXEeIKML06oOjQJ/Z+A7Dj+UVAEtQbhOwW11vWJW7Wk/1zfx"
   },
-  "bafyr4igmvov6zv5fap45nc4i2ra6edrh7xpq5kvatu2ux34tydrnk6uwgm": {
+  "bafyr4ifdbpj2udunaj7wpyb3by7zivabfva3qtwbnv232ysw5vut7vzx6e": {
+    "value": {
+      "wnfs/pub/file": {
+        "metadata": {
+          "created": 0,
+          "modified": 0
+        },
+        "previous": [],
+        "userland": {
+          "/": "baeaaaaa"
+        },
+        "version": "0.2.0"
+      }
+    },
+    "cbor": "oW13bmZzL3B1Yi9maWxlpGd2ZXJzaW9uZTAuMi4waG1ldGFkYXRhomdjcmVhdGVkAGhtb2RpZmllZABocHJldmlvdXOAaHVzZXJsYW5k2CpFAAEAAAA="
+  },
+  "bafyr4igv4cb3jiade36ged6hqwdfdu2wpnauksli6emabfgofuphtz27rm": {
     "value": {
       "wnfs/pub/dir": {
         "metadata": {
-          "created": -4960082003,
-          "modified": -4960082003
+          "created": 0,
+          "modified": 0
+        },
+        "previous": [],
+        "userland": {
+          "movies": {
+            "/": "bafyr4ih5spegjcwiwushnajtz4mpo54mwnyti5hvstc34jieou23co5mom"
+          }
+        },
+        "version": "0.2.0"
+      }
+    },
+    "cbor": "oWx3bmZzL3B1Yi9kaXKkZ3ZlcnNpb25lMC4yLjBobWV0YWRhdGGiZ2NyZWF0ZWQAaG1vZGlmaWVkAGhwcmV2aW91c4BodXNlcmxhbmShZm1vdmllc9gqWCUAAXEeIP2TyGSKyLUkdoEzzxj3d4yzcTR09ZTFviUEdTWxO6xz"
+  },
+  "bafyr4ih5spegjcwiwushnajtz4mpo54mwnyti5hvstc34jieou23co5mom": {
+    "value": {
+      "wnfs/pub/dir": {
+        "metadata": {
+          "created": 0,
+          "modified": 0
+        },
+        "previous": [],
+        "userland": {
+          "anime": {
+            "/": "bafyr4ifdbpj2udunaj7wpyb3by7zivabfva3qtwbnv232ysw5vut7vzx6e"
+          }
+        },
+        "version": "0.2.0"
+      }
+    },
+    "cbor": "oWx3bmZzL3B1Yi9kaXKkZ3ZlcnNpb25lMC4yLjBobWV0YWRhdGGiZ2NyZWF0ZWQAaG1vZGlmaWVkAGhwcmV2aW91c4BodXNlcmxhbmShZWFuaW1l2CpYJQABcR4gowvTqg6NAn9n4DsOP5RUAS1BuE7BbXW9YlbtaT/XN/E="
+  },
+  "bafyr4ihn7m344bbloghcqupxlygkskyhmpg5vgqw6ybin4unpcrksuttmy": {
+    "value": {
+      "wnfs/pub/dir": {
+        "metadata": {
+          "created": 0,
+          "modified": 0
         },
         "previous": [],
         "userland": {},
         "version": "0.2.0"
       }
     },
-    "cbor": "oWx3bmZzL3B1Yi9kaXKkZ3ZlcnNpb25lMC4yLjBobWV0YWRhdGGiZ2NyZWF0ZWQ7AAAAASek2FJobW9kaWZpZWQ7AAAAASek2FJocHJldmlvdXOAaHVzZXJsYW5koA=="
-  },
-  "bafyr4igwh4qgnltrsnhisimydrxf4juzbiysz2cxtmp2ipd3fbzsnmdi7y": {
-    "value": {
-      "wnfs/pub/file": {
-        "metadata": {
-          "created": -7670907671,
-          "modified": -7670907671
-        },
-        "previous": [],
-        "userland": {
-          "/": "baeaaaaa"
-        },
-        "version": "0.2.0"
-      }
-    },
-    "cbor": "oW13bmZzL3B1Yi9maWxlpGd2ZXJzaW9uZTAuMi4waG1ldGFkYXRhomdjcmVhdGVkOwAAAAHJOMMWaG1vZGlmaWVkOwAAAAHJOMMWaHByZXZpb3VzgGh1c2VybGFuZNgqRQABAAAA"
-  },
-  "bafyr4igxlgcg3pymdvih7bfe2wngpyet4jqaqp6vccqvw2twdzg7jgzgsm": {
-    "value": {
-      "wnfs/pub/dir": {
-        "metadata": {
-          "created": -7670907671,
-          "modified": -7670907671
-        },
-        "previous": [],
-        "userland": {
-          "movies": {
-            "/": "bafyr4if6ntyz7t2ztxx6e265glfj5kkjjbay4uxvrbov4udbt2sm2wxtzq"
-          }
-        },
-        "version": "0.2.0"
-      }
-    },
-    "cbor": "oWx3bmZzL3B1Yi9kaXKkZ3ZlcnNpb25lMC4yLjBobWV0YWRhdGGiZ2NyZWF0ZWQ7AAAAAck4wxZobW9kaWZpZWQ7AAAAAck4wxZocHJldmlvdXOAaHVzZXJsYW5koWZtb3ZpZXPYKlglAAFxHiC+bPGfz1md7+Jr3TLKnqlJSEGOUvWIXV5QYZ6kzVrzzA=="
+    "cbor": "oWx3bmZzL3B1Yi9kaXKkZ3ZlcnNpb25lMC4yLjBobWV0YWRhdGGiZ2NyZWF0ZWQAaG1vZGlmaWVkAGhwcmV2aW91c4BodXNlcmxhbmSg"
   }
 }

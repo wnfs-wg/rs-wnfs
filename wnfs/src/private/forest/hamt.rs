@@ -486,13 +486,13 @@ mod snapshot_tests {
     use super::*;
     use rand_chacha::ChaCha12Rng;
     use rand_core::SeedableRng;
-    use wnfs_common::utils::MockStore;
+    use wnfs_common::utils::SnapshotBlockStore;
     use wnfs_nameaccumulator::NameSegment;
 
     #[async_std::test]
     async fn test_hamt() {
         let rng = &mut ChaCha12Rng::seed_from_u64(0);
-        let store = &MockStore::default();
+        let store = &SnapshotBlockStore::default();
         let forest = &mut Rc::new(HamtForest::new_rsa_2048(rng));
         let base_name = forest.empty_name();
         let name_segments = [

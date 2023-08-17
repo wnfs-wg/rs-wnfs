@@ -6,23 +6,23 @@ expression: dir
   "value": {
     "wnfs/pub/dir": {
       "metadata": {
-        "created": -4960082003,
-        "modified": -4960082003
+        "created": 0,
+        "modified": 0
       },
       "previous": [],
       "userland": {
         "music": {
-          "/": "bafyr4iabtqzkuir5mr55kuokqzdpj7q2dcbejuyd2uqui6jkcmnpjldmey"
+          "/": "bafyr4iaf7cxur6cz5723jjxmzjlhfszen6xvkn27b5mvtfrnurtmqggnnq"
         },
         "text.txt": {
-          "/": "bafyr4icdm3h26vsdhxbofycvkvvqfqpbllxynfzkmvmgobhzs2kxb2ql6i"
+          "/": "bafyr4ifdbpj2udunaj7wpyb3by7zivabfva3qtwbnv232ysw5vut7vzx6e"
         },
         "videos": {
-          "/": "bafyr4igxlgcg3pymdvih7bfe2wngpyet4jqaqp6vccqvw2twdzg7jgzgsm"
+          "/": "bafyr4igv4cb3jiade36ged6hqwdfdu2wpnauksli6emabfgofuphtz27rm"
         }
       },
       "version": "0.2.0"
     }
   },
-  "cbor": "oWx3bmZzL3B1Yi9kaXKkZ3ZlcnNpb25lMC4yLjBobWV0YWRhdGGiZ2NyZWF0ZWQ7AAAAASek2FJobW9kaWZpZWQ7AAAAASek2FJocHJldmlvdXOAaHVzZXJsYW5ko2VtdXNpY9gqWCUAAXEeIAGcMqoiPWR71VHKhkb0/hoYgkTTA9UhRHkqExr0rGwmZnZpZGVvc9gqWCUAAXEeINdZhG2/DB1Qf4Sk1Zpn4JPiYAg/1RChW2p2Hk30myaTaHRleHQudHh02CpYJQABcR4gQ2bPr1ZDPcLi4FVVawLB4VrvhpcqZVhnBPmWlXDqC/I="
+  "cbor": "oWx3bmZzL3B1Yi9kaXKkZ3ZlcnNpb25lMC4yLjBobWV0YWRhdGGiZ2NyZWF0ZWQAaG1vZGlmaWVkAGhwcmV2aW91c4BodXNlcmxhbmSjZW11c2lj2CpYJQABcR4gBfivSPhZ7/W0puzKVnLLJG+vVTdfD1lZli2kZsgYzWxmdmlkZW9z2CpYJQABcR4g1eCDtKADJvxiD8eFhlHTVntBRUlo8RgAlM4tHnnnX4todGV4dC50eHTYKlglAAFxHiCjC9OqDo0Cf2fgOw4/lFQBLUG4TsFtdb1iVu1pP9c38Q=="
 }

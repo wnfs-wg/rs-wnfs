@@ -354,19 +354,16 @@ mod tests {
 #[cfg(test)]
 mod snapshot_tests {
     use super::*;
-    use fake::{faker::chrono::en::DateTime, Fake};
-    use rand_chacha::ChaCha12Rng;
-    use rand_core::SeedableRng;
-    use wnfs_common::utils::MockStore;
+    use chrono::TimeZone;
+    use wnfs_common::utils::SnapshotBlockStore;
 
     #[async_std::test]
     async fn public_file_and_directory_nodes() {
-        let rng = &mut ChaCha12Rng::seed_from_u64(0);
-        let store = &MockStore::default();
+        let store = &SnapshotBlockStore::default();
+        let time = Utc.with_ymd_and_hms(1970, 1, 1, 0, 0, 0).unwrap();
 
-        let dir_node: PublicNode = PublicDirectory::new(DateTime().fake_with_rng(rng)).into();
-        let file_node: PublicNode =
-            PublicFile::new(DateTime().fake_with_rng(rng), Cid::default()).into();
+        let dir_node: PublicNode = PublicDirectory::new(time).into();
+        let file_node: PublicNode = PublicFile::new(time, Cid::default()).into();
 
         let dir_cid = dir_node.store(store).await.unwrap();
         let file_cid = file_node.store(store).await.unwrap();
@@ -380,20 +377,21 @@ mod snapshot_tests {
 
     #[async_std::test]
     async fn public_fs() {
-        let rng = &mut ChaCha12Rng::seed_from_u64(0);
-        let store = &MockStore::default();
+        let store = &SnapshotBlockStore::default();
+        let time = Utc.with_ymd_and_hms(1970, 1, 1, 0, 0, 0).unwrap();
+
         let paths = [
             vec!["text.txt".into()],
             vec!["music".into(), "jazz".into()],
             vec!["videos".into(), "movies".into(), "anime".into()],
         ];
 
-        let root_dir = &mut Rc::new(PublicDirectory::new(DateTime().fake_with_rng(rng)));
+        let root_dir = &mut Rc::new(PublicDirectory::new(time));
         let _ = root_dir.store(store).await.unwrap();
 
         for path in paths.iter() {
             root_dir
-                .write(path, Cid::default(), DateTime().fake_with_rng(rng), store)
+                .write(path, Cid::default(), time, store)
                 .await
                 .unwrap();
         }

@@ -12,9 +12,9 @@ use crate::{
     VERSION,
 };
 use anyhow::{bail, Result};
-use chrono::{DateTime, Utc};
 #[cfg(test)]
-use fake::{faker::chrono::en::DateTime, Fake};
+use chrono::TimeZone;
+use chrono::{DateTime, Utc};
 use libipld_core::cid::Cid;
 #[cfg(test)]
 use rand_chacha::{rand_core::SeedableRng, ChaCha12Rng};
@@ -343,7 +343,7 @@ where
 impl<'a, B: BlockStore> RootTree<'a, B, ChaCha12Rng> {
     pub fn with_store(store: &'a B) -> RootTree<'a, B, ChaCha12Rng> {
         let mut rng = ChaCha12Rng::seed_from_u64(0);
-        let time = DateTime().fake_with_rng(&mut rng);
+        let time = Utc.with_ymd_and_hms(1970, 1, 1, 0, 0, 0).unwrap();
         let forest = Rc::new(HamtForest::new(AccumulatorSetup::trusted(&mut rng)));
 
         Self {
@@ -437,15 +437,15 @@ mod tests {
 mod snapshot_tests {
     use super::*;
     use crate::utils;
-    use fake::{faker::chrono::en::DateTime, Fake};
     use rand_chacha::ChaCha12Rng;
     use rand_core::SeedableRng;
-    use wnfs_common::utils::MockStore;
+    use wnfs_common::utils::SnapshotBlockStore;
 
     #[async_std::test]
     async fn test_root_filesystems() {
         let rng = &mut ChaCha12Rng::seed_from_u64(0);
-        let store = &mut MockStore::default();
+        let store = &mut SnapshotBlockStore::default();
+        let time = Utc.with_ymd_and_hms(1970, 1, 1, 0, 0, 0).unwrap();
         let paths = [
             (["public".into()], vec!["text.txt".into()]),
             (["exchange".into()], vec!["music".into(), "jazz".into()]),
@@ -457,18 +457,13 @@ mod snapshot_tests {
 
         let mut root_tree = RootTree::with_store(store);
         root_tree
-            .create_private_root("private", DateTime().fake_with_rng(rng))
+            .create_private_root("private", time)
             .await
             .unwrap();
 
         for (root, path) in paths.iter() {
             root_tree
-                .write(
-                    root,
-                    path,
-                    b"hello world".to_vec(),
-                    DateTime().fake_with_rng(rng),
-                )
+                .write(root, path, b"hello world".to_vec(), time)
                 .await
                 .unwrap();
         }

@@ -23,12 +23,12 @@ use std::{
 // Type Definitions
 //--------------------------------------------------------------------------------------------------
 
-type CidHandler = Box<dyn Fn(&Bytes) -> Result<Bytes>>;
+type BlockHandler = Box<dyn Fn(&Bytes) -> Result<Bytes>>;
 
 #[derive(Default)]
-pub struct MockStore {
+pub struct SnapshotBlockStore {
     inner: MemoryBlockStore,
-    cid_handlers: HashMap<Cid, CidHandler>,
+    block_handlers: HashMap<Cid, BlockHandler>,
 }
 
 base64_serde_type!(Base64Standard, base64::engine::general_purpose::STANDARD);
@@ -49,7 +49,7 @@ pub trait Sampleable {
 // Implementations
 //--------------------------------------------------------------------------------------------------
 
-impl MockStore {
+impl SnapshotBlockStore {
     pub async fn get_block_snapshot(&self, cid: &Cid) -> Result<BlockSnapshot> {
         let cbor_bytes = self.get_block(cid).await?;
 
@@ -72,14 +72,18 @@ impl MockStore {
             .map(|(cid, v)| {
                 let cbor_bytes = match cid.codec() {
                     CODEC_DAG_CBOR => v.clone(),
-                    CODEC_RAW => match self.cid_handlers.get(cid) {
+                    CODEC_RAW => match self.block_handlers.get(cid) {
                         Some(func) => func(v)?,
-                        None => Bytes::from(encode(v, DagCborCodec)?),
+                        None => Bytes::from(encode(
+                            &Ipld::List(vec![Ipld::Bytes(v.to_vec())]),
+                            DagCborCodec,
+                        )?),
                     },
                     _ => unimplemented!(),
                 };
 
                 let ipld = Ipld::decode(DagCborCodec, &mut Cursor::new(cbor_bytes.clone()))?;
+
                 let mut json_bytes = Vec::new();
                 ipld.encode(DagJsonCodec, &mut json_bytes)?;
 
@@ -95,13 +99,13 @@ impl MockStore {
             .collect()
     }
 
-    pub fn add_cid_handler(&mut self, cid: Cid, f: CidHandler) {
-        self.cid_handlers.insert(cid, f);
+    pub fn add_block_handler(&mut self, cid: Cid, f: BlockHandler) {
+        self.block_handlers.insert(cid, f);
     }
 }
 
 #[async_trait::async_trait(?Send)]
-impl BlockStore for MockStore {
+impl BlockStore for SnapshotBlockStore {
     #[inline]
     async fn get_block(&self, cid: &Cid) -> Result<Bytes> {
         self.inner.get_block(cid).await

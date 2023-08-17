@@ -6,7 +6,7 @@ use anyhow::Result;
 use bytes::Bytes;
 use rand_core::CryptoRngCore;
 use std::rc::Rc;
-use wnfs_common::utils::MockStore;
+use wnfs_common::utils::SnapshotBlockStore;
 use wnfs_nameaccumulator::Name;
 
 //--------------------------------------------------------------------------------------------------
@@ -14,7 +14,7 @@ use wnfs_nameaccumulator::Name;
 //--------------------------------------------------------------------------------------------------
 
 pub(crate) async fn walk_dir(
-    store: &mut MockStore,
+    store: &mut SnapshotBlockStore,
     forest: &mut Rc<HamtForest>,
     root_dir: &Rc<PrivateDirectory>,
     rng: &mut impl CryptoRngCore,
@@ -24,11 +24,11 @@ pub(crate) async fn walk_dir(
         let private_ref: PrivateRef = dir.store(forest, store, rng).await?;
         let temporal_key = private_ref.temporal_key;
         let snapshot_key = temporal_key.derive_snapshot_key();
-        store.add_cid_handler(
+        store.add_block_handler(
             private_ref.content_cid,
             Box::new(move |bytes| Ok(Bytes::from(snapshot_key.decrypt(bytes.as_ref())?))),
         );
-        store.add_cid_handler(
+        store.add_block_handler(
             dir.header
                 .store(store, forest.get_accumulator_setup())
                 .await?,
@@ -46,13 +46,13 @@ pub(crate) async fn walk_dir(
                     let private_ref: PrivateRef = file.store(forest, store, rng).await?;
                     let temporal_key = private_ref.temporal_key;
                     let snapshot_key = temporal_key.derive_snapshot_key();
-                    store.add_cid_handler(
+                    store.add_block_handler(
                         private_ref.content_cid,
                         Box::new(move |bytes| {
                             Ok(Bytes::from(snapshot_key.decrypt(bytes.as_ref())?))
                         }),
                     );
-                    store.add_cid_handler(
+                    store.add_block_handler(
                         file.header
                             .store(store, forest.get_accumulator_setup())
                             .await?,
@@ -76,7 +76,7 @@ pub(crate) async fn walk_dir(
                             match forest.get_encrypted(&name, store).await? {
                                 Some(cids) => {
                                     let key = key.clone();
-                                    store.add_cid_handler(
+                                    store.add_block_handler(
                                         *cids.first().unwrap(),
                                         Box::new(move |bytes| {
                                             Ok(Bytes::from(key.decrypt(bytes.as_ref())?))

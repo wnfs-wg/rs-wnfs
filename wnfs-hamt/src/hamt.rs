@@ -242,11 +242,11 @@ mod tests {
 #[cfg(test)]
 mod snapshot_tests {
     use super::*;
-    use wnfs_common::utils::MockStore;
+    use wnfs_common::utils::SnapshotBlockStore;
 
     #[async_std::test]
     async fn test_hamt() {
-        let store = &MockStore::default();
+        let store = &SnapshotBlockStore::default();
         let node = &mut Rc::new(Node::<[u8; 4], String>::default());
         for i in 0..99_u32 {
             node.set(i.to_le_bytes(), i.to_string(), store)

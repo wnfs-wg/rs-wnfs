@@ -42,9 +42,9 @@ serde_ipld_dagcbor = "0.4"
 sha3 = "0.10"
 skip_ratchet = { version = "0.3", features = ["serde"] }
 thiserror = "1.0"
-wnfs-common = { path = "../wnfs-common", version = "0.1" }
-wnfs-hamt = { path = "../wnfs-hamt", version = "0.1" }
-wnfs-nameaccumulator = { path = "../wnfs-nameaccumulator", version = "0.1" }
+wnfs-common = { path = "../wnfs-common", version = "0.1.23" }
+wnfs-hamt = { path = "../wnfs-hamt", version = "0.1.23" }
+wnfs-nameaccumulator = { path = "../wnfs-nameaccumulator", version = "0.1.23" }
 
 [dev-dependencies]
 async-std = { version = "1.11", features = ["attributes"] }
@@ -61,7 +61,7 @@ sha2 = "0.10"
 test-log = "0.2"
 test-strategy = "0.3"
 tiny-bip39 = "1.0"
-wnfs-common = { path = "../wnfs-common", version = "0.1", features = ["test_utils"] }
+wnfs-common = { path = "../wnfs-common", features = ["test_utils"] }
 
 [lib]
 name = "wnfs"

@@ -2175,16 +2175,17 @@ mod tests {
 mod snapshot_tests {
     use super::*;
     use crate::{private::forest::hamt::HamtForest, utils};
-    use fake::{faker::chrono::en::DateTime, Fake};
+    use chrono::TimeZone;
     use rand_chacha::ChaCha12Rng;
     use rand_core::SeedableRng;
-    use wnfs_common::utils::MockStore;
+    use wnfs_common::utils::SnapshotBlockStore;
 
     #[async_std::test]
     async fn test_private_fs() -> Result<()> {
         let rng = &mut ChaCha12Rng::seed_from_u64(0);
-        let store = &mut MockStore::default();
+        let store = &mut SnapshotBlockStore::default();
         let forest = &mut Rc::new(HamtForest::new_rsa_2048(rng));
+        let time = Utc.with_ymd_and_hms(1970, 1, 1, 0, 0, 0).unwrap();
         let base_name = forest.empty_name();
         let paths = [
             vec!["text.txt".into()],
@@ -2192,18 +2193,14 @@ mod snapshot_tests {
             vec!["videos".into(), "movies".into(), "anime".into()],
         ];
 
-        let root_dir = &mut Rc::new(PrivateDirectory::new(
-            &base_name,
-            DateTime().fake_with_rng(rng),
-            rng,
-        ));
+        let root_dir = &mut Rc::new(PrivateDirectory::new(&base_name, time, rng));
 
         for path in paths.iter() {
             root_dir
                 .write(
                     path,
                     true,
-                    DateTime().fake_with_rng(rng),
+                    time,
                     b"Hello World".to_vec(),
                     forest,
                     store,

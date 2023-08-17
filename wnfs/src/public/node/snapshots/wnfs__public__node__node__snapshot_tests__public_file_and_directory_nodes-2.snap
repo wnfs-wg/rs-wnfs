@@ -6,8 +6,8 @@ expression: file
   "value": {
     "wnfs/pub/file": {
       "metadata": {
-        "created": -4178922002,
-        "modified": -4178922002
+        "created": 0,
+        "modified": 0
       },
       "previous": [],
       "userland": {
@@ -16,5 +16,5 @@ expression: file
       "version": "0.2.0"
     }
   },
-  "cbor": "oW13bmZzL3B1Yi9maWxlpGd2ZXJzaW9uZTAuMi4waG1ldGFkYXRhomdjcmVhdGVkOvkVShFobW9kaWZpZWQ6+RVKEWhwcmV2aW91c4BodXNlcmxhbmTYKkUAAQAAAA=="
+  "cbor": "oW13bmZzL3B1Yi9maWxlpGd2ZXJzaW9uZTAuMi4waG1ldGFkYXRhomdjcmVhdGVkAGhtb2RpZmllZABocHJldmlvdXOAaHVzZXJsYW5k2CpFAAEAAAA="
 }
