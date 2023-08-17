@@ -1,4 +1,4 @@
-use crate::{encode, BlockStore, MemoryBlockStore, CODEC_DAG_CBOR, CODEC_RAW};
+use crate::{BlockStore, MemoryBlockStore, CODEC_DAG_CBOR, CODEC_RAW};
 use anyhow::Result;
 use base64_serde::base64_serde_type;
 use bytes::Bytes;
@@ -23,7 +23,7 @@ use std::{
 // Type Definitions
 //--------------------------------------------------------------------------------------------------
 
-type BlockHandler = Box<dyn Fn(&Bytes) -> Result<Bytes>>;
+type BlockHandler = Box<dyn Fn(&Bytes) -> Result<Ipld>>;
 
 #[derive(Default)]
 pub struct SnapshotBlockStore {
@@ -37,7 +37,7 @@ base64_serde_type!(Base64Standard, base64::engine::general_purpose::STANDARD);
 pub struct BlockSnapshot {
     pub value: Value,
     #[serde(with = "Base64Standard")]
-    pub cbor: Vec<u8>,
+    pub bytes: Bytes,
 }
 
 pub trait Sampleable {
@@ -51,17 +51,31 @@ pub trait Sampleable {
 
 impl SnapshotBlockStore {
     pub async fn get_block_snapshot(&self, cid: &Cid) -> Result<BlockSnapshot> {
-        let cbor_bytes = self.get_block(cid).await?;
+        let bytes = self.get_block(cid).await?;
+        self.handle_block(cid, &bytes).map(|(_, snapshot)| snapshot)
+    }
 
-        let ipld = Ipld::decode(DagCborCodec, &mut Cursor::new(cbor_bytes.clone()))?;
+    pub fn handle_block(&self, cid: &Cid, bytes: &Bytes) -> Result<(String, BlockSnapshot)> {
+        let ipld = match cid.codec() {
+            CODEC_DAG_CBOR => Ipld::decode(DagCborCodec, &mut Cursor::new(bytes))?,
+            CODEC_RAW => match self.block_handlers.get(cid) {
+                Some(func) => func(bytes)?,
+                None => Ipld::Bytes(bytes.to_vec()),
+            },
+            _ => unimplemented!(),
+        };
+
         let mut json_bytes = Vec::new();
         ipld.encode(DagJsonCodec, &mut json_bytes)?;
 
         let value = serde_json::from_slice(&json_bytes)?;
-        Ok(BlockSnapshot {
-            value,
-            cbor: cbor_bytes.to_vec(),
-        })
+        Ok((
+            cid.to_string(),
+            BlockSnapshot {
+                value,
+                bytes: bytes.clone(),
+            },
+        ))
     }
 
     pub fn get_all_block_snapshots(&self) -> Result<BTreeMap<String, BlockSnapshot>> {
@@ -69,33 +83,7 @@ impl SnapshotBlockStore {
             .0
             .borrow()
             .iter()
-            .map(|(cid, v)| {
-                let cbor_bytes = match cid.codec() {
-                    CODEC_DAG_CBOR => v.clone(),
-                    CODEC_RAW => match self.block_handlers.get(cid) {
-                        Some(func) => func(v)?,
-                        None => Bytes::from(encode(
-                            &Ipld::List(vec![Ipld::Bytes(v.to_vec())]),
-                            DagCborCodec,
-                        )?),
-                    },
-                    _ => unimplemented!(),
-                };
-
-                let ipld = Ipld::decode(DagCborCodec, &mut Cursor::new(cbor_bytes.clone()))?;
-
-                let mut json_bytes = Vec::new();
-                ipld.encode(DagJsonCodec, &mut json_bytes)?;
-
-                let value = serde_json::from_slice(&json_bytes)?;
-                Ok((
-                    cid.to_string(),
-                    BlockSnapshot {
-                        value,
-                        cbor: cbor_bytes.to_vec(),
-                    },
-                ))
-            })
+            .map(|(cid, bytes)| self.handle_block(cid, bytes))
             .collect()
     }
 

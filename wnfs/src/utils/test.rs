@@ -3,10 +3,10 @@ use crate::private::{
     FileContent, PrivateDirectory, PrivateFile, PrivateNode, PrivateRef,
 };
 use anyhow::Result;
-use bytes::Bytes;
+use libipld_core::ipld::Ipld;
 use rand_core::CryptoRngCore;
 use std::rc::Rc;
-use wnfs_common::utils::SnapshotBlockStore;
+use wnfs_common::{decode, libipld::cbor::DagCborCodec, utils::SnapshotBlockStore};
 use wnfs_nameaccumulator::Name;
 
 //--------------------------------------------------------------------------------------------------
@@ -26,13 +26,23 @@ pub(crate) async fn walk_dir(
         let snapshot_key = temporal_key.derive_snapshot_key();
         store.add_block_handler(
             private_ref.content_cid,
-            Box::new(move |bytes| Ok(Bytes::from(snapshot_key.decrypt(bytes.as_ref())?))),
+            Box::new(move |bytes| {
+                Ok(decode(
+                    &snapshot_key.decrypt(bytes.as_ref())?,
+                    DagCborCodec,
+                )?)
+            }),
         );
         store.add_block_handler(
             dir.header
                 .store(store, forest.get_accumulator_setup())
                 .await?,
-            Box::new(move |bytes| Ok(Bytes::from(temporal_key.key_wrap_decrypt(bytes.as_ref())?))),
+            Box::new(move |bytes| {
+                Ok(decode(
+                    &temporal_key.key_wrap_decrypt(bytes.as_ref())?,
+                    DagCborCodec,
+                )?)
+            }),
         );
 
         let entries = dir.ls(&[], true, forest, store).await?;
@@ -49,7 +59,10 @@ pub(crate) async fn walk_dir(
                     store.add_block_handler(
                         private_ref.content_cid,
                         Box::new(move |bytes| {
-                            Ok(Bytes::from(snapshot_key.decrypt(bytes.as_ref())?))
+                            Ok(decode(
+                                &snapshot_key.decrypt(bytes.as_ref())?,
+                                DagCborCodec,
+                            )?)
                         }),
                     );
                     store.add_block_handler(
@@ -57,7 +70,10 @@ pub(crate) async fn walk_dir(
                             .store(store, forest.get_accumulator_setup())
                             .await?,
                         Box::new(move |bytes| {
-                            Ok(Bytes::from(temporal_key.key_wrap_decrypt(bytes.as_ref())?))
+                            Ok(decode(
+                                &temporal_key.key_wrap_decrypt(bytes.as_ref())?,
+                                DagCborCodec,
+                            )?)
                         }),
                     );
                     if let FileContent::External {
@@ -79,7 +95,7 @@ pub(crate) async fn walk_dir(
                                     store.add_block_handler(
                                         *cids.first().unwrap(),
                                         Box::new(move |bytes| {
-                                            Ok(Bytes::from(key.decrypt(bytes.as_ref())?))
+                                            Ok(Ipld::Bytes(key.decrypt(bytes.as_ref())?))
                                         }),
                                     )
                                 }

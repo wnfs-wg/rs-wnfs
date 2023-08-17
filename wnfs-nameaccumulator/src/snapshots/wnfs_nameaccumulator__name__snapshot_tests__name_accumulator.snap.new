@@ -1,0 +1,13 @@
+---
+source: wnfs-nameaccumulator/src/name.rs
+assertion_line: 807
+expression: name
+---
+{
+  "value": {
+    "/": {
+      "bytes": "QJGrxttvHTU78j/tJnSVMV+P/9eqtVs+5/MZFGwT+Fp5OeAeYYkTdROGIU1QBThKsKXTxagSECZN+AkULPOERVK/6n2UrWBYdj89gXBHMsVzzKRSi1V2gv9KjsI8bxbVM5b1M3YAGixO7vlAWZOREWRK82XHaaQnbrnENoFvjtXpKp7ZeW7bdWKXsa3gz891zlMb4SjudlQJYbz4LxfaYCvFo77/x5lN8Nr5B5aDJbgG+Hkgk0h3v/hEkZV+xjfhhtVaQ8qULLK4YlWZhyz/9Vg4YS/NuJvaEfCbfEBJksOnRJg9tMT7ckzjnz6WH7NKFt5TPMZwQEqLNQGHhtim4g"
+    }
+  },
+  "bytes": "WQEAQJGrxttvHTU78j/tJnSVMV+P/9eqtVs+5/MZFGwT+Fp5OeAeYYkTdROGIU1QBThKsKXTxagSECZN+AkULPOERVK/6n2UrWBYdj89gXBHMsVzzKRSi1V2gv9KjsI8bxbVM5b1M3YAGixO7vlAWZOREWRK82XHaaQnbrnENoFvjtXpKp7ZeW7bdWKXsa3gz891zlMb4SjudlQJYbz4LxfaYCvFo77/x5lN8Nr5B5aDJbgG+Hkgk0h3v/hEkZV+xjfhhtVaQ8qULLK4YlWZhyz/9Vg4YS/NuJvaEfCbfEBJksOnRJg9tMT7ckzjnz6WH7NKFt5TPMZwQEqLNQGHhtim4g=="
+}

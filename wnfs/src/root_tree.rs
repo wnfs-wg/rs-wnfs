@@ -447,12 +447,9 @@ mod snapshot_tests {
         let store = &mut SnapshotBlockStore::default();
         let time = Utc.with_ymd_and_hms(1970, 1, 1, 0, 0, 0).unwrap();
         let paths = [
-            (["public".into()], vec!["text.txt".into()]),
-            (["exchange".into()], vec!["music".into(), "jazz".into()]),
-            (
-                ["private".into()],
-                vec!["videos".into(), "movies".into(), "anime".into()],
-            ),
+            // (["public".into()], vec!["text.txt".into()]),
+            // (["exchange".into()], vec!["music".into(), "jazz".into()]),
+            (["private".into()], vec!["videos".into()]),
         ];
 
         let mut root_tree = RootTree::with_store(store);

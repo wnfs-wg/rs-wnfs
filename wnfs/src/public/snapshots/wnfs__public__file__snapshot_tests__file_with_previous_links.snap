@@ -20,5 +20,5 @@ expression: file
       "version": "0.2.0"
     }
   },
-  "cbor": "oW13bmZzL3B1Yi9maWxlpGd2ZXJzaW9uZTAuMi4waG1ldGFkYXRhomdjcmVhdGVkAGhtb2RpZmllZABocHJldmlvdXOB2CpYJQABcR4gowvTqg6NAn9n4DsOP5RUAS1BuE7BbXW9YlbtaT/XN/FodXNlcmxhbmTYKkUAAQAAAA=="
+  "bytes": "oW13bmZzL3B1Yi9maWxlpGd2ZXJzaW9uZTAuMi4waG1ldGFkYXRhomdjcmVhdGVkAGhtb2RpZmllZABocHJldmlvdXOB2CpYJQABcR4gowvTqg6NAn9n4DsOP5RUAS1BuE7BbXW9YlbtaT/XN/FodXNlcmxhbmTYKkUAAQAAAA=="
 }
