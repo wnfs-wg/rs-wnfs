@@ -12,6 +12,13 @@
   * dependencies
     * wnfs bumped from 0.1.19 to 0.1.20
 
+## [0.1.25](https://github.com/wnfs-wg/rs-wnfs/compare/wnfs-wasm-v0.1.24...wnfs-wasm-v0.1.25) (2023-08-18)
+
+
+### Bug Fixes
+
+* bump package.json version number to 0.1.24 ([#331](https://github.com/wnfs-wg/rs-wnfs/issues/331)) ([62b6a80](https://github.com/wnfs-wg/rs-wnfs/commit/62b6a809f6a891caa0f4ec1d8ef6d54113f92119))
+
 ## [0.1.24](https://github.com/wnfs-wg/rs-wnfs/compare/wnfs-wasm-v0.1.23...wnfs-wasm-v0.1.24) (2023-08-17)
 
 
