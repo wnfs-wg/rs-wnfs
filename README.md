@@ -327,6 +327,9 @@ structured like so:
 For usage questions, usecases, or issues reach out to us in our [Discord webnative-fs channel][webnative-discord].
 We would be happy to try to answer your question or try opening a new issue on Github.
 
+## Roadmap
+[Starmap](https://starmap.site/roadmap/github.com/fission-codes/Fission-Starmap/issues/2#view=simple)
+
 ## License
 
 This project is licensed under the [Apache License 2.0](https://github.com/wnfs-wg/rs-wnfs/blob/main/LICENSE).
