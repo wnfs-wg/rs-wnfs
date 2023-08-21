@@ -32,7 +32,7 @@ jobs:
     steps:
       - name: Run release-please
         id: release
-        uses: google-github-actions/release-please-action@v3.7.10
+        uses: google-github-actions/release-please-action@v3.7.11
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           default-branch: main
