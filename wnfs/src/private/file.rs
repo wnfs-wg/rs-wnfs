@@ -3,7 +3,7 @@ use super::{
     PrivateNode, PrivateNodeContentSerializable, PrivateNodeHeader, PrivateRef, SnapshotKey,
     TemporalKey, AUTHENTICATION_TAG_SIZE, BLOCK_SEGMENT_DSI, HIDING_SEGMENT_DSI, NONCE_SIZE,
 };
-use crate::{error::FsError, traits::Id, WNFS_VERSION};
+use crate::{error::FsError, is_readable_wnfs_version, traits::Id, WNFS_VERSION};
 use anyhow::{bail, Result};
 use async_once_cell::OnceCell;
 use async_stream::try_stream;
@@ -745,7 +745,7 @@ impl PrivateFile {
         store: &impl BlockStore,
         parent_name: Option<Name>,
     ) -> Result<Self> {
-        if serializable.version.major != 0 || serializable.version.minor != 2 {
+        if !is_readable_wnfs_version(&serializable.version) {
             bail!(FsError::UnexpectedVersion(serializable.version));
         }
 

@@ -12,17 +12,17 @@ expression: dir
       "previous": [],
       "userland": {
         "music": {
-          "/": "bafyr4iaf7cxur6cz5723jjxmzjlhfszen6xvkn27b5mvtfrnurtmqggnnq"
+          "/": "bafyr4ietl6u7ligzk3sxfwqvycd2vhd4ohw3rxn5qv7ajrlzommvzk5la4"
         },
         "text.txt": {
-          "/": "bafyr4ifdbpj2udunaj7wpyb3by7zivabfva3qtwbnv232ysw5vut7vzx6e"
+          "/": "bafyr4ie5jfvlj66jxhhvggxjltfj4ljfhjyirnngts23e33ugezjpc6xaq"
         },
         "videos": {
-          "/": "bafyr4igv4cb3jiade36ged6hqwdfdu2wpnauksli6emabfgofuphtz27rm"
+          "/": "bafyr4ifmlt3hmgb5kdaprkhqqg774bcgyra54sli273iceddse25d7xkbe"
         }
       },
-      "version": "0.2.0"
+      "version": "1.0.0"
     }
   },
-  "bytes": "oWx3bmZzL3B1Yi9kaXKkZ3ZlcnNpb25lMC4yLjBobWV0YWRhdGGiZ2NyZWF0ZWQAaG1vZGlmaWVkAGhwcmV2aW91c4BodXNlcmxhbmSjZW11c2lj2CpYJQABcR4gBfivSPhZ7/W0puzKVnLLJG+vVTdfD1lZli2kZsgYzWxmdmlkZW9z2CpYJQABcR4g1eCDtKADJvxiD8eFhlHTVntBRUlo8RgAlM4tHnnnX4todGV4dC50eHTYKlglAAFxHiCjC9OqDo0Cf2fgOw4/lFQBLUG4TsFtdb1iVu1pP9c38Q=="
+  "bytes": "oWx3bmZzL3B1Yi9kaXKkZ3ZlcnNpb25lMS4wLjBobWV0YWRhdGGiZ2NyZWF0ZWQAaG1vZGlmaWVkAGhwcmV2aW91c4BodXNlcmxhbmSjZW11c2lj2CpYJQABcR4gk1+p9aDZVuVy2hXAh6qcfHHtuN29hX4ExXlzGVyrqwdmdmlkZW9z2CpYJQABcR4grFz2dhg9UMD4qPCBv/4ERsRB3klo1/aBEGORNdH+6glodGV4dC50eHTYKlglAAFxHiCdSWq0+8m5z1Ma6VzKni0lOnCItaactbJvdDEyl4vXBA=="
 }

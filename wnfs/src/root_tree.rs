@@ -9,7 +9,7 @@ use crate::{
         PrivateDirectory,
     },
     public::PublicDirectory,
-    VERSION,
+    WNFS_VERSION,
 };
 use anyhow::{bail, Result};
 #[cfg(test)]
@@ -311,7 +311,7 @@ where
             public: self.public_root.store(store).await?,
             exchange: self.exchange_root.store(store).await?,
             forest: self.forest.store(store).await?,
-            version: VERSION,
+            version: WNFS_VERSION,
         };
 
         store.put_serializable(&serializable).await

@@ -32,7 +32,8 @@ pub mod nameaccumulator {
 // Constants
 //--------------------------------------------------------------------------------------------------
 
-const VERSION: semver::Version = semver::Version::new(0, 2, 0);
+/// The version of the WNFS data format that this library outputs
+pub const WNFS_VERSION: semver::Version = semver::Version::new(1, 0, 0);
 
 //--------------------------------------------------------------------------------------------------
 // Types
@@ -46,7 +47,24 @@ pub(crate) enum SearchResult<T> {
 }
 
 //--------------------------------------------------------------------------------------------------
-// Constants
+// Functions
 //--------------------------------------------------------------------------------------------------
 
-pub const WNFS_VERSION: semver::Version = semver::Version::new(0, 2, 0);
+/// Whether given WNFS data format version can be read by this library
+pub fn is_readable_wnfs_version(version: &semver::Version) -> bool {
+    get_wnfs_version_req().matches(version)
+}
+
+/// The WNFS data format version requirement for this version of the library
+pub fn get_wnfs_version_req() -> semver::VersionReq {
+    use semver::*;
+    VersionReq {
+        comparators: vec![Comparator {
+            op: Op::Exact,
+            major: WNFS_VERSION.major,
+            minor: Some(WNFS_VERSION.minor),
+            patch: None,
+            pre: Prerelease::EMPTY,
+        }],
+    }
+}

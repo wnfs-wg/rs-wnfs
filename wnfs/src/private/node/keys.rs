@@ -29,24 +29,26 @@ pub const KEY_BYTE_SIZE: usize = 32;
 /// The revision segment derivation domain separation info
 /// used for salting the hashing function when turning
 /// node names into revisioned node names.
-pub(crate) const REVISION_SEGMENT_DSI: &str = "wnfs/revision segment deriv from ratchet";
+pub(crate) const REVISION_SEGMENT_DSI: &str = "wnfs/1.0/revision segment derivation from ratchet";
 /// The hiding segment derivation domain separation info
 /// used for salting the hashing function when generating
 /// the hiding segment from the external file content key,
 /// which is added to a file's name to generate the external content base name.
-pub(crate) const HIDING_SEGMENT_DSI: &str = "wnfs/hiding segment deriv from content key";
+/// This domain separation string is not part of the standard, as the standard leaves
+/// the way the base name is derived open to implementations.
+pub(crate) const HIDING_SEGMENT_DSI: &str = "wnfs/1.0/hiding segment derivation from content key";
 /// The block segment derivation domain separation info
 /// used for salting the hashing function when generating
 /// the segments for each file's external content blocks.
-pub(crate) const BLOCK_SEGMENT_DSI: &str = "wnfs/segment deriv for file block";
+pub(crate) const BLOCK_SEGMENT_DSI: &str = "wnfs/1.0/segment derivation for file block";
 /// The temporal key derivation domain seperation info
 /// used for salting the hashing function when deriving
 /// symmetric keys from ratchets.
-pub(crate) const TEMPORAL_KEY_DSI: &str = "wnfs/temporal deriv from ratchet";
+pub(crate) const TEMPORAL_KEY_DSI: &str = "wnfs/1.0/temporal derivation from ratchet";
 /// The snapshot key derivation domain separation info
 /// used for salting the hashing function when deriving
 /// the snapshot key from the temporal key.
-pub(crate) const SNAPSHOT_KEY_DSI: &str = "wnfs/snapshot key deriv from temporal";
+pub(crate) const SNAPSHOT_KEY_DSI: &str = "wnfs/1.0/snapshot key derivation from temporal";
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions

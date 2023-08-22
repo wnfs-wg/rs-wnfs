@@ -3,7 +3,7 @@ use super::{
     PrivateDirectoryContentSerializable, PrivateFile, PrivateNode, PrivateNodeContentSerializable,
     PrivateNodeHeader, PrivateRef, TemporalKey,
 };
-use crate::{error::FsError, traits::Id, SearchResult, WNFS_VERSION};
+use crate::{error::FsError, is_readable_wnfs_version, traits::Id, SearchResult, WNFS_VERSION};
 use anyhow::{bail, ensure, Result};
 use async_once_cell::OnceCell;
 use chrono::{DateTime, Utc};
@@ -1278,7 +1278,7 @@ impl PrivateDirectory {
         store: &impl BlockStore,
         parent_name: Option<Name>,
     ) -> Result<Self> {
-        if serializable.version.major != 0 || serializable.version.minor != 2 {
+        if !is_readable_wnfs_version(&serializable.version) {
             bail!(FsError::UnexpectedVersion(serializable.version));
         }
 
