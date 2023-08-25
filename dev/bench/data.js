@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1692959109861,
+  "lastUpdate": 1692959219786,
   "repoUrl": "https://github.com/wnfs-wg/rs-wnfs",
   "entries": {
     "Rust Benchmark": [
@@ -17725,6 +17725,102 @@ window.BENCHMARK_DATA = {
             "name": "NameAccumulator serialization",
             "value": 781,
             "range": "± 53",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "49699333+dependabot[bot]@users.noreply.github.com",
+            "name": "dependabot[bot]",
+            "username": "dependabot[bot]"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "281e343e3a8294a890c9c62bc3f1180527df625b",
+          "message": "chore(npm)(deps-dev): bump @playwright/test in /wnfs-wasm (#334)\n\nBumps [@playwright/test](https://github.com/Microsoft/playwright) from 1.36.2 to 1.37.1.\r\n- [Release notes](https://github.com/Microsoft/playwright/releases)\r\n- [Commits](https://github.com/Microsoft/playwright/compare/v1.36.2...v1.37.1)\r\n\r\n---\r\nupdated-dependencies:\r\n- dependency-name: \"@playwright/test\"\r\n  dependency-type: direct:development\r\n  update-type: version-update:semver-minor\r\n...\r\n\r\nSigned-off-by: dependabot[bot] <support@github.com>\r\nCo-authored-by: dependabot[bot] <49699333+dependabot[bot]@users.noreply.github.com>",
+          "timestamp": "2023-08-25T11:21:14+01:00",
+          "tree_id": "8951f1fd8cddae9df26406ec6235c3cd3977a7d7",
+          "url": "https://github.com/wnfs-wg/rs-wnfs/commit/281e343e3a8294a890c9c62bc3f1180527df625b"
+        },
+        "date": 1692959218553,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "node set",
+            "value": 6969,
+            "range": "± 235",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node set 1000 consecutive",
+            "value": 2926378,
+            "range": "± 42690",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and get",
+            "value": 130438,
+            "range": "± 1695",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and remove",
+            "value": 140959,
+            "range": "± 1963",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt load and decode/0",
+            "value": 48262,
+            "range": "± 626",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt set and encode",
+            "value": 124564,
+            "range": "± 1668",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt diff",
+            "value": 55706,
+            "range": "± 3877",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt merge",
+            "value": 163084,
+            "range": "± 12891",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameSegment::new_hashed",
+            "value": 2949736,
+            "range": "± 350717",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameSegment::new(rng)",
+            "value": 3043913,
+            "range": "± 359045",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameAccumulator::add",
+            "value": 2687597,
+            "range": "± 119436",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameAccumulator serialization",
+            "value": 944,
+            "range": "± 256",
             "unit": "ns/iter"
           }
         ]
