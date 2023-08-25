@@ -3,7 +3,9 @@
 use super::{
     PublicDirectorySerializable, PublicFile, PublicLink, PublicNode, PublicNodeSerializable,
 };
-use crate::{error::FsError, traits::Id, utils, SearchResult, WNFS_VERSION};
+use crate::{
+    error::FsError, is_readable_wnfs_version, traits::Id, utils, SearchResult, WNFS_VERSION,
+};
 use anyhow::{bail, ensure, Result};
 use async_once_cell::OnceCell;
 use async_recursion::async_recursion;
@@ -764,7 +766,7 @@ impl PublicDirectory {
 
     /// Creates a new directory from provided serializable.
     pub(crate) fn from_serializable(serializable: PublicDirectorySerializable) -> Result<Self> {
-        if serializable.version.major != 0 || serializable.version.minor != 2 {
+        if !is_readable_wnfs_version(&serializable.version) {
             bail!(FsError::UnexpectedVersion(serializable.version))
         }
 

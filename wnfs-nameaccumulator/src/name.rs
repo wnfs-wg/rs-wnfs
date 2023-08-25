@@ -13,7 +13,8 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::{hash::Hash, str::FromStr};
 use zeroize::Zeroize;
 
-const L_HASH_DSI: &str = "wnfs/PoKE*/l 128-bit hash derivation";
+/// The domain separation string for deriving the l hash in the PoKE* protocol.
+const L_HASH_DSI: &str = "wnfs/1.0/PoKE*/l 128-bit hash derivation";
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions

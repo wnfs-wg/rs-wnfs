@@ -1,7 +1,7 @@
 //! Public fs file node.
 
 use super::{PublicFileSerializable, PublicNodeSerializable};
-use crate::{error::FsError, traits::Id, WNFS_VERSION};
+use crate::{error::FsError, is_readable_wnfs_version, traits::Id, WNFS_VERSION};
 use anyhow::{bail, Result};
 use async_once_cell::OnceCell;
 use chrono::{DateTime, Utc};
@@ -138,7 +138,7 @@ impl PublicFile {
 
     /// Creates a new file from a serializable.
     pub(crate) fn from_serializable(serializable: PublicFileSerializable) -> Result<Self> {
-        if serializable.version.major != 0 || serializable.version.minor != 2 {
+        if !is_readable_wnfs_version(&serializable.version) {
             bail!(FsError::UnexpectedVersion(serializable.version))
         }
 
