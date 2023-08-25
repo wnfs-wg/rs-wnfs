@@ -19,12 +19,12 @@
     "decentralisation"
   ],
   "type": "module",
-  "main": "dist/nodejs/wnfs_wasm.cjs",
   "module": "dist/bundler/wnfs_wasm.js",
   "types": "dist/nodejs/wnfs_wasm.d.ts",
   "exports": {
     ".": {
       "workerd": "./dist/web/workerd.js",
+      "browser": "./dist/bundler/wnfs_wasm.js",
       "node": "./dist/nodejs/wnfs_wasm.cjs",
       "default": "./dist/bundler/wnfs_wasm.js",
       "types": "./dist/nodejs/wnfs_wasm.d.ts"
