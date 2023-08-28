@@ -197,7 +197,11 @@ where
         match self {
             Self::Encoded { cid, value_cache } => Self::Encoded {
                 cid: *cid,
-                value_cache: OnceCell::new_with(value_cache.get().cloned()),
+                value_cache: value_cache
+                    .get()
+                    .cloned()
+                    .map(OnceCell::new_with)
+                    .unwrap_or_default(),
             },
             Self::Decoded { value } => Self::Decoded {
                 value: value.clone(),
@@ -293,7 +297,12 @@ mod tests {
         fn clone(&self) -> Self {
             Self {
                 price: self.price,
-                persisted_as: OnceCell::new_with(self.persisted_as.get().cloned()),
+                persisted_as: self
+                    .persisted_as
+                    .get()
+                    .cloned()
+                    .map(OnceCell::new_with)
+                    .unwrap_or_default(),
             }
         }
     }

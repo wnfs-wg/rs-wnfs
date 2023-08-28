@@ -18,7 +18,7 @@ authors = ["The Fission Authors"]
 
 [dependencies]
 anyhow = "1.0"
-async-once-cell = "0.4"
+async-once-cell = "0.5"
 async-trait = "0.1"
 base64 = { version = "0.21", optional = true }
 base64-serde = { version = "0.7", optional = true }

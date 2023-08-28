@@ -1290,7 +1290,7 @@ impl PrivateDirectory {
         }
 
         let content = PrivateDirectoryContent {
-            persisted_as: OnceCell::new_with(Some(cid)),
+            persisted_as: OnceCell::new_with(cid),
             metadata: serializable.metadata,
             previous: serializable.previous.into_iter().collect(),
             entries: entries_decrypted,
@@ -1395,7 +1395,12 @@ impl PartialEq for PrivateDirectoryContent {
 impl Clone for PrivateDirectoryContent {
     fn clone(&self) -> Self {
         Self {
-            persisted_as: OnceCell::new_with(self.persisted_as.get().cloned()),
+            persisted_as: self
+                .persisted_as
+                .get()
+                .cloned()
+                .map(OnceCell::new_with)
+                .unwrap_or_default(),
             previous: self.previous.clone(),
             metadata: self.metadata.clone(),
             entries: self.entries.clone(),
