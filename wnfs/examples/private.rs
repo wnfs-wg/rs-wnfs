@@ -1,5 +1,5 @@
 //! This example shows how to add a directory to a private forest (a HAMT) where encrypted ciphertexts are stored.
-//! It also shows how to retrieve encrypted nodes from the forest using `PrivateRef`s.
+//! It also shows how to retrieve encrypted nodes from the forest using `AccessKey`s.
 
 use anyhow::Result;
 use chrono::Utc;

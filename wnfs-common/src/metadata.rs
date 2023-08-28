@@ -3,7 +3,10 @@
 use anyhow::{bail, Result};
 use chrono::{DateTime, TimeZone, Utc};
 use libipld::Ipld;
-use serde::{de::Error as DeError, Deserialize, Deserializer, Serialize, Serializer};
+use serde::{
+    de::{DeserializeOwned, Error as DeError},
+    Deserialize, Deserializer, Serialize, Serializer,
+};
 use std::{collections::BTreeMap, convert::TryInto};
 
 //--------------------------------------------------------------------------------------------------
@@ -162,6 +165,23 @@ impl Metadata {
     /// Returns (self, old_value), where old_value is `None` if the key did not exist prior to this call.
     pub fn put(&mut self, key: &str, value: Ipld) -> Option<Ipld> {
         self.0.insert(key.into(), value)
+    }
+
+    /// Returns metadata value behind given key.
+    pub fn get(&self, key: &str) -> Option<&Ipld> {
+        self.0.get(key)
+    }
+
+    /// Serializes and inserts given value at given key in metadata.
+    pub fn put_serializable(&mut self, key: &str, value: impl Serialize) -> Result<Option<Ipld>> {
+        let serialized = libipld::serde::to_ipld(value)?;
+        Ok(self.put(key, serialized))
+    }
+
+    /// Returns deserialized metadata value behind given key.
+    pub fn get_deserializable<D: DeserializeOwned>(&self, key: &str) -> Option<Result<D>> {
+        self.get(key)
+            .map(|ipld| Ok(libipld::serde::from_ipld(ipld.clone())?))
     }
 
     /// Deletes a key from the metadata.

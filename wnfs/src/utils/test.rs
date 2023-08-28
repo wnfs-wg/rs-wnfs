@@ -1,6 +1,6 @@
 use crate::private::{
     forest::{hamt::HamtForest, traits::PrivateForest},
-    FileContent, PrivateDirectory, PrivateFile, PrivateNode, PrivateRef,
+    FileContent, PrivateDirectory, PrivateForestContent, PrivateNode, PrivateRef,
 };
 use anyhow::Result;
 use libipld_core::ipld::Ipld;
@@ -72,14 +72,14 @@ pub(crate) async fn walk_dir(
                             )?)
                         }),
                     );
-                    if let FileContent::External {
+                    if let FileContent::External(PrivateForestContent {
                         key,
                         block_count,
                         base_name,
                         ..
-                    } = &file.content.content
+                    }) = &file.content.content
                     {
-                        for name in PrivateFile::generate_shard_labels(
+                        for name in PrivateForestContent::generate_shard_labels(
                             key,
                             0,
                             *block_count,
