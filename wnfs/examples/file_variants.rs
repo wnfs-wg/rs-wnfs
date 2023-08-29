@@ -46,7 +46,7 @@ async fn main() -> Result<()> {
 
     // We store the content in the file metadata.
     // This will update the `file: Rc<PrivateFile>` for us with a new reference.
-    content.store_in_metadata(file.get_metadata_mut()?, "thumbnail")?;
+    content.store_in_metadata(file.get_metadata_mut_rc()?, "thumbnail")?;
 
     // We store the new reference in the forest.
     file.as_node().store(forest, store, rng).await?;

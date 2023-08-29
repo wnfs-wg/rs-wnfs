@@ -397,8 +397,13 @@ impl PrivateFile {
     }
 
     /// Returns a mutable reference to this file's metadata.
-    pub fn get_metadata_mut<'a>(self: &'a mut Rc<Self>) -> Result<&'a mut Metadata> {
-        Ok(&mut self.prepare_next_revision()?.content.metadata)
+    pub fn get_metadata_mut(&mut self) -> &mut Metadata {
+        &mut self.content.metadata
+    }
+
+    /// Returns a mutable reference to this file's metadata and ratchets forward its revision, if necessary.
+    pub fn get_metadata_mut_rc<'a>(self: &'a mut Rc<Self>) -> Result<&'a mut Metadata> {
+        Ok(self.prepare_next_revision()?.get_metadata_mut())
     }
 
     /// Gets the entire content of a file.

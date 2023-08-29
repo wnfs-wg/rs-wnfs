@@ -113,6 +113,16 @@ impl PublicDirectory {
         &self.metadata
     }
 
+    /// Returns a mutable reference to this directory's metadata.
+    pub fn get_metadata_mut(&mut self) -> &mut Metadata {
+        &mut self.metadata
+    }
+
+    /// Returns a mutable reference to this directory's metadata and ratchets forward the history, if necessary.
+    pub fn get_metadata_mut_rc<'a>(self: &'a mut Rc<Self>) -> &'a mut Metadata {
+        self.prepare_next_revision().get_metadata_mut()
+    }
+
     /// Takes care of creating previous links, in case the current
     /// directory was previously `.store()`ed.
     /// In any case it'll try to give you ownership of the directory if possible,
@@ -248,6 +258,68 @@ impl PublicDirectory {
         };
 
         dir.lookup_node(tail, store).await
+    }
+
+    /// Opens a file at given path, or creates a new one if it was missing.
+    /// Also creates the intermediate directories if they didn't exist before.
+    /// Updates the modification time for everything on the path.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use anyhow::Result;
+    /// use wnfs::{
+    ///     public::PublicDirectory,
+    ///     common::MemoryBlockStore
+    /// };
+    /// use std::rc::Rc;
+    /// use chrono::Utc;
+    /// use wnfs_common::libipld::{Ipld, Cid};
+    ///
+    /// #[async_std::main]
+    /// async fn main() -> Result<()> {
+    ///     let dir = &mut Rc::new(PublicDirectory::new(Utc::now()));
+    ///     let store = &MemoryBlockStore::new();
+    ///
+    ///     // Gain a mutable file reference
+    ///     let path = &["Documents".into(), "Notes.md".into()];
+    ///     let initial_content = Cid::default();
+    ///     let file = dir.open_file_mut(path, initial_content, Utc::now(), store).await?;
+    ///
+    ///     let metadata = Ipld::String("Hello Metadata!".into());
+    ///     file.get_metadata_mut().put("custom-metadata", metadata.clone());
+    ///
+    ///     // We can later look up the file again
+    ///     let file = dir.get_node(path, store).await?.unwrap().as_file()?;
+    ///
+    ///     assert_eq!(file.get_metadata().get("custom-metadata"), Some(&metadata));
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
+    pub async fn open_file_mut<'a>(
+        self: &'a mut Rc<Self>,
+        path_segments: &[String],
+        initial_content: Cid,
+        time: DateTime<Utc>,
+        store: &'a impl BlockStore,
+    ) -> Result<&'a mut PublicFile> {
+        let (path, filename) = utils::split_last(path_segments)?;
+
+        let file_ref = self
+            .get_or_create_leaf_dir_mut(path, time, store)
+            .await?
+            .userland
+            .entry(filename.clone())
+            .or_insert_with(|| PublicLink::with_file(PublicFile::new(time, initial_content)))
+            .resolve_value_mut(store)
+            .await?
+            .as_file_mut()?
+            .prepare_next_revision();
+
+        file_ref.metadata.upsert_mtime(time);
+
+        Ok(file_ref)
     }
 
     /// Looks up a node by its path name in the current directory.

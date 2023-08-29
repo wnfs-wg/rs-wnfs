@@ -26,20 +26,15 @@ pub(crate) async fn walk_dir(
         let snapshot_key = temporal_key.derive_snapshot_key();
         store.add_block_handler(
             private_ref.content_cid,
-            Box::new(move |bytes| {
-                Ok(decode(
-                    &snapshot_key.decrypt(bytes.as_ref())?,
-                    DagCborCodec,
-                )?)
-            }),
+            Box::new(move |bytes| decode(&snapshot_key.decrypt(bytes.as_ref())?, DagCborCodec)),
         );
         store.add_block_handler(
             dir.header.store(store, forest).await?,
             Box::new(move |bytes| {
-                Ok(decode(
+                decode(
                     &temporal_key.key_wrap_decrypt(bytes.as_ref())?,
                     DagCborCodec,
-                )?)
+                )
             }),
         );
 
@@ -57,19 +52,16 @@ pub(crate) async fn walk_dir(
                     store.add_block_handler(
                         private_ref.content_cid,
                         Box::new(move |bytes| {
-                            Ok(decode(
-                                &snapshot_key.decrypt(bytes.as_ref())?,
-                                DagCborCodec,
-                            )?)
+                            decode(&snapshot_key.decrypt(bytes.as_ref())?, DagCborCodec)
                         }),
                     );
                     store.add_block_handler(
                         file.header.store(store, forest).await?,
                         Box::new(move |bytes| {
-                            Ok(decode(
+                            decode(
                                 &temporal_key.key_wrap_decrypt(bytes.as_ref())?,
                                 DagCborCodec,
-                            )?)
+                            )
                         }),
                     );
                     if let FileContent::External(PrivateForestContent {
