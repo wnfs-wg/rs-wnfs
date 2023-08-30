@@ -6,7 +6,6 @@ use chrono::Utc;
 use libipld_core::cid::Cid;
 use rand::thread_rng;
 use rand_core::CryptoRngCore;
-use std::rc::Rc;
 use wnfs::{
     common::{BlockStore, MemoryBlockStore},
     nameaccumulator::AccumulatorSetup,
@@ -47,10 +46,10 @@ async fn create_forest_and_add_directory(
     let setup = AccumulatorSetup::trusted(rng);
 
     // Create the private forest (a HAMT), a map-like structure where file and directory ciphertexts are stored.
-    let forest = &mut Rc::new(HamtForest::new(setup));
+    let forest = &mut HamtForest::rc(setup);
 
     // Create a new directory.
-    let dir = &mut Rc::new(PrivateDirectory::new(&forest.empty_name(), Utc::now(), rng));
+    let dir = &mut PrivateDirectory::rc(&forest.empty_name(), Utc::now(), rng);
 
     // Add a /pictures/cats subdirectory.
     dir.mkdir(

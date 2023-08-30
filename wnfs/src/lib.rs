@@ -11,13 +11,15 @@
 //! ```rust
 //! use anyhow::Result;
 //! use chrono::Utc;
-//! use std::rc::Rc;
-//! use wnfs::{common::MemoryBlockStore, public::PublicDirectory};
+//! use wnfs::{
+//!     common::MemoryBlockStore,
+//!     public::PublicDirectory
+//! };
 //!
 //! #[async_std::main]
 //! async fn main() -> Result<()> {
 //!     // Create a new public directory.
-//!     let dir = &mut Rc::new(PublicDirectory::new(Utc::now()));
+//!     let dir = &mut PublicDirectory::rc(Utc::now());
 //!
 //!     // Create an in-memory block store.
 //!     let store = &MemoryBlockStore::default();
@@ -48,11 +50,12 @@
 //! use anyhow::Result;
 //! use chrono::Utc;
 //! use rand::thread_rng;
-//! use std::rc::Rc;
-//! use wnfs::private::{
-//!     PrivateDirectory,
+//! use wnfs::{
 //!     common::MemoryBlockStore,
-//!     forest::{hamt::HamtForest, traits::PrivateForest},
+//!     private::{
+//!         PrivateDirectory,
+//!         forest::{hamt::HamtForest, traits::PrivateForest},
+//!     }
 //! };
 //!
 //! #[async_std::main]
@@ -64,14 +67,10 @@
 //!     let rng = &mut thread_rng();
 //!
 //!     // Create a private forest.
-//!     let forest = &mut Rc::new(HamtForest::new_trusted(rng));
+//!     let forest = &mut HamtForest::rc_trusted(rng);
 //!
 //!     // Create a new private directory.
-//!     let dir = &mut Rc::new(PrivateDirectory::new(
-//!         &forest.empty_name(),
-//!         Utc::now(),
-//!         rng,
-//!     ));
+//!     let dir = &mut PrivateDirectory::rc(&forest.empty_name(), Utc::now(), rng);
 //!
 //!     // Add a file to /pictures/cats directory.
 //!     dir.mkdir(

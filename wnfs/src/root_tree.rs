@@ -70,8 +70,8 @@ where
             store,
             rng,
             forest,
-            public_root: Rc::new(PublicDirectory::new(time)),
-            exchange_root: Rc::new(PublicDirectory::new(time)),
+            public_root: PublicDirectory::rc(time),
+            exchange_root: PublicDirectory::rc(time),
             private_map,
         }
     }
@@ -350,8 +350,8 @@ impl<'a, B: BlockStore> RootTree<'a, B, ChaCha12Rng> {
             store,
             rng,
             forest,
-            public_root: Rc::new(PublicDirectory::new(time)),
-            exchange_root: Rc::new(PublicDirectory::new(time)),
+            public_root: PublicDirectory::rc(time),
+            exchange_root: PublicDirectory::rc(time),
             private_map: HashMap::default(),
         }
     }

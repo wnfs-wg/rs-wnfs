@@ -75,13 +75,8 @@ pub trait PrivateForest {
     /// async fn main() {
     ///     let store = &mut MemoryBlockStore::default();
     ///     let rng = &mut thread_rng();
-    ///     let forest = &mut Rc::new(HamtForest::new_rsa_2048(rng));
-    ///     let dir = Rc::new(PrivateDirectory::new(
-    ///         &forest.empty_name(),
-    ///         Utc::now(),
-    ///         rng,
-    ///     ));
-    ///
+    ///     let forest = &mut HamtForest::rc_rsa_2048(rng);
+    ///     let dir = PrivateDirectory::rc(&forest.empty_name(), Utc::now(), rng);
     ///     let node = PrivateNode::Dir(dir);
     ///     let access_key = node.store(forest, store, rng).await.unwrap();
     ///

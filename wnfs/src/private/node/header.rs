@@ -107,11 +107,7 @@ impl PrivateNodeHeader {
     ///
     /// let rng = &mut thread_rng();
     /// let setup = &AccumulatorSetup::from_rsa_2048(rng);
-    /// let file = Rc::new(PrivateFile::new(
-    ///     &Name::empty(setup),
-    ///     Utc::now(),
-    ///     rng,
-    /// ));
+    /// let file = PrivateFile::new(&Name::empty(setup), Utc::now(), rng);
     /// let temporal_key = file.header.derive_temporal_key();
     ///
     /// println!("Temporal Key: {:?}", temporal_key);
@@ -142,12 +138,8 @@ impl PrivateNodeHeader {
     /// use rand::thread_rng;
     ///
     /// let rng = &mut thread_rng();
-    /// let forest = &mut Rc::new(HamtForest::new_rsa_2048(rng));
-    /// let file = Rc::new(PrivateFile::new(
-    ///     &forest.empty_name(),
-    ///     Utc::now(),
-    ///     rng,
-    /// ));
+    /// let forest = &mut HamtForest::rc_rsa_2048(rng);
+    /// let file = PrivateFile::new(&forest.empty_name(), Utc::now(), rng);
     /// let revision_name = file.header.get_revision_name();
     ///
     /// println!("Revision name: {:?}", revision_name);

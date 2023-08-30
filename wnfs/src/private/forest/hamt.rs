@@ -60,6 +60,11 @@ impl HamtForest {
         }
     }
 
+    /// Create a new, empty hamt forest with given pre-run accumulator setup wrapped in an `Rc`.
+    pub fn rc(setup: AccumulatorSetup) -> Rc<Self> {
+        Rc::new(Self::new(setup))
+    }
+
     /// Create a new, empty hamt forest with an accumulator setup with its
     /// security based on the factors of the RSA-2048 factoring challenge
     /// modulus being unknown.
@@ -68,6 +73,12 @@ impl HamtForest {
     /// factoring challenge not being broken. Great for tests.
     pub fn new_rsa_2048(rng: &mut impl CryptoRngCore) -> Self {
         Self::new(AccumulatorSetup::from_rsa_2048(rng))
+    }
+
+    /// Creates an `Rc` of a new, empty hamt forest with an accumulator setup
+    /// based on the factors of the RSA-2048 factoring challenge modulus.
+    pub fn rc_rsa_2048(rng: &mut impl CryptoRngCore) -> Rc<Self> {
+        Rc::new(Self::new_rsa_2048(rng))
     }
 
     /// Create a new, empty hamt forest with and run a trusted accumulator
@@ -85,6 +96,12 @@ impl HamtForest {
     /// methods for generating an RSA modulus.
     pub fn new_trusted(rng: &mut impl CryptoRngCore) -> Self {
         Self::new(AccumulatorSetup::trusted(rng))
+    }
+
+    /// Creates an `Rc` of a new, empty hamt forest with a trusted accumulator
+    /// setup.
+    pub fn rc_trusted(rng: &mut impl CryptoRngCore) -> Rc<Self> {
+        Rc::new(Self::new_trusted(rng))
     }
 
     /// Gets the difference in changes between two forests.
@@ -280,7 +297,7 @@ impl HamtForest {
     ///     let store = &mut MemoryBlockStore::new();
     ///     let rng = &mut thread_rng();
     ///
-    ///     let forest = &mut Rc::new(HamtForest::new_rsa_2048(rng));
+    ///     let forest = &mut HamtForest::rc_rsa_2048(rng);
     ///     let root_dir = &mut PrivateDirectory::new_and_store(
     ///         &forest.empty_name(),
     ///         Utc::now(),
@@ -422,7 +439,7 @@ mod tests {
     async fn test_put_get() {
         let store = &mut MemoryBlockStore::new();
         let rng = &mut ChaCha12Rng::seed_from_u64(0);
-        let forest = &mut Rc::new(HamtForest::new_rsa_2048(rng));
+        let forest = &mut HamtForest::rc_rsa_2048(rng);
 
         let cid = Cid::default();
         let name = forest.empty_name().with_segments_added([
@@ -440,9 +457,8 @@ mod tests {
     async fn inserted_items_can_be_fetched() {
         let store = &mut MemoryBlockStore::new();
         let rng = &mut ChaCha12Rng::seed_from_u64(0);
-        let forest = &mut Rc::new(HamtForest::new_rsa_2048(rng));
-
-        let dir = Rc::new(PrivateDirectory::new(&forest.empty_name(), Utc::now(), rng));
+        let forest = &mut HamtForest::rc_rsa_2048(rng);
+        let dir = PrivateDirectory::rc(&forest.empty_name(), Utc::now(), rng);
 
         let private_node = PrivateNode::Dir(dir.clone());
         let private_ref = private_node.store(forest, store, rng).await.unwrap();
@@ -457,9 +473,8 @@ mod tests {
     async fn multivalue_conflict_can_be_fetched_individually() {
         let store = &mut MemoryBlockStore::new();
         let rng = &mut ChaCha12Rng::seed_from_u64(0);
-        let forest = &mut Rc::new(HamtForest::new_rsa_2048(rng));
-
-        let dir = Rc::new(PrivateDirectory::new(&forest.empty_name(), Utc::now(), rng));
+        let forest = &mut HamtForest::rc_rsa_2048(rng);
+        let dir = PrivateDirectory::rc(&forest.empty_name(), Utc::now(), rng);
 
         let dir_conflict = {
             let mut dir = (*dir).clone();
@@ -525,7 +540,7 @@ mod snapshot_tests {
     async fn test_hamt() {
         let rng = &mut ChaCha12Rng::seed_from_u64(0);
         let store = &SnapshotBlockStore::default();
-        let forest = &mut Rc::new(HamtForest::new_rsa_2048(rng));
+        let forest = &mut HamtForest::rc_rsa_2048(rng);
         let base_name = forest.empty_name();
         let name_segments = [
             vec![NameSegment::new(rng)],

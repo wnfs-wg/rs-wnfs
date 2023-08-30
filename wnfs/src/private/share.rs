@@ -5,105 +5,11 @@
 //! Asymmetrically encrypted access keys containing pointers to the private data are stored in the "Private Forest" and are labeled with a name filter that includes the sender's and recipient's information,
 //! as well as a counter.
 
-use self::sharer::share;
-use super::{forest::traits::PrivateForest, AccessKey, ExchangeKey};
-use crate::{error::ShareError, public::PublicLink};
-use anyhow::{bail, Result};
-use std::marker::PhantomData;
-use wnfs_common::BlockStore;
-
 //--------------------------------------------------------------------------------------------------
 // Constants
 //--------------------------------------------------------------------------------------------------
 
 const EXCHANGE_KEY_NAME: &str = "v1.exchange_key";
-
-//--------------------------------------------------------------------------------------------------
-// Type Definitions
-//--------------------------------------------------------------------------------------------------
-
-#[derive(Debug)]
-pub struct Share<'a, K: ExchangeKey, S: BlockStore, F: PrivateForest> {
-    access_key: &'a AccessKey,
-    count: u64,
-    sharer: Option<Sharer<'a, F>>,
-    recipients: Vec<Recipient>,
-    store: &'a S,
-    phantom: PhantomData<K>,
-}
-
-#[derive(Debug)]
-pub struct Sharer<'a, F: PrivateForest> {
-    pub root_did: String,
-    pub forest: &'a mut F,
-}
-
-#[derive(Debug)]
-pub struct Recipient {
-    pub exchange_root: PublicLink,
-}
-
-//--------------------------------------------------------------------------------------------------
-// Implementations
-//--------------------------------------------------------------------------------------------------
-
-impl<'a, K: ExchangeKey, S: BlockStore, F: PrivateForest> Share<'a, K, S, F> {
-    ///  Creates a new instance of the Share with the given access key and count, and initializes the other fields as "None".
-    pub fn new(store: &'a S, access_key: &'a AccessKey, count: u64) -> Self {
-        Self {
-            access_key,
-            count,
-            sharer: None,
-            recipients: Vec::new(),
-            store,
-            phantom: PhantomData,
-        }
-    }
-
-    /// Sets the sharer field.
-    pub fn by(&mut self, sharer: Sharer<'a, F>) -> &mut Self {
-        self.sharer = Some(sharer);
-        self
-    }
-
-    /// Takes a vector of recipients as an argument, and adds it to the existing recipients of the Share struct.
-    pub fn with(&mut self, recipients: Vec<Recipient>) -> &mut Self {
-        self.recipients.extend(recipients);
-        self
-    }
-
-    /// Takes a recipient as an argument and adds it to the existing recipients of the Share struct.
-    pub fn to(&mut self, recipient: Recipient) -> &mut Self {
-        self.recipients.push(recipient);
-        self
-    }
-
-    /// Performs the sharing operation with the previously set sharer and recipients.
-    /// It takes the access key, sharer, and recipients, and performs the share operation,
-    /// encrypts the access key and stores it in the sharer's private forest.
-    pub async fn finish(&mut self) -> Result<()> {
-        if self.sharer.is_none() || self.recipients.is_empty() {
-            bail!(ShareError::NoSharerOrRecipients);
-        }
-
-        let sharer = self.sharer.take().unwrap();
-        let recipients = std::mem::take(&mut self.recipients);
-
-        for recipient in recipients {
-            share::<K>(
-                self.access_key,
-                self.count,
-                &sharer.root_did,
-                sharer.forest,
-                recipient.exchange_root,
-                self.store,
-            )
-            .await?;
-        }
-
-        Ok(())
-    }
-}
 
 //--------------------------------------------------------------------------------------------------
 // Functions
@@ -128,8 +34,8 @@ pub mod sharer {
         access_key: &AccessKey,
         share_count: u64,
         sharer_root_did: &str,
-        sharer_forest: &mut impl PrivateForest,
         recipient_exchange_root: PublicLink,
+        forest: &mut impl PrivateForest,
         store: &impl BlockStore,
     ) -> Result<()> {
         let mut exchange_keys = fetch_exchange_keys(recipient_exchange_root, store).await;
@@ -139,16 +45,12 @@ pub mod sharer {
             let public_key_modulus = result?;
             let exchange_key = K::from_modulus(&public_key_modulus).await?;
             let encrypted_key = exchange_key.encrypt(encoded_key).await?;
-            let share_label = create_share_name(
-                share_count,
-                sharer_root_did,
-                &public_key_modulus,
-                sharer_forest,
-            );
+            let share_label =
+                create_share_name(share_count, sharer_root_did, &public_key_modulus, forest);
 
             let access_key_cid = store.put_block(encrypted_key, CODEC_RAW).await?;
 
-            sharer_forest
+            forest
                 .put_encrypted(&share_label, Some(access_key_cid), store)
                 .await?;
         }
@@ -189,9 +91,9 @@ pub mod sharer {
         share_count: u64,
         sharer_root_did: &str,
         recipient_exchange_key: &[u8],
-        sharer_forest: &impl PrivateForest,
+        forest: &impl PrivateForest,
     ) -> Name {
-        sharer_forest.empty_name().with_segments_added([
+        forest.empty_name().with_segments_added([
             NameSegment::new_hashed("Testing", sharer_root_did.as_bytes()),
             NameSegment::new_hashed("Testing", recipient_exchange_key),
             NameSegment::new_hashed("Testing", share_count.to_le_bytes()),
@@ -216,7 +118,7 @@ pub mod recipient {
         limit: u64,
         recipient_exchange_key: &[u8],
         sharer_root_did: &str,
-        sharer_forest: &impl PrivateForest,
+        forest: &impl PrivateForest,
         store: &impl BlockStore,
     ) -> Result<Option<u64>> {
         for share_count in share_count_start..share_count_start + limit {
@@ -224,10 +126,10 @@ pub mod recipient {
                 share_count,
                 sharer_root_did,
                 recipient_exchange_key,
-                sharer_forest,
+                forest,
             );
 
-            if !sharer_forest.has(&share_label, store).await? {
+            if !forest.has(&share_label, store).await? {
                 if share_count == share_count_start {
                     // There don't seem to be any shares
                     return Ok(None);
@@ -248,13 +150,13 @@ pub mod recipient {
     pub async fn receive_share(
         share_label: &Name,
         recipient_key: &impl PrivateKey,
-        sharer_forest: &impl PrivateForest,
+        forest: &impl PrivateForest,
         store: &impl BlockStore,
     ) -> Result<PrivateNode> {
         // Get cid to encrypted payload from sharer's forest using share_label
-        let access_key_cid = sharer_forest
+        let access_key_cid = forest
             .get_encrypted_by_hash(
-                &blake3::Hasher::hash(&sharer_forest.get_accumulated_name(share_label)),
+                &blake3::Hasher::hash(&forest.get_accumulated_name(share_label)),
                 store,
             )
             .await?
@@ -270,13 +172,7 @@ pub mod recipient {
             serde_ipld_dagcbor::from_slice(&recipient_key.decrypt(&encrypted_access_key).await?)?;
 
         // Use decrypted key to get cid to encrypted node in sharer's forest.
-        PrivateNode::from_private_ref(
-            &access_key.derive_private_ref()?,
-            sharer_forest,
-            store,
-            None,
-        )
-        .await
+        PrivateNode::from_private_ref(&access_key.derive_private_ref()?, forest, store, None).await
     }
 }
 
@@ -288,15 +184,14 @@ pub mod recipient {
 mod tests {
     use super::{
         recipient::{self, find_latest_share_counter},
-        sharer, Recipient, Sharer, EXCHANGE_KEY_NAME,
+        sharer, EXCHANGE_KEY_NAME,
     };
     use crate::{
         private::{
             forest::{hamt::HamtForest, traits::PrivateForest},
-            share::Share,
             AccessKey, PrivateDirectory, RsaPublicKey,
         },
-        public::{PublicLink, PublicNode},
+        public::PublicLink,
     };
     use chrono::Utc;
     use rand_chacha::ChaCha12Rng;
@@ -353,7 +248,7 @@ mod tests {
             let exchange_key = key.get_public_key().get_public_key_modulus()?;
             let exchange_key_cid = store.put_block(exchange_key, CODEC_RAW).await?;
 
-            let mut root_dir = Rc::new(PublicDirectory::new(Utc::now()));
+            let mut root_dir = PublicDirectory::rc(Utc::now());
             root_dir
                 .write(
                     &["device1".into(), EXCHANGE_KEY_NAME.into()],
@@ -371,14 +266,12 @@ mod tests {
     async fn can_share_and_recieve_share() {
         let rng = &mut ChaCha12Rng::seed_from_u64(0);
         let store = &MemoryBlockStore::new();
-        let sharer_forest = &mut Rc::new(HamtForest::new_rsa_2048(rng));
+        let forest = &mut HamtForest::rc_rsa_2048(rng);
 
         let sharer_root_did = "did:key:z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK";
 
         // Create directory to share.
-        let sharer_dir = helper::create_sharer_dir(sharer_forest, store, rng)
-            .await
-            .unwrap();
+        let sharer_dir = helper::create_sharer_dir(forest, store, rng).await.unwrap();
 
         // Establish recipient exchange root.
         let (recipient_key, recipient_exchange_root) =
@@ -387,22 +280,21 @@ mod tests {
         // Construct access key from sharer's directory.
         let access_key = sharer_dir
             .as_node()
-            .store(sharer_forest, store, rng)
+            .store(forest, store, rng)
             .await
             .unwrap();
 
         // Share access key with recipient.
-        Share::<RsaPublicKey, _, _>::new(store, &access_key, 0)
-            .by(Sharer {
-                root_did: sharer_root_did.into(),
-                forest: sharer_forest,
-            })
-            .to(Recipient {
-                exchange_root: PublicLink::new(PublicNode::Dir(recipient_exchange_root)),
-            })
-            .finish()
-            .await
-            .unwrap();
+        sharer::share::<RsaPublicKey>(
+            &access_key,
+            0,
+            sharer_root_did,
+            PublicLink::with_rc_dir(recipient_exchange_root),
+            forest,
+            store,
+        )
+        .await
+        .unwrap();
 
         // Create share label.
         let share_label = sharer::create_share_name(
@@ -412,11 +304,11 @@ mod tests {
                 .get_public_key()
                 .get_public_key_modulus()
                 .unwrap(),
-            sharer_forest,
+            forest,
         );
 
         // Grab node using share label.
-        let node = recipient::receive_share(&share_label, &recipient_key, sharer_forest, store)
+        let node = recipient::receive_share(&share_label, &recipient_key, forest, store)
             .await
             .unwrap();
 
@@ -428,7 +320,7 @@ mod tests {
     async fn serialized_share_payload_can_be_deserialized() {
         let rng = &mut ChaCha12Rng::seed_from_u64(0);
         let store = &MemoryBlockStore::new();
-        let forest = &mut Rc::new(HamtForest::new_rsa_2048(rng));
+        let forest = &mut HamtForest::rc_rsa_2048(rng);
         let dir =
             PrivateDirectory::new_and_store(&forest.empty_name(), Utc::now(), forest, store, rng)
                 .await
@@ -450,7 +342,7 @@ mod tests {
     async fn find_latest_share_counter_finds_highest_count() {
         let rng = &mut ChaCha12Rng::seed_from_u64(0);
         let store = &MemoryBlockStore::new();
-        let forest = &mut Rc::new(HamtForest::new_rsa_2048(rng));
+        let forest = &mut HamtForest::rc_rsa_2048(rng);
 
         let sharer_root_did = "did:key:z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK";
 
@@ -497,8 +389,8 @@ mod tests {
                 &access_key,
                 i,
                 sharer_root_did,
-                forest,
                 PublicLink::with_rc_dir(Rc::clone(&recipient_exchange_root)),
+                forest,
                 store,
             )
             .await

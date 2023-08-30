@@ -57,7 +57,7 @@ async fn main() -> Result<()> {
 async fn root_dir_setup(store: &impl BlockStore) -> Result<(Rc<HamtForest>, AccessKey)> {
     // We generate a new simple example file system:
     let rng = &mut rand::thread_rng();
-    let forest = &mut Rc::new(HamtForest::new_trusted(rng));
+    let forest = &mut HamtForest::rc_trusted(rng);
     let root_dir =
         &mut PrivateDirectory::new_and_store(&forest.empty_name(), Utc::now(), forest, store, rng)
             .await?;
@@ -93,7 +93,7 @@ async fn setup_seeded_keypair_access(
     // Store the public key inside some public WNFS.
     // Building from scratch in this case. Would actually be stored next to the private forest usually.
     let public_key_cid = exchange_keypair.store_public_key(store).await?;
-    let mut exchange_root = Rc::new(PublicDirectory::new(Utc::now()));
+    let mut exchange_root = PublicDirectory::rc(Utc::now());
     exchange_root
         .write(
             &["main".into(), "v1.exchange_key".into()],
@@ -125,8 +125,8 @@ async fn setup_seeded_keypair_access(
         &access_key,
         counter,
         root_did,
-        forest,
         exchange_root,
+        forest,
         store,
     )
     .await?;
