@@ -678,7 +678,7 @@ mod tests {
     }
 
     #[test]
-    fn serialized_equals_unserialized() -> Result<()> {
+    fn equals_ignores_serialization_cache() -> Result<()> {
         let rng = &mut thread_rng();
         let setup = &AccumulatorSetup::from_rsa_2048(rng);
 
