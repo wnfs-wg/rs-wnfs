@@ -22,8 +22,8 @@ pub fn share(
     access_key: AccessKey,
     share_count: u32,
     sharer_root_did: String,
-    sharer_forest: &PrivateForest,
     recipient_exchange_root: Vec<u8>,
+    forest: &PrivateForest,
     store: BlockStore,
 ) -> JsResult<Promise> {
     let mut sharer_forest = Rc::clone(&sharer_forest.0);
@@ -35,14 +35,14 @@ pub fn share(
             &access_key.0,
             share_count.into(),
             &sharer_root_did,
-            &mut sharer_forest,
             PublicLink::from_cid(cid),
+            &mut forest,
             &store,
         )
         .await
         .map_err(error("Cannot share item"))?;
 
-        Ok(value!(PrivateForest(sharer_forest)))
+        Ok(value!(PrivateForest(forest)))
     }))
 }
 
