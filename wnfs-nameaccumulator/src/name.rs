@@ -677,6 +677,33 @@ mod tests {
         Ok(())
     }
 
+    #[test]
+    fn equals_ignores_serialization_cache() -> Result<()> {
+        let rng = &mut thread_rng();
+        let setup = &AccumulatorSetup::from_rsa_2048(rng);
+
+        let mut name_one = NameAccumulator::empty(setup);
+        let mut name_two = NameAccumulator::empty(setup);
+
+        assert_eq!(name_one, name_two);
+
+        name_one.as_bytes(); // Force serialization
+
+        assert_eq!(name_one, name_two);
+
+        let segment = NameSegment::new(rng);
+        name_one.add(Some(&segment), setup);
+        name_two.add(Some(&segment), setup);
+
+        assert_eq!(name_one, name_two);
+
+        name_one.as_bytes(); // Force serialization
+
+        assert_eq!(name_one, name_two);
+
+        Ok(())
+    }
+
     #[proptest(cases = 32)]
     fn batch_proofs(do_batch_step: [bool; 4], do_verify_step: [bool; 4], seed: u64) {
         let rng = &mut ChaCha12Rng::seed_from_u64(seed);
