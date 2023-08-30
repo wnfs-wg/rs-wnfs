@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1693397213644,
+  "lastUpdate": 1693398847093,
   "repoUrl": "https://github.com/wnfs-wg/rs-wnfs",
   "entries": {
     "Rust Benchmark": [
@@ -18301,6 +18301,102 @@ window.BENCHMARK_DATA = {
             "name": "NameAccumulator serialization",
             "value": 772,
             "range": "± 16",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "41898282+github-actions[bot]@users.noreply.github.com",
+            "name": "github-actions[bot]",
+            "username": "github-actions[bot]"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "c497afc20281dd1987ff47e8b4e0d8664588e1cf",
+          "message": "chore: release main (#342)\n\nCo-authored-by: github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>",
+          "timestamp": "2023-08-30T14:30:58+02:00",
+          "tree_id": "0944caa5fac31a27c7604356f9ddbfd962db73d4",
+          "url": "https://github.com/wnfs-wg/rs-wnfs/commit/c497afc20281dd1987ff47e8b4e0d8664588e1cf"
+        },
+        "date": 1693398846261,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "node set",
+            "value": 5587,
+            "range": "± 93",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node set 1000 consecutive",
+            "value": 2534876,
+            "range": "± 9897",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and get",
+            "value": 105983,
+            "range": "± 278",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and remove",
+            "value": 117766,
+            "range": "± 275",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt load and decode/0",
+            "value": 39132,
+            "range": "± 88",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt set and encode",
+            "value": 103530,
+            "range": "± 364",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt diff",
+            "value": 49921,
+            "range": "± 3507",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt merge",
+            "value": 145815,
+            "range": "± 11035",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameSegment::new_hashed",
+            "value": 2399480,
+            "range": "± 250538",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameSegment::new(rng)",
+            "value": 2455040,
+            "range": "± 270633",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameAccumulator::add",
+            "value": 2356002,
+            "range": "± 68722",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameAccumulator serialization",
+            "value": 990,
+            "range": "± 30",
             "unit": "ns/iter"
           }
         ]
