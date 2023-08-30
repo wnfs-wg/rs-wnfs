@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.25](https://github.com/wnfs-wg/rs-wnfs/compare/wnfs-nameaccumulator-v0.1.24...wnfs-nameaccumulator-v0.1.25) (2023-08-30)
+
+
+### Bug Fixes
+
+* Fix `search_latest` on `write` and file mountpoints ([#341](https://github.com/wnfs-wg/rs-wnfs/issues/341)) ([dae79cd](https://github.com/wnfs-wg/rs-wnfs/commit/dae79cd1b95148cf54d6fdf57357b76adcf192ae))
+
 ## [0.1.24](https://github.com/wnfs-wg/rs-wnfs/compare/wnfs-nameaccumulator-v0.1.23...wnfs-nameaccumulator-v0.1.24) (2023-08-17)
 
 
