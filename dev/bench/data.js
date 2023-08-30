@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1693397075566,
+  "lastUpdate": 1693397213644,
   "repoUrl": "https://github.com/wnfs-wg/rs-wnfs",
   "entries": {
     "Rust Benchmark": [
@@ -18205,6 +18205,102 @@ window.BENCHMARK_DATA = {
             "name": "NameAccumulator serialization",
             "value": 1144,
             "range": "± 131",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "49699333+dependabot[bot]@users.noreply.github.com",
+            "name": "dependabot[bot]",
+            "username": "dependabot[bot]"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "bb653ff9aef7e125279323bcdfe7ba325c466fb0",
+          "message": "chore(npm)(deps-dev): bump multiformats in /wnfs-wasm (#338)\n\nBumps [multiformats](https://github.com/multiformats/js-multiformats) from 12.0.1 to 12.1.0.\r\n- [Release notes](https://github.com/multiformats/js-multiformats/releases)\r\n- [Changelog](https://github.com/multiformats/js-multiformats/blob/master/CHANGELOG.md)\r\n- [Commits](https://github.com/multiformats/js-multiformats/compare/v12.0.1...v12.1.0)\r\n\r\n---\r\nupdated-dependencies:\r\n- dependency-name: multiformats\r\n  dependency-type: direct:development\r\n  update-type: version-update:semver-minor\r\n...\r\n\r\nSigned-off-by: dependabot[bot] <support@github.com>\r\nCo-authored-by: dependabot[bot] <49699333+dependabot[bot]@users.noreply.github.com>",
+          "timestamp": "2023-08-30T13:59:40+02:00",
+          "tree_id": "eb181317888b9782a5a1f32d42793fc74bf0388a",
+          "url": "https://github.com/wnfs-wg/rs-wnfs/commit/bb653ff9aef7e125279323bcdfe7ba325c466fb0"
+        },
+        "date": 1693397212872,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "node set",
+            "value": 5927,
+            "range": "± 83",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node set 1000 consecutive",
+            "value": 2491062,
+            "range": "± 7409",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and get",
+            "value": 108497,
+            "range": "± 489",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and remove",
+            "value": 117433,
+            "range": "± 252",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt load and decode/0",
+            "value": 40475,
+            "range": "± 162",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt set and encode",
+            "value": 105169,
+            "range": "± 258",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt diff",
+            "value": 48122,
+            "range": "± 3329",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt merge",
+            "value": 139820,
+            "range": "± 10925",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameSegment::new_hashed",
+            "value": 2506958,
+            "range": "± 253528",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameSegment::new(rng)",
+            "value": 2570528,
+            "range": "± 290585",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameAccumulator::add",
+            "value": 2265207,
+            "range": "± 83423",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameAccumulator serialization",
+            "value": 772,
+            "range": "± 16",
             "unit": "ns/iter"
           }
         ]
