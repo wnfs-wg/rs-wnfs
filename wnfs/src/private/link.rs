@@ -169,7 +169,11 @@ impl Clone for PrivateLink {
         match self {
             Self::Encrypted { private_ref, cache } => Self::Encrypted {
                 private_ref: private_ref.clone(),
-                cache: OnceCell::new_with(cache.get().cloned()),
+                cache: cache
+                    .get()
+                    .cloned()
+                    .map(OnceCell::new_with)
+                    .unwrap_or_default(),
             },
             Self::Decrypted { node } => Self::Decrypted { node: node.clone() },
         }

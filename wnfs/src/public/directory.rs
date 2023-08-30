@@ -802,7 +802,12 @@ impl PartialEq for PublicDirectory {
 impl Clone for PublicDirectory {
     fn clone(&self) -> Self {
         Self {
-            persisted_as: OnceCell::new_with(self.persisted_as.get().cloned()),
+            persisted_as: self
+                .persisted_as
+                .get()
+                .cloned()
+                .map(OnceCell::new_with)
+                .unwrap_or_default(),
             metadata: self.metadata.clone(),
             userland: self.userland.clone(),
             previous: self.previous.clone(),

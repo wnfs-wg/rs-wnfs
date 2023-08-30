@@ -770,7 +770,12 @@ impl<K, V, H: Hasher> Node<K, V, H> {
 impl<K: Clone, V: Clone, H: Hasher> Clone for Node<K, V, H> {
     fn clone(&self) -> Self {
         Self {
-            persisted_as: OnceCell::new_with(self.persisted_as.get().cloned()),
+            persisted_as: self
+                .persisted_as
+                .get()
+                .cloned()
+                .map(OnceCell::new_with)
+                .unwrap_or_default(),
             bitmask: self.bitmask,
             pointers: self.pointers.clone(),
             hasher: PhantomData,

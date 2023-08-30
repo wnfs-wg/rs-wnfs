@@ -199,7 +199,12 @@ impl PartialEq for PublicFile {
 impl Clone for PublicFile {
     fn clone(&self) -> Self {
         Self {
-            persisted_as: OnceCell::new_with(self.persisted_as.get().cloned()),
+            persisted_as: self
+                .persisted_as
+                .get()
+                .cloned()
+                .map(OnceCell::new_with)
+                .unwrap_or_default(),
             metadata: self.metadata.clone(),
             userland: self.userland,
             previous: self.previous.clone(),

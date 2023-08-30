@@ -750,7 +750,7 @@ impl PrivateFile {
         }
 
         let content = PrivateFileContent {
-            persisted_as: OnceCell::new_with(Some(cid)),
+            persisted_as: OnceCell::new_with(cid),
             previous: serializable.previous.into_iter().collect(),
             metadata: serializable.metadata,
             content: serializable.content,
@@ -824,7 +824,12 @@ impl PartialEq for PrivateFileContent {
 impl Clone for PrivateFileContent {
     fn clone(&self) -> Self {
         Self {
-            persisted_as: OnceCell::new_with(self.persisted_as.get().cloned()),
+            persisted_as: self
+                .persisted_as
+                .get()
+                .cloned()
+                .map(OnceCell::new_with)
+                .unwrap_or_default(),
             previous: self.previous.clone(),
             metadata: self.metadata.clone(),
             content: self.content.clone(),
