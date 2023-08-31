@@ -26,7 +26,6 @@ use wnfs_common::{AsyncSerialize, BlockStore, RemembersCid};
 /// ```
 /// use wnfs::public::{PublicDirectory, PublicNode};
 /// use chrono::Utc;
-/// use std::rc::Rc;
 ///
 /// let dir = PublicDirectory::rc(Utc::now());
 /// let node = PublicNode::Dir(dir);
@@ -51,7 +50,6 @@ impl PublicNode {
     /// ```
     /// use wnfs::public::{PublicDirectory, PublicNode};
     /// use chrono::{Utc, Duration, TimeZone};
-    /// use std::rc::Rc;
     ///
     /// let dir = PublicDirectory::rc(Utc::now());
     /// let node = &mut PublicNode::Dir(dir);
@@ -124,7 +122,6 @@ impl PublicNode {
     /// ```
     /// use wnfs::public::{PublicDirectory, PublicNode};
     /// use chrono::Utc;
-    /// use std::rc::Rc;
     ///
     /// let dir = PublicDirectory::rc(Utc::now());
     /// let node = PublicNode::Dir(dir);
@@ -148,9 +145,9 @@ impl PublicNode {
     /// # Examples
     ///
     /// ```
+    /// use std::rc::Rc;
     /// use wnfs::public::{PublicDirectory, PublicNode};
     /// use chrono::Utc;
-    /// use std::rc::Rc;
     ///
     /// let dir = PublicDirectory::rc(Utc::now());
     /// let node = PublicNode::Dir(Rc::clone(&dir));
@@ -177,9 +174,9 @@ impl PublicNode {
     /// # Examples
     ///
     /// ```
+    /// use std::rc::Rc;
     /// use wnfs::public::{PublicFile, PublicNode};
     /// use chrono::Utc;
-    /// use std::rc::Rc;
     /// use libipld_core::cid::Cid;
     ///
     /// let file = PublicFile::rc(Utc::now(), Cid::default());
@@ -201,7 +198,6 @@ impl PublicNode {
     /// ```
     /// use wnfs::public::{PublicDirectory, PublicNode};
     /// use chrono::Utc;
-    /// use std::rc::Rc;
     ///
     /// let dir = PublicDirectory::rc(Utc::now());
     /// let node = PublicNode::Dir(dir);
@@ -219,7 +215,6 @@ impl PublicNode {
     /// ```
     /// use wnfs::public::{PublicFile, PublicNode};
     /// use chrono::Utc;
-    /// use std::rc::Rc;
     /// use libipld_core::cid::Cid;
     ///
     /// let file = PublicFile::rc(Utc::now(), Cid::default());

@@ -279,8 +279,8 @@ impl HamtForest {
     /// # Examples
     ///
     /// ```
-    /// use anyhow::Result;
     /// use std::rc::Rc;
+    /// use anyhow::Result;
     /// use chrono::Utc;
     /// use rand::thread_rng;
     /// use futures::StreamExt;

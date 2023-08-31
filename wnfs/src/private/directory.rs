@@ -184,7 +184,6 @@ impl PrivateDirectory {
     /// };
     /// use chrono::Utc;
     /// use rand::thread_rng;
-    /// use std::rc::Rc;
     ///
     /// let rng = &mut thread_rng();
     /// let forest = &mut HamtForest::new_rsa_2048(rng);
@@ -208,7 +207,6 @@ impl PrivateDirectory {
     ///
     /// ```
     /// use anyhow::Result;
-    /// use std::rc::Rc;
     /// use chrono::Utc;
     /// use rand::thread_rng;
     /// use wnfs::{
@@ -429,7 +427,6 @@ impl PrivateDirectory {
     /// # Examples
     ///
     /// ```
-    /// use std::rc::Rc;
     ///
     /// use chrono::Utc;
     /// use rand::thread_rng;
@@ -489,7 +486,6 @@ impl PrivateDirectory {
     ///
     /// ```
     /// use anyhow::Result;
-    /// use std::rc::Rc;
     /// use chrono::Utc;
     /// use rand::thread_rng;
     /// use wnfs::{
@@ -559,7 +555,6 @@ impl PrivateDirectory {
     /// # Examples
     /// ```
     /// use anyhow::Result;
-    /// use std::rc::Rc;
     /// use chrono::Utc;
     /// use rand::thread_rng;
     /// use wnfs::{
@@ -646,7 +641,6 @@ impl PrivateDirectory {
     ///
     /// ```
     /// use anyhow::Result;
-    /// use std::rc::Rc;
     /// use chrono::Utc;
     /// use rand::thread_rng;
     /// use wnfs::{
@@ -730,8 +724,8 @@ impl PrivateDirectory {
     /// # Examples
     ///
     /// ```
-    /// use anyhow::Result;
     /// use std::rc::Rc;
+    /// use anyhow::Result;
     /// use chrono::Utc;
     /// use rand::thread_rng;
     /// use wnfs::{
@@ -789,7 +783,6 @@ impl PrivateDirectory {
     /// # Examples
     ///
     /// ```
-    /// use std::rc::Rc;
     ///
     /// use chrono::Utc;
     /// use rand::thread_rng;
@@ -843,7 +836,6 @@ impl PrivateDirectory {
     ///
     /// ```
     /// use anyhow::Result;
-    /// use std::rc::Rc;
     /// use chrono::Utc;
     /// use rand::thread_rng;
     /// use wnfs::{
@@ -931,7 +923,6 @@ impl PrivateDirectory {
     /// # Examples
     ///
     /// ```
-    /// use std::rc::Rc;
     /// use chrono::Utc;
     /// use rand::thread_rng;
     /// use wnfs::{
@@ -1051,7 +1042,6 @@ impl PrivateDirectory {
     /// # Examples
     ///
     /// ```
-    /// use std::rc::Rc;
     /// use chrono::Utc;
     /// use rand::thread_rng;
     ///
@@ -1136,7 +1126,6 @@ impl PrivateDirectory {
     /// # Examples
     ///
     /// ```
-    /// use std::rc::Rc;
     ///
     /// use chrono::Utc;
     /// use rand::thread_rng;

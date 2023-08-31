@@ -111,7 +111,6 @@ impl PublicDirectory {
     ///
     /// ```
     /// use wnfs::{public::PublicDirectory, common::Metadata};
-    /// use std::rc::Rc;
     /// use chrono::Utc;
     ///
     /// let time = Utc::now();
@@ -224,7 +223,6 @@ impl PublicDirectory {
     ///     public::PublicDirectory,
     ///     common::MemoryBlockStore
     /// };
-    /// use std::rc::Rc;
     /// use chrono::Utc;
     ///
     /// #[async_std::main]
@@ -271,7 +269,6 @@ impl PublicDirectory {
     ///     traits::Id,
     ///     common::MemoryBlockStore
     /// };
-    /// use std::rc::Rc;
     /// use chrono::Utc;
     ///
     /// #[async_std::main]
@@ -322,7 +319,6 @@ impl PublicDirectory {
     ///     common::MemoryBlockStore
     /// };
     /// use libipld_core::cid::Cid;
-    /// use std::rc::Rc;
     /// use chrono::Utc;
     ///
     /// #[async_std::main]
@@ -371,7 +367,6 @@ impl PublicDirectory {
     ///     common::MemoryBlockStore
     /// };
     /// use libipld_core::cid::Cid;
-    /// use std::rc::Rc;
     /// use chrono::Utc;
     ///
     /// #[async_std::main]
@@ -424,7 +419,6 @@ impl PublicDirectory {
     ///     traits::Id,
     ///     common::MemoryBlockStore
     /// };
-    /// use std::rc::Rc;
     /// use chrono::Utc;
     ///
     /// #[async_std::main]
@@ -471,7 +465,6 @@ impl PublicDirectory {
     ///     common::MemoryBlockStore
     /// };
     /// use libipld_core::cid::Cid;
-    /// use std::rc::Rc;
     /// use chrono::Utc;
     ///
     /// #[async_std::main]
@@ -533,7 +526,6 @@ impl PublicDirectory {
     ///     common::MemoryBlockStore
     /// };
     /// use libipld_core::cid::Cid;
-    /// use std::rc::Rc;
     /// use chrono::Utc;
     ///
     /// #[async_std::main]
@@ -602,7 +594,6 @@ impl PublicDirectory {
     ///     common::MemoryBlockStore
     /// };
     /// use libipld_core::cid::Cid;
-    /// use std::rc::Rc;
     /// use chrono::Utc;
     ///
     /// #[async_std::main]
@@ -671,7 +662,6 @@ impl PublicDirectory {
     ///
     /// ```
     /// use anyhow::Result;
-    /// use std::rc::Rc;
     /// use libipld_core::cid::Cid;
     /// use chrono::Utc;
     /// use rand::thread_rng;

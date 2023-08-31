@@ -60,7 +60,6 @@ pub trait PrivateForest {
     /// # Examples
     ///
     /// ```
-    /// use std::rc::Rc;
     /// use chrono::Utc;
     /// use rand::thread_rng;
     /// use wnfs::{

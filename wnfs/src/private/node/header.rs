@@ -99,7 +99,6 @@ impl PrivateNodeHeader {
     /// # Examples
     ///
     /// ```
-    /// use std::rc::Rc;
     /// use wnfs::private::PrivateFile;
     /// use wnfs_nameaccumulator::{AccumulatorSetup, Name};
     /// use chrono::Utc;
@@ -129,7 +128,6 @@ impl PrivateNodeHeader {
     /// # Examples
     ///
     /// ```
-    /// use std::rc::Rc;
     /// use wnfs::private::{
     ///     PrivateFile,
     ///     forest::{hamt::HamtForest, traits::PrivateForest},

@@ -34,7 +34,6 @@ use wnfs_nameaccumulator::Name;
 ///     forest::{hamt::HamtForest, traits::PrivateForest},
 /// };
 /// use chrono::Utc;
-/// use std::rc::Rc;
 /// use rand::thread_rng;
 ///
 /// let rng = &mut thread_rng();
@@ -67,7 +66,6 @@ impl PrivateNode {
     ///     },
     /// };
     /// use chrono::{Utc, Duration, TimeZone};
-    /// use std::rc::Rc;
     /// use rand::thread_rng;
     ///
     /// let rng = &mut thread_rng();
@@ -140,6 +138,7 @@ impl PrivateNode {
     /// # Examples
     ///
     /// ```
+    /// use std::rc::Rc;
     /// use wnfs::{
     ///     private::{
     ///         PrivateDirectory, PrivateNode,
@@ -147,7 +146,6 @@ impl PrivateNode {
     ///     },
     /// };
     /// use chrono::Utc;
-    /// use std::rc::Rc;
     /// use rand::thread_rng;
     ///
     /// let rng = &mut thread_rng();
@@ -195,6 +193,7 @@ impl PrivateNode {
     /// # Examples
     ///
     /// ```
+    /// use std::rc::Rc;
     /// use wnfs::{
     ///     private::{
     ///         PrivateDirectory, PrivateNode,
@@ -202,7 +201,6 @@ impl PrivateNode {
     ///     },
     /// };
     /// use chrono::Utc;
-    /// use std::rc::Rc;
     /// use rand::thread_rng;
     ///
     /// let rng = &mut thread_rng();
@@ -232,6 +230,7 @@ impl PrivateNode {
     /// # Examples
     ///
     /// ```
+    /// use std::rc::Rc;
     /// use wnfs::{
     ///     private::{
     ///         PrivateFile, PrivateNode,
@@ -239,7 +238,6 @@ impl PrivateNode {
     ///     },
     /// };
     /// use chrono::Utc;
-    /// use std::rc::Rc;
     /// use rand::thread_rng;
     ///
     /// let rng = &mut thread_rng();
@@ -268,7 +266,6 @@ impl PrivateNode {
     ///     },
     /// };
     /// use chrono::Utc;
-    /// use std::rc::Rc;
     /// use rand::thread_rng;
     ///
     /// let rng = &mut thread_rng();
@@ -294,7 +291,6 @@ impl PrivateNode {
     ///     },
     /// };
     /// use chrono::Utc;
-    /// use std::rc::Rc;
     /// use rand::thread_rng;
     ///
     /// let rng = &mut thread_rng();
@@ -529,7 +525,6 @@ impl PrivateNode {
     /// # Examples
     ///
     /// ```
-    /// use std::rc::Rc;
     /// use chrono::Utc;
     /// use rand::thread_rng;
     /// use wnfs::{

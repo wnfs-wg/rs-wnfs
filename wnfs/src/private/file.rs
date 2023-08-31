@@ -39,7 +39,6 @@ pub const MAX_BLOCK_CONTENT_SIZE: usize = MAX_BLOCK_SIZE - NONCE_SIZE - AUTHENTI
 ///
 /// ```
 /// use anyhow::Result;
-/// use std::rc::Rc;
 /// use chrono::Utc;
 /// use rand::thread_rng;
 /// use wnfs::{
@@ -374,7 +373,6 @@ impl PrivateFile {
     ///
     /// ```
     /// use anyhow::Result;
-    /// use std::rc::Rc;
     /// use chrono::Utc;
     /// use rand::thread_rng;
     /// use wnfs::{
@@ -422,7 +420,6 @@ impl PrivateFile {
     ///
     /// ```
     /// use anyhow::Result;
-    /// use std::rc::Rc;
     /// use chrono::Utc;
     /// use rand::thread_rng;
     /// use wnfs::{
@@ -541,7 +538,6 @@ impl PrivateFile {
     ///
     /// ```
     /// use anyhow::Result;
-    /// use std::rc::Rc;
     /// use chrono::Utc;
     /// use rand::thread_rng;
     /// use wnfs::{
