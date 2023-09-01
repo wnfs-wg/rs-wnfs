@@ -1,6 +1,6 @@
 [package]
 name = "wnfs-common"
-version = "0.1.23"
+version = "0.1.24"
 description = "Common types for the Webnative Filesystem"
 keywords = ["wnfs", "webnative", "ipfs", "decentralisation"]
 categories = [

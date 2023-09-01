@@ -1,6 +1,6 @@
 [package]
 name = "wnfs-hamt"
-version = "0.1.23"
+version = "0.1.24"
 description = "IPLD HAMT implementation for Webnative Filesystem"
 keywords = ["wnfs", "webnative", "ipfs", "decentralisation"]
 categories = [
@@ -37,7 +37,7 @@ semver = { version = "1.0", features = ["serde"] }
 serde = { version = "1.0", features = ["rc"] }
 serde-byte-array = "0.1.2"
 thiserror = "1.0"
-wnfs-common = { path = "../wnfs-common", version = "0.1.23" }
+wnfs-common = { path = "../wnfs-common", version = "0.1.24" }
 
 [dev-dependencies]
 async-std = { version = "1.11", features = ["attributes"] }
