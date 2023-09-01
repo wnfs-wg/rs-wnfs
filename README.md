@@ -58,6 +58,17 @@ This library is designed with WebAssembly in mind. You can follow instructions o
 - [wnfs-nameaccumulator](https://github.com/wnfs-wg/rs-wnfs/tree/main/wnfs-nameaccumulator)
 - [wnfs-wasm](https://github.com/wnfs-wg/rs-wnfs/tree/main/wnfs-wasm)
 
+Crate dependencies:
+
+```mermaid
+graph TD;
+    wnfs-wasm-->wnfs;
+    wnfs-->wnfs-common;
+    wnfs-->wnfs-hamt;
+    wnfs-->wnfs-nameaccumulator;
+    wnfs-hamt-->wnfs-common;
+```
+
 ## Building the Project
 
 ### REQUIREMENTS
