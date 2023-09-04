@@ -3221,10 +3221,10 @@ wildcard@^2.0.0:
   resolved "https://registry.yarnpkg.com/wildcard/-/wildcard-2.0.1.tgz#5ab10d02487198954836b6349f74fff961e10f67"
   integrity sha512-CC1bOL87PIWSBhDcTrdeLo6eGT7mCFtrg0uIJtqJUFyK+eJnzl8A1niH56uu7KMa5XFrtiV+AQuHO3n7DsHnLQ==
 
-wireit@^0.10.0:
-  version "0.10.0"
-  resolved "https://registry.yarnpkg.com/wireit/-/wireit-0.10.0.tgz#9f2fe35dbf47b232650c488491651858cd7aaff1"
-  integrity sha512-4TX6V9D/2iXUBzdqQaUG+cRePle0mDx1Q7x4Ka2cA8lgp1+ZBhrOTiLsXYRl2roQEldEFgQ2Ff1W8YgyNWAa6w==
+wireit@^0.13.0:
+  version "0.13.0"
+  resolved "https://registry.yarnpkg.com/wireit/-/wireit-0.13.0.tgz#7187478f514a72fb75b7276a16a5fe7cf3d7d0d6"
+  integrity sha512-J8+/kWDBLyDTM2isjEFf9nQZxhuXkgICVt6Nntl9ZyZSAjo/P+nxocwKX6D1jUFfT3TDPStUftsV6OYpx149Ow==
   dependencies:
     braces "^3.0.2"
     chokidar "^3.5.3"
