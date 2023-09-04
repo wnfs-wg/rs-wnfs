@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1693579151778,
+  "lastUpdate": 1693829711113,
   "repoUrl": "https://github.com/wnfs-wg/rs-wnfs",
   "entries": {
     "Rust Benchmark": [
@@ -18493,6 +18493,102 @@ window.BENCHMARK_DATA = {
             "name": "NameAccumulator serialization",
             "value": 944,
             "range": "± 31",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "philipp.krueger1@gmail.com",
+            "name": "Philipp Krüger",
+            "username": "matheus23"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "2d15fbdf61f0461435b1df4339879394859118b5",
+          "message": "feat: Implement storing externally encrypted content in `Metadata` (#340)\n\n* feat: Implement storing externally encrypted content in `Metadata`\r\n\r\n* Add `file_variants` to example README.md\r\n\r\n* Remove debug println\r\n\r\n* feat: Also implement `get_metadata_mut`(-`_rc`) and `open_file_mut` on the public side\r\n\r\n* refactor: Implement and use `as_metadata_value`",
+          "timestamp": "2023-09-04T14:10:04+02:00",
+          "tree_id": "d4fe5bfade2b7d6e78001abe52b68a39223c144e",
+          "url": "https://github.com/wnfs-wg/rs-wnfs/commit/2d15fbdf61f0461435b1df4339879394859118b5"
+        },
+        "date": 1693829709871,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "node set",
+            "value": 8349,
+            "range": "± 492",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node set 1000 consecutive",
+            "value": 3171716,
+            "range": "± 194985",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and get",
+            "value": 149803,
+            "range": "± 8789",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and remove",
+            "value": 159422,
+            "range": "± 8857",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt load and decode/0",
+            "value": 54580,
+            "range": "± 3333",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt set and encode",
+            "value": 137876,
+            "range": "± 8580",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt diff",
+            "value": 61191,
+            "range": "± 6775",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt merge",
+            "value": 180015,
+            "range": "± 19380",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameSegment::new_hashed",
+            "value": 2751774,
+            "range": "± 369497",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameSegment::new(rng)",
+            "value": 2937709,
+            "range": "± 324206",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameAccumulator::add",
+            "value": 2632153,
+            "range": "± 183787",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameAccumulator serialization",
+            "value": 1166,
+            "range": "± 568",
             "unit": "ns/iter"
           }
         ]
