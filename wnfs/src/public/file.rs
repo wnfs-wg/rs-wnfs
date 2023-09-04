@@ -103,6 +103,16 @@ impl PublicFile {
         &self.metadata
     }
 
+    /// Returns a mutable reference to metadata for this file.
+    pub fn get_metadata_mut(&mut self) -> &mut Metadata {
+        &mut self.metadata
+    }
+
+    /// Returns a mutable reference to this file's metadata and ratchets forward the history, if necessary.
+    pub fn get_metadata_mut_rc<'a>(self: &'a mut Rc<Self>) -> &'a mut Metadata {
+        self.prepare_next_revision().get_metadata_mut()
+    }
+
     /// Gets the content cid of a file
     pub fn get_content_cid(&self) -> &Cid {
         &self.userland
