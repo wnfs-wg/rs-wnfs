@@ -13,12 +13,7 @@ test.describe("Share", () => {
   test("share and recieve share", async ({ page }) => {
     const result = await page.evaluate(async () => {
       const {
-        wnfs: {
-          PrivateForest,
-          share,
-          createShareName,
-          receiveShare,
-        },
+        wnfs: { PrivateForest, share, createShareName, receiveShare },
         mock: {
           MemoryBlockStore,
           Rng,
@@ -32,12 +27,12 @@ test.describe("Share", () => {
       globalThis.ExchangeKey = ExchangeKey;
 
       const rng = new Rng();
-      var sharerForest = new PrivateForest(rng);
+      var forest = new PrivateForest(rng);
       const sharerRootDid = "did:key:z6MkqZjY";
       const store = new MemoryBlockStore();
 
-      var { rootDir: sharerDir, forest: sharerForest } = await createSharerDir(
-        sharerForest,
+      var { rootDir: sharerDir, forest: forest } = await createSharerDir(
+        forest,
         store,
         rng
       );
@@ -47,26 +42,26 @@ test.describe("Share", () => {
 
       const recipientExchRootCid = await recipientExchRoot.store(store);
 
-      var [accessKey, sharerForest2] = await sharerDir
+      var [accessKey, forest2] = await sharerDir
         .asNode()
-        .store(sharerForest, store, rng);
+        .store(forest, store, rng);
 
-      var sharerForest2 = await share(
+      var forest2 = await share(
         accessKey,
         0,
         sharerRootDid,
-        sharerForest2,
         recipientExchRootCid,
+        forest2,
         store
       );
 
       const modulus = await recipientKey.getPublicKey().getPublicKeyModulus();
-      const shareLabel = createShareName(0, sharerRootDid, modulus, sharerForest2);
+      const shareLabel = createShareName(0, sharerRootDid, modulus, forest2);
 
       const sharedNode = await receiveShare(
         shareLabel,
         recipientKey,
-        sharerForest2,
+        forest2,
         store
       );
 

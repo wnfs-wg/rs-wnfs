@@ -24,7 +24,7 @@ use wnfs_nameaccumulator::Name;
 // Type Definitions
 //--------------------------------------------------------------------------------------------------
 
-/// Represents a node in the WNFS private file system. This can either be a file or a directory.
+/// A node in the WNFS private file system. This can either be a file or a directory.
 ///
 /// # Examples
 ///
@@ -34,17 +34,11 @@ use wnfs_nameaccumulator::Name;
 ///     forest::{hamt::HamtForest, traits::PrivateForest},
 /// };
 /// use chrono::Utc;
-/// use std::rc::Rc;
 /// use rand::thread_rng;
 ///
 /// let rng = &mut thread_rng();
-/// let forest = &mut Rc::new(HamtForest::new_rsa_2048(rng));
-/// let dir = Rc::new(PrivateDirectory::new(
-///     &forest.empty_name(),
-///     Utc::now(),
-///     rng,
-/// ));
-///
+/// let forest = &mut HamtForest::new_rsa_2048_rc(rng);
+/// let dir = PrivateDirectory::new_rc(&forest.empty_name(), Utc::now(), rng);
 /// let node = PrivateNode::Dir(dir);
 ///
 /// println!("Node: {:?}", node);
@@ -72,16 +66,11 @@ impl PrivateNode {
     ///     },
     /// };
     /// use chrono::{Utc, Duration, TimeZone};
-    /// use std::rc::Rc;
     /// use rand::thread_rng;
     ///
     /// let rng = &mut thread_rng();
-    /// let forest = &mut Rc::new(HamtForest::new_rsa_2048(rng));
-    /// let dir = Rc::new(PrivateDirectory::new(
-    ///     &forest.empty_name(),
-    ///     Utc::now(),
-    ///     rng,
-    /// ));
+    /// let forest = &mut HamtForest::new_rsa_2048_rc(rng);
+    /// let dir = PrivateDirectory::new_rc(&forest.empty_name(), Utc::now(), rng);
     /// let node = PrivateNode::Dir(dir);
     ///
     /// let time = Utc::now() + Duration::days(1);
@@ -149,6 +138,7 @@ impl PrivateNode {
     /// # Examples
     ///
     /// ```
+    /// use std::rc::Rc;
     /// use wnfs::{
     ///     private::{
     ///         PrivateDirectory, PrivateNode,
@@ -156,16 +146,11 @@ impl PrivateNode {
     ///     },
     /// };
     /// use chrono::Utc;
-    /// use std::rc::Rc;
     /// use rand::thread_rng;
     ///
     /// let rng = &mut thread_rng();
-    /// let forest = &mut Rc::new(HamtForest::new_rsa_2048(rng));
-    /// let dir = Rc::new(PrivateDirectory::new(
-    ///     &forest.empty_name(),
-    ///     Utc::now(),
-    ///     rng,
-    /// ));
+    /// let forest = &mut HamtForest::new_rsa_2048_rc(rng);
+    /// let dir = PrivateDirectory::new_rc(&forest.empty_name(), Utc::now(), rng);
     /// let node = PrivateNode::Dir(Rc::clone(&dir));
     ///
     /// assert_eq!(&dir.header, node.get_header());
@@ -208,6 +193,7 @@ impl PrivateNode {
     /// # Examples
     ///
     /// ```
+    /// use std::rc::Rc;
     /// use wnfs::{
     ///     private::{
     ///         PrivateDirectory, PrivateNode,
@@ -215,16 +201,11 @@ impl PrivateNode {
     ///     },
     /// };
     /// use chrono::Utc;
-    /// use std::rc::Rc;
     /// use rand::thread_rng;
     ///
     /// let rng = &mut thread_rng();
-    /// let forest = &mut Rc::new(HamtForest::new_rsa_2048(rng));
-    /// let dir = Rc::new(PrivateDirectory::new(
-    ///     &forest.empty_name(),
-    ///     Utc::now(),
-    ///     rng,
-    /// ));
+    /// let forest = &mut HamtForest::new_rsa_2048_rc(rng);
+    /// let dir = PrivateDirectory::new_rc(&forest.empty_name(), Utc::now(), rng);
     /// let node = PrivateNode::Dir(Rc::clone(&dir));
     ///
     /// assert_eq!(node.as_dir().unwrap(), dir);
@@ -249,6 +230,7 @@ impl PrivateNode {
     /// # Examples
     ///
     /// ```
+    /// use std::rc::Rc;
     /// use wnfs::{
     ///     private::{
     ///         PrivateFile, PrivateNode,
@@ -256,16 +238,11 @@ impl PrivateNode {
     ///     },
     /// };
     /// use chrono::Utc;
-    /// use std::rc::Rc;
     /// use rand::thread_rng;
     ///
     /// let rng = &mut thread_rng();
-    /// let forest = &mut Rc::new(HamtForest::new_rsa_2048(rng));
-    /// let file = Rc::new(PrivateFile::new(
-    ///     &forest.empty_name(),
-    ///     Utc::now(),
-    ///     rng,
-    /// ));
+    /// let forest = &mut HamtForest::new_rsa_2048_rc(rng);
+    /// let file = PrivateFile::new_rc(&forest.empty_name(), Utc::now(), rng);
     /// let node = PrivateNode::File(Rc::clone(&file));
     ///
     /// assert_eq!(node.as_file().unwrap(), file);
@@ -289,16 +266,11 @@ impl PrivateNode {
     ///     },
     /// };
     /// use chrono::Utc;
-    /// use std::rc::Rc;
     /// use rand::thread_rng;
     ///
     /// let rng = &mut thread_rng();
-    /// let forest = &mut Rc::new(HamtForest::new_rsa_2048(rng));
-    /// let dir = Rc::new(PrivateDirectory::new(
-    ///     &forest.empty_name(),
-    ///     Utc::now(),
-    ///     rng,
-    /// ));
+    /// let forest = &mut HamtForest::new_rsa_2048_rc(rng);
+    /// let dir = PrivateDirectory::new_rc(&forest.empty_name(), Utc::now(), rng);
     /// let node = PrivateNode::Dir(dir);
     ///
     /// assert!(node.is_dir());
@@ -319,16 +291,11 @@ impl PrivateNode {
     ///     },
     /// };
     /// use chrono::Utc;
-    /// use std::rc::Rc;
     /// use rand::thread_rng;
     ///
     /// let rng = &mut thread_rng();
-    /// let forest = &mut Rc::new(HamtForest::new_rsa_2048(rng));
-    /// let file = Rc::new(PrivateFile::new(
-    ///     &forest.empty_name(),
-    ///     Utc::now(),
-    ///     rng,
-    /// ));
+    /// let forest = &mut HamtForest::new_rsa_2048_rc(rng);
+    /// let file = PrivateFile::new_rc(&forest.empty_name(), Utc::now(), rng);
     /// let node = PrivateNode::File(file);
     ///
     /// assert!(node.is_file());
@@ -357,7 +324,7 @@ impl PrivateNode {
     /// async fn main() {
     ///     let store = &MemoryBlockStore::default();
     ///     let rng = &mut thread_rng();
-    ///     let forest = &mut Rc::new(HamtForest::new_rsa_2048(rng));
+    ///     let forest = &mut HamtForest::new_rsa_2048_rc(rng);
     ///
     ///     let mut init_dir = PrivateDirectory::new_and_store(
     ///         &forest.empty_name(),
@@ -557,7 +524,6 @@ impl PrivateNode {
     /// # Examples
     ///
     /// ```
-    /// use std::rc::Rc;
     /// use chrono::Utc;
     /// use rand::thread_rng;
     /// use wnfs::{
@@ -572,12 +538,8 @@ impl PrivateNode {
     /// async fn main() {
     ///     let store = &MemoryBlockStore::new();
     ///     let rng = &mut thread_rng();
-    ///     let forest = &mut Rc::new(HamtForest::new_rsa_2048(rng));
-    ///     let dir = Rc::new(PrivateDirectory::new(
-    ///         &forest.empty_name(),
-    ///         Utc::now(),
-    ///         rng,
-    ///     ));
+    ///     let forest = &mut HamtForest::new_rsa_2048_rc(rng);
+    ///     let dir = PrivateDirectory::new_rc(&forest.empty_name(), Utc::now(), rng);
     ///
     ///     let node = PrivateNode::Dir(dir);
     ///
@@ -648,30 +610,26 @@ mod tests {
     async fn serialized_private_node_can_be_deserialized() {
         let rng = &mut ChaCha12Rng::seed_from_u64(0);
         let content = b"Lorem ipsum dolor sit amet";
-        let forest = &mut Rc::new(HamtForest::new_rsa_2048(rng));
+        let forest = &mut HamtForest::new_rsa_2048_rc(rng);
         let store = &MemoryBlockStore::new();
-
-        let file = Rc::new(
-            PrivateFile::with_content(
-                &forest.empty_name(),
-                Utc::now(),
-                content.to_vec(),
-                forest,
-                store,
-                rng,
-            )
-            .await
-            .unwrap(),
-        );
-
-        let mut directory = Rc::new(PrivateDirectory::new(&forest.empty_name(), Utc::now(), rng));
+        let file = PrivateFile::with_content(
+            &forest.empty_name(),
+            Utc::now(),
+            content.to_vec(),
+            forest,
+            store,
+            rng,
+        )
+        .await
+        .unwrap();
+        let mut directory = PrivateDirectory::new_rc(&forest.empty_name(), Utc::now(), rng);
 
         directory
             .mkdir(&["music".into()], true, Utc::now(), forest, store, rng)
             .await
             .unwrap();
 
-        let file_node = PrivateNode::File(Rc::clone(&file));
+        let file_node = PrivateNode::File(Rc::new(file));
         let dir_node = PrivateNode::Dir(Rc::clone(&directory));
 
         let file_private_ref = file_node.store(forest, store, rng).await.unwrap();

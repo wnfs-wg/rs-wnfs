@@ -19,18 +19,13 @@ use std::{
     collections::{BTreeMap, BTreeSet},
     rc::Rc,
 };
-use wnfs_common::{
-    utils::error, AsyncSerialize, BlockStore, Metadata, PathNodes, PathNodesResult, RemembersCid,
-};
+use wnfs_common::{utils::error, AsyncSerialize, BlockStore, Metadata, RemembersCid};
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
 //--------------------------------------------------------------------------------------------------
 
-pub type PublicPathNodes = PathNodes<PublicDirectory>;
-pub type PublicPathNodesResult = PathNodesResult<PublicDirectory>;
-
-/// Represents a directory in the WNFS public filesystem.
+/// A directory in the WNFS public file system.
 ///
 /// # Examples
 ///
@@ -76,6 +71,22 @@ impl PublicDirectory {
         }
     }
 
+    /// Creates an `Rc` wrapped directory.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use wnfs::public::PublicDirectory;
+    /// use chrono::Utc;
+    ///
+    /// let dir = PublicDirectory::new_rc(Utc::now());
+    ///
+    /// println!("Directory: {:?}", dir);
+    /// ```
+    pub fn new_rc(time: DateTime<Utc>) -> Rc<Self> {
+        Rc::new(Self::new(time))
+    }
+
     /// Gets the previous Cids.
     ///
     /// # Examples
@@ -85,7 +96,7 @@ impl PublicDirectory {
     /// use std::{rc::Rc, collections::BTreeSet};
     /// use chrono::Utc;
     ///
-    /// let dir = Rc::new(PublicDirectory::new(Utc::now()));
+    /// let dir = PublicDirectory::new_rc(Utc::now());
     ///
     /// assert_eq!(dir.get_previous(), &BTreeSet::new());
     /// ```
@@ -100,11 +111,10 @@ impl PublicDirectory {
     ///
     /// ```
     /// use wnfs::{public::PublicDirectory, common::Metadata};
-    /// use std::rc::Rc;
     /// use chrono::Utc;
     ///
     /// let time = Utc::now();
-    /// let dir = Rc::new(PublicDirectory::new(time));
+    /// let dir = PublicDirectory::new_rc(time);
     ///
     /// assert_eq!(dir.get_metadata(), &Metadata::new(time));
     /// ```
@@ -223,12 +233,11 @@ impl PublicDirectory {
     ///     public::PublicDirectory,
     ///     common::MemoryBlockStore
     /// };
-    /// use std::rc::Rc;
     /// use chrono::Utc;
     ///
     /// #[async_std::main]
     /// async fn main() {
-    ///     let dir = &mut Rc::new(PublicDirectory::new(Utc::now()));
+    ///     let dir = &mut PublicDirectory::new_rc(Utc::now());
     ///     let store = MemoryBlockStore::default();
     ///
     ///     dir
@@ -332,12 +341,11 @@ impl PublicDirectory {
     ///     traits::Id,
     ///     common::MemoryBlockStore
     /// };
-    /// use std::rc::Rc;
     /// use chrono::Utc;
     ///
     /// #[async_std::main]
     /// async fn main() {
-    ///     let dir = &mut Rc::new(PublicDirectory::new(Utc::now()));
+    ///     let dir = &mut PublicDirectory::new_rc(Utc::now());
     ///     let mut store = MemoryBlockStore::default();
     ///
     ///     dir
@@ -383,12 +391,11 @@ impl PublicDirectory {
     ///     common::MemoryBlockStore
     /// };
     /// use libipld_core::cid::Cid;
-    /// use std::rc::Rc;
     /// use chrono::Utc;
     ///
     /// #[async_std::main]
     /// async fn main() {
-    ///     let dir = &mut Rc::new(PublicDirectory::new(Utc::now()));
+    ///     let dir = &mut PublicDirectory::new_rc(Utc::now());
     ///     let store = &MemoryBlockStore::default();
     ///     let cid = Cid::default();
     ///
@@ -432,12 +439,11 @@ impl PublicDirectory {
     ///     common::MemoryBlockStore
     /// };
     /// use libipld_core::cid::Cid;
-    /// use std::rc::Rc;
     /// use chrono::Utc;
     ///
     /// #[async_std::main]
     /// async fn main() {
-    ///     let dir = &mut Rc::new(PublicDirectory::new(Utc::now()));
+    ///     let dir = &mut PublicDirectory::new_rc(Utc::now());
     ///     let store = &MemoryBlockStore::default();
     ///
     ///     dir
@@ -485,12 +491,11 @@ impl PublicDirectory {
     ///     traits::Id,
     ///     common::MemoryBlockStore
     /// };
-    /// use std::rc::Rc;
     /// use chrono::Utc;
     ///
     /// #[async_std::main]
     /// async fn main() {
-    ///     let dir = &mut Rc::new(PublicDirectory::new(Utc::now()));
+    ///     let dir = &mut PublicDirectory::new_rc(Utc::now());
     ///     let store = MemoryBlockStore::default();
     ///
     ///     dir
@@ -532,12 +537,11 @@ impl PublicDirectory {
     ///     common::MemoryBlockStore
     /// };
     /// use libipld_core::cid::Cid;
-    /// use std::rc::Rc;
     /// use chrono::Utc;
     ///
     /// #[async_std::main]
     /// async fn main() {
-    ///     let dir = &mut Rc::new(PublicDirectory::new(Utc::now()));
+    ///     let dir = &mut PublicDirectory::new_rc(Utc::now());
     ///     let store = MemoryBlockStore::default();
     ///
     ///     dir
@@ -594,12 +598,11 @@ impl PublicDirectory {
     ///     common::MemoryBlockStore
     /// };
     /// use libipld_core::cid::Cid;
-    /// use std::rc::Rc;
     /// use chrono::Utc;
     ///
     /// #[async_std::main]
     /// async fn main() {
-    ///     let dir = &mut Rc::new(PublicDirectory::new(Utc::now()));
+    ///     let dir = &mut PublicDirectory::new_rc(Utc::now());
     ///     let store = MemoryBlockStore::default();
     ///
     ///     dir
@@ -663,12 +666,11 @@ impl PublicDirectory {
     ///     common::MemoryBlockStore
     /// };
     /// use libipld_core::cid::Cid;
-    /// use std::rc::Rc;
     /// use chrono::Utc;
     ///
     /// #[async_std::main]
     /// async fn main() {
-    ///     let dir = &mut Rc::new(PublicDirectory::new(Utc::now()));
+    ///     let dir = &mut PublicDirectory::new_rc(Utc::now());
     ///     let store = MemoryBlockStore::default();
     ///
     ///     dir
@@ -732,7 +734,6 @@ impl PublicDirectory {
     ///
     /// ```
     /// use anyhow::Result;
-    /// use std::rc::Rc;
     /// use libipld_core::cid::Cid;
     /// use chrono::Utc;
     /// use rand::thread_rng;
@@ -743,7 +744,7 @@ impl PublicDirectory {
     ///
     /// #[async_std::main]
     /// async fn main() -> Result<()> {
-    ///     let dir = &mut Rc::new(PublicDirectory::new(Utc::now()));
+    ///     let dir = &mut PublicDirectory::new_rc(Utc::now());
     ///     let store = &MemoryBlockStore::new();
     ///
     ///     dir
@@ -950,7 +951,7 @@ mod tests {
 
     #[async_std::test]
     async fn look_up_can_fetch_file_added_to_directory() {
-        let root_dir = &mut Rc::new(PublicDirectory::new(Utc::now()));
+        let root_dir = &mut PublicDirectory::new_rc(Utc::now());
         let store = MemoryBlockStore::default();
         let content_cid = Cid::default();
         let time = Utc::now();
@@ -966,10 +967,7 @@ mod tests {
 
         assert_eq!(
             node,
-            Some(&PublicNode::File(Rc::new(PublicFile::new(
-                time,
-                content_cid
-            ))))
+            Some(&PublicNode::File(PublicFile::new_rc(time, content_cid)))
         );
     }
 
@@ -989,7 +987,7 @@ mod tests {
     async fn get_node_can_fetch_node_from_root_dir() {
         let time = Utc::now();
         let store = MemoryBlockStore::default();
-        let root_dir = &mut Rc::new(PublicDirectory::new(time));
+        let root_dir = &mut PublicDirectory::new_rc(time);
 
         root_dir
             .mkdir(&["pictures".into(), "dogs".into()], time, &store)
@@ -1047,7 +1045,7 @@ mod tests {
     async fn mkdir_can_create_new_directory() {
         let time = Utc::now();
         let store = MemoryBlockStore::default();
-        let root_dir = &mut Rc::new(PublicDirectory::new(time));
+        let root_dir = &mut PublicDirectory::new_rc(time);
 
         root_dir
             .mkdir(&["tamedun".into(), "pictures".into()], time, &store)
@@ -1066,7 +1064,7 @@ mod tests {
     async fn ls_can_list_children_under_directory() {
         let time = Utc::now();
         let store = MemoryBlockStore::default();
-        let root_dir = &mut Rc::new(PublicDirectory::new(time));
+        let root_dir = &mut PublicDirectory::new_rc(time);
 
         root_dir
             .mkdir(&["tamedun".into(), "pictures".into()], time, &store)
@@ -1108,7 +1106,7 @@ mod tests {
     async fn rm_can_remove_children_from_directory() {
         let time = Utc::now();
         let store = MemoryBlockStore::default();
-        let mut root_dir = Rc::new(PublicDirectory::new(time));
+        let mut root_dir = PublicDirectory::new_rc(time);
 
         root_dir
             .mkdir(&["tamedun".into(), "pictures".into()], time, &store)
@@ -1152,7 +1150,7 @@ mod tests {
         let store = MemoryBlockStore::default();
         let content_cid = Cid::default();
         let time = Utc::now();
-        let mut root_dir = Rc::new(PublicDirectory::new(time));
+        let mut root_dir = PublicDirectory::new_rc(time);
 
         root_dir
             .write(&["text.txt".into()], content_cid, time, &store)
@@ -1168,7 +1166,7 @@ mod tests {
     async fn mv_can_move_sub_directory_to_another_valid_location() {
         let time = Utc::now();
         let store = MemoryBlockStore::default();
-        let mut root_dir = Rc::new(PublicDirectory::new(time));
+        let mut root_dir = PublicDirectory::new_rc(time);
 
         root_dir
             .write(
@@ -1219,7 +1217,7 @@ mod tests {
     async fn mv_cannot_move_sub_directory_to_invalid_location() {
         let time = Utc::now();
         let store = MemoryBlockStore::default();
-        let mut root_dir = Rc::new(PublicDirectory::new(time));
+        let mut root_dir = PublicDirectory::new_rc(time);
 
         root_dir
             .mkdir(
@@ -1251,7 +1249,7 @@ mod tests {
     async fn mv_can_rename_directories() {
         let time = Utc::now();
         let store = MemoryBlockStore::default();
-        let root_dir = &mut Rc::new(PublicDirectory::new(time));
+        let root_dir = &mut PublicDirectory::new_rc(time);
 
         root_dir
             .write(&["file.txt".into()], Cid::default(), time, &store)
@@ -1280,7 +1278,7 @@ mod tests {
     async fn mv_fails_moving_directories_to_files() {
         let time = Utc::now();
         let store = MemoryBlockStore::default();
-        let root_dir = &mut Rc::new(PublicDirectory::new(time));
+        let root_dir = &mut PublicDirectory::new_rc(time);
 
         root_dir
             .mkdir(&["movies".into(), "ghibli".into()], time, &store)
@@ -1308,7 +1306,7 @@ mod tests {
     async fn previous_links_get_set() {
         let time = Utc::now();
         let store = &MemoryBlockStore::default();
-        let root_dir = &mut Rc::new(PublicDirectory::new(time));
+        let root_dir = &mut PublicDirectory::new_rc(time);
         let previous_cid = root_dir.store(store).await.unwrap();
 
         root_dir.mkdir(&["test".into()], time, store).await.unwrap();
@@ -1332,7 +1330,7 @@ mod tests {
     async fn prepare_next_revision_shortcuts_if_possible() {
         let time = Utc::now();
         let store = &MemoryBlockStore::default();
-        let root_dir = &mut Rc::new(PublicDirectory::new(time));
+        let root_dir = &mut PublicDirectory::new_rc(time);
 
         let previous_cid = &root_dir.store(store).await.unwrap();
         let next_root_dir = root_dir.prepare_next_revision();
@@ -1357,7 +1355,7 @@ mod snapshot_tests {
         let store = &SnapshotBlockStore::default();
         let time = Utc.with_ymd_and_hms(1970, 1, 1, 0, 0, 0).unwrap();
 
-        let root_dir = &mut Rc::new(PublicDirectory::new(time));
+        let root_dir = &mut PublicDirectory::new_rc(time);
         let cid = root_dir.store(store).await.unwrap();
 
         let dir = store.get_block_snapshot(&cid).await.unwrap();
@@ -1370,7 +1368,7 @@ mod snapshot_tests {
         let store = &SnapshotBlockStore::default();
         let time = Utc.with_ymd_and_hms(1970, 1, 1, 0, 0, 0).unwrap();
 
-        let root_dir = &mut Rc::new(PublicDirectory::new(time));
+        let root_dir = &mut PublicDirectory::new_rc(time);
         let paths = [
             vec!["text.txt".into()],
             vec!["music".into(), "jazz".into()],
@@ -1401,7 +1399,7 @@ mod snapshot_tests {
             vec!["videos".into(), "movies".into(), "anime".into()],
         ];
 
-        let root_dir = &mut Rc::new(PublicDirectory::new(time));
+        let root_dir = &mut PublicDirectory::new_rc(time);
         let _ = root_dir.store(store).await.unwrap();
 
         for path in paths.iter() {

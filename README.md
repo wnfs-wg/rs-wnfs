@@ -177,14 +177,15 @@ Let's see an example of working with a public filesystem. We will use the in-mem
 ```rust
 use anyhow::Result;
 use chrono::Utc;
-use std::rc::Rc;
-use wnfs::public::PublicDirectory;
-use wnfs_common::MemoryBlockStore;
+use wnfs::{
+    common::MemoryBlockStore,
+    public::PublicDirectory
+};
 
 #[async_std::main]
 async fn main() -> Result<()> {
     // Create a new public directory.
-    let dir = &mut Rc::new(PublicDirectory::new(Utc::now()));
+    let dir = &mut PublicDirectory::new_rc(Utc::now());
 
     // Create an in-memory block store.
     let store = &MemoryBlockStore::default();
@@ -215,12 +216,13 @@ That's the public filesystem, the private filesystem, on the other hand, is a bi
 use anyhow::Result;
 use chrono::Utc;
 use rand::thread_rng;
-use std::rc::Rc;
-use wnfs::private::{
-    PrivateDirectory,
-    forest::{hamt::HamtForest, traits::PrivateForest},
+use wnfs::{
+    common::MemoryBlockStore,
+    private::{
+        PrivateDirectory,
+        forest::{hamt::HamtForest, traits::PrivateForest},
+    }
 };
-use wnfs_common::MemoryBlockStore;
 
 #[async_std::main]
 async fn main() -> Result<()> {
@@ -231,14 +233,10 @@ async fn main() -> Result<()> {
     let rng = &mut thread_rng();
 
     // Create a private forest.
-    let forest = &mut Rc::new(HamtForest::new_trusted(rng));
+    let forest = &mut HamtForest::new_trusted_rc(rng);
 
     // Create a new private directory.
-    let dir = &mut Rc::new(PrivateDirectory::new(
-        &forest.empty_name(),
-        Utc::now(),
-        rng,
-    ));
+    let dir = &mut PrivateDirectory::new_rc(&forest.empty_name(), Utc::now(), rng);
 
     // Add a file to /pictures/cats directory.
     dir.mkdir(

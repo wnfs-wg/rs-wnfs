@@ -3,16 +3,18 @@ use chrono::Utc;
 use libipld_core::cid::Cid;
 use rand::thread_rng;
 use std::{collections::BTreeSet, rc::Rc};
-use wnfs::private::{
-    forest::{
-        hamt::HamtForest,
-        proofs::{ForestProofs, ProvingHamtForest},
-        traits::PrivateForest,
+use wnfs::{
+    common::{BlockStore, MemoryBlockStore},
+    nameaccumulator::NameAccumulator,
+    private::{
+        forest::{
+            hamt::HamtForest,
+            proofs::{ForestProofs, ProvingHamtForest},
+            traits::PrivateForest,
+        },
+        AccessKey, PrivateDirectory, PrivateNode,
     },
-    AccessKey, PrivateDirectory, PrivateNode,
 };
-use wnfs_common::{BlockStore, MemoryBlockStore};
-use wnfs_nameaccumulator::NameAccumulator;
 
 #[async_std::main]
 async fn main() -> Result<()> {
@@ -52,8 +54,8 @@ async fn main() -> Result<()> {
 /// supposed to be publicly signed for verifyable write access.
 async fn alice_actions(store: &impl BlockStore) -> Result<(Cid, AccessKey, NameAccumulator)> {
     let rng = &mut thread_rng();
-    let forest = &mut Rc::new(HamtForest::new_rsa_2048(rng));
-    let root_dir = &mut Rc::new(PrivateDirectory::new(&forest.empty_name(), Utc::now(), rng));
+    let forest = &mut HamtForest::new_rsa_2048_rc(rng);
+    let root_dir = &mut PrivateDirectory::new_rc(&forest.empty_name(), Utc::now(), rng);
 
     let access_key = root_dir.as_node().store(forest, store, rng).await?;
     let cid = forest.store(store).await?;

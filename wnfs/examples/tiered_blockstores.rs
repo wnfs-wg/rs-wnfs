@@ -9,12 +9,13 @@ use bytes::Bytes;
 use chrono::Utc;
 use libipld_core::cid::Cid;
 use rand::thread_rng;
-use std::rc::Rc;
-use wnfs::private::{
-    forest::{hamt::HamtForest, traits::PrivateForest},
-    PrivateDirectory, PrivateNode,
+use wnfs::{
+    common::{BlockStore, MemoryBlockStore},
+    private::{
+        forest::{hamt::HamtForest, traits::PrivateForest},
+        PrivateDirectory, PrivateNode,
+    },
 };
-use wnfs_common::{BlockStore, MemoryBlockStore};
 
 #[async_std::main]
 async fn main() -> Result<()> {
@@ -31,10 +32,10 @@ async fn main() -> Result<()> {
 
     // Create a new private forest.
     // This represents your whole private file system, but hides any internal structure.
-    let forest = &mut Rc::new(HamtForest::new_rsa_2048(rng));
+    let forest = &mut HamtForest::new_rsa_2048_rc(rng);
 
     // Create a new private directory
-    let mut directory = Rc::new(PrivateDirectory::new(&forest.empty_name(), Utc::now(), rng));
+    let mut directory = PrivateDirectory::new_rc(&forest.empty_name(), Utc::now(), rng);
 
     let file_path = ["datasets".into(), "recordings".into(), "monday.mp4".into()];
     let video = b"This isn't actually a video. But it could be!";

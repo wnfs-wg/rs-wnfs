@@ -1,3 +1,5 @@
+//! Primitives for working with the private file system.
+
 mod directory;
 mod encrypted;
 mod file;

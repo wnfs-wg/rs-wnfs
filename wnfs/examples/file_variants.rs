@@ -4,7 +4,6 @@
 use anyhow::Result;
 use chrono::Utc;
 use rand::thread_rng;
-use std::rc::Rc;
 use wnfs::private::{
     forest::{hamt::HamtForest, traits::PrivateForest},
     PrivateFile, PrivateForestContent,
@@ -19,17 +18,15 @@ async fn main() -> Result<()> {
     let forest = &mut HamtForest::new_rsa_2048(rng);
 
     // Create a new file (detached from any directory)
-    let mut file = Rc::new(
-        PrivateFile::with_content(
-            &forest.empty_name(),
-            Utc::now(),
-            b"main content".to_vec(),
-            forest,
-            store,
-            rng,
-        )
-        .await?,
-    );
+    let mut file = PrivateFile::with_content_rc(
+        &forest.empty_name(),
+        Utc::now(),
+        b"main content".to_vec(),
+        forest,
+        store,
+        rng,
+    )
+    .await?;
 
     // Create some content that's stored encrypted in the private forest.
     // The PrivateForestContent struct holds the keys and pointers to look it back up.

@@ -4,9 +4,7 @@
 use anyhow::Result;
 use chrono::Utc;
 use libipld_core::cid::Cid;
-use std::rc::Rc;
-use wnfs::public::PublicDirectory;
-use wnfs_common::MemoryBlockStore;
+use wnfs::{common::MemoryBlockStore, public::PublicDirectory};
 
 #[async_std::main]
 async fn main() -> Result<()> {
@@ -14,7 +12,7 @@ async fn main() -> Result<()> {
     let store = MemoryBlockStore::default();
 
     // Create a new directory.
-    let root_dir = &mut Rc::new(PublicDirectory::new(Utc::now()));
+    let root_dir = &mut PublicDirectory::new_rc(Utc::now());
 
     // Add a /pictures/cats subdirectory.
     root_dir

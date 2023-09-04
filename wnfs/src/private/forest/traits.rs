@@ -60,7 +60,6 @@ pub trait PrivateForest {
     /// # Examples
     ///
     /// ```
-    /// use std::rc::Rc;
     /// use chrono::Utc;
     /// use rand::thread_rng;
     /// use wnfs::{
@@ -75,13 +74,8 @@ pub trait PrivateForest {
     /// async fn main() {
     ///     let store = &mut MemoryBlockStore::default();
     ///     let rng = &mut thread_rng();
-    ///     let forest = &mut Rc::new(HamtForest::new_rsa_2048(rng));
-    ///     let dir = Rc::new(PrivateDirectory::new(
-    ///         &forest.empty_name(),
-    ///         Utc::now(),
-    ///         rng,
-    ///     ));
-    ///
+    ///     let forest = &mut HamtForest::new_rsa_2048_rc(rng);
+    ///     let dir = PrivateDirectory::new_rc(&forest.empty_name(), Utc::now(), rng);
     ///     let node = PrivateNode::Dir(dir);
     ///     let access_key = node.store(forest, store, rng).await.unwrap();
     ///

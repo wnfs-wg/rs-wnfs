@@ -10,7 +10,7 @@ use serde::{de::Error as DeError, Deserialize, Deserializer, Serialize, Serializ
 use std::{collections::BTreeSet, rc::Rc};
 use wnfs_common::{BlockStore, Metadata, RemembersCid};
 
-/// Represents a file in the WNFS public filesystem.
+/// A file in the WNFS public file system.
 ///
 /// # Examples
 ///
@@ -56,6 +56,23 @@ impl PublicFile {
             userland: content_cid,
             previous: BTreeSet::new(),
         }
+    }
+
+    /// Creates an `Rc` wrapped file.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use wnfs::public::PublicFile;
+    /// use chrono::Utc;
+    /// use libipld_core::cid::Cid;
+    ///
+    /// let file = PublicFile::new(Utc::now(), Cid::default());
+    ///
+    /// println!("File: {:?}", file);
+    /// ```
+    pub fn new_rc(time: DateTime<Utc>, content_cid: Cid) -> Rc<Self> {
+        Rc::new(Self::new(time, content_cid))
     }
 
     /// Takes care of creating previous links, in case the current
@@ -248,7 +265,7 @@ mod tests {
             .await
             .unwrap();
 
-        let file = &mut Rc::new(PublicFile::new(time, content_cid));
+        let file = &mut PublicFile::new_rc(time, content_cid);
         let previous_cid = &file.store(store).await.unwrap();
         let next_file = file.prepare_next_revision();
 
@@ -267,7 +284,7 @@ mod tests {
             .await
             .unwrap();
 
-        let file = &mut Rc::new(PublicFile::new(time, content_cid));
+        let file = &mut PublicFile::new_rc(time, content_cid);
         let previous_cid = &file.store(store).await.unwrap();
         let next_file = file.prepare_next_revision();
         let next_file_clone = &mut Rc::new(next_file.clone());
@@ -291,7 +308,7 @@ mod snapshot_tests {
         let store = &SnapshotBlockStore::default();
         let time = Utc.with_ymd_and_hms(1970, 1, 1, 0, 0, 0).unwrap();
 
-        let file = &mut Rc::new(PublicFile::new(time, Cid::default()));
+        let file = &mut PublicFile::new_rc(time, Cid::default());
         let cid = file.store(store).await.unwrap();
 
         let file = store.get_block_snapshot(&cid).await.unwrap();
@@ -304,7 +321,7 @@ mod snapshot_tests {
         let store = &SnapshotBlockStore::default();
         let time = Utc.with_ymd_and_hms(1970, 1, 1, 0, 0, 0).unwrap();
 
-        let file = &mut Rc::new(PublicFile::new(time, Cid::default()));
+        let file = &mut PublicFile::new_rc(time, Cid::default());
         let _ = file.store(store).await.unwrap();
 
         file.write(time, Cid::default());
