@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.1.26](https://github.com/wnfs-wg/rs-wnfs/compare/wnfs-v0.1.25...wnfs-v0.1.26) (2023-09-04)
+
+
+### Features
+
+* Implement storing externally encrypted content in `Metadata` ([#340](https://github.com/wnfs-wg/rs-wnfs/issues/340)) ([2d15fbd](https://github.com/wnfs-wg/rs-wnfs/commit/2d15fbdf61f0461435b1df4339879394859118b5))
+* Remove `Share` struct, add documentation, add `rc` constructor variants ([#343](https://github.com/wnfs-wg/rs-wnfs/issues/343)) ([e6cee87](https://github.com/wnfs-wg/rs-wnfs/commit/e6cee873273e154c7855d17e9c756717a635874b))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * wnfs-common bumped from 0.1.24 to 0.1.23
+    * wnfs-hamt bumped from 0.1.24 to 0.1.23
+    * wnfs-nameaccumulator bumped from 0.1.25 to 0.1.26
+
 ## [0.1.25](https://github.com/wnfs-wg/rs-wnfs/compare/wnfs-v0.1.24...wnfs-v0.1.25) (2023-08-30)
 
 

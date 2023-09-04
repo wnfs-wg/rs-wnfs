@@ -17,6 +17,21 @@
     * wnfs bumped from 0.1.24 to 0.1.25
     * wnfs-nameaccumulator bumped from 0.1.24 to 0.1.25
 
+## [0.1.27](https://github.com/wnfs-wg/rs-wnfs/compare/wnfs-wasm-v0.1.26...wnfs-wasm-v0.1.27) (2023-09-04)
+
+
+### Features
+
+* Remove `Share` struct, add documentation, add `rc` constructor variants ([#343](https://github.com/wnfs-wg/rs-wnfs/issues/343)) ([e6cee87](https://github.com/wnfs-wg/rs-wnfs/commit/e6cee873273e154c7855d17e9c756717a635874b))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * wnfs bumped from 0.1.25 to 0.1.26
+    * wnfs-nameaccumulator bumped from 0.1.25 to 0.1.26
+
 ## [0.1.25](https://github.com/wnfs-wg/rs-wnfs/compare/wnfs-wasm-v0.1.24...wnfs-wasm-v0.1.25) (2023-08-18)
 
 
