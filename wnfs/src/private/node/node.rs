@@ -380,7 +380,7 @@ impl PrivateNode {
         store: &impl BlockStore,
     ) -> Result<Vec<PrivateNode>> {
         let header = self.get_header();
-        let mountpoint = header.name.parent().unwrap_or_else(|| forest.empty_name());
+        let mountpoint = header.name.parent();
 
         let current_name = &header.get_revision_name();
         if !forest.has(current_name, store).await? {
@@ -418,18 +418,17 @@ impl PrivateNode {
         let name_hash =
             blake3::Hasher::hash(&forest.get_accumulated_name(&current_header.get_revision_name()));
 
-        Ok(forest
+        forest
             .get_multivalue_by_hash(
                 &name_hash,
                 &current_header.derive_temporal_key(),
                 store,
-                Some(mountpoint),
+                mountpoint,
             )
             .collect::<Vec<Result<PrivateNode>>>()
             .await
             .into_iter()
-            .filter_map(|result| result.ok()) // Should we filter out errors?
-            .collect())
+            .collect::<Result<Vec<_>>>()
     }
 
     /// Tries to deserialize and decrypt a PrivateNode at provided PrivateRef

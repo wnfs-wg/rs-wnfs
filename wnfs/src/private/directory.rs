@@ -313,6 +313,10 @@ impl PrivateDirectory {
         forest: &impl PrivateForest,
         store: &impl BlockStore,
     ) -> Result<SearchResult<&'a mut Self>> {
+        if search_latest {
+            *self = self.clone().search_latest(forest, store).await?;
+        }
+
         let mut working_dir = self.prepare_next_revision()?;
         for (depth, segment) in path_segments.iter().enumerate() {
             match working_dir
@@ -1253,7 +1257,7 @@ impl PrivateDirectory {
         }
 
         let content = PrivateDirectoryContent {
-            persisted_as: OnceCell::new_with(Some(cid)),
+            persisted_as: OnceCell::new_with(cid),
             metadata: serializable.metadata,
             previous: serializable.previous.into_iter().collect(),
             entries: entries_decrypted,
@@ -1358,7 +1362,12 @@ impl PartialEq for PrivateDirectoryContent {
 impl Clone for PrivateDirectoryContent {
     fn clone(&self) -> Self {
         Self {
-            persisted_as: OnceCell::new_with(self.persisted_as.get().cloned()),
+            persisted_as: self
+                .persisted_as
+                .get()
+                .cloned()
+                .map(OnceCell::new_with)
+                .unwrap_or_default(),
             previous: self.previous.clone(),
             metadata: self.metadata.clone(),
             entries: self.entries.clone(),
@@ -2120,6 +2129,85 @@ mod tests {
         let read_back = old_dir.read(path, true, forest, store).await?;
 
         assert_eq!(&read_back, content);
+
+        Ok(())
+    }
+
+    #[async_std::test]
+    async fn test_regression_read_old_access_key() -> Result<()> {
+        let rng = &mut thread_rng();
+        let store = &MemoryBlockStore::new();
+        let forest = &mut HamtForest::new_rsa_2048(rng);
+        let mut dir =
+            PrivateDirectory::new_and_store(&forest.empty_name(), Utc::now(), forest, store, rng)
+                .await?;
+
+        let access_key = dir.as_node().store(forest, store, rng).await?;
+
+        let first = b"Hi".to_vec();
+        let second = b"Hi again".to_vec();
+        let path = &["test.txt".into()];
+
+        dir.write(path, true, Utc::now(), first.clone(), forest, store, rng)
+            .await?;
+
+        dir.as_node().store(forest, store, rng).await?;
+
+        let mut loaded_dir = PrivateNode::load(&access_key, forest, store, None)
+            .await?
+            .as_dir()?;
+
+        assert_eq!(loaded_dir.read(path, true, forest, store).await?, first);
+
+        loaded_dir
+            .write(path, true, Utc::now(), second.clone(), forest, store, rng)
+            .await?;
+
+        loaded_dir.as_node().store(forest, store, rng).await?;
+
+        // regression: This assertion used to fail
+        assert_eq!(loaded_dir.read(path, true, forest, store).await?, second);
+
+        Ok(())
+    }
+
+    #[async_std::test]
+    async fn test_regression_read_old_file_access_key() -> Result<()> {
+        let rng = &mut thread_rng();
+        let store = &MemoryBlockStore::new();
+        let forest = &mut HamtForest::new_rsa_2048(rng);
+        let mut dir =
+            PrivateDirectory::new_and_store(&forest.empty_name(), Utc::now(), forest, store, rng)
+                .await?;
+
+        let first = b"Hi".to_vec();
+        let second = b"Hi again".to_vec();
+        let path = &["test.txt".into()];
+
+        dir.write(path, true, Utc::now(), first.clone(), forest, store, rng)
+            .await?;
+
+        dir.as_node().store(forest, store, rng).await?;
+
+        let file_access_key = dir
+            .get_node(path, true, forest, store)
+            .await?
+            .unwrap()
+            .store(forest, store, rng)
+            .await?;
+
+        dir.write(path, true, Utc::now(), second.clone(), forest, store, rng)
+            .await?;
+
+        dir.as_node().store(forest, store, rng).await?;
+
+        let node = PrivateNode::load(&file_access_key, forest, store, None).await?;
+        // regression: This call used to fail
+        let loaded_file = node.search_latest(forest, store).await?.as_file()?;
+
+        let content = loaded_file.get_content(forest, store).await?;
+
+        assert_eq!(content, second);
 
         Ok(())
     }

@@ -8,8 +8,12 @@ use anyhow::{bail, Result};
 use async_once_cell::OnceCell;
 use async_stream::try_stream;
 use chrono::{DateTime, Utc};
-use futures::{future, AsyncRead, Stream, StreamExt, TryStreamExt};
-use libipld_core::cid::Cid;
+use futures::{future, stream::LocalBoxStream, AsyncRead, Stream, StreamExt, TryStreamExt};
+use libipld_core::{
+    cid::Cid,
+    ipld::Ipld,
+    serde::{from_ipld, to_ipld},
+};
 use rand_core::CryptoRngCore;
 use serde::{Deserialize, Serialize};
 use std::{collections::BTreeSet, iter, rc::Rc};
@@ -86,16 +90,24 @@ pub(crate) struct PrivateFileContent {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) enum FileContent {
-    Inline {
-        data: Vec<u8>,
-    },
-    #[serde(rename_all = "camelCase")]
-    External {
-        key: SnapshotKey,
-        base_name: NameAccumulator,
-        block_count: usize,
-        block_content_size: usize,
-    },
+    Inline { data: Vec<u8> },
+    External(PrivateForestContent),
+}
+
+/// Keys and pointers to encrypted content stored in a `PrivateForest`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PrivateForestContent {
+    pub(crate) key: SnapshotKey,
+    pub(crate) base_name: NameAccumulator,
+    pub(crate) block_count: usize,
+    pub(crate) block_content_size: usize,
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+enum MetadataContentCapsule<T> {
+    PrivateForestContent(T),
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -463,73 +475,46 @@ impl PrivateFile {
         index: usize,
         forest: &'a impl PrivateForest,
         store: &'a impl BlockStore,
-    ) -> impl Stream<Item = Result<Vec<u8>>> + 'a {
-        Box::pin(try_stream! {
-            match &self.content.content {
-                FileContent::Inline { data } => {
-                    if index != 0 {
-                        Err(FsError::FileShardNotFound)?
-                    }
-
-                    yield data.clone()
-                },
-                FileContent::External {
-                    key,
-                    block_count,
-                    base_name,
-                    // TODO(matheus23): take block_content_size into account
-                    ..
-                } => {
-                    for name in Self::generate_shard_labels(key, index, *block_count, &Name::new(base_name.clone(), [])) {
-                        let bytes = Self::decrypt_block(key, &name, forest, store).await?;
-                        yield bytes
-                    }
+    ) -> LocalBoxStream<'a, Result<Vec<u8>>> {
+        match &self.content.content {
+            FileContent::Inline { data } => Box::pin(try_stream! {
+                if index != 0 {
+                    Err(FsError::FileShardNotFound)?
                 }
-            }
-        })
+
+                yield data.clone()
+            }),
+            FileContent::External(content) => Box::pin(content.stream(index, forest, store)),
+        }
     }
 
     /// Reads a number of bytes starting from a given offset.
     pub async fn read_at<'a>(
         &'a self,
         offset: usize,
-        size: usize,
+        len: usize,
         forest: &'a impl PrivateForest,
         store: &'a impl BlockStore,
     ) -> Result<Vec<u8>> {
-        let block_content_size = MAX_BLOCK_CONTENT_SIZE;
-        let chunk_size_upper_bound = (self.get_content_size_upper_bound() - offset).min(size);
-        if chunk_size_upper_bound == 0 {
-            return Ok(vec![]);
+        match &self.content.content {
+            FileContent::Inline { data } => Ok(data[offset..offset + len].to_vec()),
+            FileContent::External(external) => external.read_at(offset, len, forest, store).await,
         }
-        let first_block = offset / block_content_size;
-        let last_block = (offset + size) / block_content_size;
-        let mut bytes = Vec::with_capacity(chunk_size_upper_bound);
-        let mut content_stream = self.stream_content(first_block, forest, store).enumerate();
-        while let Some((i, chunk)) = content_stream.next().await {
-            let chunk = chunk?;
-            let index = first_block + i;
-            let from = if index == first_block {
-                (offset - index * block_content_size).min(chunk.len())
-            } else {
-                0
-            };
-            let to = if index == last_block {
-                (offset + size - index * block_content_size).min(chunk.len())
-            } else {
-                chunk.len()
-            };
-            bytes.extend_from_slice(&chunk[from..to]);
-            if index == last_block {
-                break;
-            }
-        }
-        Ok(bytes)
     }
 
     /// Gets the metadata of the file
     pub fn get_metadata(&self) -> &Metadata {
         &self.content.metadata
+    }
+
+    /// Returns a mutable reference to this file's metadata.
+    pub fn get_metadata_mut(&mut self) -> &mut Metadata {
+        &mut self.content.metadata
+    }
+
+    /// Returns a mutable reference to this file's metadata and ratchets forward its revision, if necessary.
+    pub fn get_metadata_mut_rc<'a>(self: &'a mut Rc<Self>) -> Result<&'a mut Metadata> {
+        Ok(self.prepare_next_revision()?.get_metadata_mut())
     }
 
     /// Gets the entire content of a file.
@@ -574,18 +559,10 @@ impl PrivateFile {
         forest: &impl PrivateForest,
         store: &impl BlockStore,
     ) -> Result<Vec<u8>> {
-        // We're not using Vec::with_capacity here because
-        // a call to get_content instead of stream_content seems to
-        // indicate that the content is small enough to fit into
-        // memory. So let's keep allocations low.
-        let mut content = Vec::new();
-        self.stream_content(0, forest, store)
-            .try_for_each(|chunk| {
-                content.extend_from_slice(&chunk);
-                future::ready(Ok(()))
-            })
-            .await?;
-        Ok(content)
+        match &self.content.content {
+            FileContent::Inline { data } => Ok(data.clone()),
+            FileContent::External(external) => external.get_content(forest, store).await,
+        }
     }
 
     /// Sets the content of a file.
@@ -598,6 +575,7 @@ impl PrivateFile {
         rng: &mut impl CryptoRngCore,
     ) -> Result<()> {
         self.content.metadata = Metadata::new(time);
+        // TODO(matheus23): Use heuristic to figure out whether to store data inline
         self.content.content =
             Self::prepare_content_streaming(self.header.get_name(), content, forest, store, rng)
                 .await?;
@@ -613,30 +591,9 @@ impl PrivateFile {
         rng: &mut impl CryptoRngCore,
     ) -> Result<FileContent> {
         // TODO(appcypher): Use a better heuristic to determine when to use external storage.
-        let (key, base_name) = Self::prepare_key_and_base_name(file_name, rng);
-        let block_count = (content.len() as f64 / MAX_BLOCK_CONTENT_SIZE as f64).ceil() as usize;
-
-        for (index, name) in
-            Self::generate_shard_labels(&key, 0, block_count, &base_name).enumerate()
-        {
-            let start = index * MAX_BLOCK_CONTENT_SIZE;
-            let end = content.len().min((index + 1) * MAX_BLOCK_CONTENT_SIZE);
-            let slice = &content[start..end];
-
-            let enc_bytes = key.encrypt(slice, rng)?;
-            let content_cid = store.put_block(enc_bytes, CODEC_RAW).await?;
-
-            forest
-                .put_encrypted(&name, Some(content_cid), store)
-                .await?;
-        }
-
-        Ok(FileContent::External {
-            key,
-            base_name: forest.get_accumulated_name(&base_name),
-            block_count,
-            block_content_size: MAX_BLOCK_CONTENT_SIZE,
-        })
+        Ok(FileContent::External(
+            PrivateForestContent::new(file_name, content, forest, store, rng).await?,
+        ))
     }
 
     /// Drains the content streamed-in and puts it into the private forest
@@ -645,125 +602,14 @@ impl PrivateFile {
     /// to later retrieve the data.
     pub(super) async fn prepare_content_streaming(
         file_name: &Name,
-        mut content: impl AsyncRead + Unpin,
+        content: impl AsyncRead + Unpin,
         forest: &mut impl PrivateForest,
         store: &impl BlockStore,
         rng: &mut impl CryptoRngCore,
     ) -> Result<FileContent> {
-        let (key, base_name) = Self::prepare_key_and_base_name(file_name, rng);
-
-        let mut block_index = 0;
-
-        loop {
-            let mut current_block = vec![0u8; MAX_BLOCK_SIZE];
-            let nonce = SnapshotKey::generate_nonce(rng);
-            current_block[..NONCE_SIZE].copy_from_slice(nonce.as_ref());
-
-            // read up to MAX_BLOCK_CONTENT_SIZE content
-
-            let content_end = NONCE_SIZE + MAX_BLOCK_CONTENT_SIZE;
-            let (bytes_written, done) =
-                utils::read_fully(&mut content, &mut current_block[NONCE_SIZE..content_end])
-                    .await?;
-
-            // truncate the vector to its actual length.
-            current_block.truncate(bytes_written + NONCE_SIZE);
-
-            let tag = key.encrypt_in_place(&nonce, &mut current_block[NONCE_SIZE..])?;
-            current_block.extend_from_slice(tag.as_ref());
-
-            let content_cid = store.put_block(current_block, CODEC_RAW).await?;
-
-            let name = Self::create_block_name(&key, block_index, &base_name);
-            forest
-                .put_encrypted(&name, Some(content_cid), store)
-                .await?;
-
-            block_index += 1;
-
-            if done {
-                break;
-            }
-        }
-
-        Ok(FileContent::External {
-            key,
-            base_name: forest.get_accumulated_name(&base_name),
-            block_count: block_index,
-            block_content_size: MAX_BLOCK_CONTENT_SIZE,
-        })
-    }
-
-    fn prepare_key_and_base_name(
-        file_name: &Name,
-        rng: &mut impl CryptoRngCore,
-    ) -> (SnapshotKey, Name) {
-        let key = SnapshotKey::new(rng);
-        let hiding_segment = NameSegment::new_hashed(HIDING_SEGMENT_DSI, key.as_bytes());
-        let base_name = file_name.with_segments_added(Some(hiding_segment));
-
-        (key, base_name)
-    }
-
-    /// Gets the upper bound of a file content size.
-    pub fn get_content_size_upper_bound(&self) -> usize {
-        match &self.content.content {
-            FileContent::Inline { data } => data.len(),
-            FileContent::External {
-                block_count,
-                block_content_size,
-                ..
-            } => block_count * block_content_size,
-        }
-    }
-
-    /// Decrypts a block of a file's content.
-    async fn decrypt_block(
-        key: &SnapshotKey,
-        name: &Name,
-        forest: &impl PrivateForest,
-        store: &impl BlockStore,
-    ) -> Result<Vec<u8>> {
-        let cid = forest
-            .get_encrypted(name, store)
-            .await?
-            .ok_or(FsError::FileShardNotFound)?
-            .iter()
-            .next()
-            .expect("Expected set with at least a one cid");
-
-        let enc_bytes = store.get_block(cid).await?;
-        let bytes = key.decrypt(&enc_bytes)?;
-
-        Ok(bytes)
-    }
-
-    /// Generates the labels for the shards of a file.
-    pub(crate) fn generate_shard_labels<'a>(
-        key: &'a SnapshotKey,
-        mut index: usize,
-        block_count: usize,
-        base_name: &'a Name,
-    ) -> impl Iterator<Item = Name> + 'a {
-        iter::from_fn(move || {
-            if index >= block_count {
-                return None;
-            }
-
-            let label = Self::create_block_name(key, index, base_name);
-            index += 1;
-            Some(label)
-        })
-    }
-
-    /// Creates the label for a block of a file.
-    fn create_block_name(key: &SnapshotKey, index: usize, base_name: &Name) -> Name {
-        let mut vec = Vec::with_capacity(40);
-        vec.extend(key.0); // 32 bytes
-        vec.extend((index as u64).to_le_bytes()); // 8 bytes
-        let block_segment = NameSegment::new_hashed(BLOCK_SEGMENT_DSI, vec);
-
-        base_name.with_segments_added(Some(block_segment))
+        Ok(FileContent::External(
+            PrivateForestContent::new_streaming(file_name, content, forest, store, rng).await?,
+        ))
     }
 
     /// This should be called to prepare a node for modifications,
@@ -856,7 +702,7 @@ impl PrivateFile {
         }
 
         let content = PrivateFileContent {
-            persisted_as: OnceCell::new_with(Some(cid)),
+            persisted_as: OnceCell::new_with(cid),
             previous: serializable.previous.into_iter().collect(),
             metadata: serializable.metadata,
             content: serializable.content,
@@ -919,6 +765,263 @@ impl PrivateFileContent {
     }
 }
 
+impl PrivateForestContent {
+    /// Take some plaintext to encrypt and store in given private forest.
+    ///
+    /// The provided file name will be used as the "path" that controls
+    /// who has write access to these blocks.
+    ///
+    /// E.g. using providing `PrivateFile.get_header().get_name()` would let
+    /// these content block inherit the write access from that private file.
+    ///
+    /// This struct itself only holds the keys & pointers to the data, which
+    /// is stored (encrypted) in the `PrivateForest` and `BlockStore` instead.
+    pub async fn new(
+        file_name: &Name,
+        content: Vec<u8>,
+        forest: &mut impl PrivateForest,
+        store: &impl BlockStore,
+        rng: &mut impl CryptoRngCore,
+    ) -> Result<Self> {
+        let (key, base_name) = Self::prepare_key_and_base_name(file_name, rng);
+        let block_count = (content.len() as f64 / MAX_BLOCK_CONTENT_SIZE as f64).ceil() as usize;
+
+        for (index, name) in
+            Self::generate_shard_labels(&key, 0, block_count, &base_name).enumerate()
+        {
+            let start = index * MAX_BLOCK_CONTENT_SIZE;
+            let end = content.len().min((index + 1) * MAX_BLOCK_CONTENT_SIZE);
+            let slice = &content[start..end];
+
+            let enc_bytes = key.encrypt(slice, rng)?;
+            let content_cid = store.put_block(enc_bytes, CODEC_RAW).await?;
+
+            forest
+                .put_encrypted(&name, Some(content_cid), store)
+                .await?;
+        }
+
+        Ok(PrivateForestContent {
+            key,
+            base_name: forest.get_accumulated_name(&base_name),
+            block_count,
+            block_content_size: MAX_BLOCK_CONTENT_SIZE,
+        })
+    }
+
+    /// Like `new`, but allows streaming in the content.
+    ///
+    /// See `new` for more information.
+    pub async fn new_streaming(
+        file_name: &Name,
+        mut content: impl AsyncRead + Unpin,
+        forest: &mut impl PrivateForest,
+        store: &impl BlockStore,
+        rng: &mut impl CryptoRngCore,
+    ) -> Result<Self> {
+        let (key, base_name) = Self::prepare_key_and_base_name(file_name, rng);
+
+        let mut block_index = 0;
+
+        loop {
+            let mut current_block = vec![0u8; MAX_BLOCK_SIZE];
+            let nonce = SnapshotKey::generate_nonce(rng);
+            current_block[..NONCE_SIZE].copy_from_slice(nonce.as_ref());
+
+            // read up to MAX_BLOCK_CONTENT_SIZE content
+
+            let content_end = NONCE_SIZE + MAX_BLOCK_CONTENT_SIZE;
+            let (bytes_written, done) =
+                utils::read_fully(&mut content, &mut current_block[NONCE_SIZE..content_end])
+                    .await?;
+
+            // truncate the vector to its actual length.
+            current_block.truncate(bytes_written + NONCE_SIZE);
+
+            let tag = key.encrypt_in_place(&nonce, &mut current_block[NONCE_SIZE..])?;
+            current_block.extend_from_slice(tag.as_ref());
+
+            let content_cid = store.put_block(current_block, CODEC_RAW).await?;
+
+            let name = Self::create_block_name(&key, block_index, &base_name);
+            forest
+                .put_encrypted(&name, Some(content_cid), store)
+                .await?;
+
+            block_index += 1;
+
+            if done {
+                break;
+            }
+        }
+
+        Ok(PrivateForestContent {
+            key,
+            base_name: forest.get_accumulated_name(&base_name),
+            block_count: block_index,
+            block_content_size: MAX_BLOCK_CONTENT_SIZE,
+        })
+    }
+
+    /// Load some previously stored keys & pointers to encrypted private forest content
+    /// from given metadata key.
+    pub fn from_metadata_value(value: &Ipld) -> Result<Self> {
+        let wrapped: MetadataContentCapsule<Self> = from_ipld(value.clone())?;
+
+        Ok(match wrapped {
+            MetadataContentCapsule::PrivateForestContent(content) => content,
+        })
+    }
+
+    // Serialize these pointers & keys into some data that can be stored in a `PrivateFile`'s metadata.
+    pub fn as_metadata_value(&self) -> Result<Ipld> {
+        Ok(to_ipld(MetadataContentCapsule::PrivateForestContent(
+            &self,
+        ))?)
+    }
+
+    /// Decrypt & stream out the contents that `self` points to in given forest.
+    pub fn stream<'a>(
+        &'a self,
+        index: usize,
+        forest: &'a impl PrivateForest,
+        store: &'a impl BlockStore,
+    ) -> impl Stream<Item = Result<Vec<u8>>> + 'a {
+        try_stream! {
+            for name in Self::generate_shard_labels(
+                &self.key,
+                index,
+                self.block_count,
+                &Name::new(self.base_name.clone(), []),
+            ) {
+                // TODO(matheus23): take block_content_size into account
+                let bytes = Self::decrypt_block(&self.key, &name, forest, store).await?;
+                yield bytes
+            }
+        }
+    }
+
+    /// Reads a number of bytes starting from a given offset.
+    pub async fn read_at<'a>(
+        &'a self,
+        offset: usize,
+        len: usize,
+        forest: &'a impl PrivateForest,
+        store: &'a impl BlockStore,
+    ) -> Result<Vec<u8>> {
+        let block_content_size = MAX_BLOCK_CONTENT_SIZE;
+        let chunk_size_upper_bound = (self.get_size_upper_bound() - offset).min(len);
+        if chunk_size_upper_bound == 0 {
+            return Ok(vec![]);
+        }
+        let first_block = offset / block_content_size;
+        let last_block = (offset + len) / block_content_size;
+        let mut bytes = Vec::with_capacity(chunk_size_upper_bound);
+        let mut content_stream = Box::pin(self.stream(first_block, forest, store)).enumerate();
+        while let Some((i, chunk)) = content_stream.next().await {
+            let chunk = chunk?;
+            let index = first_block + i;
+            let from = if index == first_block {
+                (offset - index * block_content_size).min(chunk.len())
+            } else {
+                0
+            };
+            let to = if index == last_block {
+                (offset + len - index * block_content_size).min(chunk.len())
+            } else {
+                chunk.len()
+            };
+            bytes.extend_from_slice(&chunk[from..to]);
+            if index == last_block {
+                break;
+            }
+        }
+        Ok(bytes)
+    }
+
+    /// Collect all content into a `Vec<u8>`.
+    ///
+    /// Make sure to check `get_size_upper_bound` in advance to avoid
+    /// allocating huge byte arrays in-memory.
+    pub async fn get_content(
+        &self,
+        forest: &impl PrivateForest,
+        store: &impl BlockStore,
+    ) -> Result<Vec<u8>> {
+        let mut content = Vec::with_capacity(Self::get_size_upper_bound(self));
+        self.stream(0, forest, store)
+            .try_for_each(|chunk| {
+                content.extend_from_slice(&chunk);
+                future::ready(Ok(()))
+            })
+            .await?;
+        Ok(content)
+    }
+
+    /// Gets an upper bound estimate of the content size.
+    pub fn get_size_upper_bound(&self) -> usize {
+        self.block_count * self.block_content_size
+    }
+
+    /// Generates the labels for all of the content shard blocks.
+    pub(crate) fn generate_shard_labels<'a>(
+        key: &'a SnapshotKey,
+        mut index: usize,
+        block_count: usize,
+        base_name: &'a Name,
+    ) -> impl Iterator<Item = Name> + 'a {
+        iter::from_fn(move || {
+            if index >= block_count {
+                return None;
+            }
+
+            let label = Self::create_block_name(key, index, base_name);
+            index += 1;
+            Some(label)
+        })
+    }
+
+    async fn decrypt_block(
+        key: &SnapshotKey,
+        name: &Name,
+        forest: &impl PrivateForest,
+        store: &impl BlockStore,
+    ) -> Result<Vec<u8>> {
+        let cid = forest
+            .get_encrypted(name, store)
+            .await?
+            .ok_or(FsError::FileShardNotFound)?
+            .iter()
+            .next()
+            .expect("Expected set with at least a one cid");
+
+        let enc_bytes = store.get_block(cid).await?;
+        let bytes = key.decrypt(&enc_bytes)?;
+
+        Ok(bytes)
+    }
+
+    fn create_block_name(key: &SnapshotKey, index: usize, base_name: &Name) -> Name {
+        let mut vec = Vec::with_capacity(40);
+        vec.extend(key.0); // 32 bytes
+        vec.extend((index as u64).to_le_bytes()); // 8 bytes
+        let block_segment = NameSegment::new_hashed(BLOCK_SEGMENT_DSI, vec);
+
+        base_name.with_segments_added(Some(block_segment))
+    }
+
+    fn prepare_key_and_base_name(
+        file_name: &Name,
+        rng: &mut impl CryptoRngCore,
+    ) -> (SnapshotKey, Name) {
+        let key = SnapshotKey::new(rng);
+        let hiding_segment = NameSegment::new_hashed(HIDING_SEGMENT_DSI, key.as_bytes());
+        let base_name = file_name.with_segments_added(Some(hiding_segment));
+
+        (key, base_name)
+    }
+}
+
 impl PartialEq for PrivateFileContent {
     fn eq(&self, other: &Self) -> bool {
         self.previous == other.previous
@@ -930,7 +1033,12 @@ impl PartialEq for PrivateFileContent {
 impl Clone for PrivateFileContent {
     fn clone(&self) -> Self {
         Self {
-            persisted_as: OnceCell::new_with(self.persisted_as.get().cloned()),
+            persisted_as: self
+                .persisted_as
+                .get()
+                .cloned()
+                .map(OnceCell::new_with)
+                .unwrap_or_default(),
             previous: self.previous.clone(),
             metadata: self.metadata.clone(),
             content: self.content.clone(),
@@ -1032,7 +1140,7 @@ mod tests {
         .unwrap();
 
         assert!(
-            matches!(file.content.content, FileContent::External { block_count, .. } if block_count > 0)
+            matches!(file.content.content, FileContent::External(PrivateForestContent { block_count, .. }) if block_count > 0)
         );
     }
 }

@@ -120,6 +120,16 @@ impl PublicFile {
         &self.metadata
     }
 
+    /// Returns a mutable reference to metadata for this file.
+    pub fn get_metadata_mut(&mut self) -> &mut Metadata {
+        &mut self.metadata
+    }
+
+    /// Returns a mutable reference to this file's metadata and ratchets forward the history, if necessary.
+    pub fn get_metadata_mut_rc<'a>(self: &'a mut Rc<Self>) -> &'a mut Metadata {
+        self.prepare_next_revision().get_metadata_mut()
+    }
+
     /// Gets the content cid of a file
     pub fn get_content_cid(&self) -> &Cid {
         &self.userland
@@ -216,7 +226,12 @@ impl PartialEq for PublicFile {
 impl Clone for PublicFile {
     fn clone(&self) -> Self {
         Self {
-            persisted_as: OnceCell::new_with(self.persisted_as.get().cloned()),
+            persisted_as: self
+                .persisted_as
+                .get()
+                .cloned()
+                .map(OnceCell::new_with)
+                .unwrap_or_default(),
             metadata: self.metadata.clone(),
             userland: self.userland,
             previous: self.previous.clone(),

@@ -1,6 +1,6 @@
 use crate::private::{
     forest::{hamt::HamtForest, traits::PrivateForest},
-    FileContent, PrivateDirectory, PrivateFile, PrivateNode, PrivateRef,
+    FileContent, PrivateDirectory, PrivateForestContent, PrivateNode, PrivateRef,
 };
 use anyhow::Result;
 use libipld_core::ipld::Ipld;
@@ -26,20 +26,15 @@ pub(crate) async fn walk_dir(
         let snapshot_key = temporal_key.derive_snapshot_key();
         store.add_block_handler(
             private_ref.content_cid,
-            Box::new(move |bytes| {
-                Ok(decode(
-                    &snapshot_key.decrypt(bytes.as_ref())?,
-                    DagCborCodec,
-                )?)
-            }),
+            Box::new(move |bytes| decode(&snapshot_key.decrypt(bytes.as_ref())?, DagCborCodec)),
         );
         store.add_block_handler(
             dir.header.store(store, forest).await?,
             Box::new(move |bytes| {
-                Ok(decode(
+                decode(
                     &temporal_key.key_wrap_decrypt(bytes.as_ref())?,
                     DagCborCodec,
-                )?)
+                )
             }),
         );
 
@@ -57,29 +52,26 @@ pub(crate) async fn walk_dir(
                     store.add_block_handler(
                         private_ref.content_cid,
                         Box::new(move |bytes| {
-                            Ok(decode(
-                                &snapshot_key.decrypt(bytes.as_ref())?,
-                                DagCborCodec,
-                            )?)
+                            decode(&snapshot_key.decrypt(bytes.as_ref())?, DagCborCodec)
                         }),
                     );
                     store.add_block_handler(
                         file.header.store(store, forest).await?,
                         Box::new(move |bytes| {
-                            Ok(decode(
+                            decode(
                                 &temporal_key.key_wrap_decrypt(bytes.as_ref())?,
                                 DagCborCodec,
-                            )?)
+                            )
                         }),
                     );
-                    if let FileContent::External {
+                    if let FileContent::External(PrivateForestContent {
                         key,
                         block_count,
                         base_name,
                         ..
-                    } = &file.content.content
+                    }) = &file.content.content
                     {
-                        for name in PrivateFile::generate_shard_labels(
+                        for name in PrivateForestContent::generate_shard_labels(
                             key,
                             0,
                             *block_count,

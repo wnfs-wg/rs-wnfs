@@ -191,6 +191,14 @@ impl PublicNode {
         })
     }
 
+    /// Tries to resolve this node as a file. Fails with `NotAFile` otherwise.
+    pub fn as_file_mut(&mut self) -> Result<&mut Rc<PublicFile>> {
+        match self {
+            Self::File(file) => Ok(file),
+            _ => bail!(FsError::NotAFile),
+        }
+    }
+
     /// Returns true if underlying node is a directory.
     ///
     /// # Examples

@@ -59,7 +59,7 @@ async fn alice_actions(store: &impl BlockStore) -> Result<(Cid, AccessKey, NameA
 
     let access_key = root_dir.as_node().store(forest, store, rng).await?;
     let cid = forest.store(store).await?;
-    let allowed_name = forest.get_accumulated_name(&root_dir.header.get_name());
+    let allowed_name = forest.get_accumulated_name(root_dir.header.get_name());
 
     Ok((cid, access_key, allowed_name))
 }

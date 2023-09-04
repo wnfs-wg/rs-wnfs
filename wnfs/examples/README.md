@@ -17,3 +17,7 @@
   ```bash
   cargo run --example mnemonic_based --release
   ```
+
+  ```bash
+  cargo run --example file_variants
+  ```

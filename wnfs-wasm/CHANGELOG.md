@@ -12,6 +12,11 @@
   * dependencies
     * wnfs bumped from 0.1.19 to 0.1.20
 
+* The following workspace dependencies were updated
+  * dependencies
+    * wnfs bumped from 0.1.24 to 0.1.25
+    * wnfs-nameaccumulator bumped from 0.1.24 to 0.1.25
+
 ## [0.1.25](https://github.com/wnfs-wg/rs-wnfs/compare/wnfs-wasm-v0.1.24...wnfs-wasm-v0.1.25) (2023-08-18)
 
 
