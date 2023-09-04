@@ -1,10 +1,8 @@
 # Changelog
 
-* The following workspace dependencies were updated
-  * dependencies
-    * wnfs-common bumped from 0.1.19 to 0.1.20
-  * dev-dependencies
-    * wnfs-common bumped from 0.1.19 to 0.1.20
+## 0.1.25 (2023-09-04)
+
+* Dependency wnfs-common bumped from 0.1.24 to 0.1.25
 
 ## [0.1.23](https://github.com/wnfs-wg/rs-wnfs/compare/wnfs-hamt-v0.1.22...wnfs-hamt-v0.1.23) (2023-07-21)
 

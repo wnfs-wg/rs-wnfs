@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.25 (2023-09-04)
+
+* Small documentation improvements
+
 ## [0.1.23](https://github.com/wnfs-wg/rs-wnfs/compare/wnfs-common-v0.1.22...wnfs-common-v0.1.23) (2023-07-21)
 
 
