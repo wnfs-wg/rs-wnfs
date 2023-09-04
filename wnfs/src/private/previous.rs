@@ -516,7 +516,7 @@ mod tests {
             let mut rng = ChaCha12Rng::seed_from_u64(0);
             let store = MemoryBlockStore::default();
             let forest = Rc::new(HamtForest::new_rsa_2048(&mut rng));
-            let root_dir = PrivateDirectory::rc(&forest.empty_name(), Utc::now(), &mut rng);
+            let root_dir = PrivateDirectory::new_rc(&forest.empty_name(), Utc::now(), &mut rng);
 
             Self {
                 rng,

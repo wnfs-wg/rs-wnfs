@@ -71,7 +71,7 @@ impl PublicFile {
     ///
     /// println!("File: {:?}", file);
     /// ```
-    pub fn rc(time: DateTime<Utc>, content_cid: Cid) -> Rc<Self> {
+    pub fn new_rc(time: DateTime<Utc>, content_cid: Cid) -> Rc<Self> {
         Rc::new(Self::new(time, content_cid))
     }
 
@@ -265,7 +265,7 @@ mod tests {
             .await
             .unwrap();
 
-        let file = &mut PublicFile::rc(time, content_cid);
+        let file = &mut PublicFile::new_rc(time, content_cid);
         let previous_cid = &file.store(store).await.unwrap();
         let next_file = file.prepare_next_revision();
 
@@ -284,7 +284,7 @@ mod tests {
             .await
             .unwrap();
 
-        let file = &mut PublicFile::rc(time, content_cid);
+        let file = &mut PublicFile::new_rc(time, content_cid);
         let previous_cid = &file.store(store).await.unwrap();
         let next_file = file.prepare_next_revision();
         let next_file_clone = &mut Rc::new(next_file.clone());
@@ -308,7 +308,7 @@ mod snapshot_tests {
         let store = &SnapshotBlockStore::default();
         let time = Utc.with_ymd_and_hms(1970, 1, 1, 0, 0, 0).unwrap();
 
-        let file = &mut PublicFile::rc(time, Cid::default());
+        let file = &mut PublicFile::new_rc(time, Cid::default());
         let cid = file.store(store).await.unwrap();
 
         let file = store.get_block_snapshot(&cid).await.unwrap();
@@ -321,7 +321,7 @@ mod snapshot_tests {
         let store = &SnapshotBlockStore::default();
         let time = Utc.with_ymd_and_hms(1970, 1, 1, 0, 0, 0).unwrap();
 
-        let file = &mut PublicFile::rc(time, Cid::default());
+        let file = &mut PublicFile::new_rc(time, Cid::default());
         let _ = file.store(store).await.unwrap();
 
         file.write(time, Cid::default());

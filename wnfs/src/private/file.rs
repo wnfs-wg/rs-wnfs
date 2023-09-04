@@ -54,7 +54,7 @@ pub const MAX_BLOCK_CONTENT_SIZE: usize = MAX_BLOCK_SIZE - NONCE_SIZE - AUTHENTI
 /// async fn main() -> Result<()> {
 ///     let store = &MemoryBlockStore::new();
 ///     let rng = &mut thread_rng();
-///     let forest = &mut HamtForest::rc_rsa_2048(rng);
+///     let forest = &mut HamtForest::new_rsa_2048_rc(rng);
 ///
 ///     let file = PrivateFile::with_content(
 ///         &forest.empty_name(),
@@ -157,11 +157,15 @@ impl PrivateFile {
     ///
     /// let rng = &mut thread_rng();
     /// let forest = HamtForest::new_rsa_2048(rng);
-    /// let file = PrivateFile::rc(&forest.empty_name(), Utc::now(), rng);
+    /// let file = PrivateFile::new_rc(&forest.empty_name(), Utc::now(), rng);
     ///
     /// println!("file = {:?}", file);
     /// ```
-    pub fn rc(parent_name: &Name, time: DateTime<Utc>, rng: &mut impl CryptoRngCore) -> Rc<Self> {
+    pub fn new_rc(
+        parent_name: &Name,
+        time: DateTime<Utc>,
+        rng: &mut impl CryptoRngCore,
+    ) -> Rc<Self> {
         Rc::new(Self::new(parent_name, time, rng))
     }
 
@@ -181,7 +185,7 @@ impl PrivateFile {
     /// async fn main() {
     ///     let store = &MemoryBlockStore::new();
     ///     let rng = &mut thread_rng();
-    ///     let forest = &mut HamtForest::rc_rsa_2048(rng);
+    ///     let forest = &mut HamtForest::new_rsa_2048_rc(rng);
     ///
     ///     let file = PrivateFile::with_content(
     ///         &forest.empty_name(),
@@ -235,9 +239,9 @@ impl PrivateFile {
     /// async fn main() {
     ///     let store = &MemoryBlockStore::new();
     ///     let rng = &mut thread_rng();
-    ///     let forest = &mut HamtForest::rc_rsa_2048(rng);
+    ///     let forest = &mut HamtForest::new_rsa_2048_rc(rng);
     ///
-    ///     let file = PrivateFile::rc_with_content(
+    ///     let file = PrivateFile::with_content_rc(
     ///         &forest.empty_name(),
     ///         Utc::now(),
     ///         get_random_bytes::<100>(rng).to_vec(),
@@ -251,7 +255,7 @@ impl PrivateFile {
     ///     println!("file = {:?}", file);
     /// }
     /// ```
-    pub async fn rc_with_content(
+    pub async fn with_content_rc(
         parent_name: &Name,
         time: DateTime<Utc>,
         content: Vec<u8>,
@@ -287,7 +291,7 @@ impl PrivateFile {
     ///
     ///     let store = &MemoryBlockStore::new();
     ///     let rng = &mut thread_rng();
-    ///     let forest = &mut HamtForest::rc_rsa_2048(rng);
+    ///     let forest = &mut HamtForest::new_rsa_2048_rc(rng);
     ///
     ///     let file = PrivateFile::with_content_streaming(
     ///         &forest.empty_name(),
@@ -347,9 +351,9 @@ impl PrivateFile {
     ///
     ///     let store = &MemoryBlockStore::new();
     ///     let rng = &mut thread_rng();
-    ///     let forest = &mut HamtForest::rc_rsa_2048(rng);
+    ///     let forest = &mut HamtForest::new_rsa_2048_rc(rng);
     ///
-    ///     let file = PrivateFile::rc_with_content_streaming(
+    ///     let file = PrivateFile::with_content_streaming_rc(
     ///         &forest.empty_name(),
     ///         Utc::now(),
     ///         disk_file,
@@ -364,7 +368,7 @@ impl PrivateFile {
     ///     Ok(())
     /// }
     /// ```
-    pub async fn rc_with_content_streaming(
+    pub async fn with_content_streaming_rc(
         parent_name: &Name,
         time: DateTime<Utc>,
         content: impl AsyncRead + Unpin,
@@ -396,7 +400,7 @@ impl PrivateFile {
     /// async fn main() -> Result<()> {
     ///     let store = &MemoryBlockStore::new();
     ///     let rng = &mut thread_rng();
-    ///     let forest = &mut HamtForest::rc_rsa_2048(rng);
+    ///     let forest = &mut HamtForest::new_rsa_2048_rc(rng);
     ///
     ///     let file = PrivateFile::with_content(
     ///         &forest.empty_name(),
@@ -408,7 +412,7 @@ impl PrivateFile {
     ///     )
     ///     .await?;
     ///
-    ///     let root_dir = &mut PrivateDirectory::rc(&forest.empty_name(), Utc::now(), rng);
+    ///     let root_dir = &mut PrivateDirectory::new_rc(&forest.empty_name(), Utc::now(), rng);
     ///
     ///     let copy = root_dir
     ///         .open_file_mut(&["some".into(), "copy.txt".into()], true, Utc::now(), forest, store, rng)
@@ -444,7 +448,7 @@ impl PrivateFile {
     /// async fn main() -> Result<()> {
     ///     let store = &MemoryBlockStore::new();
     ///     let rng = &mut thread_rng();
-    ///     let forest = &mut HamtForest::rc_rsa_2048(rng);
+    ///     let forest = &mut HamtForest::new_rsa_2048_rc(rng);
     ///
     ///     let content = get_random_bytes::<100>(rng).to_vec();
     ///     let file = PrivateFile::with_content(
@@ -534,7 +538,7 @@ impl PrivateFile {
     /// async fn main() -> Result<()> {
     ///     let store = &MemoryBlockStore::new();
     ///     let rng = &mut thread_rng();
-    ///     let forest = &mut HamtForest::rc_rsa_2048(rng);
+    ///     let forest = &mut HamtForest::new_rsa_2048_rc(rng);
     ///
     ///     let content = get_random_bytes::<100>(rng).to_vec();
     ///     let file = PrivateFile::with_content(
@@ -1070,7 +1074,7 @@ mod tests {
     async fn can_create_empty_file() {
         let store = &MemoryBlockStore::new();
         let rng = &mut ChaCha12Rng::seed_from_u64(0);
-        let forest = &HamtForest::rc_rsa_2048(rng);
+        let forest = &HamtForest::new_rsa_2048_rc(rng);
 
         let file = PrivateFile::new(&forest.empty_name(), Utc::now(), rng);
         let file_content = file.get_content(forest, store).await.unwrap();
@@ -1085,7 +1089,7 @@ mod tests {
 
         let store = &MemoryBlockStore::new();
         let rng = &mut ChaCha12Rng::seed_from_u64(0);
-        let forest = &mut HamtForest::rc_rsa_2048(rng);
+        let forest = &mut HamtForest::new_rsa_2048_rc(rng);
 
         let file = PrivateFile::with_content(
             &forest.empty_name(),
@@ -1126,7 +1130,7 @@ mod tests {
 
         let store = &MemoryBlockStore::new();
         let rng = &mut ChaCha12Rng::seed_from_u64(0);
-        let forest = &mut HamtForest::rc_rsa_2048(rng);
+        let forest = &mut HamtForest::new_rsa_2048_rc(rng);
 
         let file = PrivateFile::with_content_streaming(
             &forest.empty_name(),
@@ -1171,7 +1175,7 @@ mod proptests {
             let content = vec![0u8; length];
             let store = &MemoryBlockStore::new();
             let rng = &mut ChaCha12Rng::seed_from_u64(0);
-            let forest = &mut HamtForest::rc_rsa_2048(rng);
+            let forest = &mut HamtForest::new_rsa_2048_rc(rng);
 
             let file = PrivateFile::with_content(
                 &forest.empty_name(),
@@ -1198,7 +1202,7 @@ mod proptests {
             let content = vec![0u8; length];
             let store = &MemoryBlockStore::new();
             let rng = &mut ChaCha12Rng::seed_from_u64(0);
-            let forest = &mut HamtForest::rc_rsa_2048(rng);
+            let forest = &mut HamtForest::new_rsa_2048_rc(rng);
 
             let file = PrivateFile::with_content(
                 &forest.empty_name(),
@@ -1230,7 +1234,7 @@ mod proptests {
         async_std::task::block_on(async {
             let store = &MemoryBlockStore::new();
             let rng = &mut ChaCha12Rng::seed_from_u64(0);
-            let forest = &mut HamtForest::rc_rsa_2048(rng);
+            let forest = &mut HamtForest::new_rsa_2048_rc(rng);
 
             let mut file = PrivateFile::new(&forest.empty_name(), Utc::now(), rng);
 
@@ -1270,7 +1274,7 @@ mod proptests {
             .unwrap();
 
             let rng = &mut ChaCha12Rng::seed_from_u64(0);
-            let forest = &mut HamtForest::rc_rsa_2048(rng);
+            let forest = &mut HamtForest::new_rsa_2048_rc(rng);
             let store = &MemoryBlockStore::new();
 
             let file = PrivateFile::with_content_streaming(

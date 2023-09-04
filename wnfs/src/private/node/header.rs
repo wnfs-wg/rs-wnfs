@@ -136,7 +136,7 @@ impl PrivateNodeHeader {
     /// use rand::thread_rng;
     ///
     /// let rng = &mut thread_rng();
-    /// let forest = &mut HamtForest::rc_rsa_2048(rng);
+    /// let forest = &mut HamtForest::new_rsa_2048_rc(rng);
     /// let file = PrivateFile::new(&forest.empty_name(), Utc::now(), rng);
     /// let revision_name = file.header.get_revision_name();
     ///

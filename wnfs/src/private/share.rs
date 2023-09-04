@@ -248,7 +248,7 @@ mod tests {
             let exchange_key = key.get_public_key().get_public_key_modulus()?;
             let exchange_key_cid = store.put_block(exchange_key, CODEC_RAW).await?;
 
-            let mut root_dir = PublicDirectory::rc(Utc::now());
+            let mut root_dir = PublicDirectory::new_rc(Utc::now());
             root_dir
                 .write(
                     &["device1".into(), EXCHANGE_KEY_NAME.into()],
@@ -266,7 +266,7 @@ mod tests {
     async fn can_share_and_recieve_share() {
         let rng = &mut ChaCha12Rng::seed_from_u64(0);
         let store = &MemoryBlockStore::new();
-        let forest = &mut HamtForest::rc_rsa_2048(rng);
+        let forest = &mut HamtForest::new_rsa_2048_rc(rng);
 
         let sharer_root_did = "did:key:z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK";
 
@@ -320,7 +320,7 @@ mod tests {
     async fn serialized_share_payload_can_be_deserialized() {
         let rng = &mut ChaCha12Rng::seed_from_u64(0);
         let store = &MemoryBlockStore::new();
-        let forest = &mut HamtForest::rc_rsa_2048(rng);
+        let forest = &mut HamtForest::new_rsa_2048_rc(rng);
         let dir =
             PrivateDirectory::new_and_store(&forest.empty_name(), Utc::now(), forest, store, rng)
                 .await
@@ -342,7 +342,7 @@ mod tests {
     async fn find_latest_share_counter_finds_highest_count() {
         let rng = &mut ChaCha12Rng::seed_from_u64(0);
         let store = &MemoryBlockStore::new();
-        let forest = &mut HamtForest::rc_rsa_2048(rng);
+        let forest = &mut HamtForest::new_rsa_2048_rc(rng);
 
         let sharer_root_did = "did:key:z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK";
 

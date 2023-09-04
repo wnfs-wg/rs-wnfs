@@ -12,7 +12,7 @@ async fn main() -> Result<()> {
     let store = MemoryBlockStore::default();
 
     // Create a new directory.
-    let root_dir = &mut PublicDirectory::rc(Utc::now());
+    let root_dir = &mut PublicDirectory::new_rc(Utc::now());
 
     // Add a /pictures/cats subdirectory.
     root_dir

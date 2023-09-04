@@ -27,7 +27,7 @@ use wnfs_common::{AsyncSerialize, BlockStore, RemembersCid};
 /// use wnfs::public::{PublicDirectory, PublicNode};
 /// use chrono::Utc;
 ///
-/// let dir = PublicDirectory::rc(Utc::now());
+/// let dir = PublicDirectory::new_rc(Utc::now());
 /// let node = PublicNode::Dir(dir);
 ///
 /// println!("Node: {:?}", node);
@@ -51,7 +51,7 @@ impl PublicNode {
     /// use wnfs::public::{PublicDirectory, PublicNode};
     /// use chrono::{Utc, Duration, TimeZone};
     ///
-    /// let dir = PublicDirectory::rc(Utc::now());
+    /// let dir = PublicDirectory::new_rc(Utc::now());
     /// let node = &mut PublicNode::Dir(dir);
     ///
     /// let time = Utc::now();
@@ -87,7 +87,7 @@ impl PublicNode {
     /// use libipld_core::cid::Cid;
     /// use std::{rc::Rc, collections::BTreeSet};
     ///
-    /// let dir = PublicDirectory::rc(Utc::now());
+    /// let dir = PublicDirectory::new_rc(Utc::now());
     /// let node = PublicNode::Dir(dir);
     ///
     /// let new_cids = [Cid::default()];
@@ -123,7 +123,7 @@ impl PublicNode {
     /// use wnfs::public::{PublicDirectory, PublicNode};
     /// use chrono::Utc;
     ///
-    /// let dir = PublicDirectory::rc(Utc::now());
+    /// let dir = PublicDirectory::new_rc(Utc::now());
     /// let node = PublicNode::Dir(dir);
     ///
     /// assert_eq!(
@@ -149,7 +149,7 @@ impl PublicNode {
     /// use wnfs::public::{PublicDirectory, PublicNode};
     /// use chrono::Utc;
     ///
-    /// let dir = PublicDirectory::rc(Utc::now());
+    /// let dir = PublicDirectory::new_rc(Utc::now());
     /// let node = PublicNode::Dir(Rc::clone(&dir));
     ///
     /// assert_eq!(node.as_dir().unwrap(), dir);
@@ -179,7 +179,7 @@ impl PublicNode {
     /// use chrono::Utc;
     /// use libipld_core::cid::Cid;
     ///
-    /// let file = PublicFile::rc(Utc::now(), Cid::default());
+    /// let file = PublicFile::new_rc(Utc::now(), Cid::default());
     /// let node = PublicNode::File(Rc::clone(&file));
     ///
     /// assert_eq!(node.as_file().unwrap(), file);
@@ -207,7 +207,7 @@ impl PublicNode {
     /// use wnfs::public::{PublicDirectory, PublicNode};
     /// use chrono::Utc;
     ///
-    /// let dir = PublicDirectory::rc(Utc::now());
+    /// let dir = PublicDirectory::new_rc(Utc::now());
     /// let node = PublicNode::Dir(dir);
     ///
     /// assert!(node.is_dir());
@@ -225,7 +225,7 @@ impl PublicNode {
     /// use chrono::Utc;
     /// use libipld_core::cid::Cid;
     ///
-    /// let file = PublicFile::rc(Utc::now(), Cid::default());
+    /// let file = PublicFile::new_rc(Utc::now(), Cid::default());
     /// let node = PublicNode::File(file);
     ///
     /// assert!(node.is_file());
@@ -389,7 +389,7 @@ mod snapshot_tests {
             vec!["videos".into(), "movies".into(), "anime".into()],
         ];
 
-        let root_dir = &mut PublicDirectory::rc(time);
+        let root_dir = &mut PublicDirectory::new_rc(time);
         let _ = root_dir.store(store).await.unwrap();
 
         for path in paths.iter() {

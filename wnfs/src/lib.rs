@@ -19,7 +19,7 @@
 //! #[async_std::main]
 //! async fn main() -> Result<()> {
 //!     // Create a new public directory.
-//!     let dir = &mut PublicDirectory::rc(Utc::now());
+//!     let dir = &mut PublicDirectory::new_rc(Utc::now());
 //!
 //!     // Create an in-memory block store.
 //!     let store = &MemoryBlockStore::default();
@@ -67,10 +67,10 @@
 //!     let rng = &mut thread_rng();
 //!
 //!     // Create a private forest.
-//!     let forest = &mut HamtForest::rc_trusted(rng);
+//!     let forest = &mut HamtForest::new_trusted_rc(rng);
 //!
 //!     // Create a new private directory.
-//!     let dir = &mut PrivateDirectory::rc(&forest.empty_name(), Utc::now(), rng);
+//!     let dir = &mut PrivateDirectory::new_rc(&forest.empty_name(), Utc::now(), rng);
 //!
 //!     // Add a file to /pictures/cats directory.
 //!     dir.mkdir(

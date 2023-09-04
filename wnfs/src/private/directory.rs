@@ -104,11 +104,15 @@ impl PrivateDirectory {
     ///
     /// let rng = &mut thread_rng();
     /// let forest = HamtForest::new_rsa_2048(rng);
-    /// let dir = PrivateDirectory::rc(&forest.empty_name(), Utc::now(), rng);
+    /// let dir = PrivateDirectory::new_rc(&forest.empty_name(), Utc::now(), rng);
     ///
     /// println!("dir = {:?}", dir);
     /// ```
-    pub fn rc(parent_name: &Name, time: DateTime<Utc>, rng: &mut impl CryptoRngCore) -> Rc<Self> {
+    pub fn new_rc(
+        parent_name: &Name,
+        time: DateTime<Utc>,
+        rng: &mut impl CryptoRngCore,
+    ) -> Rc<Self> {
         Rc::new(Self::new(parent_name, time, rng))
     }
 
@@ -188,7 +192,7 @@ impl PrivateDirectory {
     /// let rng = &mut thread_rng();
     /// let forest = &mut HamtForest::new_rsa_2048(rng);
     /// let time = Utc::now();
-    /// let dir = PrivateDirectory::rc(
+    /// let dir = PrivateDirectory::new_rc(
     ///     &forest.empty_name(),
     ///     time,
     ///     rng,
@@ -218,8 +222,8 @@ impl PrivateDirectory {
     /// async fn main() -> Result<()> {
     ///     let store = &MemoryBlockStore::new();
     ///     let rng = &mut thread_rng();
-    ///     let forest = &mut HamtForest::rc_rsa_2048(rng);
-    ///     let root_dir = &mut PrivateDirectory::rc(&forest.empty_name(), Utc::now(), rng);
+    ///     let forest = &mut HamtForest::new_rsa_2048_rc(rng);
+    ///     let root_dir = &mut PrivateDirectory::new_rc(&forest.empty_name(), Utc::now(), rng);
     ///
     ///     root_dir
     ///         .mkdir(&["pictures".into(), "cats".into()], true, Utc::now(), forest, store, rng)
@@ -447,8 +451,8 @@ impl PrivateDirectory {
     /// async fn main() {
     ///     let store = &MemoryBlockStore::default();
     ///     let rng = &mut thread_rng();
-    ///     let forest = &mut HamtForest::rc_rsa_2048(rng);
-    ///     let root_dir = &mut PrivateDirectory::rc(&forest.empty_name(), Utc::now(), rng);
+    ///     let forest = &mut HamtForest::new_rsa_2048_rc(rng);
+    ///     let root_dir = &mut PrivateDirectory::new_rc(&forest.empty_name(), Utc::now(), rng);
     ///
     ///     root_dir
     ///         .mkdir(&["pictures".into(), "cats".into()], true, Utc::now(), forest, store, rng)
@@ -501,8 +505,8 @@ impl PrivateDirectory {
     /// async fn main() -> Result<()> {
     ///     let store = &MemoryBlockStore::new();
     ///     let rng = &mut thread_rng();
-    ///     let forest = &mut HamtForest::rc_rsa_2048(rng);
-    ///     let root_dir = &mut PrivateDirectory::rc(&forest.empty_name(), Utc::now(), rng);
+    ///     let forest = &mut HamtForest::new_rsa_2048_rc(rng);
+    ///     let root_dir = &mut PrivateDirectory::new_rc(&forest.empty_name(), Utc::now(), rng);
     ///
     ///     let content = b"print('hello world')";
     ///
@@ -572,8 +576,8 @@ impl PrivateDirectory {
     /// async fn main() -> Result<()> {
     ///    let store = &MemoryBlockStore::new();
     ///    let rng = &mut thread_rng();
-    ///    let forest = &mut HamtForest::rc_rsa_2048(rng);
-    ///    let root_dir = &mut PrivateDirectory::rc(&forest.empty_name(), Utc::now(), rng);
+    ///    let forest = &mut HamtForest::new_rsa_2048_rc(rng);
+    ///    let root_dir = &mut PrivateDirectory::new_rc(&forest.empty_name(), Utc::now(), rng);
     ///     // The path to the file /code/hello.py as defined by our standards
     ///     let hello_py: &[String] = &["code".into(), "hello.py".into()];
     ///     // The original file content
@@ -656,8 +660,8 @@ impl PrivateDirectory {
     /// async fn main() -> Result<()> {
     ///     let store = &MemoryBlockStore::new();
     ///     let rng = &mut thread_rng();
-    ///     let forest = &mut HamtForest::rc_rsa_2048(rng);
-    ///     let root_dir = &mut PrivateDirectory::rc(&forest.empty_name(), Utc::now(), rng);
+    ///     let forest = &mut HamtForest::new_rsa_2048_rc(rng);
+    ///     let root_dir = &mut PrivateDirectory::new_rc(&forest.empty_name(), Utc::now(), rng);
     ///
     ///     let content = b"print('hello world')";
     ///
@@ -744,7 +748,7 @@ impl PrivateDirectory {
     /// async fn main() -> Result<()> {
     ///     let store = &MemoryBlockStore::new();
     ///     let rng = &mut thread_rng();
-    ///     let forest = &mut HamtForest::rc_rsa_2048(rng);
+    ///     let forest = &mut HamtForest::new_rsa_2048_rc(rng);
     ///     let mut init_dir = PrivateDirectory::new_and_store(
     ///         &forest.empty_name(),
     ///         Utc::now(),
@@ -803,8 +807,8 @@ impl PrivateDirectory {
     /// async fn main() {
     ///     let store = &MemoryBlockStore::default();
     ///     let rng = &mut thread_rng();
-    ///     let forest = &mut HamtForest::rc_rsa_2048(rng);
-    ///     let root_dir = &mut PrivateDirectory::rc(&forest.empty_name(), Utc::now(), rng);
+    ///     let forest = &mut HamtForest::new_rsa_2048_rc(rng);
+    ///     let root_dir = &mut PrivateDirectory::new_rc(&forest.empty_name(), Utc::now(), rng);
     ///
     ///     root_dir
     ///         .mkdir(&["pictures".into(), "cats".into()], true, Utc::now(), forest, store, rng)
@@ -851,8 +855,8 @@ impl PrivateDirectory {
     /// async fn main() -> Result<()> {
     ///     let store = &MemoryBlockStore::new();
     ///     let rng = &mut thread_rng();
-    ///     let forest = &mut HamtForest::rc_rsa_2048(rng);
-    ///     let root_dir = &mut PrivateDirectory::rc(&forest.empty_name(), Utc::now(), rng);
+    ///     let forest = &mut HamtForest::new_rsa_2048_rc(rng);
+    ///     let root_dir = &mut PrivateDirectory::new_rc(&forest.empty_name(), Utc::now(), rng);
     ///
     ///     root_dir
     ///         .write(
@@ -941,8 +945,8 @@ impl PrivateDirectory {
     /// async fn main() {
     ///     let store = &MemoryBlockStore::default();
     ///     let rng = &mut thread_rng();
-    ///     let forest = &mut HamtForest::rc_rsa_2048(rng);
-    ///     let root_dir = &mut PrivateDirectory::rc(&forest.empty_name(), Utc::now(), rng);
+    ///     let forest = &mut HamtForest::new_rsa_2048_rc(rng);
+    ///     let root_dir = &mut PrivateDirectory::new_rc(&forest.empty_name(), Utc::now(), rng);
     ///
     ///     root_dir
     ///         .write(
@@ -1061,8 +1065,8 @@ impl PrivateDirectory {
     /// async fn main() {
     ///     let store = &MemoryBlockStore::default();
     ///     let rng = &mut thread_rng();
-    ///     let forest = &mut HamtForest::rc_rsa_2048(rng);
-    ///     let root_dir = &mut PrivateDirectory::rc(&forest.empty_name(), Utc::now(), rng);
+    ///     let forest = &mut HamtForest::new_rsa_2048_rc(rng);
+    ///     let root_dir = &mut PrivateDirectory::new_rc(&forest.empty_name(), Utc::now(), rng);
     ///
     ///     root_dir
     ///         .write(
@@ -1146,8 +1150,8 @@ impl PrivateDirectory {
     /// async fn main() {
     ///     let store = &MemoryBlockStore::default();
     ///     let rng = &mut thread_rng();
-    ///     let forest = &mut HamtForest::rc_rsa_2048(rng);
-    ///     let root_dir = &mut PrivateDirectory::rc(&forest.empty_name(), Utc::now(), rng);
+    ///     let forest = &mut HamtForest::new_rsa_2048_rc(rng);
+    ///     let root_dir = &mut PrivateDirectory::new_rc(&forest.empty_name(), Utc::now(), rng);
     ///
     ///     root_dir
     ///         .write(
@@ -1399,8 +1403,8 @@ mod tests {
     async fn look_up_can_fetch_file_added_to_directory() {
         let rng = &mut ChaCha12Rng::seed_from_u64(0);
         let store = &MemoryBlockStore::default();
-        let forest = &mut HamtForest::rc_rsa_2048(rng);
-        let root_dir = &mut PrivateDirectory::rc(&forest.empty_name(), Utc::now(), rng);
+        let forest = &mut HamtForest::new_rsa_2048_rc(rng);
+        let root_dir = &mut PrivateDirectory::new_rc(&forest.empty_name(), Utc::now(), rng);
 
         let content = b"Hello, World!".to_vec();
 
@@ -1429,8 +1433,8 @@ mod tests {
     async fn look_up_cannot_fetch_file_not_added_to_directory() {
         let rng = &mut ChaCha12Rng::seed_from_u64(0);
         let store = &MemoryBlockStore::default();
-        let forest = &HamtForest::rc_rsa_2048(rng);
-        let root_dir = PrivateDirectory::rc(&forest.empty_name(), Utc::now(), rng);
+        let forest = &HamtForest::new_rsa_2048_rc(rng);
+        let root_dir = PrivateDirectory::new_rc(&forest.empty_name(), Utc::now(), rng);
 
         let node = root_dir
             .lookup_node("Unknown", true, forest, store)
@@ -1444,8 +1448,8 @@ mod tests {
     async fn get_node_can_fetch_node_from_root_dir() {
         let rng = &mut ChaCha12Rng::seed_from_u64(0);
         let store = &MemoryBlockStore::default();
-        let forest = &mut HamtForest::rc_rsa_2048(rng);
-        let root_dir = &mut PrivateDirectory::rc(&forest.empty_name(), Utc::now(), rng);
+        let forest = &mut HamtForest::new_rsa_2048_rc(rng);
+        let root_dir = &mut PrivateDirectory::new_rc(&forest.empty_name(), Utc::now(), rng);
 
         root_dir
             .mkdir(
@@ -1521,8 +1525,8 @@ mod tests {
     async fn mkdir_can_create_new_directory() {
         let rng = &mut ChaCha12Rng::seed_from_u64(0);
         let store = &MemoryBlockStore::default();
-        let forest = &mut HamtForest::rc_rsa_2048(rng);
-        let root_dir = &mut PrivateDirectory::rc(&forest.empty_name(), Utc::now(), rng);
+        let forest = &mut HamtForest::new_rsa_2048_rc(rng);
+        let root_dir = &mut PrivateDirectory::new_rc(&forest.empty_name(), Utc::now(), rng);
 
         root_dir
             .mkdir(
@@ -1548,8 +1552,8 @@ mod tests {
     async fn ls_can_list_children_under_directory() {
         let rng = &mut ChaCha12Rng::seed_from_u64(0);
         let store = &MemoryBlockStore::default();
-        let forest = &mut HamtForest::rc_rsa_2048(rng);
-        let root_dir = &mut PrivateDirectory::rc(&forest.empty_name(), Utc::now(), rng);
+        let forest = &mut HamtForest::new_rsa_2048_rc(rng);
+        let root_dir = &mut PrivateDirectory::new_rc(&forest.empty_name(), Utc::now(), rng);
 
         root_dir
             .mkdir(
@@ -1602,8 +1606,8 @@ mod tests {
     async fn rm_can_remove_children_from_directory() {
         let rng = &mut ChaCha12Rng::seed_from_u64(0);
         let store = &MemoryBlockStore::default();
-        let forest = &mut HamtForest::rc_rsa_2048(rng);
-        let root_dir = &mut PrivateDirectory::rc(&forest.empty_name(), Utc::now(), rng);
+        let forest = &mut HamtForest::new_rsa_2048_rc(rng);
+        let root_dir = &mut PrivateDirectory::new_rc(&forest.empty_name(), Utc::now(), rng);
 
         root_dir
             .mkdir(
@@ -1658,8 +1662,8 @@ mod tests {
     async fn read_can_fetch_userland_of_file_added_to_directory() {
         let rng = &mut ChaCha12Rng::seed_from_u64(0);
         let store = &MemoryBlockStore::default();
-        let forest = &mut HamtForest::rc_rsa_2048(rng);
-        let root_dir = &mut PrivateDirectory::rc(&forest.empty_name(), Utc::now(), rng);
+        let forest = &mut HamtForest::new_rsa_2048_rc(rng);
+        let root_dir = &mut PrivateDirectory::new_rc(&forest.empty_name(), Utc::now(), rng);
 
         root_dir
             .write(
@@ -1686,8 +1690,8 @@ mod tests {
     async fn search_latest_finds_the_most_recent() {
         let rng = &mut rand::thread_rng();
         let store = &MemoryBlockStore::default();
-        let forest = &mut HamtForest::rc_rsa_2048(rng);
-        let root_dir = &mut PrivateDirectory::rc(&forest.empty_name(), Utc::now(), rng);
+        let forest = &mut HamtForest::new_rsa_2048_rc(rng);
+        let root_dir = &mut PrivateDirectory::new_rc(&forest.empty_name(), Utc::now(), rng);
 
         let path = ["Documents".into(), "file.txt".into()];
 
@@ -1735,8 +1739,8 @@ mod tests {
     async fn cp_can_copy_sub_directory_to_another_valid_location_with_updated_ancestry() {
         let rng = &mut ChaCha12Rng::seed_from_u64(0);
         let store = &MemoryBlockStore::default();
-        let forest = &mut HamtForest::rc_rsa_2048(rng);
-        let root_dir = &mut PrivateDirectory::rc(&forest.empty_name(), Utc::now(), rng);
+        let forest = &mut HamtForest::new_rsa_2048_rc(rng);
+        let root_dir = &mut PrivateDirectory::new_rc(&forest.empty_name(), Utc::now(), rng);
 
         root_dir
             .write(
@@ -1831,8 +1835,8 @@ mod tests {
     async fn mv_can_move_sub_directory_to_another_valid_location_with_updated_ancestry() {
         let rng = &mut thread_rng();
         let store = &MemoryBlockStore::default();
-        let forest = &mut HamtForest::rc_rsa_2048(rng);
-        let root_dir = &mut PrivateDirectory::rc(&forest.empty_name(), Utc::now(), rng);
+        let forest = &mut HamtForest::new_rsa_2048_rc(rng);
+        let root_dir = &mut PrivateDirectory::new_rc(&forest.empty_name(), Utc::now(), rng);
 
         root_dir
             .write(
@@ -1926,8 +1930,8 @@ mod tests {
     async fn mv_cannot_move_sub_directory_to_invalid_location() {
         let rng = &mut thread_rng();
         let store = &MemoryBlockStore::default();
-        let forest = &mut HamtForest::rc_rsa_2048(rng);
-        let root_dir = &mut PrivateDirectory::rc(&forest.empty_name(), Utc::now(), rng);
+        let forest = &mut HamtForest::new_rsa_2048_rc(rng);
+        let root_dir = &mut PrivateDirectory::new_rc(&forest.empty_name(), Utc::now(), rng);
 
         root_dir
             .mkdir(
@@ -1965,8 +1969,8 @@ mod tests {
     async fn mv_can_rename_directories() {
         let rng = &mut thread_rng();
         let store = &MemoryBlockStore::default();
-        let forest = &mut HamtForest::rc_rsa_2048(rng);
-        let root_dir = &mut PrivateDirectory::rc(&forest.empty_name(), Utc::now(), rng);
+        let forest = &mut HamtForest::new_rsa_2048_rc(rng);
+        let root_dir = &mut PrivateDirectory::new_rc(&forest.empty_name(), Utc::now(), rng);
         let content = b"file".to_vec();
 
         root_dir
@@ -2014,8 +2018,8 @@ mod tests {
     async fn mv_fails_moving_directories_to_files() {
         let rng = &mut thread_rng();
         let store = &MemoryBlockStore::default();
-        let forest = &mut HamtForest::rc_rsa_2048(rng);
-        let root_dir = &mut PrivateDirectory::rc(&forest.empty_name(), Utc::now(), rng);
+        let forest = &mut HamtForest::new_rsa_2048_rc(rng);
+        let root_dir = &mut PrivateDirectory::new_rc(&forest.empty_name(), Utc::now(), rng);
 
         root_dir
             .mkdir(
@@ -2061,8 +2065,8 @@ mod tests {
     async fn write_doesnt_generate_previous_link() {
         let rng = &mut thread_rng();
         let store = &MemoryBlockStore::new();
-        let forest = &mut HamtForest::rc_rsa_2048(rng);
-        let old_dir = &mut PrivateDirectory::rc(&forest.empty_name(), Utc::now(), rng);
+        let forest = &mut HamtForest::new_rsa_2048_rc(rng);
+        let old_dir = &mut PrivateDirectory::new_rc(&forest.empty_name(), Utc::now(), rng);
 
         let new_dir = &mut Rc::clone(old_dir);
         new_dir
@@ -2086,8 +2090,8 @@ mod tests {
     async fn store_before_write_generates_previous_link() {
         let rng = &mut thread_rng();
         let store = &MemoryBlockStore::new();
-        let forest = &mut HamtForest::rc_rsa_2048(rng);
-        let old_dir = &mut PrivateDirectory::rc(&forest.empty_name(), Utc::now(), rng);
+        let forest = &mut HamtForest::new_rsa_2048_rc(rng);
+        let old_dir = &mut PrivateDirectory::new_rc(&forest.empty_name(), Utc::now(), rng);
         old_dir.store(forest, store, rng).await.unwrap();
 
         let new_dir = &mut Rc::clone(old_dir);
@@ -2226,7 +2230,7 @@ mod snapshot_tests {
     async fn test_private_fs() -> Result<()> {
         let rng = &mut ChaCha12Rng::seed_from_u64(0);
         let store = &mut SnapshotBlockStore::default();
-        let forest = &mut HamtForest::rc_rsa_2048(rng);
+        let forest = &mut HamtForest::new_rsa_2048_rc(rng);
         let time = Utc.with_ymd_and_hms(1970, 1, 1, 0, 0, 0).unwrap();
         let base_name = forest.empty_name();
         let paths = [
@@ -2235,7 +2239,7 @@ mod snapshot_tests {
             vec!["videos".into(), "movies".into(), "anime".into()],
         ];
 
-        let root_dir = &mut PrivateDirectory::rc(&base_name, time, rng);
+        let root_dir = &mut PrivateDirectory::new_rc(&base_name, time, rng);
 
         for path in paths.iter() {
             root_dir

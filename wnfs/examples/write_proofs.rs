@@ -54,8 +54,8 @@ async fn main() -> Result<()> {
 /// supposed to be publicly signed for verifyable write access.
 async fn alice_actions(store: &impl BlockStore) -> Result<(Cid, AccessKey, NameAccumulator)> {
     let rng = &mut thread_rng();
-    let forest = &mut HamtForest::rc_rsa_2048(rng);
-    let root_dir = &mut PrivateDirectory::rc(&forest.empty_name(), Utc::now(), rng);
+    let forest = &mut HamtForest::new_rsa_2048_rc(rng);
+    let root_dir = &mut PrivateDirectory::new_rc(&forest.empty_name(), Utc::now(), rng);
 
     let access_key = root_dir.as_node().store(forest, store, rng).await?;
     let cid = forest.store(store).await?;
