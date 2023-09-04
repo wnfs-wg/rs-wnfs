@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1693829711113,
+  "lastUpdate": 1693831016584,
   "repoUrl": "https://github.com/wnfs-wg/rs-wnfs",
   "entries": {
     "Rust Benchmark": [
@@ -18589,6 +18589,102 @@ window.BENCHMARK_DATA = {
             "name": "NameAccumulator serialization",
             "value": 1166,
             "range": "± 568",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "appcypher@outlook.com",
+            "name": "Stephen Akinyemi",
+            "username": "appcypher"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "e6cee873273e154c7855d17e9c756717a635874b",
+          "message": "feat: Remove `Share` struct, add documentation, add `rc` constructor variants (#343)\n\n* Cleanup\r\n\r\n* Add rc constructor variants; remove Share struct\r\n\r\n* Fix share fn in wasm\r\n\r\n* Fix wasm code\r\n\r\n* Update doc examples\r\n\r\n* refactor: Rename `rc` functions to `new_rc`\r\n\r\n---------\r\n\r\nCo-authored-by: Philipp Krüger <philipp.krueger1@gmail.com>",
+          "timestamp": "2023-09-04T14:31:43+02:00",
+          "tree_id": "f47d249e1e858e4bfbb2a269a77a1de5cde6e336",
+          "url": "https://github.com/wnfs-wg/rs-wnfs/commit/e6cee873273e154c7855d17e9c756717a635874b"
+        },
+        "date": 1693831015154,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "node set",
+            "value": 8645,
+            "range": "± 754",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node set 1000 consecutive",
+            "value": 3188783,
+            "range": "± 158308",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and get",
+            "value": 146310,
+            "range": "± 6804",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and remove",
+            "value": 159609,
+            "range": "± 6550",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt load and decode/0",
+            "value": 56076,
+            "range": "± 2757",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt set and encode",
+            "value": 134378,
+            "range": "± 7915",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt diff",
+            "value": 61228,
+            "range": "± 7394",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt merge",
+            "value": 177322,
+            "range": "± 22715",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameSegment::new_hashed",
+            "value": 2946249,
+            "range": "± 344242",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameSegment::new(rng)",
+            "value": 2909401,
+            "range": "± 323735",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameAccumulator::add",
+            "value": 2653172,
+            "range": "± 186976",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameAccumulator serialization",
+            "value": 1188,
+            "range": "± 77",
             "unit": "ns/iter"
           }
         ]
