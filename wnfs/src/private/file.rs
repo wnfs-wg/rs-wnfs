@@ -9,7 +9,11 @@ use async_once_cell::OnceCell;
 use async_stream::try_stream;
 use chrono::{DateTime, Utc};
 use futures::{future, stream::LocalBoxStream, AsyncRead, Stream, StreamExt, TryStreamExt};
-use libipld_core::cid::Cid;
+use libipld_core::{
+    cid::Cid,
+    ipld::Ipld,
+    serde::{from_ipld, to_ipld},
+};
 use rand_core::CryptoRngCore;
 use serde::{Deserialize, Serialize};
 use std::{collections::BTreeSet, iter, rc::Rc};
@@ -755,20 +759,19 @@ impl PrivateForestContent {
 
     /// Load some previously stored keys & pointers to encrypted private forest content
     /// from given metadata key.
-    pub fn load_from_metadata(metadata: &Metadata, key: &str) -> Result<Self> {
-        let wrapped: MetadataContentCapsule<Self> = metadata
-            .get_deserializable(key)
-            .ok_or_else(|| FsError::NotFound)??;
+    pub fn from_metadata_value(value: &Ipld) -> Result<Self> {
+        let wrapped: MetadataContentCapsule<Self> = from_ipld(value.clone())?;
 
         Ok(match wrapped {
             MetadataContentCapsule::PrivateForestContent(content) => content,
         })
     }
 
-    /// Store these pointers & key to some private forest content in given metadata under given key.
-    pub fn store_in_metadata(&self, metadata: &mut Metadata, key: &str) -> Result<()> {
-        metadata.put_serializable(key, MetadataContentCapsule::PrivateForestContent(&self))?;
-        Ok(())
+    // Serialize these pointers & keys into some data that can be stored in a `PrivateFile`'s metadata.
+    pub fn as_metadata_value(&self) -> Result<Ipld> {
+        Ok(to_ipld(MetadataContentCapsule::PrivateForestContent(
+            &self,
+        ))?)
     }
 
     /// Decrypt & stream out the contents that `self` points to in given forest.

@@ -46,13 +46,15 @@ async fn main() -> Result<()> {
 
     // We store the content in the file metadata.
     // This will update the `file: Rc<PrivateFile>` for us with a new reference.
-    content.store_in_metadata(file.get_metadata_mut_rc()?, "thumbnail")?;
+    file.get_metadata_mut_rc()?
+        .put("thumbnail", content.as_metadata_value()?);
 
     // We store the new reference in the forest.
     file.as_node().store(forest, store, rng).await?;
 
     // When can look up the private forest content again.
-    let content = PrivateForestContent::load_from_metadata(file.get_metadata(), "thumbnail")?;
+    let content_ipld = file.get_metadata().get("thumbnail").unwrap();
+    let content = PrivateForestContent::from_metadata_value(content_ipld)?;
 
     assert_eq!(
         content.get_content(forest, store).await?,
