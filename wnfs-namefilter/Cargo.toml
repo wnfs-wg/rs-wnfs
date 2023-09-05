@@ -1,6 +1,6 @@
 [package]
 name = "wnfs-namefilter"
-version = "0.1.22"
+version = "0.1.23"
 description = "Bloom filter for the Webnative Filesystem"
 keywords = ["wnfs", "webnative", "ipfs", "decentralisation"]
 categories = [
@@ -12,7 +12,7 @@ categories = [
 license = "Apache-2.0"
 readme = "README.md"
 edition = "2021"
-repository = "https://github.com/wnfs-wg/rs-wnfs/tree/main/wnfs"
+repository = "https://github.com/wnfs-wg/rs-wnfs/tree/wnfs-namefilter-release/wnfs-namefilter"
 homepage = "https://fission.codes"
 authors = ["The Fission Authors"]
 
@@ -30,7 +30,7 @@ rand_core = "0.6"
 serde = { version = "1.0", features = ["rc"] }
 sha3 = "0.10"
 thiserror = "1.0"
-wnfs-common = { path = "../wnfs-common", version = "0.1.22" }
+wnfs-common = { path = "../wnfs-common", version = "=0.1.22" }
 xxhash-rust = { version = "0.8", features = ["xxh3"] }
 
 [dev-dependencies]
