@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1694360367055,
+  "lastUpdate": 1694360812564,
   "repoUrl": "https://github.com/wnfs-wg/rs-wnfs",
   "entries": {
     "Rust Benchmark": [
@@ -18877,6 +18877,102 @@ window.BENCHMARK_DATA = {
             "name": "NameAccumulator serialization",
             "value": 981,
             "range": "± 29",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "philipp.krueger1@gmail.com",
+            "name": "Philipp Krüger",
+            "username": "matheus23"
+          },
+          "committer": {
+            "email": "philipp.krueger1@gmail.com",
+            "name": "Philipp Krüger",
+            "username": "matheus23"
+          },
+          "distinct": true,
+          "id": "491ce8555d811477e934e6a1a6b6e0d347a32357",
+          "message": "chore: Bump wnfs-wasm version",
+          "timestamp": "2023-09-10T17:40:18+02:00",
+          "tree_id": "fc76782648320e087ce6435ea49b821a962c5644",
+          "url": "https://github.com/wnfs-wg/rs-wnfs/commit/491ce8555d811477e934e6a1a6b6e0d347a32357"
+        },
+        "date": 1694360811842,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "node set",
+            "value": 82778,
+            "range": "± 1085",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node set 1000 consecutive",
+            "value": 3780265,
+            "range": "± 143714",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and get",
+            "value": 107794,
+            "range": "± 626",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and remove",
+            "value": 119379,
+            "range": "± 327",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt load and decode/0",
+            "value": 40682,
+            "range": "± 40",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt set and encode",
+            "value": 104036,
+            "range": "± 340",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt diff",
+            "value": 49522,
+            "range": "± 3497",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt merge",
+            "value": 144918,
+            "range": "± 11064",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameSegment::new_hashed",
+            "value": 2382198,
+            "range": "± 259777",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameSegment::new(rng)",
+            "value": 2391819,
+            "range": "± 262510",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameAccumulator::add",
+            "value": 2345104,
+            "range": "± 77960",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameAccumulator serialization",
+            "value": 972,
+            "range": "± 21",
             "unit": "ns/iter"
           }
         ]
