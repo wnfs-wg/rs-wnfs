@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1693831016584,
+  "lastUpdate": 1694359289199,
   "repoUrl": "https://github.com/wnfs-wg/rs-wnfs",
   "entries": {
     "Rust Benchmark": [
@@ -18685,6 +18685,102 @@ window.BENCHMARK_DATA = {
             "name": "NameAccumulator serialization",
             "value": 1188,
             "range": "± 77",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "philipp.krueger1@gmail.com",
+            "name": "Philipp Krüger",
+            "username": "matheus23"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "b06fc4c221d72582ba77635050af779f602b0ea2",
+          "message": "fix: Don't drop data sometimes during re-serialization in wnfs-hamt (#348)\n\n* chore: Write failing test case\r\n\r\n* fix: Fix reserialization dropping data sometimes",
+          "timestamp": "2023-09-10T17:14:42+02:00",
+          "tree_id": "edfd1788bdd7052d8ac020a8e16db50498a22112",
+          "url": "https://github.com/wnfs-wg/rs-wnfs/commit/b06fc4c221d72582ba77635050af779f602b0ea2"
+        },
+        "date": 1694359288524,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "node set",
+            "value": 84162,
+            "range": "± 972",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node set 1000 consecutive",
+            "value": 3787810,
+            "range": "± 146627",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and get",
+            "value": 106725,
+            "range": "± 345",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and remove",
+            "value": 119007,
+            "range": "± 405",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt load and decode/0",
+            "value": 41171,
+            "range": "± 43",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt set and encode",
+            "value": 104119,
+            "range": "± 671",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt diff",
+            "value": 49677,
+            "range": "± 3523",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt merge",
+            "value": 145225,
+            "range": "± 11030",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameSegment::new_hashed",
+            "value": 2375019,
+            "range": "± 211353",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameSegment::new(rng)",
+            "value": 2471137,
+            "range": "± 259213",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameAccumulator::add",
+            "value": 2334428,
+            "range": "± 76810",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameAccumulator serialization",
+            "value": 972,
+            "range": "± 23",
             "unit": "ns/iter"
           }
         ]
