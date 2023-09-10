@@ -27,6 +27,7 @@ use wnfs_common::BlockStore;
 pub enum Operation<K, V> {
     Insert(K, V),
     Remove(K),
+    Reserialize,
 }
 
 /// A list of operations that can be applied to a map-like data structure.
@@ -79,6 +80,8 @@ impl<K, V> Operation<K, V> {
                 // Removes can always be swapped
                 true
             }
+            (Operation::Reserialize, _) => true,
+            (_, Operation::Reserialize) => true,
         }
     }
 }
@@ -146,6 +149,7 @@ where
                 Operation::Remove(key) => {
                     map.remove(key);
                 }
+                Operation::Reserialize => {}
             }
         }
         map
@@ -193,6 +197,10 @@ where
             Operation::Remove(key) => {
                 node.remove(key, store).await?;
             }
+            Operation::Reserialize => {
+                let cid = store.put_async_serializable(node.as_ref()).await?;
+                node = Rc::new(store.get_deserializable(&cid).await?);
+            }
         };
     }
 
@@ -217,12 +225,11 @@ pub fn operation<K: Debug, V: Debug>(
     key: impl Strategy<Value = K>,
     value: impl Strategy<Value = V>,
 ) -> impl Strategy<Value = Operation<K, V>> {
-    (any::<bool>(), key, value).prop_map(|(is_insert, key, value)| {
-        if is_insert {
-            Operation::Insert(key, value)
-        } else {
-            Operation::Remove(key)
-        }
+    (0..=2, key, value).prop_map(|(op, key, value)| match op {
+        0 => Operation::Insert(key, value),
+        1 => Operation::Remove(key),
+        2 => Operation::Reserialize,
+        _ => unreachable!("This case should be impossible. Values generated are only 0, 1, and 2"),
     })
 }
 

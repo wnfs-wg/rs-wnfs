@@ -352,6 +352,7 @@ where
             );
 
             let node = Rc::make_mut(self);
+            node.persisted_as = OnceCell::new();
 
             // If the bit is not set yet, insert a new pointer.
             if !node.bitmask[bit_index] {
@@ -458,7 +459,10 @@ where
         }
 
         let value_index = self.get_value_index(bit_index);
-        match &mut Rc::make_mut(self).pointers[value_index] {
+        let node = Rc::make_mut(self);
+        node.persisted_as = OnceCell::new();
+
+        match &mut node.pointers[value_index] {
             Pointer::Values(values) => Ok({
                 values
                     .iter_mut()
@@ -495,6 +499,7 @@ where
             let value_index = self.get_value_index(bit_index);
 
             let node = Rc::make_mut(self);
+            node.persisted_as = OnceCell::new();
 
             Ok(match &mut node.pointers[value_index] {
                 // If there is only one value, we can remove the entire pointer.
@@ -1310,6 +1315,24 @@ mod proptests {
         let map2 = HashMap::from(&shuffled);
 
         prop_assert_eq!(map1, map2);
+    }
+
+    #[proptest]
+    fn hamt_is_like_hash_map(
+        #[strategy(operations(small_key(), 0u64..1000, 0..1000))] operations: Operations<
+            String,
+            u64,
+        >,
+    ) {
+        async_std::task::block_on(async move {
+            let store = &MemoryBlockStore::new();
+
+            let node = node_from_operations(&operations, store).await.unwrap();
+            let map = HashMap::from(&operations);
+            let map_result = node.to_hashmap(store).await.unwrap();
+
+            assert_eq!(map, map_result);
+        })
     }
 }
 
