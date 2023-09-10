@@ -4,7 +4,7 @@
     "The Fission Authors"
   ],
   "description": "WebNative Filesystem API (WebAssembly)",
-  "version": "0.1.26",
+  "version": "0.1.27",
   "license": "Apache-2.0",
   "homepage": "https://fission.codes",
   "repository": {
