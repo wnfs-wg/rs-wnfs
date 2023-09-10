@@ -2,6 +2,7 @@
 
 ## 0.1.25 (2023-09-04)
 
+* Fixed a bug causing dropped updates when doing serialization, then continuing writes, then serializing again and loading from that serialized state [#348](https://github.com/wnfs-wg/rs-wnfs/pull/348)
 * Dependency wnfs-common bumped from 0.1.24 to 0.1.25
 
 ## [0.1.23](https://github.com/wnfs-wg/rs-wnfs/compare/wnfs-hamt-v0.1.22...wnfs-hamt-v0.1.23) (2023-07-21)
