@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.26 (2023-09-04)
+
+* Added `PrivateForestContent` API for storing encrypted data in private file metadata
+* Added `_rc` constructor variants
+* Removed `Share` struct from the share API. We recommend using share and receive functions directly.
+* Added some module documentation
+
 ## [0.1.25](https://github.com/wnfs-wg/rs-wnfs/compare/wnfs-v0.1.24...wnfs-v0.1.25) (2023-08-30)
 
 
