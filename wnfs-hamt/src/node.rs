@@ -1311,6 +1311,24 @@ mod proptests {
 
         prop_assert_eq!(map1, map2);
     }
+
+    #[proptest]
+    fn hamt_is_like_hash_map(
+        #[strategy(operations(small_key(), 0u64..1000, 0..1000))] operations: Operations<
+            String,
+            u64,
+        >,
+    ) {
+        async_std::task::block_on(async move {
+            let store = &MemoryBlockStore::new();
+
+            let node = node_from_operations(&operations, store).await.unwrap();
+            let map = HashMap::from(&operations);
+            let map_result = node.to_hashmap(store).await.unwrap();
+
+            assert_eq!(map, map_result);
+        })
+    }
 }
 
 #[cfg(test)]
