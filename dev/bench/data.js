@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1695656715879,
+  "lastUpdate": 1695656790930,
   "repoUrl": "https://github.com/wnfs-wg/rs-wnfs",
   "entries": {
     "Rust Benchmark": [
@@ -19069,6 +19069,102 @@ window.BENCHMARK_DATA = {
             "name": "NameAccumulator serialization",
             "value": 772,
             "range": "± 16",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "49699333+dependabot[bot]@users.noreply.github.com",
+            "name": "dependabot[bot]",
+            "username": "dependabot[bot]"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "6df4a6bf89a71010b7bc15c132512da979ebc438",
+          "message": "chore(ci)(deps): bump actions/checkout from 3 to 4 (#350)\n\nBumps [actions/checkout](https://github.com/actions/checkout) from 3 to 4.\r\n- [Release notes](https://github.com/actions/checkout/releases)\r\n- [Changelog](https://github.com/actions/checkout/blob/main/CHANGELOG.md)\r\n- [Commits](https://github.com/actions/checkout/compare/v3...v4)\r\n\r\n---\r\nupdated-dependencies:\r\n- dependency-name: actions/checkout\r\n  dependency-type: direct:production\r\n  update-type: version-update:semver-major\r\n...\r\n\r\nSigned-off-by: dependabot[bot] <support@github.com>\r\nCo-authored-by: dependabot[bot] <49699333+dependabot[bot]@users.noreply.github.com>",
+          "timestamp": "2023-09-25T17:38:07+02:00",
+          "tree_id": "351f8f20054064853e3d6903a6144d4c03973cd7",
+          "url": "https://github.com/wnfs-wg/rs-wnfs/commit/6df4a6bf89a71010b7bc15c132512da979ebc438"
+        },
+        "date": 1695656790087,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "node set",
+            "value": 91633,
+            "range": "± 2047",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node set 1000 consecutive",
+            "value": 4292124,
+            "range": "± 687552",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and get",
+            "value": 124869,
+            "range": "± 1768",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and remove",
+            "value": 137077,
+            "range": "± 2007",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt load and decode/0",
+            "value": 47644,
+            "range": "± 869",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt set and encode",
+            "value": 123486,
+            "range": "± 2300",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt diff",
+            "value": 56478,
+            "range": "± 4139",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt merge",
+            "value": 167848,
+            "range": "± 12529",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameSegment::new_hashed",
+            "value": 3043350,
+            "range": "± 362097",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameSegment::new(rng)",
+            "value": 3111372,
+            "range": "± 346810",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameAccumulator::add",
+            "value": 2653468,
+            "range": "± 109361",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameAccumulator serialization",
+            "value": 966,
+            "range": "± 184",
             "unit": "ns/iter"
           }
         ]
