@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1694360812564,
+  "lastUpdate": 1695656715879,
   "repoUrl": "https://github.com/wnfs-wg/rs-wnfs",
   "entries": {
     "Rust Benchmark": [
@@ -18973,6 +18973,102 @@ window.BENCHMARK_DATA = {
             "name": "NameAccumulator serialization",
             "value": 972,
             "range": "± 21",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "49699333+dependabot[bot]@users.noreply.github.com",
+            "name": "dependabot[bot]",
+            "username": "dependabot[bot]"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "7bac771259abfd491a57fea3fa012682dde0e092",
+          "message": "chore(rust)(deps): update quick_cache requirement in /wnfs (#346)\n\nUpdates the requirements on [quick_cache](https://github.com/arthurprs/quick-cache) to permit the latest version.\r\n- [Commits](https://github.com/arthurprs/quick-cache/commits)\r\n\r\n---\r\nupdated-dependencies:\r\n- dependency-name: quick_cache\r\n  dependency-type: direct:production\r\n...\r\n\r\nSigned-off-by: dependabot[bot] <support@github.com>\r\nCo-authored-by: dependabot[bot] <49699333+dependabot[bot]@users.noreply.github.com>",
+          "timestamp": "2023-09-25T17:37:42+02:00",
+          "tree_id": "26c30e399da8ad5e098fe4378ef6b0b1653b5eb1",
+          "url": "https://github.com/wnfs-wg/rs-wnfs/commit/7bac771259abfd491a57fea3fa012682dde0e092"
+        },
+        "date": 1695656714132,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "node set",
+            "value": 78324,
+            "range": "± 892",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node set 1000 consecutive",
+            "value": 3704038,
+            "range": "± 148894",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and get",
+            "value": 108054,
+            "range": "± 293",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and remove",
+            "value": 119782,
+            "range": "± 302",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt load and decode/0",
+            "value": 43232,
+            "range": "± 45",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt set and encode",
+            "value": 107699,
+            "range": "± 548",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt diff",
+            "value": 48607,
+            "range": "± 2429",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt merge",
+            "value": 141680,
+            "range": "± 10702",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameSegment::new_hashed",
+            "value": 2505450,
+            "range": "± 257941",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameSegment::new(rng)",
+            "value": 2599214,
+            "range": "± 269487",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameAccumulator::add",
+            "value": 2277573,
+            "range": "± 88553",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameAccumulator serialization",
+            "value": 772,
+            "range": "± 16",
             "unit": "ns/iter"
           }
         ]
