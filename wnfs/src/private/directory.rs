@@ -48,14 +48,14 @@ pub type PrivatePathNodesResult = PathNodesResult<PrivateDirectory>;
 #[derive(Debug, Clone, PartialEq)]
 pub struct PrivateDirectory {
     pub header: PrivateNodeHeader,
-    pub(crate) content: PrivateDirectoryContent,
+    pub content: PrivateDirectoryContent,
 }
 
 #[derive(Debug)]
 pub struct PrivateDirectoryContent {
     pub(crate) persisted_as: OnceCell<Cid>,
     pub(crate) previous: BTreeSet<(usize, Encrypted<Cid>)>,
-    pub(crate) metadata: Metadata,
+    pub metadata: Metadata,
     pub(crate) entries: BTreeMap<String, PrivateLink>,
 }
 

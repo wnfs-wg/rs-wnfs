@@ -72,14 +72,14 @@ pub const MAX_BLOCK_CONTENT_SIZE: usize = MAX_BLOCK_SIZE - NONCE_SIZE - AUTHENTI
 #[derive(Debug, Clone, PartialEq)]
 pub struct PrivateFile {
     pub header: PrivateNodeHeader,
-    pub(crate) content: PrivateFileContent,
+    pub content: PrivateFileContent,
 }
 
 #[derive(Debug)]
 pub struct PrivateFileContent {
     pub(crate) persisted_as: OnceCell<Cid>,
     pub(crate) previous: BTreeSet<(usize, Encrypted<Cid>)>,
-    pub(crate) metadata: Metadata,
+    pub metadata: Metadata,
     pub(crate) content: FileContent,
 }
 
