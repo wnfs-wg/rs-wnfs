@@ -607,6 +607,31 @@ impl PrivateFile {
         Ok(bytes)
     }
 
+    pub async fn get_cids<'a>(
+        &'a self,
+        forest: &'a PrivateForest,
+        store: &'a impl BlockStore,
+    ) -> Result<BTreeSet<Cid>> {
+        match &self.content.content {
+            FileContent::External {
+                key, block_count, ..
+            } => {
+                let mut cids = <BTreeSet<Cid>>::new();
+                let bare_name = &self.header.bare_name;
+                for label in Self::generate_shard_labels(key, 0, *block_count, bare_name) {
+                    let label_hash = &Sha3_256::hash(&label.as_bytes());
+                    let block_cids = forest
+                        .get_encrypted(label_hash, store)
+                        .await?
+                        .ok_or(FsError::FileShardNotFound)?;
+                    cids.extend(block_cids)
+                }
+                Ok(cids)
+            }
+            _ => Ok(BTreeSet::new()),
+        }
+    }
+
     /// Generates the labels for the shards of a file.
     fn generate_shard_labels<'a>(
         key: &'a SnapshotKey,

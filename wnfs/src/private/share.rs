@@ -373,7 +373,8 @@ pub mod recipient {
             label,
             content_cid,
             temporal_key,
-        }) = payload else {
+        }) = payload
+        else {
             // TODO(appcypher): We currently need both TemporalKey to decrypt a node.
             bail!(ShareError::UnsupportedSnapshotShareReceipt);
         };
