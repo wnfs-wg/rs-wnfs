@@ -2,7 +2,7 @@ use crate::BlockStore;
 use async_trait::async_trait;
 use libipld::{error::SerdeError, serde as ipld_serde, Ipld};
 use serde::{Serialize, Serializer};
-use std::rc::Rc;
+use std::sync::Arc;
 
 //--------------------------------------------------------------------------------------------------
 // Macros
@@ -60,7 +60,7 @@ pub trait AsyncSerialize {
 //--------------------------------------------------------------------------------------------------
 
 #[async_trait(?Send)]
-impl<T: AsyncSerialize> AsyncSerialize for Rc<T> {
+impl<T: AsyncSerialize> AsyncSerialize for Arc<T> {
     async fn async_serialize<S, B>(&self, serializer: S, store: &B) -> Result<S::Ok, S::Error>
     where
         S: Serializer,

@@ -3,7 +3,7 @@ use crate::{Hasher, Node, Pair, Pointer, HAMT_BITMASK_BIT_SIZE};
 use anyhow::{Ok, Result};
 use async_recursion::async_recursion;
 use serde::de::DeserializeOwned;
-use std::{collections::HashMap, hash::Hash, mem, rc::Rc};
+use std::{collections::HashMap, hash::Hash, mem, sync::Arc};
 use wnfs_common::{BlockStore, Link};
 
 //--------------------------------------------------------------------------------------------------
@@ -41,14 +41,14 @@ pub struct KeyValueChange<K, V> {
 /// # Examples
 ///
 /// ```
-/// use std::rc::Rc;
+/// use std::sync::Arc;
 /// use wnfs_hamt::{Node, Pair, diff};
 /// use wnfs_common::{Link, MemoryBlockStore};
 ///
 /// #[async_std::main]
 /// async fn main() {
 ///     let store = &MemoryBlockStore::new();
-///     let main_node = &mut Rc::new(Node::<[u8; 4], String>::default());
+///     let main_node = &mut Arc::new(Node::<[u8; 4], String>::default());
 ///     for i in 0u32..3 {
 ///         main_node
 ///             .set(i.to_le_bytes(), i.to_string(), store)
@@ -56,15 +56,15 @@ pub struct KeyValueChange<K, V> {
 ///             .unwrap();
 ///     }
 ///
-///     let other_node = &mut Rc::new(Node::<[u8; 4], String>::default());
+///     let other_node = &mut Arc::new(Node::<[u8; 4], String>::default());
 ///     other_node
 ///         .set(0_u32.to_le_bytes(), 0_u32.to_string(), store)
 ///         .await
 ///         .unwrap();
 ///
 ///     let changes = diff(
-///         Link::from(Rc::clone(main_node)),
-///         Link::from(Rc::clone(other_node)),
+///         Link::from(Arc::clone(main_node)),
+///         Link::from(Arc::clone(other_node)),
 ///         store,
 ///     )
 ///     .await
@@ -75,8 +75,8 @@ pub struct KeyValueChange<K, V> {
 /// }
 /// ```
 pub async fn diff<K, V, H>(
-    main_link: Link<Rc<Node<K, V, H>>>,
-    other_link: Link<Rc<Node<K, V, H>>>,
+    main_link: Link<Arc<Node<K, V, H>>>,
+    other_link: Link<Arc<Node<K, V, H>>>,
     store: &impl BlockStore,
 ) -> Result<Vec<KeyValueChange<K, V>>>
 where
@@ -89,8 +89,8 @@ where
 
 #[async_recursion(?Send)]
 pub async fn diff_helper<K, V, H>(
-    main_link: Link<Rc<Node<K, V, H>>>,
-    other_link: Link<Rc<Node<K, V, H>>>,
+    main_link: Link<Arc<Node<K, V, H>>>,
+    other_link: Link<Arc<Node<K, V, H>>>,
     depth: usize,
     store: &impl BlockStore,
 ) -> Result<Vec<KeyValueChange<K, V>>>
@@ -140,7 +140,7 @@ where
                 // Main and other have a value. They may be the same or different so we check.
                 let main_index = main_node.get_value_index(index);
                 let main_pointer = mem::take(
-                    Rc::make_mut(&mut main_node)
+                    Arc::make_mut(&mut main_node)
                         .pointers
                         .get_mut(main_index)
                         .unwrap(),
@@ -148,7 +148,7 @@ where
 
                 let other_index = other_node.get_value_index(index);
                 let other_pointer = mem::take(
-                    Rc::make_mut(&mut other_node)
+                    Arc::make_mut(&mut other_node)
                         .pointers
                         .get_mut(other_index)
                         .unwrap(),
@@ -277,13 +277,13 @@ async fn create_node_from_pairs<K, V, H>(
     values: Vec<Pair<K, V>>,
     depth: usize,
     store: &impl BlockStore,
-) -> Result<Rc<Node<K, V, H>>>
+) -> Result<Arc<Node<K, V, H>>>
 where
     K: DeserializeOwned + Clone + AsRef<[u8]>,
     V: DeserializeOwned + Clone,
     H: Hasher + Clone + 'static,
 {
-    let mut node = Rc::new(Node::<_, _, H>::default());
+    let mut node = Arc::new(Node::<_, _, H>::default());
     for Pair { key, value } in values {
         let digest = &H::hash(&key);
         let hashnibbles = &mut HashNibbles::with_cursor(digest, depth);
@@ -300,7 +300,7 @@ where
 mod tests {
     use super::{ChangeType::*, *};
     use helper::*;
-    use std::{collections::BTreeSet, rc::Rc};
+    use std::collections::BTreeSet;
     use wnfs_common::MemoryBlockStore;
 
     mod helper {
@@ -335,7 +335,7 @@ mod tests {
     async fn can_diff_main_node_with_added_removed_pairs() {
         let store = &MemoryBlockStore::default();
 
-        let main_node = &mut Rc::new(Node::<[u8; 4], String>::default());
+        let main_node = &mut Arc::new(Node::<[u8; 4], String>::default());
         for i in 0u32..3 {
             main_node
                 .set(i.to_le_bytes(), i.to_string(), store)
@@ -343,15 +343,15 @@ mod tests {
                 .unwrap();
         }
 
-        let other_node = &mut Rc::new(Node::<[u8; 4], String>::default());
+        let other_node = &mut Arc::new(Node::<[u8; 4], String>::default());
         other_node
             .set(0_u32.to_le_bytes(), 0_u32.to_string(), store)
             .await
             .unwrap();
 
         let changes = diff(
-            Link::from(Rc::clone(main_node)),
-            Link::from(Rc::clone(other_node)),
+            Link::from(Arc::clone(main_node)),
+            Link::from(Arc::clone(other_node)),
             store,
         )
         .await
@@ -376,8 +376,8 @@ mod tests {
         );
 
         let changes = diff(
-            Link::from(Rc::clone(other_node)),
-            Link::from(Rc::clone(main_node)),
+            Link::from(Arc::clone(other_node)),
+            Link::from(Arc::clone(main_node)),
             store,
         )
         .await
@@ -406,7 +406,7 @@ mod tests {
     async fn can_diff_main_node_with_no_changes() {
         let store = &MemoryBlockStore::default();
 
-        let main_node = &mut Rc::new(Node::<_, _>::default());
+        let main_node = &mut Arc::new(Node::<_, _>::default());
         for i in 0_u32..3 {
             main_node
                 .set(i.to_le_bytes(), i.to_string(), store)
@@ -414,7 +414,7 @@ mod tests {
                 .unwrap();
         }
 
-        let other_node = &mut Rc::new(Node::<_, _>::default());
+        let other_node = &mut Arc::new(Node::<_, _>::default());
         for i in 0_u32..3 {
             other_node
                 .set(i.to_le_bytes(), i.to_string(), store)
@@ -423,8 +423,8 @@ mod tests {
         }
 
         let changes = diff(
-            Link::from(Rc::clone(main_node)),
-            Link::from(Rc::clone(other_node)),
+            Link::from(Arc::clone(main_node)),
+            Link::from(Arc::clone(other_node)),
             store,
         )
         .await
@@ -438,7 +438,7 @@ mod tests {
         let store = &MemoryBlockStore::default();
 
         // A node that adds the first 3 pairs of HASH_KV_PAIRS.
-        let other_node = &mut Rc::new(Node::<_, _, MockHasher>::default());
+        let other_node = &mut Arc::new(Node::<_, _, MockHasher>::default());
         for (digest, kv) in HASH_KV_PAIRS.iter().take(3) {
             other_node
                 .set_value(
@@ -452,7 +452,7 @@ mod tests {
         }
 
         // Another node that keeps the first pair, modify the second pair, removes the third pair, and adds the fourth and fifth pair.
-        let main_node = &mut Rc::new(Node::<_, _, MockHasher>::default());
+        let main_node = &mut Arc::new(Node::<_, _, MockHasher>::default());
         main_node
             .set_value(
                 &mut HashNibbles::new(&HASH_KV_PAIRS[0].0),
@@ -486,8 +486,8 @@ mod tests {
         }
 
         let changes = diff(
-            Link::from(Rc::clone(main_node)),
-            Link::from(Rc::clone(other_node)),
+            Link::from(Arc::clone(main_node)),
+            Link::from(Arc::clone(other_node)),
             store,
         )
         .await
@@ -524,8 +524,8 @@ mod tests {
         );
 
         let changes = diff(
-            Link::from(Rc::clone(other_node)),
-            Link::from(Rc::clone(main_node)),
+            Link::from(Arc::clone(other_node)),
+            Link::from(Arc::clone(main_node)),
             store,
         )
         .await
@@ -570,7 +570,7 @@ mod proptests {
         ChangeType,
     };
     use async_std::task;
-    use std::{collections::HashSet, rc::Rc};
+    use std::{collections::HashSet, sync::Arc};
     use test_strategy::proptest;
     use wnfs_common::{Link, MemoryBlockStore};
 
@@ -590,14 +590,14 @@ mod proptests {
                 .await
                 .unwrap();
 
-            let main_node = &mut Rc::clone(other_node);
+            let main_node = &mut Arc::clone(other_node);
             strategies::apply_changes(main_node, &strategy_changes, store)
                 .await
                 .unwrap();
 
             let changes = super::diff(
-                Link::from(Rc::clone(main_node)),
-                Link::from(Rc::clone(other_node)),
+                Link::from(Arc::clone(main_node)),
+                Link::from(Arc::clone(other_node)),
                 store,
             )
             .await
@@ -654,8 +654,8 @@ mod proptests {
             let node2 = strategies::node_from_kvs(kvs2, store).await.unwrap();
 
             let changes = super::diff(
-                Link::from(Rc::clone(&node1)),
-                Link::from(Rc::clone(&node2)),
+                Link::from(Arc::clone(&node1)),
+                Link::from(Arc::clone(&node2)),
                 store,
             )
             .await

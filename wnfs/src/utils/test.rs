@@ -5,7 +5,7 @@ use crate::private::{
 use anyhow::Result;
 use libipld_core::ipld::Ipld;
 use rand_core::CryptoRngCore;
-use std::rc::Rc;
+use std::sync::Arc;
 use wnfs_common::{decode, libipld::cbor::DagCborCodec, utils::SnapshotBlockStore};
 use wnfs_nameaccumulator::Name;
 
@@ -15,8 +15,8 @@ use wnfs_nameaccumulator::Name;
 
 pub(crate) async fn walk_dir(
     store: &mut SnapshotBlockStore,
-    forest: &mut Rc<HamtForest>,
-    root_dir: &Rc<PrivateDirectory>,
+    forest: &mut Arc<HamtForest>,
+    root_dir: &Arc<PrivateDirectory>,
     rng: &mut impl CryptoRngCore,
 ) -> Result<()> {
     let mut stack = vec![root_dir.clone()];

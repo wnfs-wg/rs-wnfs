@@ -2,7 +2,7 @@ use super::{ChangeType, Node};
 use crate::{error::HamtError, Hasher};
 use anyhow::Result;
 use serde::de::DeserializeOwned;
-use std::{hash::Hash, rc::Rc};
+use std::{hash::Hash, sync::Arc};
 use wnfs_common::{BlockStore, Link};
 
 //--------------------------------------------------------------------------------------------------
@@ -11,11 +11,11 @@ use wnfs_common::{BlockStore, Link};
 
 /// Merges a node with another with the help of a resolver function.
 pub async fn merge<K, V, H, F, B: BlockStore>(
-    main_link: Link<Rc<Node<K, V, H>>>,
-    other_link: Link<Rc<Node<K, V, H>>>,
+    main_link: Link<Arc<Node<K, V, H>>>,
+    other_link: Link<Arc<Node<K, V, H>>>,
     f: F,
     store: &B,
-) -> Result<Rc<Node<K, V, H>>>
+) -> Result<Arc<Node<K, V, H>>>
 where
     F: Fn(&V, &V) -> Result<V>,
     K: DeserializeOwned + Eq + Clone + Hash + AsRef<[u8]>,
@@ -27,7 +27,7 @@ where
     let main_node = main_link.resolve_owned_value(store).await?;
     let other_node = other_link.resolve_owned_value(store).await?;
 
-    let mut merge_node = Rc::clone(&main_node);
+    let mut merge_node = Arc::clone(&main_node);
     for change in kv_changes {
         match change.r#type {
             ChangeType::Remove => {
@@ -65,7 +65,7 @@ where
 mod proptests {
     use crate::strategies::{self, generate_kvs};
     use async_std::task;
-    use std::{cmp, rc::Rc};
+    use std::{cmp, sync::Arc};
     use test_strategy::proptest;
     use wnfs_common::{Link, MemoryBlockStore};
 
@@ -84,8 +84,8 @@ mod proptests {
 
             let merge_node_left_assoc = {
                 let tmp = super::merge(
-                    Link::from(Rc::clone(&node1)),
-                    Link::from(Rc::clone(&node2)),
+                    Link::from(Arc::clone(&node1)),
+                    Link::from(Arc::clone(&node2)),
                     |a, b| Ok(cmp::min(*a, *b)),
                     store,
                 )
@@ -94,7 +94,7 @@ mod proptests {
 
                 super::merge(
                     Link::from(tmp),
-                    Link::from(Rc::clone(&node3)),
+                    Link::from(Arc::clone(&node3)),
                     |a, b| Ok(cmp::min(*a, *b)),
                     store,
                 )
@@ -138,8 +138,8 @@ mod proptests {
             let node2 = strategies::node_from_kvs(kvs2, store).await.unwrap();
 
             let merge_node_1 = super::merge(
-                Link::from(Rc::clone(&node1)),
-                Link::from(Rc::clone(&node2)),
+                Link::from(Arc::clone(&node1)),
+                Link::from(Arc::clone(&node2)),
                 |a, b| Ok(cmp::min(*a, *b)),
                 store,
             )
@@ -171,8 +171,8 @@ mod proptests {
             let node2 = strategies::node_from_kvs(kvs2, store).await.unwrap();
 
             let merge_node_1 = super::merge(
-                Link::from(Rc::clone(&node1)),
-                Link::from(Rc::clone(&node2)),
+                Link::from(Arc::clone(&node1)),
+                Link::from(Arc::clone(&node2)),
                 |a, b| Ok(cmp::min(*a, *b)),
                 store,
             )
@@ -180,7 +180,7 @@ mod proptests {
             .unwrap();
 
             let merge_node_2 = super::merge(
-                Link::from(Rc::clone(&merge_node_1)),
+                Link::from(Arc::clone(&merge_node_1)),
                 Link::from(node2),
                 |a, b| Ok(cmp::min(*a, *b)),
                 store,

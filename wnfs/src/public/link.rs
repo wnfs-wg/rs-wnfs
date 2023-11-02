@@ -3,7 +3,7 @@
 use super::{PublicDirectory, PublicFile, PublicNode};
 use anyhow::Result;
 use libipld_core::cid::Cid;
-use std::rc::Rc;
+use std::sync::Arc;
 use wnfs_common::{BlockStore, Link};
 
 //--------------------------------------------------------------------------------------------------
@@ -36,19 +36,19 @@ impl PublicLink {
     /// Creates a link to a directory node.
     #[inline]
     pub fn with_dir(dir: PublicDirectory) -> Self {
-        Self(Link::from(PublicNode::Dir(Rc::new(dir))))
+        Self(Link::from(PublicNode::Dir(Arc::new(dir))))
     }
 
     /// Creates a link to a directory node.
     #[inline]
-    pub fn with_rc_dir(dir: Rc<PublicDirectory>) -> Self {
+    pub fn with_rc_dir(dir: Arc<PublicDirectory>) -> Self {
         Self(Link::from(PublicNode::Dir(dir)))
     }
 
     /// Creates a link to a file node.
     #[inline]
     pub fn with_file(file: PublicFile) -> Self {
-        Self(Link::from(PublicNode::File(Rc::new(file))))
+        Self(Link::from(PublicNode::File(Arc::new(file))))
     }
 
     /// Gets the Cid stored in type. It attempts to get it from the store if it is not present in type.

@@ -12,7 +12,7 @@ use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use libipld_core::cid::Cid;
 use serde::{de::Error as DeError, Deserialize, Deserializer, Serialize, Serializer};
-use std::{collections::BTreeSet, rc::Rc};
+use std::{collections::BTreeSet, sync::Arc};
 use wnfs_common::{AsyncSerialize, BlockStore, RemembersCid};
 
 //--------------------------------------------------------------------------------------------------
@@ -34,8 +34,8 @@ use wnfs_common::{AsyncSerialize, BlockStore, RemembersCid};
 /// ```
 #[derive(Debug, Clone)]
 pub enum PublicNode {
-    File(Rc<PublicFile>),
-    Dir(Rc<PublicDirectory>),
+    File(Arc<PublicFile>),
+    Dir(Arc<PublicDirectory>),
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -69,10 +69,10 @@ impl PublicNode {
     pub fn upsert_mtime(&mut self, time: DateTime<Utc>) {
         match self {
             Self::File(file) => {
-                Rc::make_mut(file).metadata.upsert_mtime(time);
+                Arc::make_mut(file).metadata.upsert_mtime(time);
             }
             Self::Dir(dir) => {
-                Rc::make_mut(dir).metadata.upsert_mtime(time);
+                Arc::make_mut(dir).metadata.upsert_mtime(time);
             }
         }
     }
@@ -85,7 +85,7 @@ impl PublicNode {
     /// use wnfs::public::{PublicDirectory, PublicNode};
     /// use chrono::Utc;
     /// use libipld_core::cid::Cid;
-    /// use std::{rc::Rc, collections::BTreeSet};
+    /// use std::{sync::Arc, collections::BTreeSet};
     ///
     /// let dir = PublicDirectory::new_rc(Utc::now());
     /// let node = PublicNode::Dir(dir);
@@ -105,12 +105,12 @@ impl PublicNode {
             Self::File(file) => {
                 let mut file = (**file).clone();
                 file.previous = cids.into_iter().collect();
-                Self::File(Rc::new(file))
+                Self::File(Arc::new(file))
             }
             Self::Dir(dir) => {
                 let mut dir = (**dir).clone();
                 dir.previous = cids.into_iter().collect();
-                Self::Dir(Rc::new(dir))
+                Self::Dir(Arc::new(dir))
             }
         }
     }
@@ -145,24 +145,24 @@ impl PublicNode {
     /// # Examples
     ///
     /// ```
-    /// use std::rc::Rc;
+    /// use std::sync::Arc;
     /// use wnfs::public::{PublicDirectory, PublicNode};
     /// use chrono::Utc;
     ///
     /// let dir = PublicDirectory::new_rc(Utc::now());
-    /// let node = PublicNode::Dir(Rc::clone(&dir));
+    /// let node = PublicNode::Dir(Arc::clone(&dir));
     ///
     /// assert_eq!(node.as_dir().unwrap(), dir);
     /// ```
-    pub fn as_dir(&self) -> Result<Rc<PublicDirectory>> {
+    pub fn as_dir(&self) -> Result<Arc<PublicDirectory>> {
         Ok(match self {
-            Self::Dir(dir) => Rc::clone(dir),
+            Self::Dir(dir) => Arc::clone(dir),
             _ => bail!(FsError::NotADirectory),
         })
     }
 
     /// Casts a node to a mutable directory.
-    pub(crate) fn as_dir_mut(&mut self) -> Result<&mut Rc<PublicDirectory>> {
+    pub(crate) fn as_dir_mut(&mut self) -> Result<&mut Arc<PublicDirectory>> {
         Ok(match self {
             Self::Dir(dir) => dir,
             _ => bail!(FsError::NotADirectory),
@@ -174,25 +174,25 @@ impl PublicNode {
     /// # Examples
     ///
     /// ```
-    /// use std::rc::Rc;
+    /// use std::sync::Arc;
     /// use wnfs::public::{PublicFile, PublicNode};
     /// use chrono::Utc;
     /// use libipld_core::cid::Cid;
     ///
     /// let file = PublicFile::new_rc(Utc::now(), Cid::default());
-    /// let node = PublicNode::File(Rc::clone(&file));
+    /// let node = PublicNode::File(Arc::clone(&file));
     ///
     /// assert_eq!(node.as_file().unwrap(), file);
     /// ```
-    pub fn as_file(&self) -> Result<Rc<PublicFile>> {
+    pub fn as_file(&self) -> Result<Arc<PublicFile>> {
         Ok(match self {
-            Self::File(file) => Rc::clone(file),
+            Self::File(file) => Arc::clone(file),
             _ => bail!(FsError::NotAFile),
         })
     }
 
     /// Tries to resolve this node as a file. Fails with `NotAFile` otherwise.
-    pub fn as_file_mut(&mut self) -> Result<&mut Rc<PublicFile>> {
+    pub fn as_file_mut(&mut self) -> Result<&mut Arc<PublicFile>> {
         match self {
             Self::File(file) => Ok(file),
             _ => bail!(FsError::NotAFile),
@@ -262,10 +262,10 @@ impl PartialEq for PublicNode {
     fn eq(&self, other: &PublicNode) -> bool {
         match (self, other) {
             (Self::File(self_file), Self::File(other_file)) => {
-                Rc::ptr_eq(self_file, other_file) || self_file == other_file
+                Arc::ptr_eq(self_file, other_file) || self_file == other_file
             }
             (Self::Dir(self_dir), Self::Dir(other_dir)) => {
-                Rc::ptr_eq(self_dir, other_dir) || self_dir == other_dir
+                Arc::ptr_eq(self_dir, other_dir) || self_dir == other_dir
             }
             _ => false,
         }
@@ -274,13 +274,13 @@ impl PartialEq for PublicNode {
 
 impl From<PublicFile> for PublicNode {
     fn from(file: PublicFile) -> Self {
-        Self::File(Rc::new(file))
+        Self::File(Arc::new(file))
     }
 }
 
 impl From<PublicDirectory> for PublicNode {
     fn from(dir: PublicDirectory) -> Self {
-        Self::Dir(Rc::new(dir))
+        Self::Dir(Arc::new(dir))
     }
 }
 
@@ -292,11 +292,11 @@ impl<'de> Deserialize<'de> for PublicNode {
         Ok(match PublicNodeSerializable::deserialize(deserializer)? {
             PublicNodeSerializable::File(file) => {
                 let file = PublicFile::from_serializable(file).map_err(DeError::custom)?;
-                Self::File(Rc::new(file))
+                Self::File(Arc::new(file))
             }
             PublicNodeSerializable::Dir(dir) => {
                 let dir = PublicDirectory::from_serializable(dir).map_err(DeError::custom)?;
-                Self::Dir(Rc::new(dir))
+                Self::Dir(Arc::new(dir))
             }
         })
     }

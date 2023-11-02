@@ -7,7 +7,7 @@ use serde::{
     ser::Error as SerError,
     Deserialize, Deserializer, Serialize, Serializer,
 };
-use std::{fmt::Debug, rc::Rc};
+use std::{fmt::Debug, sync::Arc};
 use wnfs_common::{utils::error, AsyncSerialize, BlockStore, Link};
 
 //--------------------------------------------------------------------------------------------------
@@ -36,7 +36,7 @@ pub struct Pair<K, V> {
 /// A `Pointer` can be either a link to a child node or a collection of key-value pairs.
 pub(crate) enum Pointer<K, V, H: Hasher> {
     Values(Vec<Pair<K, V>>),
-    Link(Link<Rc<Node<K, V, H>>>),
+    Link(Link<Arc<Node<K, V, H>>>),
 }
 
 //--------------------------------------------------------------------------------------------------

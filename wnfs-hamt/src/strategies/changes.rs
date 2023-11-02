@@ -4,7 +4,7 @@ use crate::Node;
 use anyhow::Result;
 use proptest::{collection::vec, strategy::Strategy};
 use serde::de::DeserializeOwned;
-use std::{collections::HashMap, fmt::Debug, rc::Rc};
+use std::{collections::HashMap, fmt::Debug, sync::Arc};
 use wnfs_common::BlockStore;
 
 //--------------------------------------------------------------------------------------------------
@@ -53,7 +53,7 @@ pub(crate) fn generate_ops_and_changes(
 }
 
 pub(crate) async fn apply_changes<K, V>(
-    node: &mut Rc<Node<K, V>>,
+    node: &mut Arc<Node<K, V>>,
     changes: &Vec<Change<K, V>>,
     store: &impl BlockStore,
 ) -> Result<()>
@@ -79,7 +79,7 @@ where
 }
 
 pub(crate) async fn prepare_node<K, V, B>(
-    node: &mut Rc<Node<K, V>>,
+    node: &mut Arc<Node<K, V>>,
     changes: &Vec<Change<K, V>>,
     store: &B,
 ) -> Result<()>

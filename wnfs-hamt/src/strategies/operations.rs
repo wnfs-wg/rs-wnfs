@@ -2,7 +2,7 @@ use crate::Node;
 use anyhow::Result;
 use proptest::{collection::*, prelude::*, strategy::Shuffleable};
 use serde::{de::DeserializeOwned, Serialize};
-use std::{collections::HashMap, fmt::Debug, hash::Hash, rc::Rc};
+use std::{collections::HashMap, fmt::Debug, hash::Hash, sync::Arc};
 use wnfs_common::BlockStore;
 
 //--------------------------------------------------------------------------------------------------
@@ -183,12 +183,12 @@ where
 pub async fn node_from_operations<K, V>(
     operations: &Operations<K, V>,
     store: &impl BlockStore,
-) -> Result<Rc<Node<K, V>>>
+) -> Result<Arc<Node<K, V>>>
 where
     K: DeserializeOwned + Serialize + Clone + Debug + AsRef<[u8]>,
     V: DeserializeOwned + Serialize + Clone + Debug,
 {
-    let mut node: Rc<Node<K, V>> = Rc::new(Node::default());
+    let mut node: Arc<Node<K, V>> = Arc::new(Node::default());
     for op in &operations.0 {
         match op {
             Operation::Insert(key, value) => {
@@ -199,7 +199,7 @@ where
             }
             Operation::Reserialize => {
                 let cid = store.put_async_serializable(node.as_ref()).await?;
-                node = Rc::new(store.get_deserializable(&cid).await?);
+                node = Arc::new(store.get_deserializable(&cid).await?);
             }
         };
     }
