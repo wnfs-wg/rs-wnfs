@@ -15,7 +15,7 @@ use futures::StreamExt;
 use libipld_core::cid::Cid;
 use rand_core::CryptoRngCore;
 use skip_ratchet::{JumpSize, RatchetSeeker};
-use std::{cmp::Ordering, collections::BTreeSet, fmt::Debug, rc::Rc};
+use std::{cmp::Ordering, collections::BTreeSet, fmt::Debug, sync::Arc};
 use wnfs_common::BlockStore;
 use wnfs_hamt::Hasher;
 use wnfs_nameaccumulator::Name;
@@ -45,8 +45,8 @@ use wnfs_nameaccumulator::Name;
 /// ```
 #[derive(Debug, Clone, PartialEq)]
 pub enum PrivateNode {
-    File(Rc<PrivateFile>),
-    Dir(Rc<PrivateDirectory>),
+    File(Arc<PrivateFile>),
+    Dir(Arc<PrivateDirectory>),
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -90,12 +90,12 @@ impl PrivateNode {
             Self::File(file) => {
                 let mut file = (**file).clone();
                 file.content.metadata.upsert_mtime(time);
-                Self::File(Rc::new(file))
+                Self::File(Arc::new(file))
             }
             Self::Dir(dir) => {
                 let mut dir = (**dir).clone();
                 dir.content.metadata.upsert_mtime(time);
-                Self::Dir(Rc::new(dir))
+                Self::Dir(Arc::new(dir))
             }
         }
     }
@@ -111,11 +111,11 @@ impl PrivateNode {
     ) -> Result<()> {
         match self {
             Self::File(file_rc) => {
-                let file = Rc::make_mut(file_rc);
+                let file = Arc::make_mut(file_rc);
                 file.prepare_key_rotation(parent_name, rng).await?;
             }
             Self::Dir(dir_rc) => {
-                let dir = Rc::make_mut(dir_rc);
+                let dir = Arc::make_mut(dir_rc);
 
                 for private_link in &mut dir.content.entries.values_mut() {
                     let mut node = private_link
@@ -138,7 +138,7 @@ impl PrivateNode {
     /// # Examples
     ///
     /// ```
-    /// use std::rc::Rc;
+    /// use std::sync::Arc;
     /// use wnfs::{
     ///     private::{
     ///         PrivateDirectory, PrivateNode,
@@ -151,7 +151,7 @@ impl PrivateNode {
     /// let rng = &mut thread_rng();
     /// let forest = &mut HamtForest::new_rsa_2048_rc(rng);
     /// let dir = PrivateDirectory::new_rc(&forest.empty_name(), Utc::now(), rng);
-    /// let node = PrivateNode::Dir(Rc::clone(&dir));
+    /// let node = PrivateNode::Dir(Arc::clone(&dir));
     ///
     /// assert_eq!(&dir.header, node.get_header());
     /// ```
@@ -193,7 +193,7 @@ impl PrivateNode {
     /// # Examples
     ///
     /// ```
-    /// use std::rc::Rc;
+    /// use std::sync::Arc;
     /// use wnfs::{
     ///     private::{
     ///         PrivateDirectory, PrivateNode,
@@ -206,19 +206,19 @@ impl PrivateNode {
     /// let rng = &mut thread_rng();
     /// let forest = &mut HamtForest::new_rsa_2048_rc(rng);
     /// let dir = PrivateDirectory::new_rc(&forest.empty_name(), Utc::now(), rng);
-    /// let node = PrivateNode::Dir(Rc::clone(&dir));
+    /// let node = PrivateNode::Dir(Arc::clone(&dir));
     ///
     /// assert_eq!(node.as_dir().unwrap(), dir);
     /// ```
-    pub fn as_dir(&self) -> Result<Rc<PrivateDirectory>> {
+    pub fn as_dir(&self) -> Result<Arc<PrivateDirectory>> {
         Ok(match self {
-            Self::Dir(dir) => Rc::clone(dir),
+            Self::Dir(dir) => Arc::clone(dir),
             _ => bail!(FsError::NotADirectory),
         })
     }
 
     /// Casts a node to a mutable directory.
-    pub fn as_dir_mut(&mut self) -> Result<&mut Rc<PrivateDirectory>> {
+    pub fn as_dir_mut(&mut self) -> Result<&mut Arc<PrivateDirectory>> {
         Ok(match self {
             Self::Dir(dir) => dir,
             _ => bail!(FsError::NotADirectory),
@@ -230,7 +230,7 @@ impl PrivateNode {
     /// # Examples
     ///
     /// ```
-    /// use std::rc::Rc;
+    /// use std::sync::Arc;
     /// use wnfs::{
     ///     private::{
     ///         PrivateFile, PrivateNode,
@@ -243,13 +243,13 @@ impl PrivateNode {
     /// let rng = &mut thread_rng();
     /// let forest = &mut HamtForest::new_rsa_2048_rc(rng);
     /// let file = PrivateFile::new_rc(&forest.empty_name(), Utc::now(), rng);
-    /// let node = PrivateNode::File(Rc::clone(&file));
+    /// let node = PrivateNode::File(Arc::clone(&file));
     ///
     /// assert_eq!(node.as_file().unwrap(), file);
     /// ```
-    pub fn as_file(&self) -> Result<Rc<PrivateFile>> {
+    pub fn as_file(&self) -> Result<Arc<PrivateFile>> {
         Ok(match self {
-            Self::File(file) => Rc::clone(file),
+            Self::File(file) => Arc::clone(file),
             _ => bail!(FsError::NotAFile),
         })
     }
@@ -309,7 +309,7 @@ impl PrivateNode {
     /// # Examples
     ///
     /// ```
-    /// use std::rc::Rc;
+    /// use std::sync::Arc;
     /// use chrono::Utc;
     /// use rand::thread_rng;
     /// use wnfs::{
@@ -334,7 +334,7 @@ impl PrivateNode {
     ///         rng
     ///     ).await.unwrap();
     ///
-    ///     let dir_clone = &mut Rc::clone(&init_dir);
+    ///     let dir_clone = &mut Arc::clone(&init_dir);
     ///
     ///     dir_clone
     ///         .mkdir(&["pictures".into(), "cats".into()], true, Utc::now(), forest, store, rng)
@@ -472,7 +472,7 @@ impl PrivateNode {
                     parent_name,
                 )
                 .await?;
-                PrivateNode::File(Rc::new(file))
+                PrivateNode::File(Arc::new(file))
             }
             PrivateNodeContentSerializable::Dir(dir) => {
                 let dir = PrivateDirectory::from_serializable(
@@ -484,7 +484,7 @@ impl PrivateNode {
                     parent_name,
                 )
                 .await?;
-                PrivateNode::Dir(Rc::new(dir))
+                PrivateNode::Dir(Arc::new(dir))
             }
         })
     }
@@ -584,13 +584,13 @@ impl Id for PrivateNode {
 
 impl From<PrivateFile> for PrivateNode {
     fn from(file: PrivateFile) -> Self {
-        Self::File(Rc::new(file))
+        Self::File(Arc::new(file))
     }
 }
 
 impl From<PrivateDirectory> for PrivateNode {
     fn from(dir: PrivateDirectory) -> Self {
-        Self::Dir(Rc::new(dir))
+        Self::Dir(Arc::new(dir))
     }
 }
 
@@ -629,8 +629,8 @@ mod tests {
             .await
             .unwrap();
 
-        let file_node = PrivateNode::File(Rc::new(file));
-        let dir_node = PrivateNode::Dir(Rc::clone(&directory));
+        let file_node = PrivateNode::File(Arc::new(file));
+        let dir_node = PrivateNode::Dir(Arc::clone(&directory));
 
         let file_private_ref = file_node.store(forest, store, rng).await.unwrap();
         let dir_private_ref = dir_node.store(forest, store, rng).await.unwrap();

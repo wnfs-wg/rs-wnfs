@@ -6,7 +6,7 @@ use crate::error::FsError;
 use anyhow::{bail, Result};
 use libipld_core::cid::Cid;
 use skip_ratchet::{PreviousIterator, Ratchet};
-use std::{collections::BTreeSet, rc::Rc};
+use std::{collections::BTreeSet, sync::Arc};
 use wnfs_common::{BlockStore, PathNodes, PathNodesResult};
 
 //--------------------------------------------------------------------------------------------------
@@ -30,7 +30,7 @@ pub struct PrivateNodeOnPathHistory<F: PrivateForest + Clone> {
 
 struct PathSegmentHistory<F: PrivateForest> {
     /// The directory that the history was originally created relative to.
-    dir: Rc<PrivateDirectory>,
+    dir: Arc<PrivateDirectory>,
     /// The history of said directory.
     history: PrivateNodeHistory<F>,
     /// The name of the child node to follow for history next.
@@ -158,7 +158,7 @@ impl<F: PrivateForest> PrivateNodeHistory<F> {
     pub async fn get_previous_dir(
         &mut self,
         store: &impl BlockStore,
-    ) -> Result<Option<Rc<PrivateDirectory>>> {
+    ) -> Result<Option<Arc<PrivateDirectory>>> {
         match self.get_previous_node(store).await? {
             Some(PrivateNode::Dir(dir)) => Ok(Some(dir)),
             Some(_) => Err(FsError::NotADirectory.into()),
@@ -174,7 +174,7 @@ impl<F: PrivateForest> PrivateNodeHistory<F> {
     pub async fn get_previous_file(
         &mut self,
         store: &impl BlockStore,
-    ) -> Result<Option<Rc<PrivateFile>>> {
+    ) -> Result<Option<Arc<PrivateFile>>> {
         match self.get_previous_node(store).await? {
             Some(PrivateNode::File(file)) => Ok(Some(file)),
             Some(_) => Err(FsError::NotAFile.into()),
@@ -195,8 +195,8 @@ impl<F: PrivateForest + Clone> PrivateNodeOnPathHistory<F> {
     /// down to the child, and then look for the latest revision of the target node,
     /// including all in-between versions in the history.
     pub async fn of(
-        directory: Rc<PrivateDirectory>,
-        past_directory: Rc<PrivateDirectory>,
+        directory: Arc<PrivateDirectory>,
+        past_directory: Arc<PrivateDirectory>,
         discrepancy_budget: usize,
         path_segments: &[String],
         search_latest: bool,
@@ -229,7 +229,7 @@ impl<F: PrivateForest + Clone> PrivateNodeOnPathHistory<F> {
         };
 
         let (path, target_history) = Self::path_nodes_and_target_history(
-            Rc::clone(&directory),
+            Arc::clone(&directory),
             discrepancy_budget,
             path_segments,
             target_path,
@@ -267,14 +267,14 @@ impl<F: PrivateForest + Clone> PrivateNodeOnPathHistory<F> {
     ///
     /// If `search_latest` is false, the target history is empty.
     async fn path_nodes_and_target_history(
-        dir: Rc<PrivateDirectory>,
+        dir: Arc<PrivateDirectory>,
         discrepancy_budget: usize,
         path_segments: &[String],
         target_path_segment: &String,
         search_latest: bool,
         forest: F,
         store: &impl BlockStore,
-    ) -> Result<(Vec<(Rc<PrivateDirectory>, String)>, PrivateNodeHistory<F>)> {
+    ) -> Result<(Vec<(Arc<PrivateDirectory>, String)>, PrivateNodeHistory<F>)> {
         // We only search for the latest revision in the private node.
         // It may have been deleted in future versions of its ancestor directories.
         let path_nodes = match dir
@@ -311,17 +311,17 @@ impl<F: PrivateForest + Clone> PrivateNodeOnPathHistory<F> {
 
     /// Takes a path of directories and initializes each path segment with an empty history.
     fn path_segment_empty_histories(
-        path: Vec<(Rc<PrivateDirectory>, String)>,
+        path: Vec<(Arc<PrivateDirectory>, String)>,
         forest: F,
         discrepancy_budget: usize,
     ) -> Result<Vec<PathSegmentHistory<F>>> {
         let mut segments = Vec::new();
         for (dir, path_segment) in path {
             segments.push(PathSegmentHistory {
-                dir: Rc::clone(&dir),
+                dir: Arc::clone(&dir),
                 history: PrivateNodeHistory::of(
-                    &PrivateNode::Dir(Rc::clone(&dir)),
-                    &PrivateNode::Dir(Rc::clone(&dir)),
+                    &PrivateNode::Dir(Arc::clone(&dir)),
+                    &PrivateNode::Dir(Arc::clone(&dir)),
                     discrepancy_budget,
                     forest.clone(),
                 )?,
@@ -404,7 +404,7 @@ impl<F: PrivateForest + Clone> PrivateNodeOnPathHistory<F> {
     async fn find_and_step_segment_history(
         &mut self,
         store: &impl BlockStore,
-    ) -> Result<Option<Vec<(Rc<PrivateDirectory>, String)>>> {
+    ) -> Result<Option<Vec<(Arc<PrivateDirectory>, String)>>> {
         let mut working_stack = Vec::with_capacity(self.path.len());
 
         loop {
@@ -439,7 +439,7 @@ impl<F: PrivateForest + Clone> PrivateNodeOnPathHistory<F> {
     /// Returns false if there's no corresponding path in the previous revision.
     async fn repopulate_segment_histories(
         &mut self,
-        working_stack: Vec<(Rc<PrivateDirectory>, String)>,
+        working_stack: Vec<(Arc<PrivateDirectory>, String)>,
         store: &impl BlockStore,
     ) -> Result<bool> {
         // Work downwards from the previous history entry of a path segment we found
@@ -506,8 +506,8 @@ mod tests {
     struct TestSetup {
         rng: ChaCha12Rng,
         store: MemoryBlockStore,
-        forest: Rc<HamtForest>,
-        root_dir: Rc<PrivateDirectory>,
+        forest: Arc<HamtForest>,
+        root_dir: Arc<PrivateDirectory>,
         discrepancy_budget: usize,
     }
 
@@ -515,7 +515,7 @@ mod tests {
         fn new() -> Self {
             let mut rng = ChaCha12Rng::seed_from_u64(0);
             let store = MemoryBlockStore::default();
-            let forest = Rc::new(HamtForest::new_rsa_2048(&mut rng));
+            let forest = Arc::new(HamtForest::new_rsa_2048(&mut rng));
             let root_dir = PrivateDirectory::new_rc(&forest.empty_name(), Utc::now(), &mut rng);
 
             Self {
@@ -573,7 +573,7 @@ mod tests {
             discrepancy_budget,
             &[],
             true,
-            Rc::clone(forest),
+            Arc::clone(forest),
             store,
         )
         .await
@@ -660,7 +660,7 @@ mod tests {
             discrepancy_budget,
             &path,
             true,
-            Rc::clone(forest),
+            Arc::clone(forest),
             store,
         )
         .await
@@ -767,7 +767,7 @@ mod tests {
             discrepancy_budget,
             &path,
             true,
-            Rc::clone(forest),
+            Arc::clone(forest),
             store,
         )
         .await
@@ -895,7 +895,7 @@ mod tests {
             discrepancy_budget,
             &path,
             true,
-            Rc::clone(forest),
+            Arc::clone(forest),
             store,
         )
         .await
@@ -994,7 +994,7 @@ mod tests {
 
         let past_dir = root_dir.clone();
 
-        let mut root_dir = Rc::new(root_dir.prepare_next_revision().unwrap().clone());
+        let mut root_dir = Arc::new(root_dir.prepare_next_revision().unwrap().clone());
 
         root_dir.store(forest, store, rng).await.unwrap();
 
@@ -1017,7 +1017,7 @@ mod tests {
             discrepancy_budget,
             &path,
             true,
-            Rc::clone(forest),
+            Arc::clone(forest),
             store,
         )
         .await

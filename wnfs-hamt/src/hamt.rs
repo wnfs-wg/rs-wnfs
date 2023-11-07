@@ -9,7 +9,7 @@ use serde::{
     ser::Error as SerError,
     Deserialize, Deserializer, Serialize, Serializer,
 };
-use std::{collections::BTreeMap, hash::Hash, rc::Rc, str::FromStr};
+use std::{collections::BTreeMap, hash::Hash, str::FromStr, sync::Arc};
 use wnfs_common::{AsyncSerialize, BlockStore, Link};
 
 //--------------------------------------------------------------------------------------------------
@@ -34,7 +34,7 @@ pub struct Hamt<K, V, H = blake3::Hasher>
 where
     H: Hasher,
 {
-    pub root: Rc<Node<K, V, H>>,
+    pub root: Arc<Node<K, V, H>>,
     pub version: Version,
 }
 
@@ -55,7 +55,7 @@ impl<K, V, H: Hasher> Hamt<K, V, H> {
     /// ```
     pub fn new() -> Self {
         Self {
-            root: Rc::new(Node::default()),
+            root: Arc::new(Node::default()),
             version: HAMT_VERSION,
         }
     }
@@ -65,14 +65,14 @@ impl<K, V, H: Hasher> Hamt<K, V, H> {
     /// # Examples
     ///
     /// ```
-    /// use std::rc::Rc;
+    /// use std::sync::Arc;
     /// use wnfs_hamt::{Hamt, Node};
     ///
-    /// let hamt = Hamt::<String, usize>::with_root(Rc::new(Node::default()));
+    /// let hamt = Hamt::<String, usize>::with_root(Arc::new(Node::default()));
     ///
     /// println!("HAMT: {:?}", hamt);
     /// ```
-    pub fn with_root(root: Rc<Node<K, V, H>>) -> Self {
+    pub fn with_root(root: Arc<Node<K, V, H>>) -> Self {
         Self {
             root,
             version: HAMT_VERSION,
@@ -84,7 +84,7 @@ impl<K, V, H: Hasher> Hamt<K, V, H> {
     /// # Examples
     ///
     /// ```
-    /// use std::rc::Rc;
+    /// use std::sync::Arc;
     /// use wnfs_hamt::{Hamt, Node};
     /// use wnfs_common::MemoryBlockStore;
     ///
@@ -93,14 +93,14 @@ impl<K, V, H: Hasher> Hamt<K, V, H> {
     ///     let store = &MemoryBlockStore::default();
     ///
     ///     let main_hamt = Hamt::<String, usize>::with_root({
-    ///         let mut node = Rc::new(Node::default());
+    ///         let mut node = Arc::new(Node::default());
     ///         node.set("foo".into(), 400, store).await.unwrap();
     ///         node.set("bar".into(), 500, store).await.unwrap();
     ///         node
     ///     });
     ///
     ///     let other_hamt = Hamt::<String, usize>::with_root({
-    ///         let mut node = Rc::new(Node::default());
+    ///         let mut node = Arc::new(Node::default());
     ///         node.set("foo".into(), 200, store).await.unwrap();
     ///         node.set("qux".into(), 600, store).await.unwrap();
     ///         node
@@ -121,8 +121,8 @@ impl<K, V, H: Hasher> Hamt<K, V, H> {
         H: Clone + 'static,
     {
         super::diff(
-            Link::from(Rc::clone(&self.root)),
-            Link::from(Rc::clone(&other.root)),
+            Link::from(Arc::clone(&self.root)),
+            Link::from(Arc::clone(&other.root)),
             store,
         )
         .await
@@ -182,7 +182,7 @@ where
     fn try_from(ipld: Ipld) -> Result<Self, Self::Error> {
         match ipld {
             Ipld::Map(mut map) => {
-                let root = Rc::new(
+                let root = Arc::new(
                     Node::<K, V>::deserialize(map.remove("root").ok_or("Missing root")?)
                         .map_err(|e| e.to_string())?,
                 );
@@ -229,7 +229,7 @@ mod tests {
     #[async_std::test]
     async fn hamt_can_encode_decode_as_cbor() {
         let store = &MemoryBlockStore::default();
-        let root = Rc::new(Node::default());
+        let root = Arc::new(Node::default());
         let hamt: Hamt<String, i32> = Hamt::with_root(root);
 
         let encoded_hamt = async_encode(&hamt, store, DagCborCodec).await.unwrap();
@@ -247,14 +247,14 @@ mod snapshot_tests {
     #[async_std::test]
     async fn test_hamt() {
         let store = &SnapshotBlockStore::default();
-        let node = &mut Rc::new(Node::<[u8; 4], String>::default());
+        let node = &mut Arc::new(Node::<[u8; 4], String>::default());
         for i in 0..99_u32 {
             node.set(i.to_le_bytes(), i.to_string(), store)
                 .await
                 .unwrap();
         }
 
-        let hamt = Hamt::with_root(Rc::clone(node));
+        let hamt = Hamt::with_root(Arc::clone(node));
         let cid = store.put_async_serializable(&hamt).await.unwrap();
         let hamt = store.get_block_snapshot(&cid).await.unwrap();
 

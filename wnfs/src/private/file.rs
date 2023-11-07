@@ -16,7 +16,7 @@ use libipld_core::{
 };
 use rand_core::CryptoRngCore;
 use serde::{Deserialize, Serialize};
-use std::{collections::BTreeSet, iter, rc::Rc};
+use std::{collections::BTreeSet, iter, sync::Arc};
 use wnfs_common::{utils, BlockStore, Metadata, CODEC_RAW, MAX_BLOCK_SIZE};
 use wnfs_nameaccumulator::{Name, NameAccumulator, NameSegment};
 
@@ -144,7 +144,7 @@ impl PrivateFile {
         }
     }
 
-    /// Creates an empty file wrapped in an `Rc`.
+    /// Creates an empty file wrapped in an `Arc`.
     ///
     /// # Examples
     ///
@@ -165,8 +165,8 @@ impl PrivateFile {
         parent_name: &Name,
         time: DateTime<Utc>,
         rng: &mut impl CryptoRngCore,
-    ) -> Rc<Self> {
-        Rc::new(Self::new(parent_name, time, rng))
+    ) -> Arc<Self> {
+        Arc::new(Self::new(parent_name, time, rng))
     }
 
     /// Creates a file with provided content.
@@ -223,7 +223,7 @@ impl PrivateFile {
         })
     }
 
-    /// Creates a file with provided content wrapped in an `Rc`.
+    /// Creates a file with provided content wrapped in an `Arc`.
     ///
     /// # Examples
     ///
@@ -262,8 +262,8 @@ impl PrivateFile {
         forest: &mut impl PrivateForest,
         store: &impl BlockStore,
         rng: &mut impl CryptoRngCore,
-    ) -> Result<Rc<Self>> {
-        Ok(Rc::new(
+    ) -> Result<Arc<Self>> {
+        Ok(Arc::new(
             Self::with_content(parent_name, time, content, forest, store, rng).await?,
         ))
     }
@@ -331,7 +331,7 @@ impl PrivateFile {
         })
     }
 
-    /// Creates a file with provided content as a stream wrapped in an `Rc`.
+    /// Creates a file with provided content as a stream wrapped in an `Arc`.
     ///
     /// # Examples
     ///
@@ -375,8 +375,8 @@ impl PrivateFile {
         forest: &mut impl PrivateForest,
         store: &impl BlockStore,
         rng: &mut impl CryptoRngCore,
-    ) -> Result<Rc<Self>> {
-        Ok(Rc::new(
+    ) -> Result<Arc<Self>> {
+        Ok(Arc::new(
             Self::with_content_streaming(parent_name, time, content, forest, store, rng).await?,
         ))
     }
@@ -517,7 +517,7 @@ impl PrivateFile {
     }
 
     /// Returns a mutable reference to this file's metadata and ratchets forward its revision, if necessary.
-    pub fn get_metadata_mut_rc<'a>(self: &'a mut Rc<Self>) -> Result<&'a mut Metadata> {
+    pub fn get_metadata_mut_rc<'a>(self: &'a mut Arc<Self>) -> Result<&'a mut Metadata> {
         Ok(self.prepare_next_revision()?.get_metadata_mut())
     }
 
@@ -622,19 +622,19 @@ impl PrivateFile {
     /// This doesn't have any effect if the current state hasn't been `.store()`ed yet.
     /// Otherwise, it clones itself, stores its current CID in the previous links and
     /// advances its ratchet.
-    pub(crate) fn prepare_next_revision<'a>(self: &'a mut Rc<Self>) -> Result<&'a mut Self> {
+    pub(crate) fn prepare_next_revision<'a>(self: &'a mut Arc<Self>) -> Result<&'a mut Self> {
         let previous_cid = match self.content.persisted_as.get() {
             Some(cid) => *cid,
             None => {
                 // The current revision wasn't written yet.
                 // There's no point in advancing the revision even further.
-                return Ok(Rc::make_mut(self));
+                return Ok(Arc::make_mut(self));
             }
         };
 
         let temporal_key = self.header.derive_temporal_key();
         let previous_link = (1, Encrypted::from_value(previous_cid, &temporal_key)?);
-        let cloned = Rc::make_mut(self);
+        let cloned = Arc::make_mut(self);
 
         // We make sure to clear any cached states.
         cloned.content.persisted_as = OnceCell::new();
@@ -724,8 +724,8 @@ impl PrivateFile {
     }
 
     /// Wraps the file in a [`PrivateNode`].
-    pub fn as_node(self: &Rc<Self>) -> PrivateNode {
-        PrivateNode::File(Rc::clone(self))
+    pub fn as_node(self: &Arc<Self>) -> PrivateNode {
+        PrivateNode::File(Arc::clone(self))
     }
 }
 

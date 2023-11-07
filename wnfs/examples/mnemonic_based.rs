@@ -7,7 +7,7 @@ use rand_chacha::ChaCha12Rng;
 use rand_core::SeedableRng;
 use rsa::{traits::PublicKeyParts, BigUint, Oaep, RsaPrivateKey, RsaPublicKey};
 use sha2::Sha256;
-use std::rc::Rc;
+use std::sync::Arc;
 use wnfs::{
     common::{BlockStore, MemoryBlockStore, CODEC_RAW},
     private::{
@@ -54,7 +54,7 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
-async fn root_dir_setup(store: &impl BlockStore) -> Result<(Rc<HamtForest>, AccessKey)> {
+async fn root_dir_setup(store: &impl BlockStore) -> Result<(Arc<HamtForest>, AccessKey)> {
     // We generate a new simple example file system:
     let rng = &mut rand::thread_rng();
     let forest = &mut HamtForest::new_trusted_rc(rng);
@@ -77,11 +77,11 @@ async fn root_dir_setup(store: &impl BlockStore) -> Result<(Rc<HamtForest>, Acce
 
     // And finally we return the forest and the root directory's access key
     let access_key = root_dir.as_node().store(forest, store, rng).await?;
-    Ok((Rc::clone(forest), access_key))
+    Ok((Arc::clone(forest), access_key))
 }
 
 async fn setup_seeded_keypair_access(
-    forest: &mut Rc<HamtForest>,
+    forest: &mut Arc<HamtForest>,
     access_key: AccessKey,
     store: &impl BlockStore,
 ) -> Result<Mnemonic> {

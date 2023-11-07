@@ -5,7 +5,7 @@ use anyhow::Result;
 use async_once_cell::OnceCell;
 use async_recursion::async_recursion;
 use rand_core::CryptoRngCore;
-use std::rc::Rc;
+use std::sync::Arc;
 use wnfs_common::BlockStore;
 use wnfs_nameaccumulator::Name;
 
@@ -126,13 +126,13 @@ impl PrivateLink {
     /// Creates a link to a directory node.
     #[inline]
     pub(crate) fn with_dir(dir: PrivateDirectory) -> Self {
-        Self::from(PrivateNode::Dir(Rc::new(dir)))
+        Self::from(PrivateNode::Dir(Arc::new(dir)))
     }
 
     /// Creates a link to a file node.
     #[inline]
     pub(crate) fn with_file(file: PrivateFile) -> Self {
-        Self::from(PrivateNode::File(Rc::new(file)))
+        Self::from(PrivateNode::File(Arc::new(file)))
     }
 }
 

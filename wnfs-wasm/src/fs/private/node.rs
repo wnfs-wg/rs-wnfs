@@ -9,7 +9,7 @@ use crate::{
 };
 use js_sys::{Error, Promise, Uint8Array};
 use libipld_core::cid::Cid;
-use std::{collections::BTreeSet, rc::Rc};
+use std::{collections::BTreeSet, sync::Arc};
 use wasm_bindgen::prelude::wasm_bindgen;
 use wasm_bindgen_futures::future_to_promise;
 use wnfs::{
@@ -46,7 +46,7 @@ impl PrivateNode {
     ) -> JsResult<Promise> {
         let node = self.0.clone(); // cheap clone
         let store = ForeignBlockStore(store);
-        let mut forest = Rc::clone(&forest.0);
+        let mut forest = Arc::clone(&forest.0);
 
         Ok(future_to_promise(async move {
             let access_key = node
@@ -69,7 +69,7 @@ impl PrivateNode {
         parent_name: Option<Name>,
     ) -> JsResult<Promise> {
         let store = ForeignBlockStore(store);
-        let forest = Rc::clone(&forest.0);
+        let forest = Arc::clone(&forest.0);
         let parent_name = parent_name.map(|name| name.0.clone());
 
         Ok(future_to_promise(async move {
@@ -85,7 +85,7 @@ impl PrivateNode {
     pub fn search_latest(&self, forest: &PrivateForest, store: BlockStore) -> JsResult<Promise> {
         let node = self.0.clone(); // cheap clone
         let store = ForeignBlockStore(store);
-        let forest = Rc::clone(&forest.0);
+        let forest = Arc::clone(&forest.0);
 
         Ok(future_to_promise(async move {
             let latest_node = node

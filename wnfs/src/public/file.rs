@@ -7,7 +7,7 @@ use async_once_cell::OnceCell;
 use chrono::{DateTime, Utc};
 use libipld_core::cid::Cid;
 use serde::{de::Error as DeError, Deserialize, Deserializer, Serialize, Serializer};
-use std::{collections::BTreeSet, rc::Rc};
+use std::{collections::BTreeSet, sync::Arc};
 use wnfs_common::{BlockStore, Metadata, RemembersCid};
 
 /// A file in the WNFS public file system.
@@ -58,7 +58,7 @@ impl PublicFile {
         }
     }
 
-    /// Creates an `Rc` wrapped file.
+    /// Creates an `Arc` wrapped file.
     ///
     /// # Examples
     ///
@@ -71,20 +71,20 @@ impl PublicFile {
     ///
     /// println!("File: {:?}", file);
     /// ```
-    pub fn new_rc(time: DateTime<Utc>, content_cid: Cid) -> Rc<Self> {
-        Rc::new(Self::new(time, content_cid))
+    pub fn new_rc(time: DateTime<Utc>, content_cid: Cid) -> Arc<Self> {
+        Arc::new(Self::new(time, content_cid))
     }
 
     /// Takes care of creating previous links, in case the current
     /// directory was previously `.store()`ed.
     /// In any case it'll try to give you ownership of the directory if possible,
     /// otherwise it clones.
-    pub(crate) fn prepare_next_revision<'a>(self: &'a mut Rc<Self>) -> &'a mut Self {
+    pub(crate) fn prepare_next_revision<'a>(self: &'a mut Arc<Self>) -> &'a mut Self {
         let Some(previous_cid) = self.persisted_as.get().cloned() else {
-            return Rc::make_mut(self);
+            return Arc::make_mut(self);
         };
 
-        let cloned = Rc::make_mut(self);
+        let cloned = Arc::make_mut(self);
         cloned.persisted_as = OnceCell::new();
         cloned.previous = [previous_cid].into_iter().collect();
 
@@ -93,7 +93,7 @@ impl PublicFile {
 
     /// Writes a new content cid to the file.
     /// This will create a new revision of the file.
-    pub(crate) fn write(self: &mut Rc<Self>, time: DateTime<Utc>, content_cid: Cid) {
+    pub(crate) fn write(self: &mut Arc<Self>, time: DateTime<Utc>, content_cid: Cid) {
         let file = self.prepare_next_revision();
         file.userland = content_cid;
         file.metadata.upsert_mtime(time);
@@ -126,7 +126,7 @@ impl PublicFile {
     }
 
     /// Returns a mutable reference to this file's metadata and ratchets forward the history, if necessary.
-    pub fn get_metadata_mut_rc<'a>(self: &'a mut Rc<Self>) -> &'a mut Metadata {
+    pub fn get_metadata_mut_rc<'a>(self: &'a mut Arc<Self>) -> &'a mut Metadata {
         self.prepare_next_revision().get_metadata_mut()
     }
 
@@ -287,7 +287,7 @@ mod tests {
         let file = &mut PublicFile::new_rc(time, content_cid);
         let previous_cid = &file.store(store).await.unwrap();
         let next_file = file.prepare_next_revision();
-        let next_file_clone = &mut Rc::new(next_file.clone());
+        let next_file_clone = &mut Arc::new(next_file.clone());
         let yet_another_file = next_file_clone.prepare_next_revision();
 
         assert_eq!(

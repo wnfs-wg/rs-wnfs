@@ -6,7 +6,7 @@ use libipld::Cid;
 use serde::de::DeserializeOwned;
 use std::{
     fmt::{self, Debug, Formatter},
-    rc::Rc,
+    sync::Arc,
 };
 
 //--------------------------------------------------------------------------------------------------
@@ -256,7 +256,7 @@ pub trait RemembersCid {
     fn persisted_as(&self) -> &OnceCell<Cid>;
 }
 
-impl<T: RemembersCid> RemembersCid for Rc<T> {
+impl<T: RemembersCid> RemembersCid for Arc<T> {
     fn persisted_as(&self) -> &OnceCell<Cid> {
         self.as_ref().persisted_as()
     }

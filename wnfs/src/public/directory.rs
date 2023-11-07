@@ -17,7 +17,7 @@ use serde::{
 };
 use std::{
     collections::{BTreeMap, BTreeSet},
-    rc::Rc,
+    sync::Arc,
 };
 use wnfs_common::{utils::error, AsyncSerialize, BlockStore, Metadata, RemembersCid};
 
@@ -71,7 +71,7 @@ impl PublicDirectory {
         }
     }
 
-    /// Creates an `Rc` wrapped directory.
+    /// Creates an `Arc` wrapped directory.
     ///
     /// # Examples
     ///
@@ -83,8 +83,8 @@ impl PublicDirectory {
     ///
     /// println!("Directory: {:?}", dir);
     /// ```
-    pub fn new_rc(time: DateTime<Utc>) -> Rc<Self> {
-        Rc::new(Self::new(time))
+    pub fn new_rc(time: DateTime<Utc>) -> Arc<Self> {
+        Arc::new(Self::new(time))
     }
 
     /// Gets the previous Cids.
@@ -93,7 +93,7 @@ impl PublicDirectory {
     ///
     /// ```
     /// use wnfs::public::PublicDirectory;
-    /// use std::{rc::Rc, collections::BTreeSet};
+    /// use std::{sync::Arc, collections::BTreeSet};
     /// use chrono::Utc;
     ///
     /// let dir = PublicDirectory::new_rc(Utc::now());
@@ -101,7 +101,7 @@ impl PublicDirectory {
     /// assert_eq!(dir.get_previous(), &BTreeSet::new());
     /// ```
     #[inline]
-    pub fn get_previous<'a>(self: &'a Rc<Self>) -> &'a BTreeSet<Cid> {
+    pub fn get_previous<'a>(self: &'a Arc<Self>) -> &'a BTreeSet<Cid> {
         &self.previous
     }
 
@@ -119,7 +119,7 @@ impl PublicDirectory {
     /// assert_eq!(dir.get_metadata(), &Metadata::new(time));
     /// ```
     #[inline]
-    pub fn get_metadata<'a>(self: &'a Rc<Self>) -> &'a Metadata {
+    pub fn get_metadata<'a>(self: &'a Arc<Self>) -> &'a Metadata {
         &self.metadata
     }
 
@@ -129,7 +129,7 @@ impl PublicDirectory {
     }
 
     /// Returns a mutable reference to this directory's metadata and ratchets forward the history, if necessary.
-    pub fn get_metadata_mut_rc<'a>(self: &'a mut Rc<Self>) -> &'a mut Metadata {
+    pub fn get_metadata_mut_rc<'a>(self: &'a mut Arc<Self>) -> &'a mut Metadata {
         self.prepare_next_revision().get_metadata_mut()
     }
 
@@ -137,12 +137,12 @@ impl PublicDirectory {
     /// directory was previously `.store()`ed.
     /// In any case it'll try to give you ownership of the directory if possible,
     /// otherwise it clones.
-    pub(crate) fn prepare_next_revision<'a>(self: &'a mut Rc<Self>) -> &'a mut Self {
+    pub(crate) fn prepare_next_revision<'a>(self: &'a mut Arc<Self>) -> &'a mut Self {
         let Some(previous_cid) = self.persisted_as.get().cloned() else {
-            return Rc::make_mut(self);
+            return Arc::make_mut(self);
         };
 
-        let cloned = Rc::make_mut(self);
+        let cloned = Arc::make_mut(self);
         cloned.persisted_as = OnceCell::new();
         cloned.previous = [previous_cid].into_iter().collect();
         cloned
@@ -168,7 +168,7 @@ impl PublicDirectory {
     }
 
     async fn get_leaf_dir_mut<'a>(
-        self: &'a mut Rc<Self>,
+        self: &'a mut Arc<Self>,
         path_segments: &[String],
         store: &impl BlockStore,
     ) -> Result<SearchResult<&'a mut Self>> {
@@ -197,7 +197,7 @@ impl PublicDirectory {
     }
 
     async fn get_or_create_leaf_dir_mut<'a>(
-        self: &'a mut Rc<Self>,
+        self: &'a mut Arc<Self>,
         path_segments: &[String],
         time: DateTime<Utc>,
         store: &impl BlockStore,
@@ -206,7 +206,7 @@ impl PublicDirectory {
             SearchResult::Found(dir) => Ok(dir),
             SearchResult::Missing(mut dir, depth) => {
                 for segment in &path_segments[depth..] {
-                    dir = Rc::make_mut(
+                    dir = Arc::make_mut(
                         dir.userland
                             .entry(segment.to_string())
                             .or_insert_with(|| PublicLink::with_dir(Self::new(time)))
@@ -281,13 +281,13 @@ impl PublicDirectory {
     ///     public::PublicDirectory,
     ///     common::MemoryBlockStore
     /// };
-    /// use std::rc::Rc;
+    /// use std::sync::Arc;
     /// use chrono::Utc;
     /// use wnfs_common::libipld::{Ipld, Cid};
     ///
     /// #[async_std::main]
     /// async fn main() -> Result<()> {
-    ///     let dir = &mut Rc::new(PublicDirectory::new(Utc::now()));
+    ///     let dir = &mut Arc::new(PublicDirectory::new(Utc::now()));
     ///     let store = &MemoryBlockStore::new();
     ///
     ///     // Gain a mutable file reference
@@ -307,7 +307,7 @@ impl PublicDirectory {
     /// }
     /// ```
     pub async fn open_file_mut<'a>(
-        self: &'a mut Rc<Self>,
+        self: &'a mut Arc<Self>,
         path_segments: &[String],
         initial_content: Cid,
         time: DateTime<Utc>,
@@ -458,7 +458,7 @@ impl PublicDirectory {
     /// }
     /// ```
     pub async fn write(
-        self: &mut Rc<Self>,
+        self: &mut Arc<Self>,
         path_segments: &[String],
         content_cid: Cid,
         time: DateTime<Utc>,
@@ -515,7 +515,7 @@ impl PublicDirectory {
     ///
     /// This method acts like `mkdir -p` in Unix because it creates intermediate directories if they do not exist.
     pub async fn mkdir(
-        self: &mut Rc<Self>,
+        self: &mut Arc<Self>,
         path_segments: &[String],
         time: DateTime<Utc>,
         store: &impl BlockStore,
@@ -636,7 +636,7 @@ impl PublicDirectory {
     /// }
     /// ```
     pub async fn rm(
-        self: &mut Rc<Self>,
+        self: &mut Arc<Self>,
         path_segments: &[String],
         store: &impl BlockStore,
     ) -> Result<PublicNode> {
@@ -702,7 +702,7 @@ impl PublicDirectory {
     /// }
     /// ```
     pub async fn basic_mv(
-        self: &mut Rc<Self>,
+        self: &mut Arc<Self>,
         path_segments_from: &[String],
         path_segments_to: &[String],
         time: DateTime<Utc>,
@@ -775,7 +775,7 @@ impl PublicDirectory {
     /// }
     /// ```
     pub async fn cp(
-        self: &mut Rc<Self>,
+        self: &mut Arc<Self>,
         path_segments_from: &[String],
         path_segments_to: &[String],
         time: DateTime<Utc>,
@@ -1334,7 +1334,7 @@ mod tests {
 
         let previous_cid = &root_dir.store(store).await.unwrap();
         let next_root_dir = root_dir.prepare_next_revision();
-        let next_root_dir_clone = &mut Rc::new(next_root_dir.clone());
+        let next_root_dir_clone = &mut Arc::new(next_root_dir.clone());
         let yet_another_dir = next_root_dir_clone.prepare_next_revision();
 
         assert_eq!(

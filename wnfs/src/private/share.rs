@@ -196,7 +196,7 @@ mod tests {
     use chrono::Utc;
     use rand_chacha::ChaCha12Rng;
     use rand_core::SeedableRng;
-    use std::rc::Rc;
+    use std::sync::Arc;
     use wnfs_common::{BlockStore, MemoryBlockStore};
 
     mod helper {
@@ -210,14 +210,14 @@ mod tests {
         use anyhow::Result;
         use chrono::Utc;
         use rand_core::CryptoRngCore;
-        use std::rc::Rc;
+        use std::sync::Arc;
         use wnfs_common::{BlockStore, CODEC_RAW};
 
         pub(super) async fn create_sharer_dir(
             forest: &mut impl PrivateForest,
             store: &impl BlockStore,
             rng: &mut impl CryptoRngCore,
-        ) -> Result<Rc<PrivateDirectory>> {
+        ) -> Result<Arc<PrivateDirectory>> {
             let mut dir = PrivateDirectory::new_and_store(
                 &forest.empty_name(),
                 Utc::now(),
@@ -243,7 +243,7 @@ mod tests {
 
         pub(super) async fn create_recipient_exchange_root(
             store: &impl BlockStore,
-        ) -> Result<(RsaPrivateKey, Rc<PublicDirectory>)> {
+        ) -> Result<(RsaPrivateKey, Arc<PublicDirectory>)> {
             let key = RsaPrivateKey::new()?;
             let exchange_key = key.get_public_key().get_public_key_modulus()?;
             let exchange_key_cid = store.put_block(exchange_key, CODEC_RAW).await?;
@@ -389,7 +389,7 @@ mod tests {
                 &access_key,
                 i,
                 sharer_root_did,
-                PublicLink::with_rc_dir(Rc::clone(&recipient_exchange_root)),
+                PublicLink::with_rc_dir(Arc::clone(&recipient_exchange_root)),
                 forest,
                 store,
             )

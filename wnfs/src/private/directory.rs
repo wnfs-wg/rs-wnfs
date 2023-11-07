@@ -12,7 +12,7 @@ use rand_core::CryptoRngCore;
 use std::{
     collections::{BTreeMap, BTreeSet},
     fmt::Debug,
-    rc::Rc,
+    sync::Arc,
 };
 use wnfs_common::{utils::error, BlockStore, Metadata, PathNodes, PathNodesResult, CODEC_RAW};
 use wnfs_nameaccumulator::{Name, NameSegment};
@@ -89,7 +89,7 @@ impl PrivateDirectory {
         }
     }
 
-    /// Creates a `PrivateDirectory` with provided details and wraps it in an `Rc`.
+    /// Creates a `PrivateDirectory` with provided details and wraps it in an `Arc`.
     ///
     /// # Examples
     ///
@@ -112,8 +112,8 @@ impl PrivateDirectory {
         parent_name: &Name,
         time: DateTime<Utc>,
         rng: &mut impl CryptoRngCore,
-    ) -> Rc<Self> {
-        Rc::new(Self::new(parent_name, time, rng))
+    ) -> Arc<Self> {
+        Arc::new(Self::new(parent_name, time, rng))
     }
 
     /// This contstructor creates a new private directory and stores it in a provided `PrivateForest`.
@@ -123,8 +123,8 @@ impl PrivateDirectory {
         forest: &mut impl PrivateForest,
         store: &impl BlockStore,
         rng: &mut impl CryptoRngCore,
-    ) -> Result<Rc<Self>> {
-        let dir = Rc::new(Self::new(parent_name, time, rng));
+    ) -> Result<Arc<Self>> {
+        let dir = Arc::new(Self::new(parent_name, time, rng));
         dir.store(forest, store, rng).await?;
         Ok(dir)
     }
@@ -133,7 +133,7 @@ impl PrivateDirectory {
     ///
     /// Supports cases where the entire path does not exist.
     pub(crate) async fn get_path_nodes(
-        self: Rc<Self>,
+        self: Arc<Self>,
         path_segments: &[String],
         search_latest: bool,
         forest: &impl PrivateForest,
@@ -149,13 +149,13 @@ impl PrivateDirectory {
                 .await?
             {
                 Some(PrivateNode::Dir(ref directory)) => {
-                    path_nodes.push((Rc::clone(&working_node), path_segment.clone()));
-                    working_node = Rc::clone(directory);
+                    path_nodes.push((Arc::clone(&working_node), path_segment.clone()));
+                    working_node = Arc::clone(directory);
                 }
                 Some(_) => {
                     let path_nodes = PrivatePathNodes {
                         path: path_nodes,
-                        tail: Rc::clone(&working_node),
+                        tail: Arc::clone(&working_node),
                     };
 
                     return Ok(NotADirectory(path_nodes, path_segment.clone()));
@@ -163,7 +163,7 @@ impl PrivateDirectory {
                 None => {
                     let path_nodes = PrivatePathNodes {
                         path: path_nodes,
-                        tail: Rc::clone(&working_node),
+                        tail: Arc::clone(&working_node),
                     };
 
                     return Ok(MissingLink(path_nodes, path_segment.clone()));
@@ -173,7 +173,7 @@ impl PrivateDirectory {
 
         Ok(Complete(PrivatePathNodes {
             path: path_nodes,
-            tail: Rc::clone(&working_node),
+            tail: Arc::clone(&working_node),
         }))
     }
 
@@ -201,7 +201,7 @@ impl PrivateDirectory {
     /// assert_eq!(dir.get_metadata(), &Metadata::new(time));
     /// ```
     #[inline]
-    pub fn get_metadata<'a>(self: &'a Rc<Self>) -> &'a Metadata {
+    pub fn get_metadata<'a>(self: &'a Arc<Self>) -> &'a Metadata {
         &self.content.metadata
     }
 
@@ -282,13 +282,13 @@ impl PrivateDirectory {
     }
 
     pub(crate) async fn get_leaf_dir(
-        self: &Rc<Self>,
+        self: &Arc<Self>,
         path_segments: &[String],
         search_latest: bool,
         forest: &impl PrivateForest,
         store: &impl BlockStore,
-    ) -> Result<SearchResult<Rc<Self>>> {
-        let mut working_dir = Rc::clone(self);
+    ) -> Result<SearchResult<Arc<Self>>> {
+        let mut working_dir = Arc::clone(self);
 
         if search_latest {
             working_dir = working_dir.search_latest(forest, store).await?;
@@ -300,7 +300,7 @@ impl PrivateDirectory {
                 .await?
             {
                 Some(PrivateNode::Dir(directory)) => {
-                    working_dir = Rc::clone(&directory);
+                    working_dir = Arc::clone(&directory);
                 }
                 Some(_) => return Ok(SearchResult::NotADir(working_dir, depth)),
                 None => return Ok(SearchResult::Missing(working_dir, depth)),
@@ -311,7 +311,7 @@ impl PrivateDirectory {
     }
 
     pub(crate) async fn get_leaf_dir_mut<'a>(
-        self: &'a mut Rc<Self>,
+        self: &'a mut Arc<Self>,
         path_segments: &[String],
         search_latest: bool,
         forest: &impl PrivateForest,
@@ -350,7 +350,7 @@ impl PrivateDirectory {
 
     #[allow(clippy::suspicious)]
     pub(crate) async fn get_or_create_leaf_dir_mut<'a>(
-        self: &'a mut Rc<Self>,
+        self: &'a mut Arc<Self>,
         path_segments: &[String],
         time: DateTime<Utc>,
         search_latest: bool,
@@ -365,7 +365,7 @@ impl PrivateDirectory {
             SearchResult::Found(dir) => Ok(dir),
             SearchResult::Missing(mut dir, depth) => {
                 for segment in &path_segments[depth..] {
-                    dir = Rc::make_mut(
+                    dir = Arc::make_mut(
                         dir.content
                             .entries
                             .entry(segment.to_string())
@@ -392,16 +392,16 @@ impl PrivateDirectory {
     /// This doesn't have any effect if the current state hasn't been `.store()`ed yet.
     /// Otherwise, it clones itself, stores its current CID in the previous links and
     /// advances its ratchet.
-    pub(crate) fn prepare_next_revision<'a>(self: &'a mut Rc<Self>) -> Result<&'a mut Self> {
+    pub(crate) fn prepare_next_revision<'a>(self: &'a mut Arc<Self>) -> Result<&'a mut Self> {
         let Some(previous_cid) = self.content.persisted_as.get().cloned() else {
             // The current revision wasn't written yet.
             // There's no point in advancing the revision even further.
-            return Ok(Rc::make_mut(self));
+            return Ok(Arc::make_mut(self));
         };
 
         let temporal_key = self.header.derive_temporal_key();
         let previous_link = (1, Encrypted::from_value(previous_cid, &temporal_key)?);
-        let cloned = Rc::make_mut(self);
+        let cloned = Arc::make_mut(self);
 
         // We make sure to clear any cached states.
         cloned.content.persisted_as = OnceCell::new();
@@ -468,7 +468,7 @@ impl PrivateDirectory {
     /// }
     /// ```
     pub async fn get_node(
-        self: &Rc<Self>,
+        self: &Arc<Self>,
         path_segments: &[String],
         search_latest: bool,
         forest: &impl PrivateForest,
@@ -532,7 +532,7 @@ impl PrivateDirectory {
     /// }
     /// ```
     pub async fn read(
-        self: &Rc<Self>,
+        self: &Arc<Self>,
         path_segments: &[String],
         search_latest: bool,
         forest: &impl PrivateForest,
@@ -614,7 +614,7 @@ impl PrivateDirectory {
     /// ```
     #[allow(clippy::suspicious)]
     pub async fn open_file_mut<'a>(
-        self: &'a mut Rc<Self>,
+        self: &'a mut Arc<Self>,
         path_segments: &[String],
         search_latest: bool,
         time: DateTime<Utc>,
@@ -688,7 +688,7 @@ impl PrivateDirectory {
     /// ```
     #[allow(clippy::too_many_arguments)]
     pub async fn write(
-        self: &mut Rc<Self>,
+        self: &mut Arc<Self>,
         path_segments: &[String],
         search_latest: bool,
         time: DateTime<Utc>,
@@ -732,7 +732,7 @@ impl PrivateDirectory {
     /// # Examples
     ///
     /// ```
-    /// use std::rc::Rc;
+    /// use std::sync::Arc;
     /// use anyhow::Result;
     /// use chrono::Utc;
     /// use rand::thread_rng;
@@ -757,7 +757,7 @@ impl PrivateDirectory {
     ///         rng
     ///     ).await?;
     ///
-    ///     let dir_clone = &mut Rc::clone(&init_dir);
+    ///     let dir_clone = &mut Arc::clone(&init_dir);
     ///
     ///     dir_clone
     ///         .mkdir(&["pictures".into(), "cats".into()], true, Utc::now(), forest, store, rng)
@@ -776,10 +776,10 @@ impl PrivateDirectory {
     /// ```
     #[inline]
     pub async fn search_latest(
-        self: Rc<Self>,
+        self: Arc<Self>,
         forest: &impl PrivateForest,
         store: &impl BlockStore,
-    ) -> Result<Rc<Self>> {
+    ) -> Result<Arc<Self>> {
         PrivateNode::Dir(self)
             .search_latest(forest, store)
             .await?
@@ -823,7 +823,7 @@ impl PrivateDirectory {
     /// }
     /// ```
     pub async fn mkdir(
-        self: &mut Rc<Self>,
+        self: &mut Arc<Self>,
         path_segments: &[String],
         search_latest: bool,
         time: DateTime<Utc>,
@@ -886,7 +886,7 @@ impl PrivateDirectory {
     /// }
     /// ```
     pub async fn ls(
-        self: &Rc<Self>,
+        self: &Arc<Self>,
         path_segments: &[String],
         search_latest: bool,
         forest: &impl PrivateForest,
@@ -922,7 +922,7 @@ impl PrivateDirectory {
     ///
     /// Other than [PrivateDirectory::ls] this returns only the names, without loading the
     /// metadata for each node from the store.
-    pub fn get_entries<'a>(self: &'a Rc<Self>) -> impl Iterator<Item = &'a String> {
+    pub fn get_entries<'a>(self: &'a Arc<Self>) -> impl Iterator<Item = &'a String> {
         self.content.entries.iter().map(|x| x.0)
     }
 
@@ -982,7 +982,7 @@ impl PrivateDirectory {
     /// }
     /// ```
     pub async fn rm(
-        self: &mut Rc<Self>,
+        self: &mut Arc<Self>,
         path_segments: &[String],
         search_latest: bool,
         forest: &impl PrivateForest,
@@ -1012,7 +1012,7 @@ impl PrivateDirectory {
     /// Fixes up the subtree bare names to refer to the new parent.
     #[allow(clippy::too_many_arguments)]
     async fn attach(
-        self: &mut Rc<Self>,
+        self: &mut Arc<Self>,
         mut node: PrivateNode,
         path_segments: &[String],
         search_latest: bool,
@@ -1104,7 +1104,7 @@ impl PrivateDirectory {
     /// ```
     #[allow(clippy::too_many_arguments)]
     pub async fn basic_mv(
-        self: &mut Rc<Self>,
+        self: &mut Arc<Self>,
         path_segments_from: &[String],
         path_segments_to: &[String],
         search_latest: bool,
@@ -1189,7 +1189,7 @@ impl PrivateDirectory {
     /// ```
     #[allow(clippy::too_many_arguments)]
     pub async fn cp(
-        self: &mut Rc<Self>,
+        self: &mut Arc<Self>,
         path_segments_from: &[String],
         path_segments_to: &[String],
         search_latest: bool,
@@ -1279,8 +1279,8 @@ impl PrivateDirectory {
     }
 
     /// Wraps the directory in a [`PrivateNode`].
-    pub fn as_node(self: &Rc<Self>) -> PrivateNode {
-        PrivateNode::Dir(Rc::clone(self))
+    pub fn as_node(self: &Arc<Self>) -> PrivateNode {
+        PrivateNode::Dir(Arc::clone(self))
     }
 }
 
@@ -1710,7 +1710,7 @@ mod tests {
 
         root_dir.store(forest, store, rng).await.unwrap();
 
-        let old_root = &Rc::clone(root_dir);
+        let old_root = &Arc::clone(root_dir);
 
         root_dir
             .write(&path, true, Utc::now(), b"Two".to_vec(), forest, store, rng)
@@ -1721,7 +1721,7 @@ mod tests {
 
         let new_read = root_dir.read(&path, false, forest, store).await.unwrap();
 
-        let old_read = Rc::clone(old_root)
+        let old_read = Arc::clone(old_root)
             .read(&path, false, forest, store)
             .await
             .unwrap();
@@ -2068,7 +2068,7 @@ mod tests {
         let forest = &mut HamtForest::new_rsa_2048_rc(rng);
         let old_dir = &mut PrivateDirectory::new_rc(&forest.empty_name(), Utc::now(), rng);
 
-        let new_dir = &mut Rc::clone(old_dir);
+        let new_dir = &mut Arc::clone(old_dir);
         new_dir
             .write(
                 &["file.txt".into()],
@@ -2094,7 +2094,7 @@ mod tests {
         let old_dir = &mut PrivateDirectory::new_rc(&forest.empty_name(), Utc::now(), rng);
         old_dir.store(forest, store, rng).await.unwrap();
 
-        let new_dir = &mut Rc::clone(old_dir);
+        let new_dir = &mut Arc::clone(old_dir);
         new_dir
             .write(
                 &["file.txt".into()],
@@ -2124,7 +2124,7 @@ mod tests {
         let path = &["some".into(), "test.txt".into()];
         let content = b"Hello";
 
-        let dir = &mut Rc::clone(&old_dir);
+        let dir = &mut Arc::clone(&old_dir);
         dir.write(path, true, Utc::now(), content.to_vec(), forest, store, rng)
             .await?;
         dir.as_node().store(forest, store, rng).await?;

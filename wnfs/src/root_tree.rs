@@ -21,7 +21,7 @@ use rand_chacha::{rand_core::SeedableRng, ChaCha12Rng};
 use rand_core::CryptoRngCore;
 use semver::Version;
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, rc::Rc};
+use std::{collections::HashMap, sync::Arc};
 #[cfg(test)]
 use wnfs_common::MemoryBlockStore;
 use wnfs_common::{BlockStore, Metadata, CODEC_RAW};
@@ -36,10 +36,10 @@ use wnfs_nameaccumulator::AccumulatorSetup;
 pub struct RootTree<'a, B: BlockStore, R: CryptoRngCore> {
     pub store: &'a B,
     pub rng: R,
-    pub forest: Rc<HamtForest>,
-    pub public_root: Rc<PublicDirectory>,
-    pub exchange_root: Rc<PublicDirectory>,
-    pub private_map: HashMap<Vec<String>, Rc<PrivateDirectory>>,
+    pub forest: Arc<HamtForest>,
+    pub public_root: Arc<PublicDirectory>,
+    pub exchange_root: Arc<PublicDirectory>,
+    pub private_map: HashMap<Vec<String>, Arc<PrivateDirectory>>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -60,11 +60,11 @@ where
     R: CryptoRngCore,
 {
     pub async fn new(
-        forest: Rc<HamtForest>,
+        forest: Arc<HamtForest>,
         store: &'a B,
         rng: R,
         time: DateTime<Utc>,
-        private_map: HashMap<Vec<String>, Rc<PrivateDirectory>>,
+        private_map: HashMap<Vec<String>, Arc<PrivateDirectory>>,
     ) -> RootTree<'a, B, R> {
         Self {
             store,
@@ -321,12 +321,12 @@ where
         cid: &Cid,
         store: &'a B,
         rng: R,
-        private_map: HashMap<Vec<String>, Rc<PrivateDirectory>>,
+        private_map: HashMap<Vec<String>, Arc<PrivateDirectory>>,
     ) -> Result<RootTree<'a, B, R>> {
         let deserialized: RootTreeSerializable = store.get_deserializable(cid).await?;
-        let forest = Rc::new(HamtForest::load(&deserialized.forest, store).await?);
-        let public_root = Rc::new(store.get_deserializable(&deserialized.public).await?);
-        let exchange_root = Rc::new(store.get_deserializable(&deserialized.exchange).await?);
+        let forest = Arc::new(HamtForest::load(&deserialized.forest, store).await?);
+        let public_root = Arc::new(store.get_deserializable(&deserialized.public).await?);
+        let exchange_root = Arc::new(store.get_deserializable(&deserialized.exchange).await?);
 
         Ok(Self {
             store,
@@ -344,7 +344,7 @@ impl<'a, B: BlockStore> RootTree<'a, B, ChaCha12Rng> {
     pub fn with_store(store: &'a B) -> RootTree<'a, B, ChaCha12Rng> {
         let mut rng = ChaCha12Rng::seed_from_u64(0);
         let time = Utc.with_ymd_and_hms(1970, 1, 1, 0, 0, 0).unwrap();
-        let forest = Rc::new(HamtForest::new(AccumulatorSetup::trusted(&mut rng)));
+        let forest = Arc::new(HamtForest::new(AccumulatorSetup::trusted(&mut rng)));
 
         Self {
             store,
@@ -466,7 +466,7 @@ mod snapshot_tests {
         }
 
         let _ = root_tree.store(store).await.unwrap();
-        let forest = &mut Rc::clone(&root_tree.forest);
+        let forest = &mut Arc::clone(&root_tree.forest);
         let root_dir = root_tree
             .private_map
             .get(&vec!["private".to_string()])

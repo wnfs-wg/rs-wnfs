@@ -8,7 +8,7 @@ use rand_core::CryptoRngCore;
 use serde::{
     de::Error as DeError, ser::Error as SerError, Deserialize, Deserializer, Serialize, Serializer,
 };
-use std::{collections::BTreeSet, rc::Rc};
+use std::{collections::BTreeSet, sync::Arc};
 use wnfs_common::{AsyncSerialize, BlockStore, HashOutput, Link};
 use wnfs_hamt::{merge, Hamt, Hasher, KeyValueChange, Pair};
 use wnfs_nameaccumulator::{AccumulatorSetup, ElementsProof, Name, NameAccumulator};
@@ -43,7 +43,7 @@ const NAME_CACHE_CAPACITY: usize = 2_000_000 / APPROX_CACHE_ENTRY_SIZE;
 pub struct HamtForest {
     hamt: Hamt<NameAccumulator, BTreeSet<Cid>, blake3::Hasher>,
     accumulator: AccumulatorSetup,
-    name_cache: Rc<Cache<Name, (NameAccumulator, ElementsProof)>>,
+    name_cache: Arc<Cache<Name, (NameAccumulator, ElementsProof)>>,
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -56,13 +56,13 @@ impl HamtForest {
         Self {
             hamt: Hamt::new(),
             accumulator: setup,
-            name_cache: Rc::new(Cache::new(NAME_CACHE_CAPACITY)),
+            name_cache: Arc::new(Cache::new(NAME_CACHE_CAPACITY)),
         }
     }
 
-    /// Create a new, empty hamt forest with given pre-run accumulator setup wrapped in an `Rc`.
-    pub fn new_rc(setup: AccumulatorSetup) -> Rc<Self> {
-        Rc::new(Self::new(setup))
+    /// Create a new, empty hamt forest with given pre-run accumulator setup wrapped in an `Arc`.
+    pub fn new_rc(setup: AccumulatorSetup) -> Arc<Self> {
+        Arc::new(Self::new(setup))
     }
 
     /// Create a new, empty hamt forest with an accumulator setup with its
@@ -75,10 +75,10 @@ impl HamtForest {
         Self::new(AccumulatorSetup::from_rsa_2048(rng))
     }
 
-    /// Creates an `Rc` of a new, empty hamt forest with an accumulator setup
+    /// Creates an `Arc` of a new, empty hamt forest with an accumulator setup
     /// based on the factors of the RSA-2048 factoring challenge modulus.
-    pub fn new_rsa_2048_rc(rng: &mut impl CryptoRngCore) -> Rc<Self> {
-        Rc::new(Self::new_rsa_2048(rng))
+    pub fn new_rsa_2048_rc(rng: &mut impl CryptoRngCore) -> Arc<Self> {
+        Arc::new(Self::new_rsa_2048(rng))
     }
 
     /// Create a new, empty hamt forest with and run a trusted accumulator
@@ -98,10 +98,10 @@ impl HamtForest {
         Self::new(AccumulatorSetup::trusted(rng))
     }
 
-    /// Creates an `Rc` of a new, empty hamt forest with a trusted accumulator
+    /// Creates an `Arc` of a new, empty hamt forest with a trusted accumulator
     /// setup.
-    pub fn new_trusted_rc(rng: &mut impl CryptoRngCore) -> Rc<Self> {
-        Rc::new(Self::new_trusted(rng))
+    pub fn new_trusted_rc(rng: &mut impl CryptoRngCore) -> Arc<Self> {
+        Arc::new(Self::new_trusted(rng))
     }
 
     /// Gets the difference in changes between two forests.
@@ -217,7 +217,7 @@ impl PrivateForest for HamtForest {
 }
 
 #[async_trait(?Send)]
-impl PrivateForest for Rc<HamtForest> {
+impl PrivateForest for Arc<HamtForest> {
     fn empty_name(&self) -> Name {
         (**self).empty_name()
     }
@@ -244,7 +244,7 @@ impl PrivateForest for Rc<HamtForest> {
         values: impl IntoIterator<Item = Cid>,
         store: &impl BlockStore,
     ) -> Result<NameAccumulator> {
-        Rc::make_mut(self).put_encrypted(name, values, store).await
+        Arc::make_mut(self).put_encrypted(name, values, store).await
     }
 
     async fn get_encrypted_by_hash<'b>(
@@ -268,7 +268,7 @@ impl PrivateForest for Rc<HamtForest> {
         name: &Name,
         store: &impl BlockStore,
     ) -> Result<Option<Pair<NameAccumulator, BTreeSet<Cid>>>> {
-        Rc::make_mut(self).remove_encrypted(name, store).await
+        Arc::make_mut(self).remove_encrypted(name, store).await
     }
 }
 
@@ -279,7 +279,7 @@ impl HamtForest {
     /// # Examples
     ///
     /// ```
-    /// use std::rc::Rc;
+    /// use std::sync::Arc;
     /// use anyhow::Result;
     /// use chrono::Utc;
     /// use rand::thread_rng;
@@ -308,13 +308,13 @@ impl HamtForest {
     ///     root_dir.as_node().store(forest, store, rng).await?;
     ///
     ///     // Make two conflicting writes
-    ///     let forest_one = &mut Rc::clone(forest);
-    ///     let dir_one = &mut Rc::clone(root_dir);
+    ///     let forest_one = &mut Arc::clone(forest);
+    ///     let dir_one = &mut Arc::clone(root_dir);
     ///     dir_one.mkdir(&["DirOne".into()], true, Utc::now(), forest_one, store, rng).await?;
     ///     dir_one.as_node().store(forest_one, store, rng).await?;
     ///
-    ///     let forest_two = &mut Rc::clone(forest);
-    ///     let dir_two = &mut Rc::clone(root_dir);
+    ///     let forest_two = &mut Arc::clone(forest);
+    ///     let dir_two = &mut Arc::clone(root_dir);
     ///     dir_two.mkdir(&["DirTwo".into()], true, Utc::now(), forest_two, store, rng).await?;
     ///     let access_key = dir_two.as_node().store(forest_two, store, rng).await?;
     ///     let label = access_key.get_label();
@@ -343,8 +343,8 @@ impl HamtForest {
         }
 
         let merged_root = merge(
-            Link::from(Rc::clone(&self.hamt.root)),
-            Link::from(Rc::clone(&other.hamt.root)),
+            Link::from(Arc::clone(&self.hamt.root)),
+            Link::from(Arc::clone(&other.hamt.root)),
             |a, b| Ok(a.union(b).cloned().collect()),
             store,
         )
@@ -415,7 +415,7 @@ impl<'de> Deserialize<'de> for HamtForest {
         Ok(Self {
             hamt,
             accumulator,
-            name_cache: Rc::new(Cache::new(NAME_CACHE_CAPACITY)),
+            name_cache: Arc::new(Cache::new(NAME_CACHE_CAPACITY)),
         })
     }
 }
@@ -431,7 +431,7 @@ mod tests {
     use chrono::Utc;
     use rand_chacha::ChaCha12Rng;
     use rand_core::SeedableRng;
-    use std::rc::Rc;
+    use std::sync::Arc;
     use wnfs_common::MemoryBlockStore;
     use wnfs_nameaccumulator::NameSegment;
 
@@ -479,7 +479,7 @@ mod tests {
         let dir_conflict = {
             let mut dir = (*dir).clone();
             dir.content.metadata.upsert_mtime(Utc::now());
-            Rc::new(dir)
+            Arc::new(dir)
         };
 
         let private_node = PrivateNode::Dir(dir.clone());

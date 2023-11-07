@@ -4,7 +4,7 @@ use criterion::{
     Criterion, Throughput,
 };
 use proptest::{arbitrary::any, collection::vec, test_runner::TestRunner};
-use std::{cmp, rc::Rc, sync::Arc};
+use std::{cmp, sync::Arc};
 use wnfs_common::{
     async_encode, decode, libipld::cbor::DagCborCodec, utils::Sampleable, BlockStore, Link,
     MemoryBlockStore,
@@ -33,7 +33,7 @@ fn node_set(c: &mut Criterion) {
                 (store, kv)
             },
             |(store, (key, value))| async move {
-                Rc::clone(node)
+                Arc::clone(node)
                     .set(key, value, store.as_ref())
                     .await
                     .unwrap();
@@ -75,7 +75,7 @@ fn node_set_consecutive(c: &mut Criterion) {
 fn node_load_get(c: &mut Criterion) {
     let store = MemoryBlockStore::default();
     let cid = async_std::task::block_on(async {
-        let mut node = Rc::new(<Node<_, _>>::default());
+        let mut node = Arc::new(<Node<_, _>>::default());
         for i in 0..50 {
             node.set(i.to_string(), i, &store).await.unwrap();
         }
@@ -107,7 +107,7 @@ fn node_load_get(c: &mut Criterion) {
 fn node_load_remove(c: &mut Criterion) {
     let store = MemoryBlockStore::default();
     let cid = async_std::task::block_on(async {
-        let mut node = Rc::new(<Node<_, _>>::default());
+        let mut node = Arc::new(<Node<_, _>>::default());
         for i in 0..50 {
             node.set(i.to_string(), i, &store).await.unwrap();
         }
@@ -136,7 +136,7 @@ fn node_load_remove(c: &mut Criterion) {
 fn hamt_load_decode(c: &mut Criterion) {
     let store = MemoryBlockStore::default();
     let (cid, bytes) = async_std::task::block_on(async {
-        let mut node = Rc::new(<Node<_, _>>::default());
+        let mut node = Arc::new(<Node<_, _>>::default());
         for i in 0..50 {
             node.set(i.to_string(), i, &store).await.unwrap();
         }
@@ -168,7 +168,7 @@ fn hamt_set_encode(c: &mut Criterion) {
             || {
                 (
                     MemoryBlockStore::default(),
-                    Rc::new(<Node<_, _>>::default()),
+                    Arc::new(<Node<_, _>>::default()),
                 )
             },
             |(store, mut node)| async move {

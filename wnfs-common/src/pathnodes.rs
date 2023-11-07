@@ -1,4 +1,4 @@
-use std::rc::Rc;
+use std::sync::Arc;
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
@@ -7,8 +7,8 @@ use std::rc::Rc;
 /// Represents the directory nodes along a path.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PathNodes<T> {
-    pub path: Vec<(Rc<T>, String)>,
-    pub tail: Rc<T>,
+    pub path: Vec<(Arc<T>, String)>,
+    pub tail: Arc<T>,
 }
 
 /// The kinds of outcome from getting a `PathNodes`.

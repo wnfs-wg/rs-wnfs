@@ -25,7 +25,7 @@ use std::{
     fmt::{self, Debug, Formatter},
     hash::Hash,
     marker::PhantomData,
-    rc::Rc,
+    sync::Arc,
 };
 use wnfs_common::{AsyncSerialize, BlockStore, HashOutput, Link, RemembersCid};
 
@@ -41,12 +41,12 @@ pub type BitMaskType = [u8; HAMT_BITMASK_BYTE_SIZE];
 /// # Examples
 ///
 /// ```
-/// use std::rc::Rc;
+/// use std::sync::Arc;
 /// use wnfs_hamt::Node;
 /// use wnfs_common::MemoryBlockStore;
 ///
 /// let store = &MemoryBlockStore::new();
-/// let node = Rc::new(Node::<String, usize>::default());
+/// let node = Arc::new(Node::<String, usize>::default());
 ///
 /// assert!(node.is_empty());
 /// ```
@@ -73,20 +73,20 @@ where
     /// # Examples
     ///
     /// ```
-    /// use std::rc::Rc;
+    /// use std::sync::Arc;
     /// use wnfs_hamt::Node;
     /// use wnfs_common::MemoryBlockStore;
     ///
     /// #[async_std::main]
     /// async fn main() {
     ///     let store = &MemoryBlockStore::new();
-    ///     let mut node = Rc::new(Node::<String, usize>::default());
+    ///     let mut node = Arc::new(Node::<String, usize>::default());
     ///
     ///     node.set("key".into(), 42, store).await.unwrap();
     ///     assert_eq!(node.get(&String::from("key"), store).await.unwrap(), Some(&42));
     /// }
     /// ```
-    pub async fn set(self: &mut Rc<Self>, key: K, value: V, store: &impl BlockStore) -> Result<()>
+    pub async fn set(self: &mut Arc<Self>, key: K, value: V, store: &impl BlockStore) -> Result<()>
     where
         K: DeserializeOwned + Clone + AsRef<[u8]>,
         V: DeserializeOwned + Clone,
@@ -105,14 +105,14 @@ where
     /// # Examples
     ///
     /// ```
-    /// use std::rc::Rc;
+    /// use std::sync::Arc;
     /// use wnfs_hamt::Node;
     /// use wnfs_common::MemoryBlockStore;
     ///
     /// #[async_std::main]
     /// async fn main() {
     ///     let store = &MemoryBlockStore::new();
-    ///     let mut node = Rc::new(Node::<String, usize>::default());
+    ///     let mut node = Arc::new(Node::<String, usize>::default());
     ///
     ///     node.set("key".into(), 42, store).await.unwrap();
     ///     assert_eq!(node.get(&String::from("key"), store).await.unwrap(), Some(&42));
@@ -141,14 +141,14 @@ where
     /// # Examples
     ///
     /// ```
-    /// use std::rc::Rc;
+    /// use std::sync::Arc;
     /// use wnfs_hamt::Node;
     /// use wnfs_common::MemoryBlockStore;
     ///
     /// #[async_std::main]
     /// async fn main() {
     ///     let store = &mut MemoryBlockStore::new();
-    ///     let mut node = Rc::new(Node::<String, usize>::default());
+    ///     let mut node = Arc::new(Node::<String, usize>::default());
     ///     node.set("key".into(), 40, store).await.unwrap();
     ///
     ///     let value = node.get_mut(&String::from("key"), store).await.unwrap().unwrap();
@@ -159,7 +159,7 @@ where
     /// ```
     // TODO(matheus23): Eventually provide a HashMap::Entry-similar API
     pub async fn get_mut<'a>(
-        self: &'a mut Rc<Self>,
+        self: &'a mut Arc<Self>,
         key: &K,
         store: &'a impl BlockStore,
     ) -> Result<Option<&'a mut V>>
@@ -183,14 +183,14 @@ where
     /// # Examples
     ///
     /// ```
-    /// use std::rc::Rc;
+    /// use std::sync::Arc;
     /// use wnfs_hamt::{Node, Pair};
     /// use wnfs_common::MemoryBlockStore;
     ///
     /// #[async_std::main]
     /// async fn main() {
     ///     let store = &MemoryBlockStore::new();
-    ///     let mut node = Rc::new(Node::<String, usize>::default());
+    ///     let mut node = Arc::new(Node::<String, usize>::default());
     ///
     ///     node.set("key".into(), 42, store).await.unwrap();
     ///     assert_eq!(node.get(&String::from("key"), store).await.unwrap(), Some(&42));
@@ -201,7 +201,7 @@ where
     /// }
     /// ```
     pub async fn remove(
-        self: &mut Rc<Self>,
+        self: &mut Arc<Self>,
         key: &K,
         store: &impl BlockStore,
     ) -> Result<Option<Pair<K, V>>>
@@ -222,14 +222,14 @@ where
     /// # Examples
     ///
     /// ```
-    /// use std::rc::Rc;
+    /// use std::sync::Arc;
     /// use wnfs_hamt::{Node, Hasher};
     /// use wnfs_common::MemoryBlockStore;
     ///
     /// #[async_std::main]
     /// async fn main() {
     ///     let store = &MemoryBlockStore::new();
-    ///     let mut node = Rc::new(Node::<String, usize>::default());
+    ///     let mut node = Arc::new(Node::<String, usize>::default());
     ///
     ///     node.set("key".into(), 42, store).await.unwrap();
     ///
@@ -260,14 +260,14 @@ where
     /// # Examples
     ///
     /// ```
-    /// use std::rc::Rc;
+    /// use std::sync::Arc;
     /// use wnfs_hamt::{Node, Hasher, Pair};
     /// use wnfs_common::MemoryBlockStore;
     ///
     /// #[async_std::main]
     /// async fn main() {
     ///     let store = &MemoryBlockStore::new();
-    ///     let mut node = Rc::new(Node::<String, usize>::default());
+    ///     let mut node = Arc::new(Node::<String, usize>::default());
     ///
     ///     node.set("key".into(), 42, store).await.unwrap();
     ///     assert_eq!(node.get(&String::from("key"), store).await.unwrap(), Some(&42));
@@ -280,7 +280,7 @@ where
     /// }
     /// ```
     pub async fn remove_by_hash(
-        self: &mut Rc<Self>,
+        self: &mut Arc<Self>,
         hash: &HashOutput,
         store: &impl BlockStore,
     ) -> Result<Option<Pair<K, V>>>
@@ -296,7 +296,7 @@ where
     /// # Examples
     ///
     /// ```
-    /// use std::rc::Rc;
+    /// use std::sync::Arc;
     /// use wnfs_hamt::Node;
     /// use wnfs_common::MemoryBlockStore;
     ///
@@ -304,7 +304,7 @@ where
     /// async fn main() {
     ///     let store = &MemoryBlockStore::new();
     ///
-    ///     let mut node = Rc::new(Node::<String, usize>::default());
+    ///     let mut node = Arc::new(Node::<String, usize>::default());
     ///     assert!(node.is_empty());
     ///
     ///     node.set("key".into(), 42, store).await.unwrap();
@@ -330,7 +330,7 @@ where
     }
 
     pub fn set_value<'a>(
-        self: &'a mut Rc<Self>,
+        self: &'a mut Arc<Self>,
         hashnibbles: &'a mut HashNibbles,
         key: K,
         value: V,
@@ -351,7 +351,7 @@ where
                 bit_index, value_index
             );
 
-            let node = Rc::make_mut(self);
+            let node = Arc::make_mut(self);
             node.persisted_as = OnceCell::new();
 
             // If the bit is not set yet, insert a new pointer.
@@ -383,7 +383,7 @@ where
                             values.insert(index, Pair::new(key, value));
                         } else {
                             // If values has reached threshold, we need to create a node link that splits it.
-                            let mut sub_node = Rc::new(Node::<K, V, H>::default());
+                            let mut sub_node = Arc::new(Node::<K, V, H>::default());
                             let cursor = hashnibbles.get_cursor();
                             // We can take because
                             // Pointer::Values() gets replaced with Pointer::Link at the end
@@ -400,7 +400,7 @@ where
                     }
                 }
                 Pointer::Link(link) => {
-                    let mut child = Rc::clone(link.resolve_value(store).await?);
+                    let mut child = Arc::clone(link.resolve_value(store).await?);
                     child.set_value(hashnibbles, key, value, store).await?;
                     node.pointers[value_index] = Pointer::Link(Link::from(child));
                 }
@@ -443,7 +443,7 @@ where
 
     #[async_recursion(?Send)]
     pub async fn get_value_mut<'a>(
-        self: &'a mut Rc<Self>,
+        self: &'a mut Arc<Self>,
         hashnibbles: &mut HashNibbles,
         store: &'a impl BlockStore,
     ) -> Result<Option<&'a mut Pair<K, V>>>
@@ -459,7 +459,7 @@ where
         }
 
         let value_index = self.get_value_index(bit_index);
-        let node = Rc::make_mut(self);
+        let node = Arc::make_mut(self);
         node.persisted_as = OnceCell::new();
 
         match &mut node.pointers[value_index] {
@@ -478,7 +478,7 @@ where
     // It's internal and is only more complex because async_recursion doesn't work here
     #[allow(clippy::type_complexity)]
     pub fn remove_value<'k, 'v, 'a>(
-        self: &'a mut Rc<Self>,
+        self: &'a mut Arc<Self>,
         hashnibbles: &'a mut HashNibbles,
         store: &'a impl BlockStore,
     ) -> LocalBoxFuture<'a, Result<Option<Pair<K, V>>>>
@@ -498,7 +498,7 @@ where
 
             let value_index = self.get_value_index(bit_index);
 
-            let node = Rc::make_mut(self);
+            let node = Arc::make_mut(self);
             node.persisted_as = OnceCell::new();
 
             Ok(match &mut node.pointers[value_index] {
@@ -532,7 +532,7 @@ where
                     }
                 }
                 Pointer::Link(link) => {
-                    let mut child = Rc::clone(link.resolve_value(store).await?);
+                    let mut child = Arc::clone(link.resolve_value(store).await?);
                     let removed = child.remove_value(hashnibbles, store).await?;
                     if removed.is_some() {
                         // If something has been deleted, we attempt to canonicalize the pointer.
@@ -560,14 +560,14 @@ where
     /// # Examples
     ///
     /// ```
-    /// use std::rc::Rc;
+    /// use std::sync::Arc;
     /// use wnfs_hamt::{Node, Pair, Hasher};
     /// use wnfs_common::{utils, MemoryBlockStore};
     ///
     /// #[async_std::main]
     /// async fn main() {
     ///     let store = &MemoryBlockStore::new();
-    ///     let mut node = Rc::new(Node::<[u8; 4], String>::default());
+    ///     let mut node = Arc::new(Node::<[u8; 4], String>::default());
     ///     for i in 0..99_u32 {
     ///         node
     ///             .set(i.to_le_bytes(), i.to_string(), store)
@@ -615,7 +615,7 @@ where
     /// # Examples
     ///
     /// ```
-    /// use std::rc::Rc;
+    /// use std::sync::Arc;
     /// use wnfs_hamt::{Node, HashPrefix, Hasher};
     /// use wnfs_common::{MemoryBlockStore, utils};
     ///
@@ -623,7 +623,7 @@ where
     /// async fn main() {
     ///     let store = &MemoryBlockStore::new();
     ///
-    ///     let mut node = Rc::new(Node::<[u8; 4], String>::default());
+    ///     let mut node = Arc::new(Node::<[u8; 4], String>::default());
     ///     for i in 0..100_u32 {
     ///         node
     ///             .set(i.to_le_bytes(), i.to_string(), store)
@@ -642,7 +642,7 @@ where
         &'a self,
         hashprefix: &HashPrefix,
         store: &B,
-    ) -> Result<Option<Either<&'a Pair<K, V>, &'a Rc<Self>>>>
+    ) -> Result<Option<Either<&'a Pair<K, V>, &'a Arc<Self>>>>
     where
         K: DeserializeOwned + AsRef<[u8]>,
         V: DeserializeOwned,
@@ -657,7 +657,7 @@ where
         hashprefix: &HashPrefix,
         index: u8,
         store: &B,
-    ) -> Result<Option<Either<&'a Pair<K, V>, &'a Rc<Self>>>>
+    ) -> Result<Option<Either<&'a Pair<K, V>, &'a Arc<Self>>>>
     where
         K: DeserializeOwned + AsRef<[u8]>,
         V: DeserializeOwned,
@@ -695,7 +695,7 @@ where
     /// # Examples
     ///
     /// ```
-    /// use std::rc::Rc;
+    /// use std::sync::Arc;
     /// use wnfs_hamt::{Node, Hasher};
     /// use wnfs_common::MemoryBlockStore;
     ///
@@ -703,7 +703,7 @@ where
     /// async fn main() {
     ///     let store = &MemoryBlockStore::new();
     ///
-    ///     let mut node = Rc::new(Node::<[u8; 4], String>::default());
+    ///     let mut node = Arc::new(Node::<[u8; 4], String>::default());
     ///     for i in 0..100_u32 {
     ///         node
     ///             .set(i.to_le_bytes(), i.to_string(), store)
@@ -739,7 +739,7 @@ where
 
 impl<K, V, H: Hasher> Node<K, V, H> {
     /// Returns the count of the values in all the values pointer of a node.
-    pub fn count_values(self: &Rc<Self>) -> Result<usize> {
+    pub fn count_values(self: &Arc<Self>) -> Result<usize> {
         let mut len = 0;
         for i in self.pointers.iter() {
             if let Pointer::Values(values) = i {
@@ -933,7 +933,7 @@ mod tests {
         let store = &MemoryBlockStore::default();
 
         // Insert 4 values to trigger the creation of a linked node.
-        let working_node = &mut Rc::new(Node::<String, String, MockHasher>::default());
+        let working_node = &mut Arc::new(Node::<String, String, MockHasher>::default());
         for (digest, kv) in HASH_KV_PAIRS.iter().take(4) {
             let hashnibbles = &mut HashNibbles::new(digest);
             working_node
@@ -956,7 +956,7 @@ mod tests {
         let store = &MemoryBlockStore::default();
 
         // Insert 4 values to trigger the creation of a linked node.
-        let working_node = &mut Rc::new(Node::<String, String, MockHasher>::default());
+        let working_node = &mut Arc::new(Node::<String, String, MockHasher>::default());
         for (digest, kv) in HASH_KV_PAIRS.iter().take(4) {
             let hashnibbles = &mut HashNibbles::new(digest);
             working_node
@@ -995,7 +995,7 @@ mod tests {
         let store = &MemoryBlockStore::default();
 
         // Insert 3 values into the HAMT.
-        let working_node = &mut Rc::new(Node::<String, String, MockHasher>::default());
+        let working_node = &mut Arc::new(Node::<String, String, MockHasher>::default());
         for (idx, (digest, kv)) in HASH_KV_PAIRS.iter().take(3).enumerate() {
             let kv = kv.to_string();
             let hashnibbles = &mut HashNibbles::new(digest);
@@ -1057,7 +1057,7 @@ mod tests {
             (&[0xF0], 15),
         ];
 
-        let working_node = &mut Rc::new(Node::<String, String>::default());
+        let working_node = &mut Arc::new(Node::<String, String>::default());
         for (hash, expected_idx) in hash_expected_idx_samples.into_iter() {
             let bytes = utils::to_hash_output(&hash[..]);
             let hashnibbles = &mut HashNibbles::new(&bytes);
@@ -1085,7 +1085,7 @@ mod tests {
     #[async_std::test]
     async fn node_can_insert_pair_and_retrieve() {
         let store = MemoryBlockStore::default();
-        let node = &mut Rc::new(Node::<String, (i32, f64)>::default());
+        let node = &mut Arc::new(Node::<String, (i32, f64)>::default());
 
         node.set("pill".into(), (10, 0.315), &store).await.unwrap();
 
@@ -1101,7 +1101,7 @@ mod tests {
         let remove_key: String = "hK i3b4V4152EPOdA".into();
 
         let store = &MemoryBlockStore::default();
-        let node0: &mut Rc<Node<String, u64>> = &mut Rc::new(Node::default());
+        let node0: &mut Arc<Node<String, u64>> = &mut Arc::new(Node::default());
 
         node0.set(insert_key.clone(), 0, store).await.unwrap();
         node0.remove(&remove_key, store).await.unwrap();
@@ -1113,8 +1113,8 @@ mod tests {
     async fn node_history_independence_regression() {
         let store = &MemoryBlockStore::default();
 
-        let node1: &mut Rc<Node<String, u64>> = &mut Rc::new(Node::default());
-        let node2: &mut Rc<Node<String, u64>> = &mut Rc::new(Node::default());
+        let node1: &mut Arc<Node<String, u64>> = &mut Arc::new(Node::default());
+        let node2: &mut Arc<Node<String, u64>> = &mut Arc::new(Node::default());
 
         node1.set("key 17".into(), 508, store).await.unwrap();
         node1.set("key 81".into(), 971, store).await.unwrap();
@@ -1140,7 +1140,7 @@ mod tests {
     async fn can_map_over_leaf_nodes() {
         let store = &MemoryBlockStore::default();
 
-        let node = &mut Rc::new(Node::<[u8; 4], String>::default());
+        let node = &mut Arc::new(Node::<[u8; 4], String>::default());
         for i in 0..99_u32 {
             node.set(i.to_le_bytes(), i.to_string(), store)
                 .await
@@ -1159,7 +1159,7 @@ mod tests {
     async fn can_fetch_node_at_hashprefix() {
         let store = &MemoryBlockStore::default();
 
-        let node = &mut Rc::new(Node::<String, String, MockHasher>::default());
+        let node = &mut Arc::new(Node::<String, String, MockHasher>::default());
         for (digest, kv) in HASH_KV_PAIRS.iter() {
             let hashnibbles = &mut HashNibbles::new(digest);
             node.set_value(hashnibbles, kv.to_string(), kv.to_string(), store)
@@ -1184,7 +1184,7 @@ mod tests {
     async fn can_generate_hashmap_from_node() {
         let store = &MemoryBlockStore::default();
 
-        let node = &mut Rc::new(Node::<[u8; 4], String>::default());
+        let node = &mut Arc::new(Node::<[u8; 4], String>::default());
         const NUM_VALUES: u32 = 1000;
         for i in (u32::MAX - NUM_VALUES..u32::MAX).rev() {
             node.set(i.to_le_bytes(), i.to_string(), store)
@@ -1344,7 +1344,7 @@ mod snapshot_tests {
     #[async_std::test]
     async fn test_node() {
         let store = &SnapshotBlockStore::default();
-        let node = &mut Rc::new(Node::<[u8; 4], String>::default());
+        let node = &mut Arc::new(Node::<[u8; 4], String>::default());
         for i in 0..99_u32 {
             node.set(i.to_le_bytes(), i.to_string(), store)
                 .await
