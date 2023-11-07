@@ -284,7 +284,7 @@ mod tests {
 
     #[async_trait]
     impl AsyncSerialize for Example {
-        async fn async_serialize<S, B>(&self, serializer: S, store: &B) -> Result<S::Ok, S::Error>
+        async fn async_serialize<S, B>(&self, serializer: S, _store: &B) -> Result<S::Ok, S::Error>
         where
             S: Serializer + Send,
             B: BlockStore + ?Sized + Sync,

@@ -47,7 +47,7 @@ pub const CODEC_RAW: u64 = 0x55;
 
 /// For types that implement block store operations like adding, getting content from the store.
 #[async_trait]
-pub trait BlockStore: Sized {
+pub trait BlockStore: Sized + Send {
     async fn get_block(&self, cid: &Cid) -> Result<Bytes>;
     async fn put_block(&self, bytes: impl Into<Bytes> + Send, codec: u64) -> Result<Cid>;
 

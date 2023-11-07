@@ -8,6 +8,7 @@ use libipld::{
     prelude::{Decode, Encode},
     Cid, Ipld,
 };
+use parking_lot::Mutex;
 use proptest::{
     strategy::{Strategy, ValueTree},
     test_runner::TestRunner,
@@ -17,13 +18,18 @@ use serde_json::Value;
 use std::{
     collections::{BTreeMap, HashMap},
     io::Cursor,
+    sync::Arc,
 };
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
 //--------------------------------------------------------------------------------------------------
 
-type BlockHandler = Box<dyn Fn(&Bytes) -> Result<Ipld>>;
+pub trait BytesToIpld: Send {
+    fn convert(&self, bytes: &Bytes) -> Result<Ipld>;
+}
+
+type BlockHandler = Arc<Mutex<dyn BytesToIpld>>;
 
 #[derive(Default)]
 pub struct SnapshotBlockStore {
@@ -59,7 +65,7 @@ impl SnapshotBlockStore {
         let ipld = match cid.codec() {
             CODEC_DAG_CBOR => Ipld::decode(DagCborCodec, &mut Cursor::new(bytes))?,
             CODEC_RAW => match self.block_handlers.get(cid) {
-                Some(func) => func(bytes)?,
+                Some(func) => func.lock().convert(bytes)?,
                 None => Ipld::Bytes(bytes.to_vec()),
             },
             _ => unimplemented!(),
@@ -100,7 +106,7 @@ impl BlockStore for SnapshotBlockStore {
     }
 
     #[inline]
-    async fn put_block(&self, bytes: impl Into<Bytes>, codec: u64) -> Result<Cid> {
+    async fn put_block(&self, bytes: impl Into<Bytes> + Send, codec: u64) -> Result<Cid> {
         self.inner.put_block(bytes, codec).await
     }
 }
