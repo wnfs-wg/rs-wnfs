@@ -81,7 +81,7 @@ impl SnapshotBlockStore {
     pub fn get_all_block_snapshots(&self) -> Result<BTreeMap<String, BlockSnapshot>> {
         self.inner
             .0
-            .borrow()
+            .lock()
             .iter()
             .map(|(cid, bytes)| self.handle_block(cid, bytes))
             .collect()
@@ -92,7 +92,7 @@ impl SnapshotBlockStore {
     }
 }
 
-#[async_trait::async_trait(?Send)]
+#[async_trait::async_trait]
 impl BlockStore for SnapshotBlockStore {
     #[inline]
     async fn get_block(&self, cid: &Cid) -> Result<Bytes> {

@@ -11,9 +11,9 @@ use std::sync::Arc;
 macro_rules! impl_async_serialize {
     ( $( $ty:ty $( : < $( $generics:ident ),+ > )? ),+ ) => {
         $(
-            #[async_trait(?Send)]
-            impl $( < $( $generics ),+ > )? AsyncSerialize for $ty $( where $( $generics: Serialize ),+  )? {
-                async fn async_serialize<S: Serializer, BS: BlockStore>(
+            #[async_trait]
+            impl $( < $( $generics ),+ > )? AsyncSerialize for $ty $( where $( $generics: Serialize + Sync ),+  )? {
+                async fn async_serialize<S: Serializer + Send, BS: BlockStore>(
                     &self,
                     serializer: S,
                     _: &BS,
@@ -38,18 +38,18 @@ macro_rules! impl_async_serialize {
 ///
 /// An example of this is the PublicDirectory which can contain links to other IPLD nodes.
 /// These links need to be resolved to Cids during serialization if they aren't already.
-#[async_trait(?Send)]
+#[async_trait]
 pub trait AsyncSerialize {
     /// Serializes the type.
     async fn async_serialize<S, B>(&self, serializer: S, store: &B) -> Result<S::Ok, S::Error>
     where
-        S: Serializer,
-        B: BlockStore + ?Sized;
+        S: Serializer + Send,
+        B: BlockStore + ?Sized + Sync;
 
     /// Serialize with an IPLD serializer.
     async fn async_serialize_ipld<B>(&self, store: &B) -> Result<Ipld, SerdeError>
     where
-        B: BlockStore + ?Sized,
+        B: BlockStore + ?Sized + Sync,
     {
         self.async_serialize(ipld_serde::Serializer, store).await
     }
@@ -59,12 +59,12 @@ pub trait AsyncSerialize {
 // Implementations
 //--------------------------------------------------------------------------------------------------
 
-#[async_trait(?Send)]
-impl<T: AsyncSerialize> AsyncSerialize for Arc<T> {
+#[async_trait]
+impl<T: AsyncSerialize + Sync + Send> AsyncSerialize for Arc<T> {
     async fn async_serialize<S, B>(&self, serializer: S, store: &B) -> Result<S::Ok, S::Error>
     where
-        S: Serializer,
-        B: BlockStore + ?Sized,
+        S: Serializer + Send,
+        B: BlockStore + ?Sized + Sync,
     {
         self.as_ref().async_serialize(serializer, store).await
     }

@@ -3,9 +3,11 @@ use anyhow::Result;
 use bytes::Bytes;
 use futures::{AsyncRead, AsyncReadExt};
 use libipld::{Cid, IpldCodec};
+use parking_lot::Mutex;
 use rand_core::CryptoRngCore;
 use serde::{Deserialize, Serialize, Serializer};
-use std::{cell::RefCell, collections::HashMap};
+use std::collections::HashMap;
+use std::sync::Arc;
 
 //--------------------------------------------------------------------------------------------------
 // Functions
@@ -84,14 +86,14 @@ pub fn u64_to_ipld(value: u64) -> Result<IpldCodec> {
 }
 
 pub(crate) fn serialize_cid_map<S>(
-    map: &RefCell<HashMap<Cid, Bytes>>,
+    map: &Arc<Mutex<HashMap<Cid, Bytes>>>,
     serializer: S,
 ) -> Result<S::Ok, S::Error>
 where
     S: Serializer,
 {
     let map = map
-        .borrow()
+        .lock()
         .iter()
         .map(|(cid, bytes)| (cid.to_string(), bytes.to_vec()))
         .collect::<HashMap<_, _>>();
@@ -101,7 +103,7 @@ where
 
 pub(crate) fn deserialize_cid_map<'de, D>(
     deserializer: D,
-) -> Result<RefCell<HashMap<Cid, Bytes>>, D::Error>
+) -> Result<Arc<Mutex<HashMap<Cid, Bytes>>>, D::Error>
 where
     D: serde::Deserializer<'de>,
 {
@@ -114,5 +116,5 @@ where
         })
         .collect::<Result<_, _>>()?;
 
-    Ok(RefCell::new(map))
+    Ok(Arc::new(Mutex::new(map)))
 }
