@@ -30,9 +30,9 @@ use wnfs_common::{AsyncSerialize, BlockStore, Link};
 /// println!("HAMT: {:?}", hamt);
 /// ```
 #[derive(Debug, Clone)]
-pub struct Hamt<K, V, H = blake3::Hasher>
+pub struct Hamt<K: Sync + Send, V: Sync + Send, H = blake3::Hasher>
 where
-    H: Hasher,
+    H: Hasher + Send + Sync,
 {
     pub root: Arc<Node<K, V, H>>,
     pub version: Version,
@@ -42,7 +42,7 @@ where
 // Implementations
 //--------------------------------------------------------------------------------------------------
 
-impl<K, V, H: Hasher> Hamt<K, V, H> {
+impl<K: Sync + Send, V: Sync + Send, H: Hasher + Send + Sync> Hamt<K, V, H> {
     /// Creates a new empty HAMT.
     ///
     /// # Examples
@@ -113,7 +113,7 @@ impl<K, V, H: Hasher> Hamt<K, V, H> {
     pub async fn diff(
         &self,
         other: &Self,
-        store: &impl BlockStore,
+        store: &(impl BlockStore + Sync),
     ) -> Result<Vec<KeyValueChange<K, V>>>
     where
         K: DeserializeOwned + Clone + Eq + Hash + AsRef<[u8]>,
@@ -128,7 +128,7 @@ impl<K, V, H: Hasher> Hamt<K, V, H> {
         .await
     }
 
-    async fn to_ipld<B: BlockStore + ?Sized>(&self, store: &B) -> Result<Ipld>
+    async fn to_ipld<B: BlockStore + ?Sized + Sync>(&self, store: &B) -> Result<Ipld>
     where
         K: Serialize,
         V: Serialize,
@@ -141,16 +141,16 @@ impl<K, V, H: Hasher> Hamt<K, V, H> {
     }
 }
 
-#[async_trait(?Send)]
-impl<K, V, H: Hasher> AsyncSerialize for Hamt<K, V, H>
+#[async_trait]
+impl<K, V, H: Hasher + Send + Sync> AsyncSerialize for Hamt<K, V, H>
 where
-    K: Serialize,
-    V: Serialize,
+    K: Serialize + Send + Sync,
+    V: Serialize + Send + Sync,
 {
     async fn async_serialize<S, B>(&self, serializer: S, store: &B) -> Result<S::Ok, S::Error>
     where
-        S: Serializer,
-        B: BlockStore + ?Sized,
+        S: Serializer + Send,
+        B: BlockStore + ?Sized + Sync,
     {
         self.to_ipld(store)
             .await
@@ -161,8 +161,8 @@ where
 
 impl<'de, K, V> Deserialize<'de> for Hamt<K, V>
 where
-    K: DeserializeOwned,
-    V: DeserializeOwned,
+    K: DeserializeOwned + Sync + Send,
+    V: DeserializeOwned + Sync + Send,
 {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
@@ -174,8 +174,8 @@ where
 
 impl<K, V> TryFrom<Ipld> for Hamt<K, V>
 where
-    K: DeserializeOwned,
-    V: DeserializeOwned,
+    K: DeserializeOwned + Sync + Send,
+    V: DeserializeOwned + Sync + Send,
 {
     type Error = String;
 
@@ -199,17 +199,17 @@ where
     }
 }
 
-impl<K, V, H: Hasher> Default for Hamt<K, V, H> {
+impl<K: Sync + Send, V: Sync + Send, H: Hasher + Send + Sync> Default for Hamt<K, V, H> {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<K, V, H> PartialEq for Hamt<K, V, H>
+impl<K: Sync + Send, V: Sync + Send, H> PartialEq for Hamt<K, V, H>
 where
     K: PartialEq,
     V: PartialEq,
-    H: Hasher,
+    H: Hasher + Sync + Send,
 {
     fn eq(&self, other: &Self) -> bool {
         self.root == other.root && self.version == other.version

@@ -27,11 +27,11 @@ where
 
 pub async fn node_from_kvs<K, V>(
     pairs: Vec<(K, V)>,
-    store: &impl BlockStore,
+    store: &(impl BlockStore + Sync) ,
 ) -> Result<Arc<Node<K, V>>>
 where
-    K: DeserializeOwned + Serialize + Clone + Debug + AsRef<[u8]>,
-    V: DeserializeOwned + Serialize + Clone + Debug,
+    K: DeserializeOwned + Serialize + Clone + Debug + AsRef<[u8]> + Send + Sync,
+    V: DeserializeOwned + Serialize + Clone + Debug + Send + Sync,
 {
     let mut node: Arc<Node<K, V>> = Arc::new(Node::default());
     for (k, v) in pairs {

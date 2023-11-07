@@ -52,7 +52,9 @@ pub type BitMaskType = [u8; HAMT_BITMASK_BYTE_SIZE];
 /// ```
 pub struct Node<K, V, H = blake3::Hasher>
 where
-    H: Hasher,
+    H: Hasher + Sync + Send,
+    K: Sync + Send,
+    V: Sync + Send,
 {
     persisted_as: OnceCell<Cid>,
     pub(crate) bitmask: BitArray<BitMaskType>,
@@ -66,7 +68,9 @@ where
 
 impl<K, V, H> Node<K, V, H>
 where
-    H: Hasher + 'static,
+    H: Hasher + 'static + Sync + Send,
+    K: Sync + Send,
+    V: Sync + Send,
 {
     /// Sets a new value at the given key.
     ///
@@ -86,7 +90,7 @@ where
     ///     assert_eq!(node.get(&String::from("key"), store).await.unwrap(), Some(&42));
     /// }
     /// ```
-    pub async fn set(self: &mut Arc<Self>, key: K, value: V, store: &impl BlockStore) -> Result<()>
+    pub async fn set(self: &mut Arc<Self>, key: K, value: V, store: &(impl BlockStore + Sync) ) -> Result<()>
     where
         K: DeserializeOwned + Clone + AsRef<[u8]>,
         V: DeserializeOwned + Clone,
@@ -118,7 +122,7 @@ where
     ///     assert_eq!(node.get(&String::from("key"), store).await.unwrap(), Some(&42));
     /// }
     /// ```
-    pub async fn get<'a>(&'a self, key: &K, store: &impl BlockStore) -> Result<Option<&'a V>>
+    pub async fn get<'a>(&'a self, key: &K, store: &(impl BlockStore + Sync) ) -> Result<Option<&'a V>>
     where
         K: DeserializeOwned + AsRef<[u8]>,
         V: DeserializeOwned,
@@ -161,7 +165,7 @@ where
     pub async fn get_mut<'a>(
         self: &'a mut Arc<Self>,
         key: &K,
-        store: &'a impl BlockStore,
+        store: &'a (impl BlockStore + Sync) ,
     ) -> Result<Option<&'a mut V>>
     where
         K: DeserializeOwned + AsRef<[u8]> + Clone,
@@ -203,7 +207,7 @@ where
     pub async fn remove(
         self: &mut Arc<Self>,
         key: &K,
-        store: &impl BlockStore,
+        store: &(impl BlockStore + Sync) ,
     ) -> Result<Option<Pair<K, V>>>
     where
         K: DeserializeOwned + Clone + AsRef<[u8]>,
@@ -240,7 +244,7 @@ where
     pub async fn get_by_hash<'a>(
         &'a self,
         hash: &HashOutput,
-        store: &impl BlockStore,
+        store: &(impl BlockStore + Sync) ,
     ) -> Result<Option<&'a V>>
     where
         K: DeserializeOwned + AsRef<[u8]>,
@@ -282,7 +286,7 @@ where
     pub async fn remove_by_hash(
         self: &mut Arc<Self>,
         hash: &HashOutput,
-        store: &impl BlockStore,
+        store: &(impl BlockStore + Sync) ,
     ) -> Result<Option<Pair<K, V>>>
     where
         K: DeserializeOwned + Clone + AsRef<[u8]>,
@@ -334,7 +338,7 @@ where
         hashnibbles: &'a mut HashNibbles,
         key: K,
         value: V,
-        store: &'a impl BlockStore,
+        store: &'a (impl BlockStore + Sync) ,
     ) -> LocalBoxFuture<'a, Result<()>>
     where
         K: DeserializeOwned + Clone + AsRef<[u8]> + 'a,
@@ -400,7 +404,8 @@ where
                     }
                 }
                 Pointer::Link(link) => {
-                    let mut child = Arc::clone(link.resolve_value(store).await?);
+                    let mut child: Arc<Node<K, V, H>> =
+                        Arc::clone(link.resolve_value(store).await?);
                     child.set_value(hashnibbles, key, value, store).await?;
                     node.pointers[value_index] = Pointer::Link(Link::from(child));
                 }
@@ -414,7 +419,7 @@ where
     pub async fn get_value<'a>(
         &'a self,
         hashnibbles: &mut HashNibbles,
-        store: &impl BlockStore,
+        store: &(impl BlockStore + Sync) ,
     ) -> Result<Option<&'a Pair<K, V>>>
     where
         K: DeserializeOwned + AsRef<[u8]>,
@@ -445,7 +450,7 @@ where
     pub async fn get_value_mut<'a>(
         self: &'a mut Arc<Self>,
         hashnibbles: &mut HashNibbles,
-        store: &'a impl BlockStore,
+        store: &'a (impl BlockStore + Sync) ,
     ) -> Result<Option<&'a mut Pair<K, V>>>
     where
         K: DeserializeOwned + AsRef<[u8]> + Clone,
@@ -480,7 +485,7 @@ where
     pub fn remove_value<'k, 'v, 'a>(
         self: &'a mut Arc<Self>,
         hashnibbles: &'a mut HashNibbles,
-        store: &'a impl BlockStore,
+        store: &'a (impl BlockStore + Sync),
     ) -> LocalBoxFuture<'a, Result<Option<Pair<K, V>>>>
     where
         K: DeserializeOwned + Clone + AsRef<[u8]> + 'k,
@@ -586,7 +591,7 @@ where
     #[async_recursion(?Send)]
     pub async fn flat_map<F, T, B>(&self, f: &F, store: &B) -> Result<Vec<T>>
     where
-        B: BlockStore,
+        B: BlockStore + Sync,
         F: Fn(&Pair<K, V>) -> Result<T>,
         K: DeserializeOwned,
         V: DeserializeOwned,
@@ -646,7 +651,7 @@ where
     where
         K: DeserializeOwned + AsRef<[u8]>,
         V: DeserializeOwned,
-        B: BlockStore,
+        B: BlockStore + Sync,
     {
         self.get_node_at_helper(hashprefix, 0, store).await
     }
@@ -661,7 +666,7 @@ where
     where
         K: DeserializeOwned + AsRef<[u8]>,
         V: DeserializeOwned,
-        B: BlockStore,
+        B: BlockStore + Sync,
     {
         let bit_index = hashprefix
             .get(index)
@@ -716,7 +721,7 @@ where
     ///     assert_eq!(map.len(), 100);
     /// }
     /// ```
-    pub async fn to_hashmap<B: BlockStore>(&self, store: &B) -> Result<HashMap<K, V>>
+    pub async fn to_hashmap<B: BlockStore + Sync>(&self, store: &B) -> Result<HashMap<K, V>>
     where
         K: DeserializeOwned + Clone + Eq + Hash,
         V: DeserializeOwned + Clone,
@@ -737,7 +742,7 @@ where
     }
 }
 
-impl<K, V, H: Hasher> Node<K, V, H> {
+impl<K: Sync + Send, V: Sync + Send, H: Hasher + Sync + Send> Node<K, V, H> {
     /// Returns the count of the values in all the values pointer of a node.
     pub fn count_values(self: &Arc<Self>) -> Result<usize> {
         let mut len = 0;
@@ -754,10 +759,10 @@ impl<K, V, H: Hasher> Node<K, V, H> {
 
     // TODO(appcypher): Do we really need this? Why not use PublicDirectorySerializable style instead.
     /// Converts a Node to an IPLD object.
-    pub async fn to_ipld<B: BlockStore + ?Sized>(&self, store: &B) -> Result<Ipld>
+    pub async fn to_ipld<B: BlockStore + Sync + ?Sized + Sync>(&self, store: &B) -> Result<Ipld>
     where
-        K: Serialize,
-        V: Serialize,
+        K: Serialize + Sync + Send,
+        V: Serialize + Sync + Send,
     {
         let bitmask_ipld = ipld_serde::to_ipld(ByteArray::from(self.bitmask.into_inner()))?;
         let pointers_ipld = {
@@ -772,7 +777,9 @@ impl<K, V, H: Hasher> Node<K, V, H> {
     }
 }
 
-impl<K: Clone, V: Clone, H: Hasher> Clone for Node<K, V, H> {
+impl<K: Clone + Sync + Send, V: Sync + Send + Clone, H: Hasher + Sync + Send> Clone
+    for Node<K, V, H>
+{
     fn clone(&self) -> Self {
         Self {
             persisted_as: self
@@ -788,13 +795,13 @@ impl<K: Clone, V: Clone, H: Hasher> Clone for Node<K, V, H> {
     }
 }
 
-impl<K, V, H: Hasher> RemembersCid for Node<K, V, H> {
+impl<K: Sync + Send, V: Sync + Send, H: Hasher + Sync + Send> RemembersCid for Node<K, V, H> {
     fn persisted_as(&self) -> &OnceCell<Cid> {
         &self.persisted_as
     }
 }
 
-impl<K, V, H: Hasher> Default for Node<K, V, H> {
+impl<K: Sync + Send, V: Sync + Send, H: Hasher + Sync + Send> Default for Node<K, V, H> {
     fn default() -> Self {
         Node {
             persisted_as: OnceCell::new(),
@@ -805,17 +812,17 @@ impl<K, V, H: Hasher> Default for Node<K, V, H> {
     }
 }
 
-#[async_trait(?Send)]
+#[async_trait]
 impl<K, V, H> AsyncSerialize for Node<K, V, H>
 where
-    K: Serialize,
-    V: Serialize,
-    H: Hasher,
+    K: Serialize + Send + Sync,
+    V: Serialize + Send + Sync,
+    H: Hasher + Send + Sync,
 {
     async fn async_serialize<S, B>(&self, serializer: S, store: &B) -> Result<S::Ok, S::Error>
     where
-        S: Serializer,
-        B: BlockStore + ?Sized,
+        S: Serializer + Send,
+        B: BlockStore + Sync + ?Sized + Sync,
     {
         self.to_ipld(store)
             .await
@@ -826,9 +833,9 @@ where
 
 impl<'de, K, V, H> Deserialize<'de> for Node<K, V, H>
 where
-    K: DeserializeOwned,
-    V: DeserializeOwned,
-    H: Hasher,
+    K: DeserializeOwned + Send + Sync,
+    V: DeserializeOwned + Send + Sync,
+    H: Hasher + Send + Sync,
 {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
@@ -863,9 +870,9 @@ where
 
 impl<K, V, H> PartialEq for Node<K, V, H>
 where
-    K: PartialEq,
-    V: PartialEq,
-    H: Hasher,
+    K: PartialEq + Send + Sync,
+    V: PartialEq + Send + Sync,
+    H: Hasher + Send + Sync,
 {
     fn eq(&self, other: &Self) -> bool {
         self.bitmask == other.bitmask && self.pointers == other.pointers
@@ -874,9 +881,9 @@ where
 
 impl<K, V, H> Debug for Node<K, V, H>
 where
-    K: Debug,
-    V: Debug,
-    H: Hasher,
+    K: Debug + Sync + Send,
+    V: Debug + Sync + Send,
+    H: Hasher + Sync + Send,
 {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         let mut bitmask_str = String::new();

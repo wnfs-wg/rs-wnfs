@@ -180,9 +180,9 @@ where
 ///     println!("{:?}", node);
 /// }
 /// ```
-pub async fn node_from_operations<K, V>(
+pub async fn node_from_operations<K: Send + Sync, V: Send + Sync>(
     operations: &Operations<K, V>,
-    store: &impl BlockStore,
+    store: &(impl BlockStore + Sync),
 ) -> Result<Arc<Node<K, V>>>
 where
     K: DeserializeOwned + Serialize + Clone + Debug + AsRef<[u8]>,

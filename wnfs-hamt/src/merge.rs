@@ -10,7 +10,7 @@ use wnfs_common::{BlockStore, Link};
 //--------------------------------------------------------------------------------------------------
 
 /// Merges a node with another with the help of a resolver function.
-pub async fn merge<K, V, H, F, B: BlockStore>(
+pub async fn merge<K: Sync + Send, V: Sync + Send, H, F, B: BlockStore + Sync>(
     main_link: Link<Arc<Node<K, V, H>>>,
     other_link: Link<Arc<Node<K, V, H>>>,
     f: F,
@@ -20,7 +20,7 @@ where
     F: Fn(&V, &V) -> Result<V>,
     K: DeserializeOwned + Eq + Clone + Hash + AsRef<[u8]>,
     V: DeserializeOwned + Eq + Clone,
-    H: Hasher + Clone + 'static,
+    H: Hasher + Send + Sync +  Clone + 'static,
 {
     let kv_changes = super::diff(main_link.clone(), other_link.clone(), store).await?;
 

@@ -74,10 +74,10 @@ pub struct KeyValueChange<K, V> {
 ///    println!("Changes {:#?}", changes);
 /// }
 /// ```
-pub async fn diff<K, V, H>(
+pub async fn diff<K: Sync + Send, V: Sync + Send, H: Sync + Send>(
     main_link: Link<Arc<Node<K, V, H>>>,
     other_link: Link<Arc<Node<K, V, H>>>,
-    store: &impl BlockStore,
+    store: &(impl BlockStore + Sync),
 ) -> Result<Vec<KeyValueChange<K, V>>>
 where
     K: DeserializeOwned + Clone + Eq + Hash + AsRef<[u8]>,
@@ -88,11 +88,11 @@ where
 }
 
 #[async_recursion(?Send)]
-pub async fn diff_helper<K, V, H>(
+pub async fn diff_helper<K: Sync + Send, V: Sync + Send, H: Sync + Send>(
     main_link: Link<Arc<Node<K, V, H>>>,
     other_link: Link<Arc<Node<K, V, H>>>,
     depth: usize,
-    store: &impl BlockStore,
+    store: &(impl BlockStore + Sync),
 ) -> Result<Vec<KeyValueChange<K, V>>>
 where
     K: DeserializeOwned + Clone + Eq + Hash + AsRef<[u8]>,
@@ -163,10 +163,10 @@ where
     Ok(changes)
 }
 
-async fn generate_add_or_remove_changes<K, V, H>(
+async fn generate_add_or_remove_changes<K: Sync + Send, V: Sync + Send, H: Sync + Send>(
     node_pointer: &Pointer<K, V, H>,
     r#type: ChangeType,
-    store: &impl BlockStore,
+    store: &(impl BlockStore + Sync),
 ) -> Result<Vec<KeyValueChange<K, V>>>
 where
     K: DeserializeOwned + Clone + Eq + Hash + AsRef<[u8]>,
@@ -202,11 +202,11 @@ where
     }
 }
 
-async fn pointers_diff<K, V, H>(
+async fn pointers_diff<K: Sync + Send, V: Sync + Send, H: Sync + Send>(
     main_pointer: Pointer<K, V, H>,
     other_pointer: Pointer<K, V, H>,
     depth: usize,
-    store: &impl BlockStore,
+    store: &(impl BlockStore + Sync),
 ) -> Result<Vec<KeyValueChange<K, V>>>
 where
     K: DeserializeOwned + Clone + Eq + Hash + AsRef<[u8]>,
@@ -276,12 +276,12 @@ where
 async fn create_node_from_pairs<K, V, H>(
     values: Vec<Pair<K, V>>,
     depth: usize,
-    store: &impl BlockStore,
+    store: &(impl BlockStore + Sync),
 ) -> Result<Arc<Node<K, V, H>>>
 where
-    K: DeserializeOwned + Clone + AsRef<[u8]>,
-    V: DeserializeOwned + Clone,
-    H: Hasher + Clone + 'static,
+    K: DeserializeOwned + Clone + AsRef<[u8]>+ Sync + Send,
+    V: DeserializeOwned + Clone + Sync + Send,
+    H: Hasher + Clone + 'static + Sync + Send,
 {
     let mut node = Arc::new(Node::<_, _, H>::default());
     for Pair { key, value } in values {

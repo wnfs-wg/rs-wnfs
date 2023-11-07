@@ -34,7 +34,7 @@ pub struct Pair<K, V> {
 
 /// Each bit in the bitmask of a node maps a `Pointer` in the HAMT structure.
 /// A `Pointer` can be either a link to a child node or a collection of key-value pairs.
-pub(crate) enum Pointer<K, V, H: Hasher> {
+pub(crate) enum Pointer<K: Sync + Send, V: Sync + Send, H: Hasher + Sync + Send> {
     Values(Vec<Pair<K, V>>),
     Link(Link<Arc<Node<K, V, H>>>),
 }
@@ -61,12 +61,13 @@ impl<K, V> Pair<K, V> {
     }
 }
 
-impl<K, V, H: Hasher> Pointer<K, V, H> {
+impl<K: Sync + Send, V: Sync + Send, H: Hasher + Send + Sync> Pointer<K, V, H> {
     /// Converts a Link pointer to a canonical form to ensure consistent tree representation after deletes.
-    pub async fn canonicalize(self, store: &impl BlockStore) -> Result<Option<Self>>
+    pub async fn canonicalize(self, store: &(impl BlockStore + Sync)) -> Result<Option<Self>>
     where
         K: DeserializeOwned + Clone + AsRef<[u8]>,
         V: DeserializeOwned + Clone,
+        H: Sync + Send,
     {
         match self {
             Pointer::Link(link) => {
@@ -107,7 +108,7 @@ impl<K, V, H: Hasher> Pointer<K, V, H> {
     }
 
     /// Converts a Pointer to an IPLD object.
-    pub async fn to_ipld<B: BlockStore + ?Sized>(&self, store: &B) -> Result<Ipld>
+    pub async fn to_ipld<B: BlockStore + ?Sized + Sync>(&self, store: &B) -> Result<Ipld>
     where
         K: Serialize,
         V: Serialize,
@@ -119,16 +120,17 @@ impl<K, V, H: Hasher> Pointer<K, V, H> {
     }
 }
 
-#[async_trait(?Send)]
+#[async_trait]
 impl<K, V, H: Hasher> AsyncSerialize for Pointer<K, V, H>
 where
-    K: Serialize,
-    V: Serialize,
+    K: Serialize + Sync + Send,
+    V: Serialize + Sync + Send,
+    H: Sync + Send,
 {
     async fn async_serialize<S, B>(&self, serializer: S, store: &B) -> Result<S::Ok, S::Error>
     where
-        S: Serializer,
-        B: BlockStore + ?Sized,
+        S: Serializer + Send,
+        B: BlockStore + ?Sized + Sync,
     {
         match self {
             Pointer::Values(vals) => vals.serialize(serializer),
@@ -141,10 +143,10 @@ where
     }
 }
 
-impl<'de, K, V, H: Hasher> Deserialize<'de> for Pointer<K, V, H>
+impl<'de, K, V, H: Hasher + Send + Sync> Deserialize<'de> for Pointer<K, V, H>
 where
-    K: DeserializeOwned,
-    V: DeserializeOwned,
+    K: DeserializeOwned + Send + Sync,
+    V: DeserializeOwned + Send + Sync,
 {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
@@ -154,10 +156,10 @@ where
     }
 }
 
-impl<K, V, H: Hasher> TryFrom<Ipld> for Pointer<K, V, H>
+impl<K, V, H: Hasher + Send + Sync> TryFrom<Ipld> for Pointer<K, V, H>
 where
-    K: DeserializeOwned,
-    V: DeserializeOwned,
+    K: DeserializeOwned + Send + Sync,
+    V: DeserializeOwned + Send + Sync,
 {
     type Error = String;
 
@@ -176,7 +178,9 @@ where
     }
 }
 
-impl<K: Clone, V: Clone, H: Hasher> Clone for Pointer<K, V, H> {
+impl<K: Clone + Sync + Send, V: Clone + Sync + Send, H: Hasher + Sync + Send> Clone
+    for Pointer<K, V, H>
+{
     fn clone(&self) -> Self {
         match self {
             Self::Values(arg0) => Self::Values(arg0.clone()),
@@ -185,7 +189,9 @@ impl<K: Clone, V: Clone, H: Hasher> Clone for Pointer<K, V, H> {
     }
 }
 
-impl<K: Debug, V: Debug, H: Hasher> std::fmt::Debug for Pointer<K, V, H> {
+impl<K: Debug + Sync + Send, V: Debug + Sync + Send, H: Hasher + Sync + Send> std::fmt::Debug
+    for Pointer<K, V, H>
+{
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Values(arg0) => f.debug_tuple("Values").field(arg0).finish(),
@@ -194,16 +200,16 @@ impl<K: Debug, V: Debug, H: Hasher> std::fmt::Debug for Pointer<K, V, H> {
     }
 }
 
-impl<K, V, H: Hasher> Default for Pointer<K, V, H> {
+impl<K: Sync + Send, V: Sync + Send, H: Hasher + Sync + Send> Default for Pointer<K, V, H> {
     fn default() -> Self {
         Pointer::Values(Vec::new())
     }
 }
 
-impl<K, V, H: Hasher> PartialEq for Pointer<K, V, H>
+impl<K, V, H: Hasher + Send + Sync> PartialEq for Pointer<K, V, H>
 where
-    K: PartialEq,
-    V: PartialEq,
+    K: PartialEq + Send + Sync,
+    V: PartialEq + Send + Sync,
 {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
