@@ -6,8 +6,7 @@ use libipld::{Cid, IpldCodec};
 use parking_lot::Mutex;
 use rand_core::CryptoRngCore;
 use serde::{Deserialize, Serialize, Serializer};
-use std::collections::HashMap;
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 //--------------------------------------------------------------------------------------------------
 // Functions

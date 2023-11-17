@@ -25,16 +25,16 @@ use std::{
 // Type Definitions
 //--------------------------------------------------------------------------------------------------
 
-pub trait BytesToIpld: Send {
+pub trait BytesToIpld: Send + Sync {
     fn convert(&self, bytes: &Bytes) -> Result<Ipld>;
 }
 
-type BlockHandler = Arc<Mutex<dyn BytesToIpld>>;
+type BlockHandler = Arc<dyn BytesToIpld>;
 
 #[derive(Default)]
 pub struct SnapshotBlockStore {
     inner: MemoryBlockStore,
-    block_handlers: HashMap<Cid, BlockHandler>,
+    block_handlers: Arc<Mutex<HashMap<Cid, BlockHandler>>>,
 }
 
 base64_serde_type!(Base64Standard, base64::engine::general_purpose::STANDARD);
@@ -64,8 +64,8 @@ impl SnapshotBlockStore {
     pub fn handle_block(&self, cid: &Cid, bytes: &Bytes) -> Result<(String, BlockSnapshot)> {
         let ipld = match cid.codec() {
             CODEC_DAG_CBOR => Ipld::decode(DagCborCodec, &mut Cursor::new(bytes))?,
-            CODEC_RAW => match self.block_handlers.get(cid) {
-                Some(func) => func.lock().convert(bytes)?,
+            CODEC_RAW => match self.block_handlers.lock().get(cid) {
+                Some(func) => func.convert(bytes)?,
                 None => Ipld::Bytes(bytes.to_vec()),
             },
             _ => unimplemented!(),
@@ -94,7 +94,7 @@ impl SnapshotBlockStore {
     }
 
     pub fn add_block_handler(&mut self, cid: Cid, f: BlockHandler) {
-        self.block_handlers.insert(cid, f);
+        self.block_handlers.lock().insert(cid, f);
     }
 }
 

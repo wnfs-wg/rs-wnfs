@@ -20,7 +20,7 @@ where
     F: Fn(&V, &V) -> Result<V>,
     K: DeserializeOwned + Eq + Clone + Hash + AsRef<[u8]>,
     V: DeserializeOwned + Eq + Clone,
-    H: Hasher + Send + Sync +  Clone + 'static,
+    H: Hasher + Send + Sync + Clone + 'static,
 {
     let kv_changes = super::diff(main_link.clone(), other_link.clone(), store).await?;
 

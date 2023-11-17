@@ -10,8 +10,7 @@ use libipld::{
 };
 use parking_lot::Mutex;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
-use std::collections::HashMap;
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 //--------------------------------------------------------------------------------------------------
 // Constants
@@ -47,7 +46,7 @@ pub const CODEC_RAW: u64 = 0x55;
 
 /// For types that implement block store operations like adding, getting content from the store.
 #[async_trait]
-pub trait BlockStore: Sized + Send {
+pub trait BlockStore: Sized + Send + Sync {
     async fn get_block(&self, cid: &Cid) -> Result<Bytes>;
     async fn put_block(&self, bytes: impl Into<Bytes> + Send, codec: u64) -> Result<Cid>;
 

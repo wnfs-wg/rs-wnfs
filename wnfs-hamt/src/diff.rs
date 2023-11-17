@@ -279,7 +279,7 @@ async fn create_node_from_pairs<K, V, H>(
     store: &(impl BlockStore + Sync),
 ) -> Result<Arc<Node<K, V, H>>>
 where
-    K: DeserializeOwned + Clone + AsRef<[u8]>+ Sync + Send,
+    K: DeserializeOwned + Clone + AsRef<[u8]> + Sync + Send,
     V: DeserializeOwned + Clone + Sync + Send,
     H: Hasher + Clone + 'static + Sync + Send,
 {

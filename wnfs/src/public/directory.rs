@@ -894,11 +894,11 @@ impl RemembersCid for PublicDirectory {
     }
 }
 
-#[async_trait(?Send)]
+#[async_trait]
 impl AsyncSerialize for PublicDirectory {
     async fn async_serialize<S, B>(&self, serializer: S, store: &B) -> Result<S::Ok, S::Error>
     where
-        S: Serializer,
+        S: Serializer + Send,
         B: BlockStore + ?Sized,
     {
         let encoded_userland = {

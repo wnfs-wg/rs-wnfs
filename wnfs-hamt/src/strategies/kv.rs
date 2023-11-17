@@ -27,7 +27,7 @@ where
 
 pub async fn node_from_kvs<K, V>(
     pairs: Vec<(K, V)>,
-    store: &(impl BlockStore + Sync) ,
+    store: &(impl BlockStore + Sync),
 ) -> Result<Arc<Node<K, V>>>
 where
     K: DeserializeOwned + Serialize + Clone + Debug + AsRef<[u8]> + Send + Sync,

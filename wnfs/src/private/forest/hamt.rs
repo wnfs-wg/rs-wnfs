@@ -364,11 +364,11 @@ impl HamtForest {
     }
 }
 
-#[async_trait(?Send)]
+#[async_trait]
 impl AsyncSerialize for HamtForest {
     async fn async_serialize<S, B>(&self, serializer: S, store: &B) -> Result<S::Ok, S::Error>
     where
-        S: Serializer,
+        S: Serializer + Send,
         B: BlockStore + ?Sized,
     {
         let hamt_ipld = self

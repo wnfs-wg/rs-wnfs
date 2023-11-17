@@ -303,11 +303,11 @@ impl<'de> Deserialize<'de> for PublicNode {
 }
 
 /// Implements async deserialization for serde serializable types.
-#[async_trait(?Send)]
+#[async_trait]
 impl AsyncSerialize for PublicNode {
     async fn async_serialize<S, B>(&self, serializer: S, store: &B) -> Result<S::Ok, S::Error>
     where
-        S: Serializer,
+        S: Serializer + Send,
         B: BlockStore + ?Sized,
     {
         match self {

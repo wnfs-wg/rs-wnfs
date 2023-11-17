@@ -22,7 +22,11 @@ where
 }
 
 /// Encodes an async serializable value into DagCbor bytes.
-pub async fn async_encode<V, C>(value: &V, store: &(impl BlockStore + Sync), codec: C) -> Result<Vec<u8>>
+pub async fn async_encode<V, C>(
+    value: &V,
+    store: &(impl BlockStore + Sync),
+    codec: C,
+) -> Result<Vec<u8>>
 where
     V: AsyncSerialize + Sync,
     C: Codec,

@@ -90,7 +90,12 @@ where
     ///     assert_eq!(node.get(&String::from("key"), store).await.unwrap(), Some(&42));
     /// }
     /// ```
-    pub async fn set(self: &mut Arc<Self>, key: K, value: V, store: &(impl BlockStore + Sync) ) -> Result<()>
+    pub async fn set(
+        self: &mut Arc<Self>,
+        key: K,
+        value: V,
+        store: &(impl BlockStore + Sync),
+    ) -> Result<()>
     where
         K: DeserializeOwned + Clone + AsRef<[u8]>,
         V: DeserializeOwned + Clone,
@@ -122,7 +127,11 @@ where
     ///     assert_eq!(node.get(&String::from("key"), store).await.unwrap(), Some(&42));
     /// }
     /// ```
-    pub async fn get<'a>(&'a self, key: &K, store: &(impl BlockStore + Sync) ) -> Result<Option<&'a V>>
+    pub async fn get<'a>(
+        &'a self,
+        key: &K,
+        store: &(impl BlockStore + Sync),
+    ) -> Result<Option<&'a V>>
     where
         K: DeserializeOwned + AsRef<[u8]>,
         V: DeserializeOwned,
@@ -165,7 +174,7 @@ where
     pub async fn get_mut<'a>(
         self: &'a mut Arc<Self>,
         key: &K,
-        store: &'a (impl BlockStore + Sync) ,
+        store: &'a (impl BlockStore + Sync),
     ) -> Result<Option<&'a mut V>>
     where
         K: DeserializeOwned + AsRef<[u8]> + Clone,
@@ -207,7 +216,7 @@ where
     pub async fn remove(
         self: &mut Arc<Self>,
         key: &K,
-        store: &(impl BlockStore + Sync) ,
+        store: &(impl BlockStore + Sync),
     ) -> Result<Option<Pair<K, V>>>
     where
         K: DeserializeOwned + Clone + AsRef<[u8]>,
@@ -244,7 +253,7 @@ where
     pub async fn get_by_hash<'a>(
         &'a self,
         hash: &HashOutput,
-        store: &(impl BlockStore + Sync) ,
+        store: &(impl BlockStore + Sync),
     ) -> Result<Option<&'a V>>
     where
         K: DeserializeOwned + AsRef<[u8]>,
@@ -286,7 +295,7 @@ where
     pub async fn remove_by_hash(
         self: &mut Arc<Self>,
         hash: &HashOutput,
-        store: &(impl BlockStore + Sync) ,
+        store: &(impl BlockStore + Sync),
     ) -> Result<Option<Pair<K, V>>>
     where
         K: DeserializeOwned + Clone + AsRef<[u8]>,
@@ -338,7 +347,7 @@ where
         hashnibbles: &'a mut HashNibbles,
         key: K,
         value: V,
-        store: &'a (impl BlockStore + Sync) ,
+        store: &'a (impl BlockStore + Sync),
     ) -> LocalBoxFuture<'a, Result<()>>
     where
         K: DeserializeOwned + Clone + AsRef<[u8]> + 'a,
@@ -419,7 +428,7 @@ where
     pub async fn get_value<'a>(
         &'a self,
         hashnibbles: &mut HashNibbles,
-        store: &(impl BlockStore + Sync) ,
+        store: &(impl BlockStore + Sync),
     ) -> Result<Option<&'a Pair<K, V>>>
     where
         K: DeserializeOwned + AsRef<[u8]>,
@@ -450,7 +459,7 @@ where
     pub async fn get_value_mut<'a>(
         self: &'a mut Arc<Self>,
         hashnibbles: &mut HashNibbles,
-        store: &'a (impl BlockStore + Sync) ,
+        store: &'a (impl BlockStore + Sync),
     ) -> Result<Option<&'a mut Pair<K, V>>>
     where
         K: DeserializeOwned + AsRef<[u8]> + Clone,
