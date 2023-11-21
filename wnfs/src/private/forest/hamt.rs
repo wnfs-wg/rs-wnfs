@@ -129,7 +129,7 @@ impl HamtForest {
     }
 }
 
-#[async_trait(?Send)]
+#[async_trait]
 impl PrivateForest for HamtForest {
     fn empty_name(&self) -> Name {
         Name::empty(&self.accumulator)
@@ -167,20 +167,25 @@ impl PrivateForest for HamtForest {
         .await
     }
 
-    async fn put_encrypted(
+    async fn put_encrypted<I>(
         &mut self,
         name: &Name,
-        values: impl IntoIterator<Item = Cid>,
+        values: I,
         store: &impl BlockStore,
-    ) -> Result<NameAccumulator> {
+    ) -> Result<NameAccumulator>
+    where
+        I: IntoIterator<Item = Cid> + Send,
+        I::IntoIter: Send,
+    {
         let accumulator = self.get_accumulated_name(name);
+        let values = values.into_iter();
 
         match self.hamt.root.get_mut(&accumulator, store).await? {
             Some(cids) => cids.extend(values),
             None => {
                 self.hamt
                     .root
-                    .set(accumulator.clone(), values.into_iter().collect(), store)
+                    .set(accumulator.clone(), values.collect(), store)
                     .await?;
             }
         }
@@ -216,7 +221,7 @@ impl PrivateForest for HamtForest {
     }
 }
 
-#[async_trait(?Send)]
+#[async_trait]
 impl PrivateForest for Arc<HamtForest> {
     fn empty_name(&self) -> Name {
         (**self).empty_name()
@@ -238,12 +243,16 @@ impl PrivateForest for Arc<HamtForest> {
         (**self).has(name, store).await
     }
 
-    async fn put_encrypted(
+    async fn put_encrypted<I>(
         &mut self,
         name: &Name,
-        values: impl IntoIterator<Item = Cid>,
+        values: I,
         store: &impl BlockStore,
-    ) -> Result<NameAccumulator> {
+    ) -> Result<NameAccumulator>
+    where
+        I: IntoIterator<Item = Cid> + Send,
+        I::IntoIter: Send,
+    {
         Arc::make_mut(self).put_encrypted(name, values, store).await
     }
 
@@ -447,7 +456,10 @@ mod tests {
             NameSegment::new_hashed("Testing", b"two"),
         ]);
 
-        forest.put_encrypted(&name, [cid], store).await.unwrap();
+        forest
+            .put_encrypted(&name, [cid].into_iter(), store)
+            .await
+            .unwrap();
         let result = forest.get_encrypted(&name, store).await.unwrap();
 
         assert_eq!(result, Some(&BTreeSet::from([cid])));
@@ -556,7 +568,7 @@ mod snapshot_tests {
             forest
                 .put_encrypted(
                     &base_name.with_segments_added(segments),
-                    [Cid::default()],
+                    [Cid::default()].into_iter(),
                     store,
                 )
                 .await

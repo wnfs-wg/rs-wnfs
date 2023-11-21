@@ -55,7 +55,7 @@ pub(crate) fn generate_ops_and_changes(
 pub(crate) async fn apply_changes<K: Sync + Send, V: Sync + Send>(
     node: &mut Arc<Node<K, V>>,
     changes: &Vec<Change<K, V>>,
-    store: &(impl BlockStore + Sync),
+    store: &impl BlockStore,
 ) -> Result<()>
 where
     K: Debug + Clone + AsRef<[u8]> + DeserializeOwned,

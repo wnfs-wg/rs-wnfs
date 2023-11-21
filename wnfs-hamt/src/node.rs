@@ -10,7 +10,7 @@ use async_recursion::async_recursion;
 use async_trait::async_trait;
 use bitvec::array::BitArray;
 use either::{Either, Either::*};
-use futures::future::LocalBoxFuture;
+use futures::future::BoxFuture;
 use libipld::{serde as ipld_serde, Cid, Ipld};
 #[cfg(feature = "log")]
 use log::debug;
@@ -90,12 +90,7 @@ where
     ///     assert_eq!(node.get(&String::from("key"), store).await.unwrap(), Some(&42));
     /// }
     /// ```
-    pub async fn set(
-        self: &mut Arc<Self>,
-        key: K,
-        value: V,
-        store: &(impl BlockStore + Sync),
-    ) -> Result<()>
+    pub async fn set(self: &mut Arc<Self>, key: K, value: V, store: &impl BlockStore) -> Result<()>
     where
         K: DeserializeOwned + Clone + AsRef<[u8]>,
         V: DeserializeOwned + Clone,
@@ -127,11 +122,7 @@ where
     ///     assert_eq!(node.get(&String::from("key"), store).await.unwrap(), Some(&42));
     /// }
     /// ```
-    pub async fn get<'a>(
-        &'a self,
-        key: &K,
-        store: &(impl BlockStore + Sync),
-    ) -> Result<Option<&'a V>>
+    pub async fn get<'a>(&'a self, key: &K, store: &impl BlockStore) -> Result<Option<&'a V>>
     where
         K: DeserializeOwned + AsRef<[u8]>,
         V: DeserializeOwned,
@@ -174,7 +165,7 @@ where
     pub async fn get_mut<'a>(
         self: &'a mut Arc<Self>,
         key: &K,
-        store: &'a (impl BlockStore + Sync),
+        store: &'a impl BlockStore,
     ) -> Result<Option<&'a mut V>>
     where
         K: DeserializeOwned + AsRef<[u8]> + Clone,
@@ -216,7 +207,7 @@ where
     pub async fn remove(
         self: &mut Arc<Self>,
         key: &K,
-        store: &(impl BlockStore + Sync),
+        store: &impl BlockStore,
     ) -> Result<Option<Pair<K, V>>>
     where
         K: DeserializeOwned + Clone + AsRef<[u8]>,
@@ -253,7 +244,7 @@ where
     pub async fn get_by_hash<'a>(
         &'a self,
         hash: &HashOutput,
-        store: &(impl BlockStore + Sync),
+        store: &impl BlockStore,
     ) -> Result<Option<&'a V>>
     where
         K: DeserializeOwned + AsRef<[u8]>,
@@ -295,7 +286,7 @@ where
     pub async fn remove_by_hash(
         self: &mut Arc<Self>,
         hash: &HashOutput,
-        store: &(impl BlockStore + Sync),
+        store: &impl BlockStore,
     ) -> Result<Option<Pair<K, V>>>
     where
         K: DeserializeOwned + Clone + AsRef<[u8]>,
@@ -347,8 +338,8 @@ where
         hashnibbles: &'a mut HashNibbles,
         key: K,
         value: V,
-        store: &'a (impl BlockStore + Sync),
-    ) -> LocalBoxFuture<'a, Result<()>>
+        store: &'a impl BlockStore,
+    ) -> BoxFuture<'a, Result<()>>
     where
         K: DeserializeOwned + Clone + AsRef<[u8]> + 'a,
         V: DeserializeOwned + Clone + 'a,
@@ -424,11 +415,11 @@ where
         })
     }
 
-    #[async_recursion(?Send)]
+    #[async_recursion]
     pub async fn get_value<'a>(
         &'a self,
         hashnibbles: &mut HashNibbles,
-        store: &(impl BlockStore + Sync),
+        store: &impl BlockStore,
     ) -> Result<Option<&'a Pair<K, V>>>
     where
         K: DeserializeOwned + AsRef<[u8]>,
@@ -455,11 +446,11 @@ where
         }
     }
 
-    #[async_recursion(?Send)]
+    #[async_recursion]
     pub async fn get_value_mut<'a>(
         self: &'a mut Arc<Self>,
         hashnibbles: &mut HashNibbles,
-        store: &'a (impl BlockStore + Sync),
+        store: &'a impl BlockStore,
     ) -> Result<Option<&'a mut Pair<K, V>>>
     where
         K: DeserializeOwned + AsRef<[u8]> + Clone,
@@ -494,8 +485,8 @@ where
     pub fn remove_value<'k, 'v, 'a>(
         self: &'a mut Arc<Self>,
         hashnibbles: &'a mut HashNibbles,
-        store: &'a (impl BlockStore + Sync),
-    ) -> LocalBoxFuture<'a, Result<Option<Pair<K, V>>>>
+        store: &'a impl BlockStore,
+    ) -> BoxFuture<'a, Result<Option<Pair<K, V>>>>
     where
         K: DeserializeOwned + Clone + AsRef<[u8]> + 'k,
         V: DeserializeOwned + Clone + 'v,
@@ -597,13 +588,14 @@ where
     ///     assert_eq!(keys.len(), 99);
     /// }
     /// ```
-    #[async_recursion(?Send)]
+    #[async_recursion]
     pub async fn flat_map<F, T, B>(&self, f: &F, store: &B) -> Result<Vec<T>>
     where
-        B: BlockStore + Sync,
-        F: Fn(&Pair<K, V>) -> Result<T>,
+        B: BlockStore,
+        F: Fn(&Pair<K, V>) -> Result<T> + Sync,
         K: DeserializeOwned,
         V: DeserializeOwned,
+        T: Send,
     {
         let mut items = <Vec<T>>::new();
         for p in self.pointers.iter() {
@@ -660,7 +652,7 @@ where
     where
         K: DeserializeOwned + AsRef<[u8]>,
         V: DeserializeOwned,
-        B: BlockStore + Sync,
+        B: BlockStore,
     {
         self.get_node_at_helper(hashprefix, 0, store).await
     }
@@ -675,7 +667,7 @@ where
     where
         K: DeserializeOwned + AsRef<[u8]>,
         V: DeserializeOwned,
-        B: BlockStore + Sync,
+        B: BlockStore,
     {
         let bit_index = hashprefix
             .get(index)
@@ -730,7 +722,7 @@ where
     ///     assert_eq!(map.len(), 100);
     /// }
     /// ```
-    pub async fn to_hashmap<B: BlockStore + Sync>(&self, store: &B) -> Result<HashMap<K, V>>
+    pub async fn to_hashmap<B: BlockStore>(&self, store: &B) -> Result<HashMap<K, V>>
     where
         K: DeserializeOwned + Clone + Eq + Hash,
         V: DeserializeOwned + Clone,
@@ -768,7 +760,7 @@ impl<K: Sync + Send, V: Sync + Send, H: Hasher + Sync + Send> Node<K, V, H> {
 
     // TODO(appcypher): Do we really need this? Why not use PublicDirectorySerializable style instead.
     /// Converts a Node to an IPLD object.
-    pub async fn to_ipld<B: BlockStore + Sync + ?Sized + Sync>(&self, store: &B) -> Result<Ipld>
+    pub async fn to_ipld<B: BlockStore + ?Sized + Sync>(&self, store: &B) -> Result<Ipld>
     where
         K: Serialize + Sync + Send,
         V: Serialize + Sync + Send,
@@ -831,7 +823,7 @@ where
     async fn async_serialize<S, B>(&self, serializer: S, store: &B) -> Result<S::Ok, S::Error>
     where
         S: Serializer + Send,
-        B: BlockStore + Sync + ?Sized + Sync,
+        B: BlockStore + ?Sized + Sync,
     {
         self.to_ipld(store)
             .await

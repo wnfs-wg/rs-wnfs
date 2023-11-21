@@ -113,7 +113,7 @@ impl<K: Sync + Send, V: Sync + Send, H: Hasher + Send + Sync> Hamt<K, V, H> {
     pub async fn diff(
         &self,
         other: &Self,
-        store: &(impl BlockStore + Sync),
+        store: &impl BlockStore,
     ) -> Result<Vec<KeyValueChange<K, V>>>
     where
         K: DeserializeOwned + Clone + Eq + Hash + AsRef<[u8]>,

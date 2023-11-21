@@ -5,7 +5,7 @@ use async_trait::async_trait;
 use libipld_core::cid::Cid;
 use std::{
     collections::{BTreeSet, HashMap},
-    rc::Rc,
+    sync::Arc,
 };
 use wnfs_common::{BlockStore, HashOutput};
 use wnfs_hamt::Pair;
@@ -37,7 +37,7 @@ pub struct ForestProofs {
 /// to a different private forest state.
 #[derive(Debug, Clone)]
 pub struct ProvingHamtForest {
-    pub forest: Rc<HamtForest>,
+    pub forest: Arc<HamtForest>,
     pub proofs: ForestProofs,
 }
 
@@ -90,7 +90,7 @@ impl ProvingHamtForest {
     /// Create a new proving forest from the state of an existing hamt forest.
     ///
     /// It will be initialized without proofs.
-    pub fn new(forest: Rc<HamtForest>) -> Self {
+    pub fn new(forest: Arc<HamtForest>) -> Self {
         Self {
             forest,
             proofs: ForestProofs::new(),
@@ -99,7 +99,7 @@ impl ProvingHamtForest {
 
     /// Create a new proving forest with given pre-existing proofs and current
     /// state of a hamt forest.
-    pub fn from_proofs(proofs: ForestProofs, forest: Rc<HamtForest>) -> Self {
+    pub fn from_proofs(proofs: ForestProofs, forest: Arc<HamtForest>) -> Self {
         Self { forest, proofs }
     }
 
@@ -150,7 +150,7 @@ impl Default for ForestProofs {
     }
 }
 
-#[async_trait(?Send)]
+#[async_trait]
 impl PrivateForest for ProvingHamtForest {
     fn empty_name(&self) -> Name {
         self.forest.empty_name()
@@ -172,17 +172,21 @@ impl PrivateForest for ProvingHamtForest {
         self.forest.has(name, store).await
     }
 
-    async fn put_encrypted(
+    async fn put_encrypted<I>(
         &mut self,
         name: &Name,
-        values: impl IntoIterator<Item = Cid>,
+        values: I,
         store: &impl BlockStore,
-    ) -> Result<NameAccumulator> {
+    ) -> Result<NameAccumulator>
+    where
+        I: IntoIterator<Item = Cid> + Send,
+        I::IntoIter: Send,
+    {
         let ProvingHamtForest { forest, proofs } = self;
 
         proofs.add_and_prove_name(name, forest.get_accumulator_setup())?;
 
-        Rc::make_mut(forest)
+        Arc::make_mut(forest)
             .put_encrypted(name, values, store)
             .await
     }
@@ -212,7 +216,7 @@ impl PrivateForest for ProvingHamtForest {
 
         proofs.add_and_prove_name(name, forest.get_accumulator_setup())?;
 
-        Rc::make_mut(&mut self.forest)
+        Arc::make_mut(&mut self.forest)
             .remove_encrypted(name, store)
             .await
     }
@@ -225,7 +229,7 @@ mod tests {
     use anyhow::Result;
     use libipld_core::cid::Cid;
     use rand::thread_rng;
-    use std::{collections::BTreeSet, rc::Rc};
+    use std::{collections::BTreeSet, sync::Arc};
     use wnfs_common::MemoryBlockStore;
     use wnfs_nameaccumulator::{AccumulatorSetup, Name, NameAccumulator, NameSegment};
 
@@ -254,8 +258,8 @@ mod tests {
         let rng = &mut thread_rng();
         let setup = &AccumulatorSetup::from_rsa_2048(rng);
         let store = &MemoryBlockStore::new();
-        let old_forest = Rc::new(HamtForest::new(setup.clone()));
-        let mut forest = ProvingHamtForest::new(Rc::clone(&old_forest));
+        let old_forest = Arc::new(HamtForest::new(setup.clone()));
+        let mut forest = ProvingHamtForest::new(Arc::clone(&old_forest));
 
         let base = NameAccumulator::with_segments(&Some(NameSegment::new(rng)), setup);
         let name = Name::new(base.clone(), Some(NameSegment::new(rng)));

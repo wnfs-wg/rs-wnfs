@@ -2,7 +2,7 @@ use anyhow::Result;
 use chrono::Utc;
 use libipld_core::cid::Cid;
 use rand::thread_rng;
-use std::{collections::BTreeSet, rc::Rc};
+use std::{collections::BTreeSet, sync::Arc};
 use wnfs::{
     common::{BlockStore, MemoryBlockStore},
     nameaccumulator::NameAccumulator,
@@ -72,7 +72,7 @@ async fn bob_actions(
     store: &impl BlockStore,
 ) -> Result<(ForestProofs, Cid)> {
     let hamt_forest = HamtForest::load(&old_forest_cid, store).await?;
-    let mut forest = ProvingHamtForest::new(Rc::new(hamt_forest));
+    let mut forest = ProvingHamtForest::new(Arc::new(hamt_forest));
     let rng = &mut thread_rng();
 
     let mut root_node = PrivateNode::load(&root_dir_access, &forest, store, None).await?;
@@ -112,7 +112,7 @@ async fn persistence_service_actions(
     let old_forest = HamtForest::load(&old_forest_cid, store).await?;
     let new_forest = HamtForest::load(&new_forest_cid, store).await?;
 
-    let forest = ProvingHamtForest::from_proofs(proofs, Rc::new(new_forest));
+    let forest = ProvingHamtForest::from_proofs(proofs, Arc::new(new_forest));
 
     forest
         .verify_against_previous_state(&old_forest, &BTreeSet::from([allowed_access]), store)

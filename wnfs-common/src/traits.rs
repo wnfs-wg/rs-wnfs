@@ -10,5 +10,5 @@ use async_trait::async_trait;
 #[async_trait]
 pub trait IpldEq {
     /// Checks if the two items are deeply equal.
-    async fn eq(&self, other: &Self, store: &(impl BlockStore + Sync)) -> Result<bool>;
+    async fn eq(&self, other: &Self, store: &impl BlockStore) -> Result<bool>;
 }

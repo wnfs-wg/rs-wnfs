@@ -10,7 +10,7 @@ use wnfs_common::{BlockStore, Link};
 //--------------------------------------------------------------------------------------------------
 
 /// Merges a node with another with the help of a resolver function.
-pub async fn merge<K: Sync + Send, V: Sync + Send, H, F, B: BlockStore + Sync>(
+pub async fn merge<K: Sync + Send, V: Sync + Send, H, F, B: BlockStore>(
     main_link: Link<Arc<Node<K, V, H>>>,
     other_link: Link<Arc<Node<K, V, H>>>,
     f: F,

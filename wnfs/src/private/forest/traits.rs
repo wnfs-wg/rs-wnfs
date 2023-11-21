@@ -18,8 +18,8 @@ use wnfs_nameaccumulator::{AccumulatorSetup, ElementsProof, Name, NameAccumulato
 /// It also stores the accumulator setup information for running
 /// name accumulator operations. Upon put or remove, it'll run
 /// these operations for the caller.
-#[async_trait(?Send)]
-pub trait PrivateForest {
+#[async_trait]
+pub trait PrivateForest: Send + Sync {
     /// Construct what represents the empty name in this forest.
     ///
     /// It is forest-specific, as it depends on the specific forest's
@@ -88,12 +88,15 @@ pub trait PrivateForest {
     async fn has(&self, name: &Name, store: &impl BlockStore) -> Result<bool>;
 
     /// Adds new encrypted values at the given key.
-    async fn put_encrypted(
+    async fn put_encrypted<I>(
         &mut self,
         name: &Name,
-        values: impl IntoIterator<Item = Cid>,
+        values: I,
         store: &impl BlockStore,
-    ) -> Result<NameAccumulator>;
+    ) -> Result<NameAccumulator>
+    where
+        I: IntoIterator<Item = Cid> + Send,
+        I::IntoIter: Send;
 
     /// Gets the CIDs to blocks of ciphertext by hash of name.
     async fn get_encrypted_by_hash<'b>(

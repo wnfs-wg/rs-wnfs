@@ -182,7 +182,7 @@ where
 /// ```
 pub async fn node_from_operations<K: Send + Sync, V: Send + Sync>(
     operations: &Operations<K, V>,
-    store: &(impl BlockStore + Sync),
+    store: &impl BlockStore,
 ) -> Result<Arc<Node<K, V>>>
 where
     K: DeserializeOwned + Serialize + Clone + Debug + AsRef<[u8]>,

@@ -77,7 +77,7 @@ pub struct KeyValueChange<K, V> {
 pub async fn diff<K: Sync + Send, V: Sync + Send, H: Sync + Send>(
     main_link: Link<Arc<Node<K, V, H>>>,
     other_link: Link<Arc<Node<K, V, H>>>,
-    store: &(impl BlockStore + Sync),
+    store: &impl BlockStore,
 ) -> Result<Vec<KeyValueChange<K, V>>>
 where
     K: DeserializeOwned + Clone + Eq + Hash + AsRef<[u8]>,
@@ -92,7 +92,7 @@ pub async fn diff_helper<K: Sync + Send, V: Sync + Send, H: Sync + Send>(
     main_link: Link<Arc<Node<K, V, H>>>,
     other_link: Link<Arc<Node<K, V, H>>>,
     depth: usize,
-    store: &(impl BlockStore + Sync),
+    store: &impl BlockStore,
 ) -> Result<Vec<KeyValueChange<K, V>>>
 where
     K: DeserializeOwned + Clone + Eq + Hash + AsRef<[u8]>,
@@ -166,7 +166,7 @@ where
 async fn generate_add_or_remove_changes<K: Sync + Send, V: Sync + Send, H: Sync + Send>(
     node_pointer: &Pointer<K, V, H>,
     r#type: ChangeType,
-    store: &(impl BlockStore + Sync),
+    store: &impl BlockStore,
 ) -> Result<Vec<KeyValueChange<K, V>>>
 where
     K: DeserializeOwned + Clone + Eq + Hash + AsRef<[u8]>,
@@ -206,7 +206,7 @@ async fn pointers_diff<K: Sync + Send, V: Sync + Send, H: Sync + Send>(
     main_pointer: Pointer<K, V, H>,
     other_pointer: Pointer<K, V, H>,
     depth: usize,
-    store: &(impl BlockStore + Sync),
+    store: &impl BlockStore,
 ) -> Result<Vec<KeyValueChange<K, V>>>
 where
     K: DeserializeOwned + Clone + Eq + Hash + AsRef<[u8]>,
@@ -276,7 +276,7 @@ where
 async fn create_node_from_pairs<K, V, H>(
     values: Vec<Pair<K, V>>,
     depth: usize,
-    store: &(impl BlockStore + Sync),
+    store: &impl BlockStore,
 ) -> Result<Arc<Node<K, V, H>>>
 where
     K: DeserializeOwned + Clone + AsRef<[u8]> + Sync + Send,

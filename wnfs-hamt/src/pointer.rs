@@ -63,7 +63,7 @@ impl<K, V> Pair<K, V> {
 
 impl<K: Sync + Send, V: Sync + Send, H: Hasher + Send + Sync> Pointer<K, V, H> {
     /// Converts a Link pointer to a canonical form to ensure consistent tree representation after deletes.
-    pub async fn canonicalize(self, store: &(impl BlockStore + Sync)) -> Result<Option<Self>>
+    pub async fn canonicalize(self, store: &impl BlockStore) -> Result<Option<Self>>
     where
         K: DeserializeOwned + Clone + AsRef<[u8]>,
         V: DeserializeOwned + Clone,

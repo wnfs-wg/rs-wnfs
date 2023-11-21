@@ -151,7 +151,7 @@ impl BlockStore for MemoryBlockStore {
 /// Tests the retrieval property of a BlockStore-conforming type.
 pub async fn bs_retrieval_test<T>(store: &T) -> Result<()>
 where
-    T: BlockStore + Sync + Send + 'static,
+    T: BlockStore + 'static,
 {
     // Example objects to insert and remove from the blockstore
     let first_bytes = vec![1, 2, 3, 4, 5];
@@ -175,7 +175,7 @@ where
 /// Tests the duplication of a BlockStore-conforming type.
 pub async fn bs_duplication_test<T>(store: &T) -> Result<()>
 where
-    T: BlockStore + Sync + Send + 'static,
+    T: BlockStore + 'static,
 {
     // Example objects to insert and remove from the blockstore
     let first_bytes = vec![1, 2, 3, 4, 5];
@@ -205,7 +205,7 @@ where
 /// Tests the serialization of a BlockStore-conforming type.
 pub async fn bs_serialization_test<T>(store: &T) -> Result<()>
 where
-    T: BlockStore + Sync + Send + Serialize + 'static + for<'de> Deserialize<'de>,
+    T: BlockStore + Serialize + 'static + for<'de> Deserialize<'de>,
 {
     // Example objects to insert and remove from the blockstore
     let bytes = vec![1, 2, 3, 4, 5];
