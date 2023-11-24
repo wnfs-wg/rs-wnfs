@@ -16,7 +16,7 @@ rand = "0.8"
 wnfs = { path = "../wnfs" }
 wnfs-common = { path = "../wnfs-common", features = ["test_utils"] }
 wnfs-hamt = { path = "../wnfs-hamt", features = ["test_utils"] }
-wnfs-nameaccumulator = { path = "../wnfs-nameaccumulator" }
+wnfs-nameaccumulator = { path = "../wnfs-nameaccumulator", features = ["num-bigint-dig", "rug"] }
 
 [[bench]]
 name = "hamt"

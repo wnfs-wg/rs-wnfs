@@ -1,6 +1,5 @@
 use crate::Big;
 use blake3::traits::digest::{ExtendableOutput, ExtendableOutputReset};
-use num_traits::One;
 
 #[cfg(test)]
 const TEST_DSI: &str = "rs-wnfs tests";
@@ -16,7 +15,7 @@ pub(crate) fn multi_exp<B: Big>(
     modulus: &B::Num,
 ) -> B::Num {
     match bases_and_exponents {
-        &[] => B::Num::one(),
+        &[] => B::one(),
         [(base, _)] => base.clone() % modulus,
         other => {
             let mid = other.len() / 2;
@@ -33,7 +32,7 @@ pub(crate) fn multi_exp<B: Big>(
 /// Computes the product of all factors in O(n log n) time.
 pub(crate) fn nlogn_product<A, B: Big>(factors: &[A], f: fn(&A) -> &B::Num) -> B::Num {
     match factors {
-        [] => B::Num::one(),
+        [] => B::one(),
         [factor] => f(factor).clone(),
         other => {
             let mid = other.len() / 2;
@@ -64,7 +63,7 @@ pub(crate) fn blake3_prime_digest<B: Big>(
 
         let mut candidate = B::from_bytes_le(&hash);
 
-        candidate |= B::Num::one();
+        candidate |= B::one();
 
         if B::is_probably_prime(&candidate) {
             return (candidate, counter);
@@ -90,7 +89,7 @@ pub(crate) fn blake3_prime_digest_fast<B: Big>(
     hasher.finalize_xof_into(&mut hash);
 
     let mut to_verify = B::from_bytes_le(&hash);
-    to_verify |= B::Num::one();
+    to_verify |= B::one();
 
     if !B::is_probably_prime(&to_verify) {
         None

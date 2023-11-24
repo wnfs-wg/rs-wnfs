@@ -1,10 +1,14 @@
+#[cfg(not(feature = "rug"))]
+#[cfg(feature = "num-bigint-dig")]
+use crate::BigNumDig;
+#[cfg(feature = "rug")]
+use crate::BigNumRug;
 use crate::{
     error::VerificationError,
     fns::{blake3_prime_digest, blake3_prime_digest_fast, multi_exp},
     traits::Big,
 };
 use anyhow::Result;
-use num_traits::One;
 use once_cell::sync::OnceCell;
 use rand_core::CryptoRngCore;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -17,6 +21,13 @@ const L_HASH_DSI: &str = "wnfs/1.0/PoKE*/l 128-bit hash derivation";
 // Type Definitions
 //--------------------------------------------------------------------------------------------------
 
+#[cfg(not(feature = "rug"))]
+#[cfg(feature = "num-bigint-dig")]
+pub type DefaultBig = BigNumDig;
+
+#[cfg(feature = "rug")]
+pub type DefaultBig = BigNumRug;
+
 /// A WNFS name.
 /// Each file or directory has a name.
 /// Names consist of a set of name segments and are commited to name accumulators.
@@ -24,14 +35,14 @@ const L_HASH_DSI: &str = "wnfs/1.0/PoKE*/l 128-bit hash derivation";
 /// to prove a relationship between two names, e.g a file being contained in
 /// a sub-directory of a directory while leaking as little information as possible.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct Name<B: Big> {
+pub struct Name<B: Big = DefaultBig> {
     relative_to: NameAccumulator<B>,
     segments: Vec<NameSegment<B>>,
 }
 
 /// Represents a setup needed for RSA accumulator operation.
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Deserialize, Serialize)]
-pub struct AccumulatorSetup<B: Big> {
+pub struct AccumulatorSetup<B: Big = DefaultBig> {
     #[serde(bound = "B: Big")]
     #[serde(deserialize_with = "crate::uint256_serde_be::deserialize::<B, _>")]
     #[serde(serialize_with = "crate::uint256_serde_be::serialize::<B, _>")]
@@ -44,7 +55,7 @@ pub struct AccumulatorSetup<B: Big> {
 
 /// A WNFS name represented as the RSA accumulator of all of its name segments.
 #[derive(Clone, Eq)]
-pub struct NameAccumulator<B: Big> {
+pub struct NameAccumulator<B: Big = DefaultBig> {
     /// A 2048-bit number
     state: B::Num,
     /// A cache for its serialized form
@@ -54,7 +65,7 @@ pub struct NameAccumulator<B: Big> {
 /// A name accumluator segment. A name accumulator commits to a set of these.
 /// They are represented as 256-bit prime numbers.
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct NameSegment<B: Big>(
+pub struct NameSegment<B: Big = DefaultBig>(
     /// Invariant: Must be a 256-bit prime
     B::Num,
 );
@@ -63,7 +74,7 @@ pub struct NameSegment<B: Big>(
 /// assuming that the base is trusted
 /// (e.g. part of a common reference string).
 #[derive(Clone, PartialEq, Eq)]
-pub struct ElementsProof<B: Big> {
+pub struct ElementsProof<B: Big = DefaultBig> {
     /// The accumulator's base, $u$
     pub base: B::Num,
     /// A part of the proof, $Q = u^q$, where $element = q*l + r$
@@ -75,7 +86,7 @@ pub struct ElementsProof<B: Big> {
 /// The part of PoKE* (Proof of Knowledge of Exponent) proofs that can't be batched.
 /// This is very small (serialized typically <20 bytes, most likely just 17 bytes).
 #[derive(Clone, PartialEq, Eq)]
-pub struct UnbatchableProofPart<B: Big> {
+pub struct UnbatchableProofPart<B: Big = DefaultBig> {
     /// The number to increase a hash by to land on the next prime.
     /// Helps to more quickly generate/verify the prime number $l$.
     pub l_hash_inc: u32,
@@ -87,7 +98,7 @@ pub struct UnbatchableProofPart<B: Big> {
 /// i.e. the size of this part of the proof is independent of
 /// the number of elements being proven. It's always 2048-bit.
 #[derive(Clone, Eq, PartialEq, Serialize, Deserialize)]
-pub struct BatchedProofPart<B: Big> {
+pub struct BatchedProofPart<B: Big = DefaultBig> {
     #[serde(bound = "B: Big")]
     #[serde(deserialize_with = "crate::uint256_serde_be::deserialize::<B, _>")]
     #[serde(serialize_with = "crate::uint256_serde_be::serialize::<B, _>")]
@@ -95,7 +106,7 @@ pub struct BatchedProofPart<B: Big> {
 }
 
 /// Data that is kept around for verifying batch proofs.
-pub struct BatchedProofVerification<'a, B: Big> {
+pub struct BatchedProofVerification<'a, B: Big = DefaultBig> {
     bases_and_exponents: Vec<(B::Num, B::Num)>,
     setup: &'a AccumulatorSetup<B>,
 }
@@ -215,31 +226,33 @@ impl<B: Big> NameAccumulator<B> {
     /// elements proof that verifies the change of state of the accumulator.
     pub fn add<'a>(
         &mut self,
-        segments: impl IntoIterator<Item = &'a NameSegment<B>> + Clone,
+        segments: impl IntoIterator<Item = &'a NameSegment<B>>,
         setup: &AccumulatorSetup<B>,
     ) -> ElementsProof<B>
     where
         B: 'a,
     {
-        // Reset the serialized state
-        self.serialized_cache = OnceCell::new();
-        let witness = self.state.clone();
-
-        let segment_nums = segments
+        let segments = segments
             .into_iter()
             .map(|s| s.0.clone())
             .collect::<Vec<_>>();
 
-        let exponents = segment_nums.clone().into_iter();
-        self.state = B::modpow_product(&self.state, exponents, &setup.modulus);
+        // Reset the serialized state
+        self.serialized_cache = OnceCell::new();
+        let witness = self.state.clone();
+
+        self.state = B::modpow_product(&self.state, segments.iter(), &setup.modulus);
 
         let data = poke_fiat_shamir_l_hash_data::<B>(&setup.modulus, &witness, &self.state);
         let (l, l_hash_inc) = blake3_prime_digest::<B>(L_HASH_DSI, data, 16);
 
-        let factors = segment_nums.into_iter();
-        let (q, r) = B::quotrem_product(factors, &l);
+        let (q, r) = B::quotrem_product(segments.iter(), &l);
 
-        let big_q = B::modpow(&witness, &q, &setup.modulus);
+        let big_q = if B::is_zero(&q) {
+            B::one()
+        } else {
+            B::modpow(&witness, &q, &setup.modulus)
+        };
 
         ElementsProof {
             base: witness,
@@ -353,7 +366,7 @@ impl<B: Big> BatchedProofPart<B> {
     /// Create a new proof batcher.
     pub fn new() -> Self {
         Self {
-            big_q_product: B::Num::one(),
+            big_q_product: B::one(),
         }
     }
 
@@ -400,7 +413,7 @@ impl<'a, B: Big> BatchedProofVerification<'a, B> {
         let proof_kcr_base = (commitment.state.clone()
             * B::modpow(
                 &B::mod_inv(&base.state, &self.setup.modulus)
-                    .ok_or_else(|| VerificationError::NoInverse)?,
+                    .ok_or(VerificationError::NoInverse)?,
                 &proof_part.r,
                 &self.setup.modulus,
             ))
@@ -416,7 +429,7 @@ impl<'a, B: Big> BatchedProofVerification<'a, B> {
     ///
     /// Will return an error if verification fails.
     pub fn verify(&self, batched_proof: &BatchedProofPart<B>) -> Result<()> {
-        let exponents = self.bases_and_exponents.iter().map(|(_, l)| l).cloned();
+        let exponents = self.bases_and_exponents.iter().map(|(_, l)| l);
         let tmp = B::modpow_product(&batched_proof.big_q_product, exponents, &self.setup.modulus);
 
         if tmp != multi_exp::<B>(&self.bases_and_exponents, &self.setup.modulus) {
@@ -442,7 +455,7 @@ impl<'de, B: Big> Deserialize<'de> for NameSegment<B> {
         D: serde::Deserializer<'de>,
     {
         let bytes: Vec<u8> = serde_bytes::deserialize(deserializer)?;
-        Ok(NameSegment(B::from_bytes_be(&bytes)))
+        Ok(NameSegment(B::from_bytes_le(&bytes)))
     }
 }
 
@@ -471,7 +484,7 @@ impl<'de, B: Big> Deserialize<'de> for UnbatchableProofPart<B> {
         D: Deserializer<'de>,
     {
         let (l_hash_inc, r): (u32, &serde_bytes::Bytes) = Deserialize::deserialize(deserializer)?;
-        let r = B::from_bytes_be(r);
+        let r = B::from_bytes_le(r);
         Ok(Self { l_hash_inc, r })
     }
 }
@@ -581,9 +594,10 @@ impl<B: Big> std::fmt::Debug for BatchedProofPart<B> {
 
 #[cfg(test)]
 mod tests {
+    use super::DefaultBig;
     use crate::{
-        uint256_serde_be::to_bytes_helper, AccumulatorSetup, BatchedProofPart,
-        BatchedProofVerification, BigNumDig, Name, NameAccumulator, NameSegment,
+        AccumulatorSetup, BatchedProofPart, BatchedProofVerification, BigNumDig, Name,
+        NameAccumulator, NameSegment,
     };
     use anyhow::Result;
     use libipld::{
@@ -605,7 +619,7 @@ mod tests {
         let segment = NameSegment::new(rng);
 
         let bytes = encode(&segment, DagCborCodec).unwrap();
-        let segment_back: NameSegment<BigNumDig> = decode(&bytes, DagCborCodec).unwrap();
+        let segment_back: NameSegment = decode(&bytes, DagCborCodec).unwrap();
 
         assert_eq!(segment_back, segment);
     }
@@ -614,7 +628,7 @@ mod tests {
     fn name_accumulator_serialize_roundtrip() {
         let rng = &mut thread_rng();
         let setup = &AccumulatorSetup::from_rsa_2048(rng);
-        let mut acc = NameAccumulator::<BigNumDig>::empty(setup);
+        let mut acc = NameAccumulator::empty(setup);
 
         acc.add(
             &[
@@ -630,7 +644,7 @@ mod tests {
         ipld.encode(DagCborCodec, &mut bytes).unwrap();
 
         let ipld = Ipld::decode(DagCborCodec, &mut Cursor::new(bytes)).unwrap();
-        let acc_back = libipld::serde::from_ipld::<NameAccumulator<BigNumDig>>(ipld).unwrap();
+        let acc_back = libipld::serde::from_ipld::<NameAccumulator>(ipld).unwrap();
 
         assert_eq!(acc_back, acc);
     }
@@ -638,7 +652,7 @@ mod tests {
     #[test]
     fn name_batched_proof_example() -> Result<()> {
         let rng = &mut thread_rng();
-        let setup = &AccumulatorSetup::<BigNumDig>::from_rsa_2048(rng);
+        let setup = &AccumulatorSetup::<DefaultBig>::from_rsa_2048(rng);
         let mut name_note = Name::empty(setup);
         let mut name_image = Name::empty(setup);
 
@@ -674,7 +688,7 @@ mod tests {
     #[test]
     fn equals_ignores_serialization_cache() -> Result<()> {
         let rng = &mut thread_rng();
-        let setup = &AccumulatorSetup::<BigNumDig>::from_rsa_2048(rng);
+        let setup = &AccumulatorSetup::<DefaultBig>::from_rsa_2048(rng);
 
         let mut name_one = NameAccumulator::empty(setup);
         let mut name_two = NameAccumulator::empty(setup);
@@ -701,7 +715,7 @@ mod tests {
     #[proptest(cases = 32)]
     fn batch_proofs(do_batch_step: [bool; 4], do_verify_step: [bool; 4], seed: u64) {
         let rng = &mut ChaCha12Rng::seed_from_u64(seed);
-        let setup = &AccumulatorSetup::<BigNumDig>::from_rsa_2048(rng);
+        let setup = &AccumulatorSetup::<DefaultBig>::from_rsa_2048(rng);
         let base_a = NameAccumulator::with_segments(&[NameSegment::new(rng)], setup);
         let base_b = NameAccumulator::with_segments(&[NameSegment::new(rng)], setup);
 
@@ -766,7 +780,7 @@ mod tests {
     #[proptest]
     fn padded_biguint_encoding_roundtrips(num: u64) {
         let num = BigUint::from(num);
-        let bytes = to_bytes_helper::<8>(&num);
+        let bytes = BigNumDig::to_bytes_helper::<8>(&num);
         let parsed = BigUint::from_bytes_be(bytes.as_ref());
         prop_assert_eq!(parsed, num);
     }

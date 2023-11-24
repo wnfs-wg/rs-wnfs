@@ -45,7 +45,7 @@ skip_ratchet = { version = "0.3", features = ["serde"] }
 thiserror = "1.0"
 wnfs-common = { path = "../wnfs-common", version = "=0.1.25" }
 wnfs-hamt = { path = "../wnfs-hamt", version = "=0.1.25" }
-wnfs-nameaccumulator = { path = "../wnfs-nameaccumulator", version = "=0.1.25" }
+wnfs-nameaccumulator = { path = "../wnfs-nameaccumulator", version = "=0.1.25", default-features = false, features = ["rug"] }
 
 [dev-dependencies]
 async-std = { version = "1.11", features = ["attributes"] }

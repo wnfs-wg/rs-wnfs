@@ -5,3 +5,4 @@
 # It is recommended to check this file in to source control so that
 # everyone who runs the test benefits from these saved cases.
 cc 981ff5c92ddd0a53eb8569b94c7aa0184603de547961d5562c40e1c8643a7275 # shrinks to input = _PaddedBiguintEncodingRoundtripsArgs { num: 1 }
+cc 96d340fe66ed56e3479dd02bbccc0a500237d7720fb1488557806d6a61972205 # shrinks to input = _BatchProofsArgs { do_batch_step: [false, false, true, true], do_verify_step: [false, true, true, false], seed: 0 }
