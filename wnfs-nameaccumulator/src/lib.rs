@@ -5,6 +5,8 @@
 mod error;
 mod fns;
 mod name;
+mod traits;
 mod uint256_serde_be;
 
 pub use name::*;
+pub use traits::*;

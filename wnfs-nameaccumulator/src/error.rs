@@ -16,4 +16,7 @@ pub enum VerificationError {
 
     #[error("NameAccumulator batched proof validation failed")]
     ValidationFailed,
+
+    #[error("Couldn't invert base accumulator state")]
+    NoInverse,
 }
