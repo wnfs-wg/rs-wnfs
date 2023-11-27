@@ -216,7 +216,7 @@ mod tests {
         pub(super) async fn create_sharer_dir(
             forest: &mut impl PrivateForest,
             store: &impl BlockStore,
-            rng: &mut impl CryptoRngCore,
+            rng: &mut (impl CryptoRngCore + Send),
         ) -> Result<Arc<PrivateDirectory>> {
             let mut dir = PrivateDirectory::new_and_store(
                 &forest.empty_name(),

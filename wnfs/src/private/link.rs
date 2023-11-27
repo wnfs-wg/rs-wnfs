@@ -30,12 +30,12 @@ impl PrivateLink {
         }
     }
 
-    #[async_recursion(?Send)]
+    #[async_recursion]
     pub(crate) async fn resolve_ref(
         &self,
         forest: &mut impl PrivateForest,
         store: &impl BlockStore,
-        rng: &mut impl CryptoRngCore,
+        rng: &mut (impl CryptoRngCore + Send),
     ) -> Result<PrivateRef> {
         match self {
             Self::Encrypted { private_ref, .. } => Ok(private_ref.clone()),

@@ -4,8 +4,8 @@
 use anyhow::Result;
 use chrono::Utc;
 use libipld_core::cid::Cid;
-use rand::thread_rng;
-use rand_core::CryptoRngCore;
+use rand_chacha::ChaCha20Rng;
+use rand_core::{CryptoRngCore, SeedableRng};
 use wnfs::{
     common::{BlockStore, MemoryBlockStore},
     nameaccumulator::AccumulatorSetup,
@@ -21,7 +21,7 @@ async fn main() -> Result<()> {
     let store = &MemoryBlockStore::default();
 
     // Create a random number generator the private filesystem can use.
-    let rng = &mut thread_rng();
+    let rng = &mut ChaCha20Rng::from_entropy();
 
     // Create a new private forest and get the cid to it.
     let (forest_cid, access_key) = create_forest_and_add_directory(store, rng).await?;
@@ -40,7 +40,7 @@ async fn main() -> Result<()> {
 
 async fn create_forest_and_add_directory(
     store: &impl BlockStore,
-    rng: &mut impl CryptoRngCore,
+    rng: &mut (impl CryptoRngCore + Send),
 ) -> Result<(Cid, AccessKey)> {
     // Do a trusted setup for WNFS' name accumulators
     let setup = AccumulatorSetup::trusted(rng);

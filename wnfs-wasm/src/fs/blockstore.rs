@@ -38,7 +38,7 @@ pub struct ForeignBlockStore(pub(crate) BlockStore);
 // Implementations
 //--------------------------------------------------------------------------------------------------
 
-#[async_trait(?Send)]
+#[async_trait]
 impl WnfsBlockStore for ForeignBlockStore {
     /// Stores an array of bytes in the block store.
     async fn put_block(&self, bytes: impl Into<Bytes>, codec: u64) -> Result<Cid> {

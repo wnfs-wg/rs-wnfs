@@ -643,7 +643,7 @@ where
     ///     println!("Result: {:#?}", result);
     /// }
     /// ```
-    #[async_recursion(?Send)]
+    #[async_recursion]
     pub async fn get_node_at<'a, B>(
         &'a self,
         hashprefix: &HashPrefix,
@@ -657,7 +657,7 @@ where
         self.get_node_at_helper(hashprefix, 0, store).await
     }
 
-    #[async_recursion(?Send)]
+    #[async_recursion]
     async fn get_node_at_helper<'a, B>(
         &'a self,
         hashprefix: &HashPrefix,

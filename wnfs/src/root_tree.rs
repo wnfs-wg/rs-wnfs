@@ -57,7 +57,7 @@ pub struct RootTreeSerializable {
 impl<'a, B, R> RootTree<'a, B, R>
 where
     B: BlockStore,
-    R: CryptoRngCore,
+    R: CryptoRngCore + Send,
 {
     pub async fn new(
         forest: Arc<HamtForest>,

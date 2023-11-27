@@ -87,7 +87,7 @@ where
     diff_helper(main_link, other_link, 1, store).await
 }
 
-#[async_recursion(?Send)]
+#[async_recursion]
 pub async fn diff_helper<K: Sync + Send, V: Sync + Send, H: Sync + Send>(
     main_link: Link<Arc<Node<K, V, H>>>,
     other_link: Link<Arc<Node<K, V, H>>>,

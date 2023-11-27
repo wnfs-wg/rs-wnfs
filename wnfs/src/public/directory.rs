@@ -802,7 +802,7 @@ impl PublicDirectory {
         Ok(())
     }
 
-    #[async_recursion(?Send)]
+    #[async_recursion]
     /// Stores directory in provided block store.
     ///
     /// This function can be recursive if the directory contains other directories.

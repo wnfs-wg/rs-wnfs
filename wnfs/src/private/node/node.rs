@@ -101,13 +101,13 @@ impl PrivateNode {
     }
 
     /// Updates bare name ancestry of private sub tree.
-    #[async_recursion(?Send)]
+    #[async_recursion]
     pub(crate) async fn update_ancestry(
         &mut self,
         parent_name: &Name,
         forest: &mut impl PrivateForest,
         store: &impl BlockStore,
-        rng: &mut impl CryptoRngCore,
+        rng: &mut (impl CryptoRngCore + Send),
     ) -> Result<()> {
         match self {
             Self::File(file_rc) => {
@@ -500,7 +500,7 @@ impl PrivateNode {
         &self,
         forest: &mut impl PrivateForest,
         store: &impl BlockStore,
-        rng: &mut impl CryptoRngCore,
+        rng: &mut (impl CryptoRngCore + Send),
     ) -> Result<PrivateRef> {
         match self {
             Self::File(file) => file.store(forest, store, rng).await,
@@ -566,7 +566,7 @@ impl PrivateNode {
         &self,
         forest: &mut impl PrivateForest,
         store: &impl BlockStore,
-        rng: &mut impl CryptoRngCore,
+        rng: &mut (impl CryptoRngCore + Send),
     ) -> Result<AccessKey> {
         let private_ref = &self.store_and_get_private_ref(forest, store, rng).await?;
         Ok(AccessKey::Temporal(private_ref.into()))

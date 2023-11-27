@@ -45,7 +45,7 @@ pub struct ForeignPrivateKey(pub(crate) PrivateKey);
 // Implementations
 //--------------------------------------------------------------------------------------------------
 
-#[async_trait(?Send)]
+#[async_trait]
 impl WnfsExchangeKey for ForeignExchangeKey {
     async fn from_modulus(modulus: &[u8]) -> Result<Self>
     where
@@ -67,7 +67,7 @@ impl WnfsExchangeKey for ForeignExchangeKey {
     }
 }
 
-#[async_trait(?Send)]
+#[async_trait]
 impl WnfsPrivateKey for ForeignPrivateKey {
     async fn decrypt(&self, ciphertext: &[u8]) -> Result<Vec<u8>> {
         let v = JsFuture::from(self.0.decrypt(ciphertext))

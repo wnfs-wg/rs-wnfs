@@ -8,7 +8,8 @@ use async_trait::async_trait;
 use bytes::Bytes;
 use chrono::Utc;
 use libipld_core::cid::Cid;
-use rand::thread_rng;
+use rand_chacha::ChaCha20Rng;
+use rand_core::SeedableRng;
 use wnfs::{
     common::{BlockStore, MemoryBlockStore},
     private::{
@@ -28,7 +29,7 @@ async fn main() -> Result<()> {
     let cold_store = MemoryBlockStore::default();
 
     // Create a random number generator for randomized encryption.
-    let rng = &mut thread_rng();
+    let rng = &mut ChaCha20Rng::from_entropy();
 
     // Create a new private forest.
     // This represents your whole private file system, but hides any internal structure.

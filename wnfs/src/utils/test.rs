@@ -56,7 +56,7 @@ pub(crate) async fn walk_dir(
     store: &mut SnapshotBlockStore,
     forest: &mut Arc<HamtForest>,
     root_dir: &Arc<PrivateDirectory>,
-    rng: &mut impl CryptoRngCore,
+    rng: &mut (impl CryptoRngCore + Send),
 ) -> Result<()> {
     let mut stack = vec![root_dir.clone()];
     while let Some(dir) = stack.pop() {
