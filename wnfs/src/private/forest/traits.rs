@@ -5,7 +5,7 @@ use crate::{
 use anyhow::Result;
 use async_stream::stream;
 use async_trait::async_trait;
-use futures::stream::LocalBoxStream;
+use futures::stream::BoxStream;
 use libipld_core::cid::Cid;
 use std::collections::BTreeSet;
 use wnfs_common::{BlockStore, HashOutput};
@@ -130,7 +130,7 @@ pub trait PrivateForest: Send + Sync {
         temporal_key: &'a TemporalKey,
         store: &'a impl BlockStore,
         parent_name: Option<Name>,
-    ) -> LocalBoxStream<'a, Result<PrivateNode>>
+    ) -> BoxStream<'a, Result<PrivateNode>>
     where
         Self: Sized,
     {
