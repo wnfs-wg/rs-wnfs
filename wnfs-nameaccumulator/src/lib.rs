@@ -4,9 +4,15 @@
 
 mod error;
 mod fns;
+#[cfg(any(feature = "rug", feature = "num-bigint-dig"))]
 mod name;
 mod traits;
 mod uint256_serde_be;
 
+#[cfg(not(feature = "rug"))]
+#[cfg(not(feature = "num-bigint-dig"))]
+compile_error!("no backend for big numbers, enable either the 'rug' or 'num-bigint-dig' feature.");
+
+#[cfg(any(feature = "rug", feature = "num-bigint-dig"))]
 pub use name::*;
 pub use traits::*;
