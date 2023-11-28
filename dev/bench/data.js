@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1699375779852,
+  "lastUpdate": 1701197278775,
   "repoUrl": "https://github.com/wnfs-wg/rs-wnfs",
   "entries": {
     "Rust Benchmark": [
@@ -19261,6 +19261,102 @@ window.BENCHMARK_DATA = {
             "name": "NameAccumulator serialization",
             "value": 1010,
             "range": "± 228",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "philipp.krueger1@gmail.com",
+            "name": "Philipp Krüger",
+            "username": "matheus23"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "98d43cb8c7979af0996bdad177338df87bfe636b",
+          "message": "feat: Make rs-wnfs work in multithreaded contexts (#372)\n\nThe main goal of this PR is to enable using rs-wnfs in multithreaded contexts, e.g. in axum webservers.\r\nWe have a test repo to check whether that works in an MVP: https://github.com/fabricedesre/wnfs-mtload/\r\n\r\nPreviously that wasn't possible, since the async futures from rs-wnfs weren't `Send`, so you couldn't have a multi-threaded work-stealing async runtime work on them.\r\nThe reasons they weren't sync were:\r\n- Futures would capture an `impl BlockStore`, and it's not necessarily known to be `Send`\r\n- Futures would capture an `impl PrivateForest` with the same problem\r\n- Some functions would produce `LocalBoxFuture` or `LocalBoxStream`, which aren't `Send`\r\n- We'd use `async_trait(?Send)` and `async_recursion(?Send)` which opt-in to not having `Send` bounds, since that's what we need for wasm\r\n- Futures would capture internal WNFS data structures like `PrivateNode`, which would use `Rc` internally instead of `Arc`, see also #250 \r\n\r\nSome of this work was already addressed in #366. This PR *should* cover the rest.\r\n\r\n---\r\n\r\nThere's a complication with Wasm, where we're e.g. using an external type `extern \"C\" { type BlockStore; ... }`, which isn't `Send` or `Sync`, and as such can't ever implement a `trait BlockStore: Send + Sync`.\r\nTo fix this, we're conditionally compiling in `Send` and `Sync` bounds (and `Arc` and `Rc` and similar) based on the target (See `send_sync_poly.rs`). This is pretty much just copying what noosphere is doing: https://github.com/subconsciousnetwork/noosphere/blob/main/rust/noosphere-common/src/sync.rs\r\n\r\nI'm hoping eventually we just fix this and thus enable multi-threaded Wasm, too. But for now this works.\r\n\r\n---\r\n\r\n* wip - still need to fix the SnapshotBlockStore implementation\r\n\r\n* Fix SnapshotBlockStore impl\r\n\r\n* Fix wnfs=hamt\r\n\r\n* fix: `Send` bounds & `BytesToIpld` implementations\r\n\r\nAlso: fix formatting\r\n\r\n* feat: Also make `PrivateForest` trait `Send + Sync`\r\n\r\nAlso: Remove unneeded `Sync` bounds left over from previous commits.\r\n\r\n* feat: Use `BoxFuture` instead of `LocalBoxFuture` in `PrivateForest` fn\r\n\r\n* feat: Remove `(?Send)` annotations everywhere\r\n\r\n* feat: Conditionally compile `Send + Sync` bounds\r\n\r\nThis relaxes the requirement if you're not on the `wasm32` target.\r\nThe problem is that foreign types in Wasm don't implement `Sync`.\r\n\r\n* chore: Fix all tests & doctests to use thread-safe RNGs\r\n\r\n---------\r\n\r\nCo-authored-by: Fabrice Desré <fabrice@desre.org>",
+          "timestamp": "2023-11-28T19:42:05+01:00",
+          "tree_id": "1093d18bc1ae2fbecefbea06c314042270e42bdb",
+          "url": "https://github.com/wnfs-wg/rs-wnfs/commit/98d43cb8c7979af0996bdad177338df87bfe636b"
+        },
+        "date": 1701197277448,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "node set",
+            "value": 63396,
+            "range": "± 1472",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node set 1000 consecutive",
+            "value": 2910442,
+            "range": "± 145944",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and get",
+            "value": 89267,
+            "range": "± 537",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and remove",
+            "value": 97057,
+            "range": "± 2087",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt load and decode/0",
+            "value": 34283,
+            "range": "± 221",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt set and encode",
+            "value": 83779,
+            "range": "± 1132",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt diff",
+            "value": 37208,
+            "range": "± 2192",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt merge",
+            "value": 109526,
+            "range": "± 7805",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameSegment::new_hashed",
+            "value": 1839643,
+            "range": "± 173097",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameSegment::new(rng)",
+            "value": 1786430,
+            "range": "± 147831",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameAccumulator::add",
+            "value": 1762806,
+            "range": "± 56195",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameAccumulator serialization",
+            "value": 500,
+            "range": "± 61",
             "unit": "ns/iter"
           }
         ]
