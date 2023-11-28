@@ -7,8 +7,8 @@ use async_once_cell::OnceCell;
 use chrono::{DateTime, Utc};
 use libipld_core::cid::Cid;
 use serde::{de::Error as DeError, Deserialize, Deserializer, Serialize, Serializer};
-use std::{collections::BTreeSet, sync::Arc};
-use wnfs_common::{BlockStore, Metadata, RemembersCid};
+use std::collections::BTreeSet;
+use wnfs_common::{utils::Arc, BlockStore, Metadata, RemembersCid};
 
 /// A file in the WNFS public file system.
 ///

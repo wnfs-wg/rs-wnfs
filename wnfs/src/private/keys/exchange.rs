@@ -28,7 +28,8 @@ pub const PUBLIC_KEY_EXPONENT: u64 = 65537;
 /// More on exchange keys [here][key].
 ///
 /// [key]: https://github.com/wnfs-wg/spec/blob/main/spec/shared-private-data.md#2-exchange-keys-partition
-#[async_trait]
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 pub trait ExchangeKey {
     /// Creates an RSA public key from the public key modulus.
     ///
@@ -42,7 +43,8 @@ pub trait ExchangeKey {
 }
 
 /// The `PrivateKey` trait represents a RSA private key type that can be used to decrypt data encrypted with corresponding public key.
-#[async_trait]
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 pub trait PrivateKey {
     /// Decrypts ciphertext with the private key.
     async fn decrypt(&self, ciphertext: &[u8]) -> Result<Vec<u8>>;
@@ -87,7 +89,8 @@ impl RsaPrivateKey {
 }
 
 #[cfg(test)]
-#[async_trait]
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl ExchangeKey for RsaPublicKey {
     async fn encrypt(&self, data: &[u8]) -> Result<Vec<u8>> {
         let padding = Oaep::new::<Sha256>();
@@ -107,7 +110,8 @@ impl ExchangeKey for RsaPublicKey {
 }
 
 #[cfg(test)]
-#[async_trait]
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl PrivateKey for RsaPrivateKey {
     async fn decrypt(&self, ciphertext: &[u8]) -> Result<Vec<u8>> {
         let padding = Oaep::new::<Sha256>();

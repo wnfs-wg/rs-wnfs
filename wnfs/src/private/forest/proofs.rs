@@ -3,11 +3,11 @@ use crate::error::{FsError, VerificationError};
 use anyhow::{bail, Result};
 use async_trait::async_trait;
 use libipld_core::cid::Cid;
-use std::{
-    collections::{BTreeSet, HashMap},
-    sync::Arc,
+use std::collections::{BTreeSet, HashMap};
+use wnfs_common::{
+    utils::{Arc, CondSend},
+    BlockStore, HashOutput,
 };
-use wnfs_common::{BlockStore, HashOutput};
 use wnfs_hamt::Pair;
 use wnfs_nameaccumulator::{
     AccumulatorSetup, BatchedProofPart, BatchedProofVerification, ElementsProof, Name,
@@ -150,7 +150,8 @@ impl Default for ForestProofs {
     }
 }
 
-#[async_trait]
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl PrivateForest for ProvingHamtForest {
     fn empty_name(&self) -> Name {
         self.forest.empty_name()
@@ -179,8 +180,8 @@ impl PrivateForest for ProvingHamtForest {
         store: &impl BlockStore,
     ) -> Result<NameAccumulator>
     where
-        I: IntoIterator<Item = Cid> + Send,
-        I::IntoIter: Send,
+        I: IntoIterator<Item = Cid> + CondSend,
+        I::IntoIter: CondSend,
     {
         let ProvingHamtForest { forest, proofs } = self;
 
@@ -229,8 +230,8 @@ mod tests {
     use anyhow::Result;
     use libipld_core::cid::Cid;
     use rand::thread_rng;
-    use std::{collections::BTreeSet, sync::Arc};
-    use wnfs_common::MemoryBlockStore;
+    use std::collections::BTreeSet;
+    use wnfs_common::{utils::Arc, MemoryBlockStore};
     use wnfs_nameaccumulator::{AccumulatorSetup, Name, NameAccumulator, NameSegment};
 
     #[test]

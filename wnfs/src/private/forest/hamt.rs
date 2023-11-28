@@ -8,8 +8,11 @@ use rand_core::CryptoRngCore;
 use serde::{
     de::Error as DeError, ser::Error as SerError, Deserialize, Deserializer, Serialize, Serializer,
 };
-use std::{collections::BTreeSet, sync::Arc};
-use wnfs_common::{AsyncSerialize, BlockStore, HashOutput, Link};
+use std::collections::BTreeSet;
+use wnfs_common::{
+    utils::{Arc, CondSend},
+    AsyncSerialize, BlockStore, HashOutput, Link,
+};
 use wnfs_hamt::{merge, Hamt, Hasher, KeyValueChange, Pair};
 use wnfs_nameaccumulator::{AccumulatorSetup, ElementsProof, Name, NameAccumulator};
 
@@ -129,7 +132,8 @@ impl HamtForest {
     }
 }
 
-#[async_trait]
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl PrivateForest for HamtForest {
     fn empty_name(&self) -> Name {
         Name::empty(&self.accumulator)
@@ -174,8 +178,8 @@ impl PrivateForest for HamtForest {
         store: &impl BlockStore,
     ) -> Result<NameAccumulator>
     where
-        I: IntoIterator<Item = Cid> + Send,
-        I::IntoIter: Send,
+        I: IntoIterator<Item = Cid> + CondSend,
+        I::IntoIter: CondSend,
     {
         let accumulator = self.get_accumulated_name(name);
         let values = values.into_iter();
@@ -221,7 +225,8 @@ impl PrivateForest for HamtForest {
     }
 }
 
-#[async_trait]
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl PrivateForest for Arc<HamtForest> {
     fn empty_name(&self) -> Name {
         (**self).empty_name()
@@ -250,8 +255,8 @@ impl PrivateForest for Arc<HamtForest> {
         store: &impl BlockStore,
     ) -> Result<NameAccumulator>
     where
-        I: IntoIterator<Item = Cid> + Send,
-        I::IntoIter: Send,
+        I: IntoIterator<Item = Cid> + CondSend,
+        I::IntoIter: CondSend,
     {
         Arc::make_mut(self).put_encrypted(name, values, store).await
     }
@@ -373,11 +378,12 @@ impl HamtForest {
     }
 }
 
-#[async_trait]
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl AsyncSerialize for HamtForest {
     async fn async_serialize<S, B>(&self, serializer: S, store: &B) -> Result<S::Ok, S::Error>
     where
-        S: Serializer + Send,
+        S: Serializer + CondSend,
         B: BlockStore + ?Sized,
     {
         let hamt_ipld = self
@@ -440,7 +446,6 @@ mod tests {
     use chrono::Utc;
     use rand_chacha::ChaCha12Rng;
     use rand_core::SeedableRng;
-    use std::sync::Arc;
     use wnfs_common::MemoryBlockStore;
     use wnfs_nameaccumulator::NameSegment;
 

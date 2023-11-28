@@ -7,11 +7,10 @@ use anyhow::Result;
 use bytes::Bytes;
 use libipld_core::ipld::Ipld;
 use rand_core::CryptoRngCore;
-use std::sync::Arc;
 use wnfs_common::{
     decode,
     libipld::cbor::DagCborCodec,
-    utils::{BytesToIpld, SnapshotBlockStore},
+    utils::{Arc, BytesToIpld, CondSend, SnapshotBlockStore},
 };
 use wnfs_nameaccumulator::Name;
 
@@ -56,7 +55,7 @@ pub(crate) async fn walk_dir(
     store: &mut SnapshotBlockStore,
     forest: &mut Arc<HamtForest>,
     root_dir: &Arc<PrivateDirectory>,
-    rng: &mut (impl CryptoRngCore + Send),
+    rng: &mut (impl CryptoRngCore + CondSend),
 ) -> Result<()> {
     let mut stack = vec![root_dir.clone()];
     while let Some(dir) = stack.pop() {

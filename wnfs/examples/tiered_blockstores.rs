@@ -17,6 +17,7 @@ use wnfs::{
         PrivateDirectory, PrivateNode,
     },
 };
+use wnfs_common::utils::CondSend;
 
 #[async_std::main]
 async fn main() -> Result<()> {
@@ -95,7 +96,8 @@ struct TieredBlockStore<H: BlockStore, C: BlockStore> {
     cold: C,
 }
 
-#[async_trait]
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl<H: BlockStore, C: BlockStore> BlockStore for TieredBlockStore<H, C> {
     async fn get_block(&self, cid: &Cid) -> Result<Bytes> {
         match self.hot.get_block(cid).await {
@@ -106,7 +108,7 @@ impl<H: BlockStore, C: BlockStore> BlockStore for TieredBlockStore<H, C> {
         }
     }
 
-    async fn put_block(&self, bytes: impl Into<Bytes> + Send, codec: u64) -> Result<Cid> {
+    async fn put_block(&self, bytes: impl Into<Bytes> + CondSend, codec: u64) -> Result<Cid> {
         self.hot.put_block(bytes.into(), codec).await
     }
 }

@@ -1,13 +1,14 @@
-use crate::{traits::IpldEq, AsyncSerialize, BlockStore};
+use crate::{
+    traits::IpldEq,
+    utils::{Arc, CondSync},
+    AsyncSerialize, BlockStore,
+};
 use anyhow::Result;
 use async_once_cell::OnceCell;
 use async_trait::async_trait;
 use libipld::Cid;
 use serde::de::DeserializeOwned;
-use std::{
-    fmt::{self, Debug, Formatter},
-    sync::Arc,
-};
+use std::fmt::{self, Debug, Formatter};
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
@@ -34,7 +35,7 @@ pub enum Link<T> {
 // Implementations
 //--------------------------------------------------------------------------------------------------
 
-impl<T: RemembersCid + Sync> Link<T> {
+impl<T: RemembersCid + CondSync> Link<T> {
     /// Creates a new `Link` that starts out as a Cid.
     pub fn from_cid(cid: Cid) -> Self {
         Self::Encoded {
@@ -172,8 +173,9 @@ impl<T: RemembersCid + Sync> Link<T> {
     }
 }
 
-#[async_trait]
-impl<T: PartialEq + AsyncSerialize + RemembersCid + Send + Sync> IpldEq for Link<T> {
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
+impl<T: PartialEq + AsyncSerialize + RemembersCid + CondSync> IpldEq for Link<T> {
     async fn eq(&self, other: &Link<T>, store: &impl BlockStore) -> Result<bool> {
         if self == other {
             return Ok(true);
@@ -210,7 +212,7 @@ where
     }
 }
 
-impl<T: RemembersCid + Sync> PartialEq for Link<T>
+impl<T: RemembersCid + CondSync> PartialEq for Link<T>
 where
     T: PartialEq,
 {
@@ -268,7 +270,9 @@ impl<T: RemembersCid> RemembersCid for Arc<T> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{AsyncSerialize, BlockStore, Link, MemoryBlockStore, RemembersCid};
+    use crate::{
+        utils::CondSend, AsyncSerialize, BlockStore, Link, MemoryBlockStore, RemembersCid,
+    };
     use ::serde::{Deserialize, Serialize};
     use async_once_cell::OnceCell;
     use async_trait::async_trait;
@@ -282,12 +286,13 @@ mod tests {
         persisted_as: OnceCell<Cid>,
     }
 
-    #[async_trait]
+    #[cfg_attr(not(target_arch = "wasm32"), async_trait)]
+    #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
     impl AsyncSerialize for Example {
         async fn async_serialize<S, B>(&self, serializer: S, _store: &B) -> Result<S::Ok, S::Error>
         where
-            S: Serializer + Send,
-            B: BlockStore + ?Sized + Sync,
+            S: Serializer + CondSend,
+            B: BlockStore + ?Sized,
         {
             self.serialize(serializer)
         }

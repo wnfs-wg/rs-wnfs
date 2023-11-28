@@ -6,8 +6,8 @@ use crate::error::FsError;
 use anyhow::{bail, Result};
 use libipld_core::cid::Cid;
 use skip_ratchet::{PreviousIterator, Ratchet};
-use std::{collections::BTreeSet, sync::Arc};
-use wnfs_common::{BlockStore, PathNodes, PathNodesResult};
+use std::collections::BTreeSet;
+use wnfs_common::{utils::Arc, BlockStore, PathNodes, PathNodesResult};
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions

@@ -1,3 +1,4 @@
+use super::Arc;
 use crate::HashOutput;
 use anyhow::Result;
 use bytes::Bytes;
@@ -6,7 +7,7 @@ use libipld::{Cid, IpldCodec};
 use parking_lot::Mutex;
 use rand_core::CryptoRngCore;
 use serde::{Deserialize, Serialize, Serializer};
-use std::{collections::HashMap, sync::Arc};
+use std::collections::HashMap;
 
 //--------------------------------------------------------------------------------------------------
 // Functions

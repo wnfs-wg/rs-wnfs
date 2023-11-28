@@ -43,7 +43,7 @@ async fn main() -> Result<()> {
     .await?;
 
     // We store the content in the file metadata.
-    // This will update the `file: Rc<PrivateFile>` for us with a new reference.
+    // This will update the `file: Arc<PrivateFile>` for us with a new reference.
     file.get_metadata_mut_rc()?
         .put("thumbnail", content.as_metadata_value()?);
 

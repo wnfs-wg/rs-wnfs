@@ -1,4 +1,4 @@
-use crate::{AsyncSerialize, BlockStore};
+use crate::{utils::CondSync, AsyncSerialize, BlockStore};
 use anyhow::Result;
 use libipld::{
     codec::{Decode, Encode},
@@ -24,7 +24,7 @@ where
 /// Encodes an async serializable value into DagCbor bytes.
 pub async fn async_encode<V, C>(value: &V, store: &impl BlockStore, codec: C) -> Result<Vec<u8>>
 where
-    V: AsyncSerialize + Sync,
+    V: AsyncSerialize + CondSync,
     C: Codec,
     Ipld: Encode<C>,
 {

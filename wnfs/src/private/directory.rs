@@ -12,9 +12,11 @@ use rand_core::CryptoRngCore;
 use std::{
     collections::{BTreeMap, BTreeSet},
     fmt::Debug,
-    sync::Arc,
 };
-use wnfs_common::{utils::error, BlockStore, Metadata, PathNodes, PathNodesResult, CODEC_RAW};
+use wnfs_common::{
+    utils::{error, Arc, CondSend},
+    BlockStore, Metadata, PathNodes, PathNodesResult, CODEC_RAW,
+};
 use wnfs_nameaccumulator::{Name, NameSegment};
 
 //--------------------------------------------------------------------------------------------------
@@ -80,7 +82,7 @@ impl PrivateDirectory {
     pub fn new(
         parent_name: &Name,
         time: DateTime<Utc>,
-        rng: &mut (impl CryptoRngCore + Send),
+        rng: &mut (impl CryptoRngCore + CondSend),
     ) -> Self {
         Self {
             header: PrivateNodeHeader::new(parent_name, rng),
@@ -115,7 +117,7 @@ impl PrivateDirectory {
     pub fn new_rc(
         parent_name: &Name,
         time: DateTime<Utc>,
-        rng: &mut (impl CryptoRngCore + Send),
+        rng: &mut (impl CryptoRngCore + CondSend),
     ) -> Arc<Self> {
         Arc::new(Self::new(parent_name, time, rng))
     }
@@ -126,7 +128,7 @@ impl PrivateDirectory {
         time: DateTime<Utc>,
         forest: &mut impl PrivateForest,
         store: &impl BlockStore,
-        rng: &mut (impl CryptoRngCore + Send),
+        rng: &mut (impl CryptoRngCore + CondSend),
     ) -> Result<Arc<Self>> {
         let dir = Arc::new(Self::new(parent_name, time, rng));
         dir.store(forest, store, rng).await?;
@@ -360,7 +362,7 @@ impl PrivateDirectory {
         search_latest: bool,
         forest: &impl PrivateForest,
         store: &impl BlockStore,
-        rng: &mut (impl CryptoRngCore + Send),
+        rng: &mut (impl CryptoRngCore + CondSend),
     ) -> Result<&'a mut Self> {
         match self
             .get_leaf_dir_mut(path_segments, search_latest, forest, store)
@@ -426,7 +428,7 @@ impl PrivateDirectory {
     pub(crate) fn prepare_key_rotation(
         &mut self,
         parent_name: &Name,
-        rng: &mut (impl CryptoRngCore + Send),
+        rng: &mut (impl CryptoRngCore + CondSend),
     ) {
         self.header.inumber = NameSegment::new(rng);
         self.header.update_name(parent_name);
@@ -624,7 +626,7 @@ impl PrivateDirectory {
         time: DateTime<Utc>,
         forest: &mut impl PrivateForest,
         store: &impl BlockStore,
-        rng: &mut (impl CryptoRngCore + Send),
+        rng: &mut (impl CryptoRngCore + CondSend),
     ) -> Result<&'a mut PrivateFile> {
         let (path, filename) = crate::utils::split_last(path_segments)?;
         let dir = self
@@ -699,7 +701,7 @@ impl PrivateDirectory {
         content: Vec<u8>,
         forest: &mut impl PrivateForest,
         store: &impl BlockStore,
-        rng: &mut (impl CryptoRngCore + Send),
+        rng: &mut (impl CryptoRngCore + CondSend),
     ) -> Result<()> {
         let (path, filename) = crate::utils::split_last(path_segments)?;
         let dir = self
@@ -833,7 +835,7 @@ impl PrivateDirectory {
         time: DateTime<Utc>,
         forest: &impl PrivateForest,
         store: &impl BlockStore,
-        rng: &mut (impl CryptoRngCore + Send),
+        rng: &mut (impl CryptoRngCore + CondSend),
     ) -> Result<()> {
         let _ = self
             .get_or_create_leaf_dir_mut(path_segments, time, search_latest, forest, store, rng)
@@ -1023,7 +1025,7 @@ impl PrivateDirectory {
         time: DateTime<Utc>,
         forest: &mut impl PrivateForest,
         store: &impl BlockStore,
-        rng: &mut (impl CryptoRngCore + Send),
+        rng: &mut (impl CryptoRngCore + CondSend),
     ) -> Result<()> {
         let (path, node_name) = crate::utils::split_last(path_segments)?;
         let SearchResult::Found(dir) = self
@@ -1115,7 +1117,7 @@ impl PrivateDirectory {
         time: DateTime<Utc>,
         forest: &mut impl PrivateForest,
         store: &impl BlockStore,
-        rng: &mut (impl CryptoRngCore + Send),
+        rng: &mut (impl CryptoRngCore + CondSend),
     ) -> Result<()> {
         let removed_node = self
             .rm(path_segments_from, search_latest, forest, store)
@@ -1200,7 +1202,7 @@ impl PrivateDirectory {
         time: DateTime<Utc>,
         forest: &mut impl PrivateForest,
         store: &impl BlockStore,
-        rng: &mut (impl CryptoRngCore + Send),
+        rng: &mut (impl CryptoRngCore + CondSend),
     ) -> Result<()> {
         let result = self
             .get_node(path_segments_from, search_latest, forest, store)
@@ -1223,7 +1225,7 @@ impl PrivateDirectory {
         &self,
         forest: &mut impl PrivateForest,
         store: &impl BlockStore,
-        rng: &mut (impl CryptoRngCore + Send),
+        rng: &mut (impl CryptoRngCore + CondSend),
     ) -> Result<PrivateRef> {
         let header_cid = self.header.store(store, forest).await?;
         let temporal_key = self.header.derive_temporal_key();
@@ -1300,7 +1302,7 @@ impl PrivateDirectoryContent {
         header_cid: Cid,
         forest: &mut impl PrivateForest,
         store: &impl BlockStore,
-        rng: &mut (impl CryptoRngCore + Send),
+        rng: &mut (impl CryptoRngCore + CondSend),
     ) -> Result<Vec<u8>> {
         let mut entries = BTreeMap::new();
 
@@ -1340,7 +1342,7 @@ impl PrivateDirectoryContent {
         temporal_key: &TemporalKey,
         forest: &mut impl PrivateForest,
         store: &impl BlockStore,
-        rng: &mut (impl CryptoRngCore + Send),
+        rng: &mut (impl CryptoRngCore + CondSend),
     ) -> Result<Cid> {
         Ok(*self
             .persisted_as

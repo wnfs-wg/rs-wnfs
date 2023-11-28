@@ -14,6 +14,7 @@ use wnfs::{
         AccessKey, PrivateDirectory, PrivateNode,
     },
 };
+use wnfs_common::utils::CondSend;
 
 #[async_std::main]
 async fn main() -> Result<()> {
@@ -40,7 +41,7 @@ async fn main() -> Result<()> {
 
 async fn create_forest_and_add_directory(
     store: &impl BlockStore,
-    rng: &mut (impl CryptoRngCore + Send),
+    rng: &mut (impl CryptoRngCore + CondSend),
 ) -> Result<(Cid, AccessKey)> {
     // Do a trusted setup for WNFS' name accumulators
     let setup = AccumulatorSetup::trusted(rng);

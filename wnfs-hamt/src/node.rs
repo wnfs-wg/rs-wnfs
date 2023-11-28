@@ -10,7 +10,6 @@ use async_recursion::async_recursion;
 use async_trait::async_trait;
 use bitvec::array::BitArray;
 use either::{Either, Either::*};
-use futures::future::BoxFuture;
 use libipld::{serde as ipld_serde, Cid, Ipld};
 #[cfg(feature = "log")]
 use log::debug;
@@ -25,9 +24,11 @@ use std::{
     fmt::{self, Debug, Formatter},
     hash::Hash,
     marker::PhantomData,
-    sync::Arc,
 };
-use wnfs_common::{AsyncSerialize, BlockStore, HashOutput, Link, RemembersCid};
+use wnfs_common::{
+    utils::{Arc, BoxFuture, CondSend, CondSync},
+    AsyncSerialize, BlockStore, HashOutput, Link, RemembersCid,
+};
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
@@ -52,9 +53,9 @@ pub type BitMaskType = [u8; HAMT_BITMASK_BYTE_SIZE];
 /// ```
 pub struct Node<K, V, H = blake3::Hasher>
 where
-    H: Hasher + Sync + Send,
-    K: Sync + Send,
-    V: Sync + Send,
+    H: Hasher + CondSync,
+    K: CondSync,
+    V: CondSync,
 {
     persisted_as: OnceCell<Cid>,
     pub(crate) bitmask: BitArray<BitMaskType>,
@@ -68,9 +69,9 @@ where
 
 impl<K, V, H> Node<K, V, H>
 where
-    H: Hasher + 'static + Sync + Send,
-    K: Sync + Send,
-    V: Sync + Send,
+    H: Hasher + 'static + CondSync,
+    K: CondSync,
+    V: CondSync,
 {
     /// Sets a new value at the given key.
     ///
@@ -415,7 +416,8 @@ where
         })
     }
 
-    #[async_recursion]
+    #[cfg_attr(not(target_arch = "wasm32"), async_recursion)]
+    #[cfg_attr(target_arch = "wasm32", async_recursion(?Send))]
     pub async fn get_value<'a>(
         &'a self,
         hashnibbles: &mut HashNibbles,
@@ -446,7 +448,8 @@ where
         }
     }
 
-    #[async_recursion]
+    #[cfg_attr(not(target_arch = "wasm32"), async_recursion)]
+    #[cfg_attr(target_arch = "wasm32", async_recursion(?Send))]
     pub async fn get_value_mut<'a>(
         self: &'a mut Arc<Self>,
         hashnibbles: &mut HashNibbles,
@@ -588,14 +591,15 @@ where
     ///     assert_eq!(keys.len(), 99);
     /// }
     /// ```
-    #[async_recursion]
+    #[cfg_attr(not(target_arch = "wasm32"), async_recursion)]
+    #[cfg_attr(target_arch = "wasm32", async_recursion(?Send))]
     pub async fn flat_map<F, T, B>(&self, f: &F, store: &B) -> Result<Vec<T>>
     where
         B: BlockStore,
-        F: Fn(&Pair<K, V>) -> Result<T> + Sync,
+        F: Fn(&Pair<K, V>) -> Result<T> + CondSync,
         K: DeserializeOwned,
         V: DeserializeOwned,
-        T: Send,
+        T: CondSend,
     {
         let mut items = <Vec<T>>::new();
         for p in self.pointers.iter() {
@@ -643,7 +647,8 @@ where
     ///     println!("Result: {:#?}", result);
     /// }
     /// ```
-    #[async_recursion]
+    #[cfg_attr(not(target_arch = "wasm32"), async_recursion)]
+    #[cfg_attr(target_arch = "wasm32", async_recursion(?Send))]
     pub async fn get_node_at<'a, B>(
         &'a self,
         hashprefix: &HashPrefix,
@@ -657,7 +662,8 @@ where
         self.get_node_at_helper(hashprefix, 0, store).await
     }
 
-    #[async_recursion]
+    #[cfg_attr(not(target_arch = "wasm32"), async_recursion)]
+    #[cfg_attr(target_arch = "wasm32", async_recursion(?Send))]
     async fn get_node_at_helper<'a, B>(
         &'a self,
         hashprefix: &HashPrefix,
@@ -743,7 +749,7 @@ where
     }
 }
 
-impl<K: Sync + Send, V: Sync + Send, H: Hasher + Sync + Send> Node<K, V, H> {
+impl<K: CondSync, V: CondSync, H: Hasher + CondSync> Node<K, V, H> {
     /// Returns the count of the values in all the values pointer of a node.
     pub fn count_values(self: &Arc<Self>) -> Result<usize> {
         let mut len = 0;
@@ -760,10 +766,10 @@ impl<K: Sync + Send, V: Sync + Send, H: Hasher + Sync + Send> Node<K, V, H> {
 
     // TODO(appcypher): Do we really need this? Why not use PublicDirectorySerializable style instead.
     /// Converts a Node to an IPLD object.
-    pub async fn to_ipld<B: BlockStore + ?Sized + Sync>(&self, store: &B) -> Result<Ipld>
+    pub async fn to_ipld<B: BlockStore + ?Sized>(&self, store: &B) -> Result<Ipld>
     where
-        K: Serialize + Sync + Send,
-        V: Serialize + Sync + Send,
+        K: Serialize + CondSync,
+        V: Serialize + CondSync,
     {
         let bitmask_ipld = ipld_serde::to_ipld(ByteArray::from(self.bitmask.into_inner()))?;
         let pointers_ipld = {
@@ -778,9 +784,7 @@ impl<K: Sync + Send, V: Sync + Send, H: Hasher + Sync + Send> Node<K, V, H> {
     }
 }
 
-impl<K: Clone + Sync + Send, V: Sync + Send + Clone, H: Hasher + Sync + Send> Clone
-    for Node<K, V, H>
-{
+impl<K: Clone + CondSync, V: CondSync + Clone, H: Hasher + CondSync> Clone for Node<K, V, H> {
     fn clone(&self) -> Self {
         Self {
             persisted_as: self
@@ -796,13 +800,13 @@ impl<K: Clone + Sync + Send, V: Sync + Send + Clone, H: Hasher + Sync + Send> Cl
     }
 }
 
-impl<K: Sync + Send, V: Sync + Send, H: Hasher + Sync + Send> RemembersCid for Node<K, V, H> {
+impl<K: CondSync, V: CondSync, H: Hasher + CondSync> RemembersCid for Node<K, V, H> {
     fn persisted_as(&self) -> &OnceCell<Cid> {
         &self.persisted_as
     }
 }
 
-impl<K: Sync + Send, V: Sync + Send, H: Hasher + Sync + Send> Default for Node<K, V, H> {
+impl<K: CondSync, V: CondSync, H: Hasher + CondSync> Default for Node<K, V, H> {
     fn default() -> Self {
         Node {
             persisted_as: OnceCell::new(),
@@ -813,17 +817,18 @@ impl<K: Sync + Send, V: Sync + Send, H: Hasher + Sync + Send> Default for Node<K
     }
 }
 
-#[async_trait]
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl<K, V, H> AsyncSerialize for Node<K, V, H>
 where
-    K: Serialize + Send + Sync,
-    V: Serialize + Send + Sync,
-    H: Hasher + Send + Sync,
+    K: Serialize + CondSync,
+    V: Serialize + CondSync,
+    H: Hasher + CondSync,
 {
     async fn async_serialize<S, B>(&self, serializer: S, store: &B) -> Result<S::Ok, S::Error>
     where
-        S: Serializer + Send,
-        B: BlockStore + ?Sized + Sync,
+        S: Serializer + CondSend,
+        B: BlockStore + ?Sized,
     {
         self.to_ipld(store)
             .await
@@ -834,9 +839,9 @@ where
 
 impl<'de, K, V, H> Deserialize<'de> for Node<K, V, H>
 where
-    K: DeserializeOwned + Send + Sync,
-    V: DeserializeOwned + Send + Sync,
-    H: Hasher + Send + Sync,
+    K: DeserializeOwned + CondSync,
+    V: DeserializeOwned + CondSync,
+    H: Hasher + CondSync,
 {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
@@ -871,9 +876,9 @@ where
 
 impl<K, V, H> PartialEq for Node<K, V, H>
 where
-    K: PartialEq + Send + Sync,
-    V: PartialEq + Send + Sync,
-    H: Hasher + Send + Sync,
+    K: PartialEq + CondSync,
+    V: PartialEq + CondSync,
+    H: Hasher + CondSync,
 {
     fn eq(&self, other: &Self) -> bool {
         self.bitmask == other.bitmask && self.pointers == other.pointers
@@ -882,9 +887,9 @@ where
 
 impl<K, V, H> Debug for Node<K, V, H>
 where
-    K: Debug + Sync + Send,
-    V: Debug + Sync + Send,
-    H: Hasher + Sync + Send,
+    K: Debug + CondSync,
+    V: Debug + CondSync,
+    H: Hasher + CondSync,
 {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         let mut bitmask_str = String::new();

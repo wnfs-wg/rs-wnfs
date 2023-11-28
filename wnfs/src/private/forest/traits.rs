@@ -5,10 +5,12 @@ use crate::{
 use anyhow::Result;
 use async_stream::stream;
 use async_trait::async_trait;
-use futures::stream::BoxStream;
 use libipld_core::cid::Cid;
 use std::collections::BTreeSet;
-use wnfs_common::{BlockStore, HashOutput};
+use wnfs_common::{
+    utils::{BoxStream, CondSend, CondSync},
+    BlockStore, HashOutput,
+};
 use wnfs_hamt::Pair;
 use wnfs_nameaccumulator::{AccumulatorSetup, ElementsProof, Name, NameAccumulator};
 
@@ -18,8 +20,9 @@ use wnfs_nameaccumulator::{AccumulatorSetup, ElementsProof, Name, NameAccumulato
 /// It also stores the accumulator setup information for running
 /// name accumulator operations. Upon put or remove, it'll run
 /// these operations for the caller.
-#[async_trait]
-pub trait PrivateForest: Send + Sync {
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
+pub trait PrivateForest: CondSync {
     /// Construct what represents the empty name in this forest.
     ///
     /// It is forest-specific, as it depends on the specific forest's
@@ -95,8 +98,8 @@ pub trait PrivateForest: Send + Sync {
         store: &impl BlockStore,
     ) -> Result<NameAccumulator>
     where
-        I: IntoIterator<Item = Cid> + Send,
-        I::IntoIter: Send;
+        I: IntoIterator<Item = Cid> + CondSend,
+        I::IntoIter: CondSend;
 
     /// Gets the CIDs to blocks of ciphertext by hash of name.
     async fn get_encrypted_by_hash<'b>(

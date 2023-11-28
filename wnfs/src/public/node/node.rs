@@ -12,8 +12,11 @@ use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use libipld_core::cid::Cid;
 use serde::{de::Error as DeError, Deserialize, Deserializer, Serialize, Serializer};
-use std::{collections::BTreeSet, sync::Arc};
-use wnfs_common::{AsyncSerialize, BlockStore, RemembersCid};
+use std::collections::BTreeSet;
+use wnfs_common::{
+    utils::{Arc, CondSend},
+    AsyncSerialize, BlockStore, RemembersCid,
+};
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
@@ -303,11 +306,12 @@ impl<'de> Deserialize<'de> for PublicNode {
 }
 
 /// Implements async deserialization for serde serializable types.
-#[async_trait]
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl AsyncSerialize for PublicNode {
     async fn async_serialize<S, B>(&self, serializer: S, store: &B) -> Result<S::Ok, S::Error>
     where
-        S: Serializer + Send,
+        S: Serializer + CondSend,
         B: BlockStore + ?Sized,
     {
         match self {

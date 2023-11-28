@@ -3,8 +3,7 @@
 use super::{PublicDirectory, PublicFile, PublicNode};
 use anyhow::Result;
 use libipld_core::cid::Cid;
-use std::sync::Arc;
-use wnfs_common::{BlockStore, Link};
+use wnfs_common::{utils::Arc, BlockStore, Link};
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions

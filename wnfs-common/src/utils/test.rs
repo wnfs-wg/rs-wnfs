@@ -1,5 +1,7 @@
+use super::{Arc, CondSend, CondSync};
 use crate::{BlockStore, MemoryBlockStore, CODEC_DAG_CBOR, CODEC_RAW};
 use anyhow::Result;
+use async_trait::async_trait;
 use base64_serde::base64_serde_type;
 use bytes::Bytes;
 use libipld::{
@@ -18,14 +20,13 @@ use serde_json::Value;
 use std::{
     collections::{BTreeMap, HashMap},
     io::Cursor,
-    sync::Arc,
 };
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
 //--------------------------------------------------------------------------------------------------
 
-pub trait BytesToIpld: Send + Sync {
+pub trait BytesToIpld: CondSync {
     fn convert(&self, bytes: &Bytes) -> Result<Ipld>;
 }
 
@@ -98,7 +99,8 @@ impl SnapshotBlockStore {
     }
 }
 
-#[async_trait::async_trait]
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl BlockStore for SnapshotBlockStore {
     #[inline]
     async fn get_block(&self, cid: &Cid) -> Result<Bytes> {
@@ -106,7 +108,7 @@ impl BlockStore for SnapshotBlockStore {
     }
 
     #[inline]
-    async fn put_block(&self, bytes: impl Into<Bytes> + Send, codec: u64) -> Result<Cid> {
+    async fn put_block(&self, bytes: impl Into<Bytes> + CondSend, codec: u64) -> Result<Cid> {
         self.inner.put_block(bytes, codec).await
     }
 }

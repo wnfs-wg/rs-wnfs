@@ -8,7 +8,7 @@ use anyhow::{bail, Result};
 use async_once_cell::OnceCell;
 use async_stream::try_stream;
 use chrono::{DateTime, Utc};
-use futures::{future, stream::LocalBoxStream, AsyncRead, Stream, StreamExt, TryStreamExt};
+use futures::{future, AsyncRead, Stream, StreamExt, TryStreamExt};
 use libipld_core::{
     cid::Cid,
     ipld::Ipld,
@@ -16,8 +16,11 @@ use libipld_core::{
 };
 use rand_core::CryptoRngCore;
 use serde::{Deserialize, Serialize};
-use std::{collections::BTreeSet, iter, sync::Arc};
-use wnfs_common::{utils, BlockStore, Metadata, CODEC_RAW, MAX_BLOCK_SIZE};
+use std::{collections::BTreeSet, iter};
+use wnfs_common::{
+    utils::{self, Arc, BoxStream},
+    BlockStore, Metadata, CODEC_RAW, MAX_BLOCK_SIZE,
+};
 use wnfs_nameaccumulator::{Name, NameAccumulator, NameSegment};
 
 //--------------------------------------------------------------------------------------------------
@@ -479,7 +482,7 @@ impl PrivateFile {
         index: usize,
         forest: &'a impl PrivateForest,
         store: &'a impl BlockStore,
-    ) -> LocalBoxStream<'a, Result<Vec<u8>>> {
+    ) -> BoxStream<'a, Result<Vec<u8>>> {
         match &self.content.content {
             FileContent::Inline { data } => Box::pin(try_stream! {
                 if index != 0 {

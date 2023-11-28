@@ -2,8 +2,11 @@ use crate::Node;
 use anyhow::Result;
 use proptest::{collection::*, prelude::*, strategy::Shuffleable};
 use serde::{de::DeserializeOwned, Serialize};
-use std::{collections::HashMap, fmt::Debug, hash::Hash, sync::Arc};
-use wnfs_common::BlockStore;
+use std::{collections::HashMap, fmt::Debug, hash::Hash};
+use wnfs_common::{
+    utils::{Arc, CondSync},
+    BlockStore,
+};
 
 //--------------------------------------------------------------------------------------------------
 // Types
@@ -180,7 +183,7 @@ where
 ///     println!("{:?}", node);
 /// }
 /// ```
-pub async fn node_from_operations<K: Send + Sync, V: Send + Sync>(
+pub async fn node_from_operations<K: CondSync, V: CondSync>(
     operations: &Operations<K, V>,
     store: &impl BlockStore,
 ) -> Result<Arc<Node<K, V>>>

@@ -1,8 +1,10 @@
-use crate::BlockStore;
+use crate::{
+    utils::{Arc, CondSend, CondSync},
+    BlockStore,
+};
 use async_trait::async_trait;
 use libipld::{error::SerdeError, serde as ipld_serde, Ipld};
 use serde::{Serialize, Serializer};
-use std::sync::Arc;
 
 //--------------------------------------------------------------------------------------------------
 // Macros
@@ -11,9 +13,10 @@ use std::sync::Arc;
 macro_rules! impl_async_serialize {
     ( $( $ty:ty $( : < $( $generics:ident ),+ > )? ),+ ) => {
         $(
-            #[async_trait]
-            impl $( < $( $generics ),+ > )? AsyncSerialize for $ty $( where $( $generics: Serialize + Sync ),+  )? {
-                async fn async_serialize<S: Serializer + Send, BS: BlockStore>(
+            #[cfg_attr(not(target_arch = "wasm32"), async_trait)]
+            #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
+            impl $( < $( $generics ),+ > )? AsyncSerialize for $ty $( where $( $generics: Serialize + CondSync ),+  )? {
+                async fn async_serialize<S: Serializer + CondSend, BS: BlockStore>(
                     &self,
                     serializer: S,
                     _: &BS,
@@ -38,18 +41,19 @@ macro_rules! impl_async_serialize {
 ///
 /// An example of this is the PublicDirectory which can contain links to other IPLD nodes.
 /// These links need to be resolved to Cids during serialization if they aren't already.
-#[async_trait]
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 pub trait AsyncSerialize {
     /// Serializes the type.
     async fn async_serialize<S, B>(&self, serializer: S, store: &B) -> Result<S::Ok, S::Error>
     where
-        S: Serializer + Send,
-        B: BlockStore + ?Sized + Sync;
+        S: Serializer + CondSend,
+        B: BlockStore + ?Sized;
 
     /// Serialize with an IPLD serializer.
     async fn async_serialize_ipld<B>(&self, store: &B) -> Result<Ipld, SerdeError>
     where
-        B: BlockStore + ?Sized + Sync,
+        B: BlockStore + ?Sized,
     {
         self.async_serialize(ipld_serde::Serializer, store).await
     }
@@ -59,12 +63,13 @@ pub trait AsyncSerialize {
 // Implementations
 //--------------------------------------------------------------------------------------------------
 
-#[async_trait]
-impl<T: AsyncSerialize + Sync + Send> AsyncSerialize for Arc<T> {
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
+impl<T: AsyncSerialize + CondSync> AsyncSerialize for Arc<T> {
     async fn async_serialize<S, B>(&self, serializer: S, store: &B) -> Result<S::Ok, S::Error>
     where
-        S: Serializer + Send,
-        B: BlockStore + ?Sized + Sync,
+        S: Serializer + CondSend,
+        B: BlockStore + ?Sized,
     {
         self.as_ref().async_serialize(serializer, store).await
     }
