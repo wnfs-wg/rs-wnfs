@@ -25,9 +25,10 @@ use wnfs_nameaccumulator::{Name, NameSegment};
 /// use wnfs::private::PrivateFile;
 /// use wnfs_nameaccumulator::{AccumulatorSetup, Name};
 /// use chrono::Utc;
-/// use rand::thread_rng;
+/// use rand_chacha::ChaCha12Rng;
+/// use rand_core::SeedableRng;
 ///
-/// let rng = &mut thread_rng();
+/// let rng = &mut ChaCha12Rng::from_entropy();
 /// let setup = &AccumulatorSetup::from_rsa_2048(rng);
 /// let file = PrivateFile::new(
 ///     &Name::empty(setup),
@@ -102,9 +103,10 @@ impl PrivateNodeHeader {
     /// use wnfs::private::PrivateFile;
     /// use wnfs_nameaccumulator::{AccumulatorSetup, Name};
     /// use chrono::Utc;
-    /// use rand::thread_rng;
+    /// use rand_chacha::ChaCha12Rng;
+    /// use rand_core::SeedableRng;
     ///
-    /// let rng = &mut thread_rng();
+    /// let rng = &mut ChaCha12Rng::from_entropy();
     /// let setup = &AccumulatorSetup::from_rsa_2048(rng);
     /// let file = PrivateFile::new(&Name::empty(setup), Utc::now(), rng);
     /// let temporal_key = file.header.derive_temporal_key();
@@ -133,9 +135,10 @@ impl PrivateNodeHeader {
     ///     forest::{hamt::HamtForest, traits::PrivateForest},
     /// };
     /// use chrono::Utc;
-    /// use rand::thread_rng;
+    /// use rand_chacha::ChaCha12Rng;
+    /// use rand_core::SeedableRng;
     ///
-    /// let rng = &mut thread_rng();
+    /// let rng = &mut ChaCha12Rng::from_entropy();
     /// let forest = &mut HamtForest::new_rsa_2048_rc(rng);
     /// let file = PrivateFile::new(&forest.empty_name(), Utc::now(), rng);
     /// let revision_name = file.header.get_revision_name();

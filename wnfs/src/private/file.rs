@@ -47,7 +47,8 @@ pub const MAX_BLOCK_CONTENT_SIZE: usize = MAX_BLOCK_SIZE - NONCE_SIZE - AUTHENTI
 /// ```
 /// use anyhow::Result;
 /// use chrono::Utc;
-/// use rand::thread_rng;
+/// use rand_chacha::ChaCha12Rng;
+/// use rand_core::SeedableRng;
 /// use wnfs::{
 ///     private::{PrivateFile, forest::{hamt::HamtForest, traits::PrivateForest}},
 ///     common::{MemoryBlockStore, utils::get_random_bytes},
@@ -56,7 +57,7 @@ pub const MAX_BLOCK_CONTENT_SIZE: usize = MAX_BLOCK_SIZE - NONCE_SIZE - AUTHENTI
 /// #[async_std::main]
 /// async fn main() -> Result<()> {
 ///     let store = &MemoryBlockStore::new();
-///     let rng = &mut thread_rng();
+///     let rng = &mut ChaCha12Rng::from_entropy();
 ///     let forest = &mut HamtForest::new_rsa_2048_rc(rng);
 ///
 ///     let file = PrivateFile::with_content(
@@ -127,9 +128,10 @@ impl PrivateFile {
     ///     PrivateFile, forest::{hamt::HamtForest, traits::PrivateForest},
     /// };
     /// use chrono::Utc;
-    /// use rand::thread_rng;
+    /// use rand_chacha::ChaCha12Rng;
+    /// use rand_core::SeedableRng;
     ///
-    /// let rng = &mut thread_rng();
+    /// let rng = &mut ChaCha12Rng::from_entropy();
     /// let forest = HamtForest::new_rsa_2048(rng);
     /// let file = PrivateFile::new(&forest.empty_name(), Utc::now(), rng);
     ///
@@ -156,9 +158,10 @@ impl PrivateFile {
     ///     PrivateFile, forest::{hamt::HamtForest, traits::PrivateForest},
     /// };
     /// use chrono::Utc;
-    /// use rand::thread_rng;
+    /// use rand_chacha::ChaCha12Rng;
+    /// use rand_core::SeedableRng;
     ///
-    /// let rng = &mut thread_rng();
+    /// let rng = &mut ChaCha12Rng::from_entropy();
     /// let forest = HamtForest::new_rsa_2048(rng);
     /// let file = PrivateFile::new_rc(&forest.empty_name(), Utc::now(), rng);
     ///
@@ -178,7 +181,8 @@ impl PrivateFile {
     ///
     /// ```
     /// use chrono::Utc;
-    /// use rand::thread_rng;
+    /// use rand_chacha::ChaCha12Rng;
+    /// use rand_core::SeedableRng;
     /// use wnfs::{
     ///     private::{PrivateFile, forest::{hamt::HamtForest, traits::PrivateForest}},
     ///     common::{MemoryBlockStore, utils::get_random_bytes},
@@ -187,7 +191,7 @@ impl PrivateFile {
     /// #[async_std::main]
     /// async fn main() {
     ///     let store = &MemoryBlockStore::new();
-    ///     let rng = &mut thread_rng();
+    ///     let rng = &mut ChaCha12Rng::from_entropy();
     ///     let forest = &mut HamtForest::new_rsa_2048_rc(rng);
     ///
     ///     let file = PrivateFile::with_content(
@@ -232,7 +236,8 @@ impl PrivateFile {
     ///
     /// ```
     /// use chrono::Utc;
-    /// use rand::thread_rng;
+    /// use rand_chacha::ChaCha12Rng;
+    /// use rand_core::SeedableRng;
     /// use wnfs::{
     ///     private::{PrivateFile, forest::{hamt::HamtForest, traits::PrivateForest}},
     ///     common::{MemoryBlockStore, utils::get_random_bytes},
@@ -241,7 +246,7 @@ impl PrivateFile {
     /// #[async_std::main]
     /// async fn main() {
     ///     let store = &MemoryBlockStore::new();
-    ///     let rng = &mut thread_rng();
+    ///     let rng = &mut ChaCha12Rng::from_entropy();
     ///     let forest = &mut HamtForest::new_rsa_2048_rc(rng);
     ///
     ///     let file = PrivateFile::with_content_rc(
@@ -282,7 +287,8 @@ impl PrivateFile {
     /// use anyhow::Result;
     /// use async_std::fs::File;
     /// use chrono::Utc;
-    /// use rand::thread_rng;
+    /// use rand_chacha::ChaCha12Rng;
+    /// use rand_core::SeedableRng;
     /// use wnfs::{
     ///     private::{PrivateFile, forest::{hamt::HamtForest, traits::PrivateForest}},
     ///     common::MemoryBlockStore,
@@ -293,7 +299,7 @@ impl PrivateFile {
     ///     let disk_file = File::open("./test/fixtures/Clara Schumann, Scherzo no. 2, Op. 14.mp3").await?;
     ///
     ///     let store = &MemoryBlockStore::new();
-    ///     let rng = &mut thread_rng();
+    ///     let rng = &mut ChaCha12Rng::from_entropy();
     ///     let forest = &mut HamtForest::new_rsa_2048_rc(rng);
     ///
     ///     let file = PrivateFile::with_content_streaming(
@@ -342,7 +348,8 @@ impl PrivateFile {
     /// use anyhow::Result;
     /// use async_std::fs::File;
     /// use chrono::Utc;
-    /// use rand::thread_rng;
+    /// use rand_chacha::ChaCha12Rng;
+    /// use rand_core::SeedableRng;
     /// use wnfs::{
     ///     private::{PrivateFile, forest::{hamt::HamtForest, traits::PrivateForest}},
     ///     common::MemoryBlockStore,
@@ -353,7 +360,7 @@ impl PrivateFile {
     ///     let disk_file = File::open("./test/fixtures/Clara Schumann, Scherzo no. 2, Op. 14.mp3").await?;
     ///
     ///     let store = &MemoryBlockStore::new();
-    ///     let rng = &mut thread_rng();
+    ///     let rng = &mut ChaCha12Rng::from_entropy();
     ///     let forest = &mut HamtForest::new_rsa_2048_rc(rng);
     ///
     ///     let file = PrivateFile::with_content_streaming_rc(
@@ -393,7 +400,8 @@ impl PrivateFile {
     /// ```
     /// use anyhow::Result;
     /// use chrono::Utc;
-    /// use rand::thread_rng;
+    /// use rand_chacha::ChaCha12Rng;
+    /// use rand_core::SeedableRng;
     /// use wnfs::{
     ///     private::{PrivateDirectory, PrivateFile, forest::{hamt::HamtForest, traits::PrivateForest}},
     ///     common::{MemoryBlockStore, utils::get_random_bytes},
@@ -402,7 +410,7 @@ impl PrivateFile {
     /// #[async_std::main]
     /// async fn main() -> Result<()> {
     ///     let store = &MemoryBlockStore::new();
-    ///     let rng = &mut thread_rng();
+    ///     let rng = &mut ChaCha12Rng::from_entropy();
     ///     let forest = &mut HamtForest::new_rsa_2048_rc(rng);
     ///
     ///     let file = PrivateFile::with_content(
@@ -440,7 +448,8 @@ impl PrivateFile {
     /// ```
     /// use anyhow::Result;
     /// use chrono::Utc;
-    /// use rand::thread_rng;
+    /// use rand_chacha::ChaCha12Rng;
+    /// use rand_core::SeedableRng;
     /// use wnfs::{
     ///     private::{PrivateFile, forest::{hamt::HamtForest, traits::PrivateForest}},
     ///     common::{MemoryBlockStore, utils::get_random_bytes},
@@ -450,7 +459,7 @@ impl PrivateFile {
     /// #[async_std::main]
     /// async fn main() -> Result<()> {
     ///     let store = &MemoryBlockStore::new();
-    ///     let rng = &mut thread_rng();
+    ///     let rng = &mut ChaCha12Rng::from_entropy();
     ///     let forest = &mut HamtForest::new_rsa_2048_rc(rng);
     ///
     ///     let content = get_random_bytes::<100>(rng).to_vec();
@@ -531,7 +540,8 @@ impl PrivateFile {
     /// ```
     /// use anyhow::Result;
     /// use chrono::Utc;
-    /// use rand::thread_rng;
+    /// use rand_chacha::ChaCha12Rng;
+    /// use rand_core::SeedableRng;
     /// use wnfs::{
     ///     private::{PrivateFile, forest::{hamt::HamtForest, traits::PrivateForest}},
     ///     common::{MemoryBlockStore, utils::get_random_bytes},
@@ -540,7 +550,7 @@ impl PrivateFile {
     /// #[async_std::main]
     /// async fn main() -> Result<()> {
     ///     let store = &MemoryBlockStore::new();
-    ///     let rng = &mut thread_rng();
+    ///     let rng = &mut ChaCha12Rng::from_entropy();
     ///     let forest = &mut HamtForest::new_rsa_2048_rc(rng);
     ///
     ///     let content = get_random_bytes::<100>(rng).to_vec();

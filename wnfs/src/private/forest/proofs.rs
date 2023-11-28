@@ -229,14 +229,15 @@ mod tests {
     use crate::private::forest::{hamt::HamtForest, traits::PrivateForest};
     use anyhow::Result;
     use libipld_core::cid::Cid;
-    use rand::thread_rng;
+    use rand_chacha::ChaCha12Rng;
+    use rand_core::SeedableRng;
     use std::collections::BTreeSet;
     use wnfs_common::{utils::Arc, MemoryBlockStore};
     use wnfs_nameaccumulator::{AccumulatorSetup, Name, NameAccumulator, NameSegment};
 
     #[test]
     fn forest_proofs_can_be_verified() -> Result<()> {
-        let rng = &mut thread_rng();
+        let rng = &mut ChaCha12Rng::from_entropy();
         let setup = &AccumulatorSetup::from_rsa_2048(rng);
         let mut proofs = ForestProofs::new();
 
@@ -256,7 +257,7 @@ mod tests {
 
     #[async_std::test]
     async fn proving_hamt_forest_can_be_verified() -> Result<()> {
-        let rng = &mut thread_rng();
+        let rng = &mut ChaCha12Rng::from_entropy();
         let setup = &AccumulatorSetup::from_rsa_2048(rng);
         let store = &MemoryBlockStore::new();
         let old_forest = Arc::new(HamtForest::new(setup.clone()));

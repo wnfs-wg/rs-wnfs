@@ -3,7 +3,7 @@ use async_trait::async_trait;
 use bip39::{Language, Mnemonic, MnemonicType, Seed};
 use chrono::Utc;
 use libipld_core::cid::Cid;
-use rand_chacha::ChaCha20Rng;
+use rand_chacha::ChaCha12Rng;
 use rand_core::SeedableRng;
 use rsa::{traits::PublicKeyParts, BigUint, Oaep, RsaPrivateKey, RsaPublicKey};
 use sha2::Sha256;
@@ -56,7 +56,7 @@ async fn main() -> Result<()> {
 
 async fn root_dir_setup(store: &impl BlockStore) -> Result<(Arc<HamtForest>, AccessKey)> {
     // We generate a new simple example file system:
-    let rng = &mut ChaCha20Rng::from_entropy();
+    let rng = &mut ChaCha12Rng::from_entropy();
     let forest = &mut HamtForest::new_trusted_rc(rng);
     let root_dir =
         &mut PrivateDirectory::new_and_store(&forest.empty_name(), Utc::now(), forest, store, rng)
@@ -179,7 +179,7 @@ struct PublicExchangeKey(RsaPublicKey);
 impl SeededExchangeKey {
     pub fn from_bip39_seed(seed: Seed) -> Result<Self> {
         let seed_bytes: [u8; 32] = seed.as_bytes()[..32].try_into()?;
-        let rng = &mut ChaCha20Rng::from_seed(seed_bytes);
+        let rng = &mut ChaCha12Rng::from_seed(seed_bytes);
         let private_key = RsaPrivateKey::new(rng, 2048)?;
         Ok(Self(private_key))
     }
@@ -208,7 +208,7 @@ impl ExchangeKey for PublicExchangeKey {
     async fn encrypt(&self, data: &[u8]) -> Result<Vec<u8>> {
         let padding = Oaep::new::<Sha256>();
         self.0
-            .encrypt(&mut ChaCha20Rng::from_entropy(), padding, data)
+            .encrypt(&mut ChaCha12Rng::from_entropy(), padding, data)
             .map_err(|e| anyhow!(e))
     }
 

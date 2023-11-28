@@ -736,7 +736,6 @@ impl PublicDirectory {
     /// use anyhow::Result;
     /// use libipld_core::cid::Cid;
     /// use chrono::Utc;
-    /// use rand::thread_rng;
     /// use wnfs::{
     ///     public::PublicDirectory,
     ///     common::{BlockStore, MemoryBlockStore},

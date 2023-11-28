@@ -37,9 +37,10 @@ use wnfs_nameaccumulator::Name;
 ///     forest::{hamt::HamtForest, traits::PrivateForest},
 /// };
 /// use chrono::Utc;
-/// use rand::thread_rng;
+/// use rand_chacha::ChaCha12Rng;
+/// use rand_core::SeedableRng;
 ///
-/// let rng = &mut thread_rng();
+/// let rng = &mut ChaCha12Rng::from_entropy();
 /// let forest = &mut HamtForest::new_rsa_2048_rc(rng);
 /// let dir = PrivateDirectory::new_rc(&forest.empty_name(), Utc::now(), rng);
 /// let node = PrivateNode::Dir(dir);
@@ -69,9 +70,10 @@ impl PrivateNode {
     ///     },
     /// };
     /// use chrono::{Utc, Duration, TimeZone};
-    /// use rand::thread_rng;
+    /// use rand_chacha::ChaCha12Rng;
+    /// use rand_core::SeedableRng;
     ///
-    /// let rng = &mut thread_rng();
+    /// let rng = &mut ChaCha12Rng::from_entropy();
     /// let forest = &mut HamtForest::new_rsa_2048_rc(rng);
     /// let dir = PrivateDirectory::new_rc(&forest.empty_name(), Utc::now(), rng);
     /// let node = PrivateNode::Dir(dir);
@@ -150,9 +152,10 @@ impl PrivateNode {
     ///     },
     /// };
     /// use chrono::Utc;
-    /// use rand::thread_rng;
+    /// use rand_chacha::ChaCha12Rng;
+    /// use rand_core::SeedableRng;
     ///
-    /// let rng = &mut thread_rng();
+    /// let rng = &mut ChaCha12Rng::from_entropy();
     /// let forest = &mut HamtForest::new_rsa_2048_rc(rng);
     /// let dir = PrivateDirectory::new_rc(&forest.empty_name(), Utc::now(), rng);
     /// let node = PrivateNode::Dir(Arc::clone(&dir));
@@ -205,9 +208,10 @@ impl PrivateNode {
     ///     },
     /// };
     /// use chrono::Utc;
-    /// use rand::thread_rng;
+    /// use rand_chacha::ChaCha12Rng;
+    /// use rand_core::SeedableRng;
     ///
-    /// let rng = &mut thread_rng();
+    /// let rng = &mut ChaCha12Rng::from_entropy();
     /// let forest = &mut HamtForest::new_rsa_2048_rc(rng);
     /// let dir = PrivateDirectory::new_rc(&forest.empty_name(), Utc::now(), rng);
     /// let node = PrivateNode::Dir(Arc::clone(&dir));
@@ -242,9 +246,10 @@ impl PrivateNode {
     ///     },
     /// };
     /// use chrono::Utc;
-    /// use rand::thread_rng;
+    /// use rand_chacha::ChaCha12Rng;
+    /// use rand_core::SeedableRng;
     ///
-    /// let rng = &mut thread_rng();
+    /// let rng = &mut ChaCha12Rng::from_entropy();
     /// let forest = &mut HamtForest::new_rsa_2048_rc(rng);
     /// let file = PrivateFile::new_rc(&forest.empty_name(), Utc::now(), rng);
     /// let node = PrivateNode::File(Arc::clone(&file));
@@ -270,9 +275,10 @@ impl PrivateNode {
     ///     },
     /// };
     /// use chrono::Utc;
-    /// use rand::thread_rng;
+    /// use rand_chacha::ChaCha12Rng;
+    /// use rand_core::SeedableRng;
     ///
-    /// let rng = &mut thread_rng();
+    /// let rng = &mut ChaCha12Rng::from_entropy();
     /// let forest = &mut HamtForest::new_rsa_2048_rc(rng);
     /// let dir = PrivateDirectory::new_rc(&forest.empty_name(), Utc::now(), rng);
     /// let node = PrivateNode::Dir(dir);
@@ -295,9 +301,10 @@ impl PrivateNode {
     ///     },
     /// };
     /// use chrono::Utc;
-    /// use rand::thread_rng;
+    /// use rand_chacha::ChaCha12Rng;
+    /// use rand_core::SeedableRng;
     ///
-    /// let rng = &mut thread_rng();
+    /// let rng = &mut ChaCha12Rng::from_entropy();
     /// let forest = &mut HamtForest::new_rsa_2048_rc(rng);
     /// let file = PrivateFile::new_rc(&forest.empty_name(), Utc::now(), rng);
     /// let node = PrivateNode::File(file);
@@ -315,7 +322,8 @@ impl PrivateNode {
     /// ```
     /// use std::sync::Arc;
     /// use chrono::Utc;
-    /// use rand::thread_rng;
+    /// use rand_chacha::ChaCha12Rng;
+    /// use rand_core::SeedableRng;
     /// use wnfs::{
     ///     private::{
     ///         PrivateNode, PrivateDirectory,
@@ -327,7 +335,7 @@ impl PrivateNode {
     /// #[async_std::main]
     /// async fn main() {
     ///     let store = &MemoryBlockStore::default();
-    ///     let rng = &mut thread_rng();
+    ///     let rng = &mut ChaCha12Rng::from_entropy();
     ///     let forest = &mut HamtForest::new_rsa_2048_rc(rng);
     ///
     ///     let mut init_dir = PrivateDirectory::new_and_store(
@@ -529,7 +537,8 @@ impl PrivateNode {
     ///
     /// ```
     /// use chrono::Utc;
-    /// use rand::thread_rng;
+    /// use rand_chacha::ChaCha12Rng;
+    /// use rand_core::SeedableRng;
     /// use wnfs::{
     ///     private::{
     ///         PrivateNode, PrivateDirectory,
@@ -541,7 +550,7 @@ impl PrivateNode {
     /// #[async_std::main]
     /// async fn main() {
     ///     let store = &MemoryBlockStore::new();
-    ///     let rng = &mut thread_rng();
+    ///     let rng = &mut ChaCha12Rng::from_entropy();
     ///     let forest = &mut HamtForest::new_rsa_2048_rc(rng);
     ///     let dir = PrivateDirectory::new_rc(&forest.empty_name(), Utc::now(), rng);
     ///

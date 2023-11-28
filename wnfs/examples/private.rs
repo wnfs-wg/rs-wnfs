@@ -4,7 +4,7 @@
 use anyhow::Result;
 use chrono::Utc;
 use libipld_core::cid::Cid;
-use rand_chacha::ChaCha20Rng;
+use rand_chacha::ChaCha12Rng;
 use rand_core::{CryptoRngCore, SeedableRng};
 use wnfs::{
     common::{BlockStore, MemoryBlockStore},
@@ -22,7 +22,7 @@ async fn main() -> Result<()> {
     let store = &MemoryBlockStore::default();
 
     // Create a random number generator the private filesystem can use.
-    let rng = &mut ChaCha20Rng::from_entropy();
+    let rng = &mut ChaCha12Rng::from_entropy();
 
     // Create a new private forest and get the cid to it.
     let (forest_cid, access_key) = create_forest_and_add_directory(store, rng).await?;

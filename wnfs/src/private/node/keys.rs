@@ -121,9 +121,10 @@ impl SnapshotKey {
     /// ```
     /// use wnfs::private::SnapshotKey;
     /// use wnfs::common::utils;
-    /// use rand::thread_rng;
+    /// use rand_chacha::ChaCha12Rng;
+    /// use rand_core::SeedableRng;
     ///
-    /// let rng = &mut thread_rng();
+    /// let rng = &mut ChaCha12Rng::from_entropy();
     /// let key = SnapshotKey::new(rng);
     ///
     /// let plaintext = b"Hello World!";
@@ -168,9 +169,10 @@ impl SnapshotKey {
     /// ```
     /// use wnfs::private::SnapshotKey;
     /// use wnfs::common::utils;
-    /// use rand::thread_rng;
+    /// use rand_chacha::ChaCha12Rng;
+    /// use rand_core::SeedableRng;
     ///
-    /// let rng = &mut thread_rng();
+    /// let rng = &mut ChaCha12Rng::from_entropy();
     /// let key = SnapshotKey::new(rng);
     ///
     /// let plaintext = b"Hello World!";

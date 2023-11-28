@@ -3,7 +3,7 @@
 
 use anyhow::Result;
 use chrono::Utc;
-use rand_chacha::ChaCha20Rng;
+use rand_chacha::ChaCha12Rng;
 use rand_core::SeedableRng;
 use wnfs::private::{
     forest::{hamt::HamtForest, traits::PrivateForest},
@@ -15,7 +15,7 @@ use wnfs_common::MemoryBlockStore;
 async fn main() -> Result<()> {
     // The usual in-memory testing setup for WNFS
     let store = &MemoryBlockStore::default();
-    let rng = &mut ChaCha20Rng::from_entropy();
+    let rng = &mut ChaCha12Rng::from_entropy();
     let forest = &mut HamtForest::new_rsa_2048(rng);
 
     // Create a new file (detached from any directory)

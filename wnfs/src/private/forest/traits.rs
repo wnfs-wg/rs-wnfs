@@ -64,7 +64,8 @@ pub trait PrivateForest: CondSync {
     ///
     /// ```
     /// use chrono::Utc;
-    /// use rand::thread_rng;
+    /// use rand_chacha::ChaCha12Rng;
+    /// use rand_core::SeedableRng;
     /// use wnfs::{
     ///     private::{
     ///         PrivateDirectory, PrivateNode,
@@ -76,7 +77,7 @@ pub trait PrivateForest: CondSync {
     /// #[async_std::main]
     /// async fn main() {
     ///     let store = &mut MemoryBlockStore::default();
-    ///     let rng = &mut thread_rng();
+    ///     let rng = &mut ChaCha12Rng::from_entropy();
     ///     let forest = &mut HamtForest::new_rsa_2048_rc(rng);
     ///     let dir = PrivateDirectory::new_rc(&forest.empty_name(), Utc::now(), rng);
     ///     let node = PrivateNode::Dir(dir);

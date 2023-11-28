@@ -36,9 +36,10 @@ const NAME_CACHE_CAPACITY: usize = 2_000_000 / APPROX_CACHE_ENTRY_SIZE;
 ///
 /// ```
 /// use wnfs::private::forest::hamt::HamtForest;
-/// use rand::thread_rng;
+/// use rand_chacha::ChaCha12Rng;
+/// use rand_core::SeedableRng;
 ///
-/// let forest = HamtForest::new_rsa_2048(&mut thread_rng());
+/// let forest = HamtForest::new_rsa_2048(&mut ChaCha12Rng::from_entropy());
 ///
 /// println!("{:?}", forest);
 /// ```
@@ -296,7 +297,8 @@ impl HamtForest {
     /// use std::sync::Arc;
     /// use anyhow::Result;
     /// use chrono::Utc;
-    /// use rand::thread_rng;
+    /// use rand_chacha::ChaCha12Rng;
+    /// use rand_core::SeedableRng;
     /// use futures::StreamExt;
     /// use wnfs::{
     ///     common::MemoryBlockStore,
@@ -309,7 +311,7 @@ impl HamtForest {
     /// #[async_std::main]
     /// async fn main() -> Result<()> {
     ///     let store = &mut MemoryBlockStore::new();
-    ///     let rng = &mut thread_rng();
+    ///     let rng = &mut ChaCha12Rng::from_entropy();
     ///
     ///     let forest = &mut HamtForest::new_rsa_2048_rc(rng);
     ///     let root_dir = &mut PrivateDirectory::new_and_store(

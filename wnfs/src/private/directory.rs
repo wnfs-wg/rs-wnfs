@@ -33,9 +33,10 @@ pub type PrivatePathNodesResult = PathNodesResult<PrivateDirectory>;
 /// ```
 /// use wnfs::private::{PrivateDirectory, forest::{hamt::HamtForest, traits::PrivateForest}};
 /// use chrono::Utc;
-/// use rand::thread_rng;
+/// use rand_chacha::ChaCha12Rng;
+/// use rand_core::SeedableRng;
 ///
-/// let rng = &mut ChaCha20Rng::from_entropy();
+/// let rng = &mut ChaCha12Rng::from_entropy();
 /// let forest = HamtForest::new_rsa_2048(rng);
 /// let dir = PrivateDirectory::new(&forest.empty_name(), Utc::now(), rng);
 ///
@@ -66,14 +67,15 @@ impl PrivateDirectory {
     ///
     /// ```
     /// use chrono::Utc;
-    /// use rand::thread_rng;
+    /// use rand_chacha::ChaCha12Rng;
+    /// use rand_core::SeedableRng;
     /// use wnfs::private::{
     ///     PrivateDirectory, forest::hamt::HamtForest,
     ///     forest::traits::PrivateForest,
     /// };
     /// use wnfs_nameaccumulator::AccumulatorSetup;
     ///
-    /// let rng = &mut ChaCha20Rng::from_entropy();
+    /// let rng = &mut ChaCha12Rng::from_entropy();
     /// let forest = HamtForest::new_rsa_2048(rng);
     /// let dir = PrivateDirectory::new(&forest.empty_name(), Utc::now(), rng);
     ///
@@ -101,14 +103,15 @@ impl PrivateDirectory {
     ///
     /// ```
     /// use chrono::Utc;
-    /// use rand::thread_rng;
+    /// use rand_chacha::ChaCha12Rng;
+    /// use rand_core::SeedableRng;
     /// use wnfs::private::{
     ///     PrivateDirectory, forest::hamt::HamtForest,
     ///     forest::traits::PrivateForest,
     /// };
     /// use wnfs_nameaccumulator::AccumulatorSetup;
     ///
-    /// let rng = &mut ChaCha20Rng::from_entropy();
+    /// let rng = &mut ChaCha12Rng::from_entropy();
     /// let forest = HamtForest::new_rsa_2048(rng);
     /// let dir = PrivateDirectory::new_rc(&forest.empty_name(), Utc::now(), rng);
     ///
@@ -193,9 +196,10 @@ impl PrivateDirectory {
     ///     private::forest::{hamt::HamtForest, traits::PrivateForest},
     /// };
     /// use chrono::Utc;
-    /// use rand::thread_rng;
+    /// use rand_chacha::ChaCha12Rng;
+    /// use rand_core::SeedableRng;
     ///
-    /// let rng = &mut ChaCha20Rng::from_entropy();
+    /// let rng = &mut ChaCha12Rng::from_entropy();
     /// let forest = &mut HamtForest::new_rsa_2048(rng);
     /// let time = Utc::now();
     /// let dir = PrivateDirectory::new_rc(
@@ -218,7 +222,8 @@ impl PrivateDirectory {
     /// ```
     /// use anyhow::Result;
     /// use chrono::Utc;
-    /// use rand::thread_rng;
+    /// use rand_chacha::ChaCha12Rng;
+    /// use rand_core::SeedableRng;
     /// use wnfs::{
     ///     private::{PrivateDirectory, forest::{hamt::HamtForest, traits::PrivateForest}},
     ///     common::MemoryBlockStore,
@@ -227,7 +232,7 @@ impl PrivateDirectory {
     /// #[async_std::main]
     /// async fn main() -> Result<()> {
     ///     let store = &MemoryBlockStore::new();
-    ///     let rng = &mut ChaCha20Rng::from_entropy();
+    ///     let rng = &mut ChaCha12Rng::from_entropy();
     ///     let forest = &mut HamtForest::new_rsa_2048_rc(rng);
     ///     let root_dir = &mut PrivateDirectory::new_rc(&forest.empty_name(), Utc::now(), rng);
     ///
@@ -443,7 +448,8 @@ impl PrivateDirectory {
     /// ```
     ///
     /// use chrono::Utc;
-    /// use rand::thread_rng;
+    /// use rand_chacha::ChaCha12Rng;
+    /// use rand_core::SeedableRng;
     ///
     /// use wnfs::{
     ///     private::{
@@ -456,7 +462,7 @@ impl PrivateDirectory {
     /// #[async_std::main]
     /// async fn main() {
     ///     let store = &MemoryBlockStore::default();
-    ///     let rng = &mut ChaCha20Rng::from_entropy();
+    ///     let rng = &mut ChaCha12Rng::from_entropy();
     ///     let forest = &mut HamtForest::new_rsa_2048_rc(rng);
     ///     let root_dir = &mut PrivateDirectory::new_rc(&forest.empty_name(), Utc::now(), rng);
     ///
@@ -501,7 +507,8 @@ impl PrivateDirectory {
     /// ```
     /// use anyhow::Result;
     /// use chrono::Utc;
-    /// use rand::thread_rng;
+    /// use rand_chacha::ChaCha12Rng;
+    /// use rand_core::SeedableRng;
     /// use wnfs::{
     ///     private::{PrivateDirectory, forest::{hamt::HamtForest, traits::PrivateForest}},
     ///     common::MemoryBlockStore,
@@ -510,7 +517,7 @@ impl PrivateDirectory {
     /// #[async_std::main]
     /// async fn main() -> Result<()> {
     ///     let store = &MemoryBlockStore::new();
-    ///     let rng = &mut ChaCha20Rng::from_entropy();
+    ///     let rng = &mut ChaCha12Rng::from_entropy();
     ///     let forest = &mut HamtForest::new_rsa_2048_rc(rng);
     ///     let root_dir = &mut PrivateDirectory::new_rc(&forest.empty_name(), Utc::now(), rng);
     ///
@@ -570,7 +577,8 @@ impl PrivateDirectory {
     /// ```
     /// use anyhow::Result;
     /// use chrono::Utc;
-    /// use rand::thread_rng;
+    /// use rand_chacha::ChaCha12Rng;
+    /// use rand_core::SeedableRng;
     /// use wnfs::{
     ///     private::{
     ///         PrivateDirectory,
@@ -581,7 +589,7 @@ impl PrivateDirectory {
     /// #[async_std::main]
     /// async fn main() -> Result<()> {
     ///    let store = &MemoryBlockStore::new();
-    ///    let rng = &mut ChaCha20Rng::from_entropy();
+    ///    let rng = &mut ChaCha12Rng::from_entropy();
     ///    let forest = &mut HamtForest::new_rsa_2048_rc(rng);
     ///    let root_dir = &mut PrivateDirectory::new_rc(&forest.empty_name(), Utc::now(), rng);
     ///     // The path to the file /code/hello.py as defined by our standards
@@ -656,7 +664,8 @@ impl PrivateDirectory {
     /// ```
     /// use anyhow::Result;
     /// use chrono::Utc;
-    /// use rand::thread_rng;
+    /// use rand_chacha::ChaCha12Rng;
+    /// use rand_core::SeedableRng;
     /// use wnfs::{
     ///     private::{PrivateDirectory, forest::{hamt::HamtForest, traits::PrivateForest}},
     ///     common::MemoryBlockStore,
@@ -665,7 +674,7 @@ impl PrivateDirectory {
     /// #[async_std::main]
     /// async fn main() -> Result<()> {
     ///     let store = &MemoryBlockStore::new();
-    ///     let rng = &mut ChaCha20Rng::from_entropy();
+    ///     let rng = &mut ChaCha12Rng::from_entropy();
     ///     let forest = &mut HamtForest::new_rsa_2048_rc(rng);
     ///     let root_dir = &mut PrivateDirectory::new_rc(&forest.empty_name(), Utc::now(), rng);
     ///
@@ -741,7 +750,8 @@ impl PrivateDirectory {
     /// use std::sync::Arc;
     /// use anyhow::Result;
     /// use chrono::Utc;
-    /// use rand::thread_rng;
+    /// use rand_chacha::ChaCha12Rng;
+    /// use rand_core::SeedableRng;
     /// use wnfs::{
     ///     private::{
     ///         PrivateNode, PrivateDirectory,
@@ -753,7 +763,7 @@ impl PrivateDirectory {
     /// #[async_std::main]
     /// async fn main() -> Result<()> {
     ///     let store = &MemoryBlockStore::new();
-    ///     let rng = &mut ChaCha20Rng::from_entropy();
+    ///     let rng = &mut ChaCha12Rng::from_entropy();
     ///     let forest = &mut HamtForest::new_rsa_2048_rc(rng);
     ///     let mut init_dir = PrivateDirectory::new_and_store(
     ///         &forest.empty_name(),
@@ -799,7 +809,8 @@ impl PrivateDirectory {
     /// ```
     ///
     /// use chrono::Utc;
-    /// use rand::thread_rng;
+    /// use rand_chacha::ChaCha12Rng;
+    /// use rand_core::SeedableRng;
     ///
     /// use wnfs::{
     ///     private::{
@@ -812,7 +823,7 @@ impl PrivateDirectory {
     /// #[async_std::main]
     /// async fn main() {
     ///     let store = &MemoryBlockStore::default();
-    ///     let rng = &mut ChaCha20Rng::from_entropy();
+    ///     let rng = &mut ChaCha12Rng::from_entropy();
     ///     let forest = &mut HamtForest::new_rsa_2048_rc(rng);
     ///     let root_dir = &mut PrivateDirectory::new_rc(&forest.empty_name(), Utc::now(), rng);
     ///
@@ -851,7 +862,8 @@ impl PrivateDirectory {
     /// ```
     /// use anyhow::Result;
     /// use chrono::Utc;
-    /// use rand::thread_rng;
+    /// use rand_chacha::ChaCha12Rng;
+    /// use rand_core::SeedableRng;
     /// use wnfs::{
     ///     private::{PrivateDirectory, forest::{hamt::HamtForest, traits::PrivateForest}},
     ///     common::MemoryBlockStore,
@@ -860,7 +872,7 @@ impl PrivateDirectory {
     /// #[async_std::main]
     /// async fn main() -> Result<()> {
     ///     let store = &MemoryBlockStore::new();
-    ///     let rng = &mut ChaCha20Rng::from_entropy();
+    ///     let rng = &mut ChaCha12Rng::from_entropy();
     ///     let forest = &mut HamtForest::new_rsa_2048_rc(rng);
     ///     let root_dir = &mut PrivateDirectory::new_rc(&forest.empty_name(), Utc::now(), rng);
     ///
@@ -938,7 +950,8 @@ impl PrivateDirectory {
     ///
     /// ```
     /// use chrono::Utc;
-    /// use rand::thread_rng;
+    /// use rand_chacha::ChaCha12Rng;
+    /// use rand_core::SeedableRng;
     /// use wnfs::{
     ///     private::{
     ///         PrivateDirectory,
@@ -950,7 +963,7 @@ impl PrivateDirectory {
     /// #[async_std::main]
     /// async fn main() {
     ///     let store = &MemoryBlockStore::default();
-    ///     let rng = &mut ChaCha20Rng::from_entropy();
+    ///     let rng = &mut ChaCha12Rng::from_entropy();
     ///     let forest = &mut HamtForest::new_rsa_2048_rc(rng);
     ///     let root_dir = &mut PrivateDirectory::new_rc(&forest.empty_name(), Utc::now(), rng);
     ///
@@ -1057,7 +1070,8 @@ impl PrivateDirectory {
     ///
     /// ```
     /// use chrono::Utc;
-    /// use rand::thread_rng;
+    /// use rand_chacha::ChaCha12Rng;
+    /// use rand_core::SeedableRng;
     ///
     /// use wnfs::{
     ///     private::{
@@ -1070,7 +1084,7 @@ impl PrivateDirectory {
     /// #[async_std::main]
     /// async fn main() {
     ///     let store = &MemoryBlockStore::default();
-    ///     let rng = &mut ChaCha20Rng::from_entropy();
+    ///     let rng = &mut ChaCha12Rng::from_entropy();
     ///     let forest = &mut HamtForest::new_rsa_2048_rc(rng);
     ///     let root_dir = &mut PrivateDirectory::new_rc(&forest.empty_name(), Utc::now(), rng);
     ///
@@ -1142,7 +1156,8 @@ impl PrivateDirectory {
     /// ```
     ///
     /// use chrono::Utc;
-    /// use rand::thread_rng;
+    /// use rand_chacha::ChaCha12Rng;
+    /// use rand_core::SeedableRng;
     ///
     /// use wnfs::{
     ///     private::{
@@ -1155,7 +1170,7 @@ impl PrivateDirectory {
     /// #[async_std::main]
     /// async fn main() {
     ///     let store = &MemoryBlockStore::default();
-    ///     let rng = &mut ChaCha20Rng::from_entropy();
+    ///     let rng = &mut ChaCha12Rng::from_entropy();
     ///     let forest = &mut HamtForest::new_rsa_2048_rc(rng);
     ///     let root_dir = &mut PrivateDirectory::new_rc(&forest.empty_name(), Utc::now(), rng);
     ///
@@ -1403,7 +1418,7 @@ impl Id for PrivateDirectory {
 mod tests {
     use super::*;
     use crate::private::forest::hamt::HamtForest;
-    use rand_chacha::{ChaCha12Rng, ChaCha20Rng};
+    use rand_chacha::ChaCha12Rng;
     use rand_core::SeedableRng;
     use test_log::test;
     use wnfs_common::MemoryBlockStore;
@@ -1697,7 +1712,7 @@ mod tests {
 
     #[test(async_std::test)]
     async fn search_latest_finds_the_most_recent() {
-        let rng = &mut ChaCha20Rng::from_entropy();
+        let rng = &mut ChaCha12Rng::from_entropy();
         let store = &MemoryBlockStore::default();
         let forest = &mut HamtForest::new_rsa_2048_rc(rng);
         let root_dir = &mut PrivateDirectory::new_rc(&forest.empty_name(), Utc::now(), rng);
@@ -1842,7 +1857,7 @@ mod tests {
 
     #[async_std::test]
     async fn mv_can_move_sub_directory_to_another_valid_location_with_updated_ancestry() {
-        let rng = &mut ChaCha20Rng::from_entropy();
+        let rng = &mut ChaCha12Rng::from_entropy();
         let store = &MemoryBlockStore::default();
         let forest = &mut HamtForest::new_rsa_2048_rc(rng);
         let root_dir = &mut PrivateDirectory::new_rc(&forest.empty_name(), Utc::now(), rng);
@@ -1937,7 +1952,7 @@ mod tests {
 
     #[async_std::test]
     async fn mv_cannot_move_sub_directory_to_invalid_location() {
-        let rng = &mut ChaCha20Rng::from_entropy();
+        let rng = &mut ChaCha12Rng::from_entropy();
         let store = &MemoryBlockStore::default();
         let forest = &mut HamtForest::new_rsa_2048_rc(rng);
         let root_dir = &mut PrivateDirectory::new_rc(&forest.empty_name(), Utc::now(), rng);
@@ -1976,7 +1991,7 @@ mod tests {
 
     #[async_std::test]
     async fn mv_can_rename_directories() {
-        let rng = &mut ChaCha20Rng::from_entropy();
+        let rng = &mut ChaCha12Rng::from_entropy();
         let store = &MemoryBlockStore::default();
         let forest = &mut HamtForest::new_rsa_2048_rc(rng);
         let root_dir = &mut PrivateDirectory::new_rc(&forest.empty_name(), Utc::now(), rng);
@@ -2025,7 +2040,7 @@ mod tests {
 
     #[async_std::test]
     async fn mv_fails_moving_directories_to_files() {
-        let rng = &mut ChaCha20Rng::from_entropy();
+        let rng = &mut ChaCha12Rng::from_entropy();
         let store = &MemoryBlockStore::default();
         let forest = &mut HamtForest::new_rsa_2048_rc(rng);
         let root_dir = &mut PrivateDirectory::new_rc(&forest.empty_name(), Utc::now(), rng);
@@ -2072,7 +2087,7 @@ mod tests {
 
     #[async_std::test]
     async fn write_doesnt_generate_previous_link() {
-        let rng = &mut ChaCha20Rng::from_entropy();
+        let rng = &mut ChaCha12Rng::from_entropy();
         let store = &MemoryBlockStore::new();
         let forest = &mut HamtForest::new_rsa_2048_rc(rng);
         let old_dir = &mut PrivateDirectory::new_rc(&forest.empty_name(), Utc::now(), rng);
@@ -2097,7 +2112,7 @@ mod tests {
 
     #[async_std::test]
     async fn store_before_write_generates_previous_link() {
-        let rng = &mut ChaCha20Rng::from_entropy();
+        let rng = &mut ChaCha12Rng::from_entropy();
         let store = &MemoryBlockStore::new();
         let forest = &mut HamtForest::new_rsa_2048_rc(rng);
         let old_dir = &mut PrivateDirectory::new_rc(&forest.empty_name(), Utc::now(), rng);
@@ -2123,7 +2138,7 @@ mod tests {
 
     #[async_std::test]
     async fn search_latest_also_searches_the_root() -> Result<()> {
-        let rng = &mut ChaCha20Rng::from_entropy();
+        let rng = &mut ChaCha12Rng::from_entropy();
         let store = &MemoryBlockStore::new();
         let forest = &mut HamtForest::new_rsa_2048(rng);
         let old_dir =
@@ -2148,7 +2163,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_regression_read_old_access_key() -> Result<()> {
-        let rng = &mut ChaCha20Rng::from_entropy();
+        let rng = &mut ChaCha12Rng::from_entropy();
         let store = &MemoryBlockStore::new();
         let forest = &mut HamtForest::new_rsa_2048(rng);
         let mut dir =
@@ -2186,7 +2201,7 @@ mod tests {
 
     #[async_std::test]
     async fn test_regression_read_old_file_access_key() -> Result<()> {
-        let rng = &mut ChaCha20Rng::from_entropy();
+        let rng = &mut ChaCha12Rng::from_entropy();
         let store = &MemoryBlockStore::new();
         let forest = &mut HamtForest::new_rsa_2048(rng);
         let mut dir =
