@@ -2,8 +2,11 @@ use crate::Node;
 use anyhow::Result;
 use proptest::{collection::vec, sample::SizeRange, strategy::Strategy};
 use serde::{de::DeserializeOwned, Serialize};
-use std::{collections::HashMap, fmt::Debug, hash::Hash, sync::Arc};
-use wnfs_common::BlockStore;
+use std::{collections::HashMap, fmt::Debug, hash::Hash};
+use wnfs_common::{
+    utils::{Arc, CondSync},
+    BlockStore,
+};
 
 //--------------------------------------------------------------------------------------------------
 // Functions
@@ -30,8 +33,8 @@ pub async fn node_from_kvs<K, V>(
     store: &impl BlockStore,
 ) -> Result<Arc<Node<K, V>>>
 where
-    K: DeserializeOwned + Serialize + Clone + Debug + AsRef<[u8]>,
-    V: DeserializeOwned + Serialize + Clone + Debug,
+    K: DeserializeOwned + Serialize + Clone + Debug + AsRef<[u8]> + CondSync,
+    V: DeserializeOwned + Serialize + Clone + Debug + CondSync,
 {
     let mut node: Arc<Node<K, V>> = Arc::new(Node::default());
     for (k, v) in pairs {

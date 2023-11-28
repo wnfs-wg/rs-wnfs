@@ -5,7 +5,7 @@ use crate::{
 };
 use js_sys::Promise;
 use libipld_core::cid::Cid;
-use std::sync::Arc;
+use std::rc::Rc;
 use wasm_bindgen::prelude::wasm_bindgen;
 use wasm_bindgen_futures::future_to_promise;
 use wnfs::{
@@ -26,7 +26,7 @@ pub fn share(
     forest: &PrivateForest,
     store: BlockStore,
 ) -> JsResult<Promise> {
-    let mut forest = Arc::clone(&forest.0);
+    let mut forest = Rc::clone(&forest.0);
     let cid = Cid::try_from(&recipient_exchange_root[..]).map_err(error("Invalid CID"))?;
     let store = ForeignBlockStore(store);
 
@@ -53,7 +53,7 @@ pub fn create_share_name(
     recipient_exchange_key: &[u8],
     forest: &PrivateForest,
 ) -> Name {
-    let forest = Arc::clone(&forest.0);
+    let forest = Rc::clone(&forest.0);
     Name(sharer::create_share_name(
         share_count.into(),
         sharer_root_did,
@@ -72,7 +72,7 @@ pub fn find_latest_share_counter(
     store: BlockStore,
 ) -> JsResult<Promise> {
     let store = ForeignBlockStore(store);
-    let forest = Arc::clone(&forest.0);
+    let forest = Rc::clone(&forest.0);
 
     Ok(future_to_promise(async move {
         let count = recipient::find_latest_share_counter(
@@ -99,7 +99,7 @@ pub fn receive_share(
 ) -> JsResult<Promise> {
     let store = ForeignBlockStore(store);
     let recipient_key = ForeignPrivateKey(recipient_key);
-    let forest = Arc::clone(&forest.0);
+    let forest = Rc::clone(&forest.0);
 
     Ok(future_to_promise(async move {
         let node = recipient::receive_share(&share_name.0, &recipient_key, &forest, &store)

@@ -5,10 +5,12 @@ use crate::{
 use anyhow::Result;
 use async_stream::stream;
 use async_trait::async_trait;
-use futures::stream::LocalBoxStream;
 use libipld_core::cid::Cid;
 use std::collections::BTreeSet;
-use wnfs_common::{BlockStore, HashOutput};
+use wnfs_common::{
+    utils::{BoxStream, CondSend, CondSync},
+    BlockStore, HashOutput,
+};
 use wnfs_hamt::Pair;
 use wnfs_nameaccumulator::{AccumulatorSetup, ElementsProof, Name, NameAccumulator};
 
@@ -18,8 +20,9 @@ use wnfs_nameaccumulator::{AccumulatorSetup, ElementsProof, Name, NameAccumulato
 /// It also stores the accumulator setup information for running
 /// name accumulator operations. Upon put or remove, it'll run
 /// these operations for the caller.
-#[async_trait(?Send)]
-pub trait PrivateForest {
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
+pub trait PrivateForest: CondSync {
     /// Construct what represents the empty name in this forest.
     ///
     /// It is forest-specific, as it depends on the specific forest's
@@ -61,7 +64,8 @@ pub trait PrivateForest {
     ///
     /// ```
     /// use chrono::Utc;
-    /// use rand::thread_rng;
+    /// use rand_chacha::ChaCha12Rng;
+    /// use rand_core::SeedableRng;
     /// use wnfs::{
     ///     private::{
     ///         PrivateDirectory, PrivateNode,
@@ -73,7 +77,7 @@ pub trait PrivateForest {
     /// #[async_std::main]
     /// async fn main() {
     ///     let store = &mut MemoryBlockStore::default();
-    ///     let rng = &mut thread_rng();
+    ///     let rng = &mut ChaCha12Rng::from_entropy();
     ///     let forest = &mut HamtForest::new_rsa_2048_rc(rng);
     ///     let dir = PrivateDirectory::new_rc(&forest.empty_name(), Utc::now(), rng);
     ///     let node = PrivateNode::Dir(dir);
@@ -88,12 +92,15 @@ pub trait PrivateForest {
     async fn has(&self, name: &Name, store: &impl BlockStore) -> Result<bool>;
 
     /// Adds new encrypted values at the given key.
-    async fn put_encrypted(
+    async fn put_encrypted<I>(
         &mut self,
         name: &Name,
-        values: impl IntoIterator<Item = Cid>,
+        values: I,
         store: &impl BlockStore,
-    ) -> Result<NameAccumulator>;
+    ) -> Result<NameAccumulator>
+    where
+        I: IntoIterator<Item = Cid> + CondSend,
+        I::IntoIter: CondSend;
 
     /// Gets the CIDs to blocks of ciphertext by hash of name.
     async fn get_encrypted_by_hash<'b>(
@@ -127,7 +134,7 @@ pub trait PrivateForest {
         temporal_key: &'a TemporalKey,
         store: &'a impl BlockStore,
         parent_name: Option<Name>,
-    ) -> LocalBoxStream<'a, Result<PrivateNode>>
+    ) -> BoxStream<'a, Result<PrivateNode>>
     where
         Self: Sized,
     {

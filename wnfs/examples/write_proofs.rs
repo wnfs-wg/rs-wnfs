@@ -1,8 +1,9 @@
 use anyhow::Result;
 use chrono::Utc;
 use libipld_core::cid::Cid;
-use rand::thread_rng;
-use std::{collections::BTreeSet, rc::Rc};
+use rand_chacha::ChaCha12Rng;
+use rand_core::SeedableRng;
+use std::{collections::BTreeSet, sync::Arc};
 use wnfs::{
     common::{BlockStore, MemoryBlockStore},
     nameaccumulator::NameAccumulator,
@@ -53,7 +54,7 @@ async fn main() -> Result<()> {
 /// The returned AccessKey gives read access and the NameAccumulator is
 /// supposed to be publicly signed for verifyable write access.
 async fn alice_actions(store: &impl BlockStore) -> Result<(Cid, AccessKey, NameAccumulator)> {
-    let rng = &mut thread_rng();
+    let rng = &mut ChaCha12Rng::from_entropy();
     let forest = &mut HamtForest::new_rsa_2048_rc(rng);
     let root_dir = &mut PrivateDirectory::new_rc(&forest.empty_name(), Utc::now(), rng);
 
@@ -72,8 +73,8 @@ async fn bob_actions(
     store: &impl BlockStore,
 ) -> Result<(ForestProofs, Cid)> {
     let hamt_forest = HamtForest::load(&old_forest_cid, store).await?;
-    let mut forest = ProvingHamtForest::new(Rc::new(hamt_forest));
-    let rng = &mut thread_rng();
+    let mut forest = ProvingHamtForest::new(Arc::new(hamt_forest));
+    let rng = &mut ChaCha12Rng::from_entropy();
 
     let mut root_node = PrivateNode::load(&root_dir_access, &forest, store, None).await?;
     let root_dir = root_node.as_dir_mut()?;
@@ -112,7 +113,7 @@ async fn persistence_service_actions(
     let old_forest = HamtForest::load(&old_forest_cid, store).await?;
     let new_forest = HamtForest::load(&new_forest_cid, store).await?;
 
-    let forest = ProvingHamtForest::from_proofs(proofs, Rc::new(new_forest));
+    let forest = ProvingHamtForest::from_proofs(proofs, Arc::new(new_forest));
 
     forest
         .verify_against_previous_state(&old_forest, &BTreeSet::from([allowed_access]), store)

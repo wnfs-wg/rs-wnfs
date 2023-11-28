@@ -5,7 +5,7 @@ use crate::{
 };
 use js_sys::{Array, Promise, Uint8Array};
 use libipld_core::cid::Cid;
-use std::sync::Arc;
+use std::rc::Rc;
 use wasm_bindgen::prelude::wasm_bindgen;
 use wasm_bindgen_futures::future_to_promise;
 use wnfs::private::forest::{
@@ -19,7 +19,7 @@ use wnfs_nameaccumulator::AccumulatorSetup;
 
 /// A reference to a private forest. Used for the private file system.
 #[wasm_bindgen]
-pub struct PrivateForest(pub(crate) Arc<WnfsHamtForest>);
+pub struct PrivateForest(pub(crate) Rc<WnfsHamtForest>);
 
 //--------------------------------------------------------------------------------------------------
 // Implementations
@@ -34,9 +34,9 @@ impl PrivateForest {
             Some(rsa_modulus_big_endian) => {
                 let modulus_big_endian = utils::expect_bytes::<256>(rsa_modulus_big_endian)?;
                 let setup = AccumulatorSetup::with_modulus(&modulus_big_endian, &mut rng);
-                Ok(Self(Arc::new(WnfsHamtForest::new(setup))))
+                Ok(Self(Rc::new(WnfsHamtForest::new(setup))))
             }
-            None => Ok(Self(Arc::new(WnfsHamtForest::new_rsa_2048(&mut rng)))),
+            None => Ok(Self(Rc::new(WnfsHamtForest::new_rsa_2048(&mut rng)))),
         }
     }
 
@@ -51,14 +51,14 @@ impl PrivateForest {
                 .await
                 .map_err(error("Couldn't deserialize forest"))?;
 
-            Ok(value!(PrivateForest(Arc::new(forest))))
+            Ok(value!(PrivateForest(Rc::new(forest))))
         }))
     }
 
     /// Stores this private forest in provided block store.
     /// Returns the CID from which it can be `.load()`ed again.
     pub fn store(&self, store: BlockStore) -> JsResult<Promise> {
-        let forest = Arc::clone(&self.0);
+        let forest = Rc::clone(&self.0);
         let store = ForeignBlockStore(store);
 
         Ok(future_to_promise(async move {
@@ -76,8 +76,8 @@ impl PrivateForest {
     #[wasm_bindgen]
     pub fn merge(&self, other: &PrivateForest, store: BlockStore) -> JsResult<Promise> {
         let mut store = ForeignBlockStore(store);
-        let main = Arc::clone(&self.0);
-        let other = Arc::clone(&other.0);
+        let main = Rc::clone(&self.0);
+        let other = Rc::clone(&other.0);
 
         Ok(future_to_promise(async move {
             let merged = main
@@ -92,8 +92,8 @@ impl PrivateForest {
     #[wasm_bindgen]
     pub fn diff(&self, other: &PrivateForest, store: BlockStore) -> JsResult<Promise> {
         let mut store = ForeignBlockStore(store);
-        let main = Arc::clone(&self.0);
-        let other = Arc::clone(&other.0);
+        let main = Rc::clone(&self.0);
+        let other = Rc::clone(&other.0);
 
         Ok(future_to_promise(async move {
             let diff = main

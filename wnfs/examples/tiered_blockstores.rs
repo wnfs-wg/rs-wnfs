@@ -8,7 +8,8 @@ use async_trait::async_trait;
 use bytes::Bytes;
 use chrono::Utc;
 use libipld_core::cid::Cid;
-use rand::thread_rng;
+use rand_chacha::ChaCha12Rng;
+use rand_core::SeedableRng;
 use wnfs::{
     common::{BlockStore, MemoryBlockStore},
     private::{
@@ -16,6 +17,7 @@ use wnfs::{
         PrivateDirectory, PrivateNode,
     },
 };
+use wnfs_common::utils::CondSend;
 
 #[async_std::main]
 async fn main() -> Result<()> {
@@ -28,7 +30,7 @@ async fn main() -> Result<()> {
     let cold_store = MemoryBlockStore::default();
 
     // Create a random number generator for randomized encryption.
-    let rng = &mut thread_rng();
+    let rng = &mut ChaCha12Rng::from_entropy();
 
     // Create a new private forest.
     // This represents your whole private file system, but hides any internal structure.
@@ -94,7 +96,8 @@ struct TieredBlockStore<H: BlockStore, C: BlockStore> {
     cold: C,
 }
 
-#[async_trait(?Send)]
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl<H: BlockStore, C: BlockStore> BlockStore for TieredBlockStore<H, C> {
     async fn get_block(&self, cid: &Cid) -> Result<Bytes> {
         match self.hot.get_block(cid).await {
@@ -105,7 +108,7 @@ impl<H: BlockStore, C: BlockStore> BlockStore for TieredBlockStore<H, C> {
         }
     }
 
-    async fn put_block(&self, bytes: impl Into<Bytes>, codec: u64) -> Result<Cid> {
-        self.hot.put_block(bytes, codec).await
+    async fn put_block(&self, bytes: impl Into<Bytes> + CondSend, codec: u64) -> Result<Cid> {
+        self.hot.put_block(bytes.into(), codec).await
     }
 }

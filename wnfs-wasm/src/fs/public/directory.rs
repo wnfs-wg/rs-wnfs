@@ -11,7 +11,7 @@ use crate::{
 use chrono::{DateTime, Utc};
 use js_sys::{Array, Date, Promise, Uint8Array};
 use libipld_core::cid::Cid;
-use std::sync::Arc;
+use std::rc::Rc;
 use wasm_bindgen::{prelude::wasm_bindgen, JsValue};
 use wasm_bindgen_futures::future_to_promise;
 use wnfs::{
@@ -26,7 +26,7 @@ use wnfs::{
 
 /// A directory in a WNFS public file system.
 #[wasm_bindgen]
-pub struct PublicDirectory(pub(crate) Arc<WnfsPublicDirectory>);
+pub struct PublicDirectory(pub(crate) Rc<WnfsPublicDirectory>);
 
 //--------------------------------------------------------------------------------------------------
 // Implementations
@@ -38,13 +38,13 @@ impl PublicDirectory {
     #[wasm_bindgen(constructor)]
     pub fn new(time: &Date) -> Self {
         let time = DateTime::<Utc>::from(time);
-        Self(Arc::new(WnfsPublicDirectory::new(time)))
+        Self(Rc::new(WnfsPublicDirectory::new(time)))
     }
 
     /// Follows a path and fetches the node at the end of the path.
     #[wasm_bindgen(js_name = "getNode")]
     pub fn get_node(&self, path_segments: &Array, store: BlockStore) -> JsResult<Promise> {
-        let directory = Arc::clone(&self.0);
+        let directory = Rc::clone(&self.0);
         let store = ForeignBlockStore(store);
         let path_segments = utils::convert_path_segments(path_segments)?;
 
@@ -61,7 +61,7 @@ impl PublicDirectory {
     /// Looks up a node by its path name in the current directory.
     #[wasm_bindgen(js_name = "lookupNode")]
     pub fn lookup_node(&self, path_segment: String, store: BlockStore) -> JsResult<Promise> {
-        let directory = Arc::clone(&self.0);
+        let directory = Rc::clone(&self.0);
         let store = ForeignBlockStore(store);
 
         Ok(future_to_promise(async move {
@@ -76,7 +76,7 @@ impl PublicDirectory {
 
     /// Stores directory in provided block store.
     pub fn store(&self, store: BlockStore) -> JsResult<Promise> {
-        let directory = Arc::clone(&self.0);
+        let directory = Rc::clone(&self.0);
         let mut store = ForeignBlockStore(store);
 
         Ok(future_to_promise(async move {
@@ -102,13 +102,13 @@ impl PublicDirectory {
                 .await
                 .map_err(error("Couldn't deserialize directory"))?;
 
-            Ok(value!(PublicDirectory(Arc::new(directory))))
+            Ok(value!(PublicDirectory(Rc::new(directory))))
         }))
     }
 
     /// Reads specified file content from the directory.
     pub fn read(&self, path_segments: &Array, store: BlockStore) -> JsResult<Promise> {
-        let directory = Arc::clone(&self.0);
+        let directory = Rc::clone(&self.0);
         let store = ForeignBlockStore(store);
         let path_segments = utils::convert_path_segments(path_segments)?;
 
@@ -126,7 +126,7 @@ impl PublicDirectory {
 
     /// Returns names and metadata of the direct children of a directory.
     pub fn ls(&self, path_segments: &Array, store: BlockStore) -> JsResult<Promise> {
-        let directory = Arc::clone(&self.0);
+        let directory = Rc::clone(&self.0);
         let store = ForeignBlockStore(store);
         let path_segments = utils::convert_path_segments(path_segments)?;
 
@@ -147,7 +147,7 @@ impl PublicDirectory {
 
     /// Removes a file or directory from the directory.
     pub fn rm(&self, path_segments: &Array, store: BlockStore) -> JsResult<Promise> {
-        let mut directory = Arc::clone(&self.0);
+        let mut directory = Rc::clone(&self.0);
         let store = ForeignBlockStore(store);
         let path_segments = utils::convert_path_segments(path_segments)?;
 
@@ -169,7 +169,7 @@ impl PublicDirectory {
         time: &Date,
         store: BlockStore,
     ) -> JsResult<Promise> {
-        let mut directory = Arc::clone(&self.0);
+        let mut directory = Rc::clone(&self.0);
         let store = ForeignBlockStore(store);
 
         let cid = Cid::try_from(content_cid).map_err(error("Invalid CID"))?;
@@ -195,7 +195,7 @@ impl PublicDirectory {
         time: &Date,
         store: BlockStore,
     ) -> JsResult<Promise> {
-        let mut directory = Arc::clone(&self.0);
+        let mut directory = Rc::clone(&self.0);
         let store = ForeignBlockStore(store);
         let time = DateTime::<Utc>::from(time);
         let path_segments_from = utils::convert_path_segments(path_segments_from)?;
@@ -219,7 +219,7 @@ impl PublicDirectory {
         time: &Date,
         store: BlockStore,
     ) -> JsResult<Promise> {
-        let mut directory = Arc::clone(&self.0);
+        let mut directory = Rc::clone(&self.0);
         let store = ForeignBlockStore(store);
         let time = DateTime::<Utc>::from(time);
         let path_segments_from = utils::convert_path_segments(path_segments_from)?;
@@ -244,7 +244,7 @@ impl PublicDirectory {
         time: &Date,
         store: BlockStore,
     ) -> JsResult<Promise> {
-        let mut directory = Arc::clone(&self.0);
+        let mut directory = Rc::clone(&self.0);
         let store = ForeignBlockStore(store);
         let time = DateTime::<Utc>::from(time);
         let path_segments = utils::convert_path_segments(path_segments)?;
@@ -282,7 +282,7 @@ impl PublicDirectory {
     /// Converts directory to a node.
     #[wasm_bindgen(js_name = "asNode")]
     pub fn as_node(&self) -> PublicNode {
-        PublicNode(WnfsPublicNode::Dir(Arc::clone(&self.0)))
+        PublicNode(WnfsPublicNode::Dir(Rc::clone(&self.0)))
     }
 
     /// Gets a unique id for node.

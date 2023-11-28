@@ -15,11 +15,11 @@ use libipld_core::cid::Cid;
 use serde::{
     de::Error as DeError, ser::Error as SerError, Deserialize, Deserializer, Serialize, Serializer,
 };
-use std::{
-    collections::{BTreeMap, BTreeSet},
-    sync::Arc,
+use std::collections::{BTreeMap, BTreeSet};
+use wnfs_common::{
+    utils::{error, Arc, CondSend},
+    AsyncSerialize, BlockStore, Metadata, RemembersCid,
 };
-use wnfs_common::{utils::error, AsyncSerialize, BlockStore, Metadata, RemembersCid};
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
@@ -736,7 +736,6 @@ impl PublicDirectory {
     /// use anyhow::Result;
     /// use libipld_core::cid::Cid;
     /// use chrono::Utc;
-    /// use rand::thread_rng;
     /// use wnfs::{
     ///     public::PublicDirectory,
     ///     common::{BlockStore, MemoryBlockStore},
@@ -802,7 +801,6 @@ impl PublicDirectory {
         Ok(())
     }
 
-    #[async_recursion(?Send)]
     /// Stores directory in provided block store.
     ///
     /// This function can be recursive if the directory contains other directories.
@@ -830,6 +828,8 @@ impl PublicDirectory {
     ///     );
     /// }
     /// ```
+    #[cfg_attr(not(target_arch = "wasm32"), async_recursion)]
+    #[cfg_attr(target_arch = "wasm32", async_recursion(?Send))]
     pub async fn store(&self, store: &impl BlockStore) -> Result<Cid> {
         Ok(*self
             .persisted_as
@@ -894,11 +894,12 @@ impl RemembersCid for PublicDirectory {
     }
 }
 
-#[async_trait(?Send)]
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl AsyncSerialize for PublicDirectory {
     async fn async_serialize<S, B>(&self, serializer: S, store: &B) -> Result<S::Ok, S::Error>
     where
-        S: Serializer,
+        S: Serializer + CondSend,
         B: BlockStore + ?Sized,
     {
         let encoded_userland = {

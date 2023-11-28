@@ -5,8 +5,10 @@ use anyhow::Result;
 use async_once_cell::OnceCell;
 use async_recursion::async_recursion;
 use rand_core::CryptoRngCore;
-use std::sync::Arc;
-use wnfs_common::BlockStore;
+use wnfs_common::{
+    utils::{Arc, CondSend},
+    BlockStore,
+};
 use wnfs_nameaccumulator::Name;
 
 #[derive(Debug)]
@@ -30,12 +32,13 @@ impl PrivateLink {
         }
     }
 
-    #[async_recursion(?Send)]
+    #[cfg_attr(not(target_arch = "wasm32"), async_recursion)]
+    #[cfg_attr(target_arch = "wasm32", async_recursion(?Send))]
     pub(crate) async fn resolve_ref(
         &self,
         forest: &mut impl PrivateForest,
         store: &impl BlockStore,
-        rng: &mut impl CryptoRngCore,
+        rng: &mut (impl CryptoRngCore + CondSend),
     ) -> Result<PrivateRef> {
         match self {
             Self::Encrypted { private_ref, .. } => Ok(private_ref.clone()),

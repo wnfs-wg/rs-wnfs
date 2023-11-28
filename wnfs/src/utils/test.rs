@@ -1,13 +1,51 @@
 use crate::private::{
     forest::{hamt::HamtForest, traits::PrivateForest},
-    FileContent, PrivateDirectory, PrivateForestContent, PrivateNode, PrivateRef,
+    FileContent, PrivateDirectory, PrivateForestContent, PrivateNode, PrivateRef, SnapshotKey,
+    TemporalKey,
 };
 use anyhow::Result;
+use bytes::Bytes;
 use libipld_core::ipld::Ipld;
 use rand_core::CryptoRngCore;
-use std::sync::Arc;
-use wnfs_common::{decode, libipld::cbor::DagCborCodec, utils::SnapshotBlockStore};
+use wnfs_common::{
+    decode,
+    libipld::cbor::DagCborCodec,
+    utils::{Arc, BytesToIpld, CondSend, SnapshotBlockStore},
+};
 use wnfs_nameaccumulator::Name;
+
+struct EncryptedBlockHandler {
+    snapshot_key: SnapshotKey,
+}
+
+impl BytesToIpld for EncryptedBlockHandler {
+    fn convert(&self, bytes: &Bytes) -> Result<Ipld> {
+        decode(&self.snapshot_key.decrypt(bytes.as_ref())?, DagCborCodec)
+    }
+}
+
+struct KeyWrappedBlockHandler {
+    temporal_key: TemporalKey,
+}
+
+impl BytesToIpld for KeyWrappedBlockHandler {
+    fn convert(&self, bytes: &Bytes) -> Result<Ipld> {
+        decode(
+            &self.temporal_key.key_wrap_decrypt(bytes.as_ref())?,
+            DagCborCodec,
+        )
+    }
+}
+
+struct FileShardHandler {
+    key: SnapshotKey,
+}
+
+impl BytesToIpld for FileShardHandler {
+    fn convert(&self, bytes: &Bytes) -> Result<Ipld> {
+        Ok(Ipld::Bytes(self.key.decrypt(bytes.as_ref())?))
+    }
+}
 
 //--------------------------------------------------------------------------------------------------
 // Functions
@@ -17,7 +55,7 @@ pub(crate) async fn walk_dir(
     store: &mut SnapshotBlockStore,
     forest: &mut Arc<HamtForest>,
     root_dir: &Arc<PrivateDirectory>,
-    rng: &mut impl CryptoRngCore,
+    rng: &mut (impl CryptoRngCore + CondSend),
 ) -> Result<()> {
     let mut stack = vec![root_dir.clone()];
     while let Some(dir) = stack.pop() {
@@ -26,16 +64,11 @@ pub(crate) async fn walk_dir(
         let snapshot_key = temporal_key.derive_snapshot_key();
         store.add_block_handler(
             private_ref.content_cid,
-            Box::new(move |bytes| decode(&snapshot_key.decrypt(bytes.as_ref())?, DagCborCodec)),
+            Arc::new(EncryptedBlockHandler { snapshot_key }),
         );
         store.add_block_handler(
             dir.header.store(store, forest).await?,
-            Box::new(move |bytes| {
-                decode(
-                    &temporal_key.key_wrap_decrypt(bytes.as_ref())?,
-                    DagCborCodec,
-                )
-            }),
+            Arc::new(KeyWrappedBlockHandler { temporal_key }),
         );
 
         let entries = dir.ls(&[], true, forest, store).await?;
@@ -51,18 +84,11 @@ pub(crate) async fn walk_dir(
                     let snapshot_key = temporal_key.derive_snapshot_key();
                     store.add_block_handler(
                         private_ref.content_cid,
-                        Box::new(move |bytes| {
-                            decode(&snapshot_key.decrypt(bytes.as_ref())?, DagCborCodec)
-                        }),
+                        Arc::new(EncryptedBlockHandler { snapshot_key }),
                     );
                     store.add_block_handler(
                         file.header.store(store, forest).await?,
-                        Box::new(move |bytes| {
-                            decode(
-                                &temporal_key.key_wrap_decrypt(bytes.as_ref())?,
-                                DagCborCodec,
-                            )
-                        }),
+                        Arc::new(KeyWrappedBlockHandler { temporal_key }),
                     );
                     if let FileContent::External(PrivateForestContent {
                         key,
@@ -82,9 +108,7 @@ pub(crate) async fn walk_dir(
                                     let key = key.clone();
                                     store.add_block_handler(
                                         *cids.first().unwrap(),
-                                        Box::new(move |bytes| {
-                                            Ok(Ipld::Bytes(key.decrypt(bytes.as_ref())?))
-                                        }),
+                                        Arc::new(FileShardHandler { key }),
                                     )
                                 }
                                 None => unreachable!(),

@@ -2,15 +2,18 @@ use super::{ChangeType, Node};
 use crate::{error::HamtError, Hasher};
 use anyhow::Result;
 use serde::de::DeserializeOwned;
-use std::{hash::Hash, sync::Arc};
-use wnfs_common::{BlockStore, Link};
+use std::hash::Hash;
+use wnfs_common::{
+    utils::{Arc, CondSync},
+    BlockStore, Link,
+};
 
 //--------------------------------------------------------------------------------------------------
 // Functions
 //--------------------------------------------------------------------------------------------------
 
 /// Merges a node with another with the help of a resolver function.
-pub async fn merge<K, V, H, F, B: BlockStore>(
+pub async fn merge<K: CondSync, V: CondSync, H, F, B: BlockStore>(
     main_link: Link<Arc<Node<K, V, H>>>,
     other_link: Link<Arc<Node<K, V, H>>>,
     f: F,
@@ -20,7 +23,7 @@ where
     F: Fn(&V, &V) -> Result<V>,
     K: DeserializeOwned + Eq + Clone + Hash + AsRef<[u8]>,
     V: DeserializeOwned + Eq + Clone,
-    H: Hasher + Clone + 'static,
+    H: Hasher + CondSync + Clone + 'static,
 {
     let kv_changes = super::diff(main_link.clone(), other_link.clone(), store).await?;
 
@@ -65,9 +68,9 @@ where
 mod proptests {
     use crate::strategies::{self, generate_kvs};
     use async_std::task;
-    use std::{cmp, sync::Arc};
+    use std::cmp;
     use test_strategy::proptest;
-    use wnfs_common::{Link, MemoryBlockStore};
+    use wnfs_common::{utils::Arc, Link, MemoryBlockStore};
 
     #[proptest(cases = 100)]
     fn merge_associativity(

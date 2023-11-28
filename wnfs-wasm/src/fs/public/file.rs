@@ -7,7 +7,7 @@ use crate::{
 use chrono::{DateTime, Utc};
 use js_sys::{Error, Promise, Uint8Array};
 use libipld_core::cid::Cid;
-use std::sync::Arc;
+use std::rc::Rc;
 use wasm_bindgen::{prelude::wasm_bindgen, JsValue};
 use wasm_bindgen_futures::future_to_promise;
 use wnfs::{
@@ -22,7 +22,7 @@ use wnfs::{
 
 /// A file in a WNFS public file system.
 #[wasm_bindgen]
-pub struct PublicFile(pub(crate) Arc<WnfsPublicFile>);
+pub struct PublicFile(pub(crate) Rc<WnfsPublicFile>);
 
 //--------------------------------------------------------------------------------------------------
 // Implementations
@@ -36,7 +36,7 @@ impl PublicFile {
         let time = DateTime::<Utc>::from(time);
         let cid = Cid::try_from(&cid[..]).map_err(error("Invalid CID"))?;
 
-        Ok(PublicFile(Arc::new(WnfsPublicFile::new(time, cid))))
+        Ok(PublicFile(Rc::new(WnfsPublicFile::new(time, cid))))
     }
 
     /// Gets a unique id for node.
@@ -47,7 +47,7 @@ impl PublicFile {
 
     /// Stores a file in provided block store.
     pub fn store(&self, store: BlockStore) -> JsResult<Promise> {
-        let file = Arc::clone(&self.0);
+        let file = Rc::clone(&self.0);
         let mut store = ForeignBlockStore(store);
 
         Ok(future_to_promise(async move {
@@ -72,7 +72,7 @@ impl PublicFile {
                 .await
                 .map_err(|e| Error::new(&format!("Couldn't deserialize directory: {e}")))?;
 
-            Ok(value!(PublicFile(Arc::new(file))))
+            Ok(value!(PublicFile(Rc::new(file))))
         }))
     }
 
@@ -105,6 +105,6 @@ impl PublicFile {
     /// Converts this directory to a node.
     #[wasm_bindgen(js_name = "asNode")]
     pub fn as_node(&self) -> PublicNode {
-        PublicNode(WnfsPublicNode::File(Arc::clone(&self.0)))
+        PublicNode(WnfsPublicNode::File(Rc::clone(&self.0)))
     }
 }

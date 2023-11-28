@@ -7,8 +7,11 @@ use serde::{
     ser::Error as SerError,
     Deserialize, Deserializer, Serialize, Serializer,
 };
-use std::{fmt::Debug, sync::Arc};
-use wnfs_common::{utils::error, AsyncSerialize, BlockStore, Link};
+use std::fmt::Debug;
+use wnfs_common::{
+    utils::{error, Arc, CondSend, CondSync},
+    AsyncSerialize, BlockStore, Link,
+};
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
@@ -34,7 +37,7 @@ pub struct Pair<K, V> {
 
 /// Each bit in the bitmask of a node maps a `Pointer` in the HAMT structure.
 /// A `Pointer` can be either a link to a child node or a collection of key-value pairs.
-pub(crate) enum Pointer<K, V, H: Hasher> {
+pub(crate) enum Pointer<K: CondSync, V: CondSync, H: Hasher + CondSync> {
     Values(Vec<Pair<K, V>>),
     Link(Link<Arc<Node<K, V, H>>>),
 }
@@ -61,12 +64,13 @@ impl<K, V> Pair<K, V> {
     }
 }
 
-impl<K, V, H: Hasher> Pointer<K, V, H> {
+impl<K: CondSync, V: CondSync, H: Hasher + CondSync> Pointer<K, V, H> {
     /// Converts a Link pointer to a canonical form to ensure consistent tree representation after deletes.
     pub async fn canonicalize(self, store: &impl BlockStore) -> Result<Option<Self>>
     where
         K: DeserializeOwned + Clone + AsRef<[u8]>,
         V: DeserializeOwned + Clone,
+        H: CondSync,
     {
         match self {
             Pointer::Link(link) => {
@@ -119,15 +123,17 @@ impl<K, V, H: Hasher> Pointer<K, V, H> {
     }
 }
 
-#[async_trait(?Send)]
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl<K, V, H: Hasher> AsyncSerialize for Pointer<K, V, H>
 where
-    K: Serialize,
-    V: Serialize,
+    K: Serialize + CondSync,
+    V: Serialize + CondSync,
+    H: CondSync,
 {
     async fn async_serialize<S, B>(&self, serializer: S, store: &B) -> Result<S::Ok, S::Error>
     where
-        S: Serializer,
+        S: Serializer + CondSend,
         B: BlockStore + ?Sized,
     {
         match self {
@@ -141,10 +147,10 @@ where
     }
 }
 
-impl<'de, K, V, H: Hasher> Deserialize<'de> for Pointer<K, V, H>
+impl<'de, K, V, H: Hasher + CondSync> Deserialize<'de> for Pointer<K, V, H>
 where
-    K: DeserializeOwned,
-    V: DeserializeOwned,
+    K: DeserializeOwned + CondSync,
+    V: DeserializeOwned + CondSync,
 {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
@@ -154,10 +160,10 @@ where
     }
 }
 
-impl<K, V, H: Hasher> TryFrom<Ipld> for Pointer<K, V, H>
+impl<K, V, H: Hasher + CondSync> TryFrom<Ipld> for Pointer<K, V, H>
 where
-    K: DeserializeOwned,
-    V: DeserializeOwned,
+    K: DeserializeOwned + CondSync,
+    V: DeserializeOwned + CondSync,
 {
     type Error = String;
 
@@ -176,7 +182,7 @@ where
     }
 }
 
-impl<K: Clone, V: Clone, H: Hasher> Clone for Pointer<K, V, H> {
+impl<K: Clone + CondSync, V: Clone + CondSync, H: Hasher + CondSync> Clone for Pointer<K, V, H> {
     fn clone(&self) -> Self {
         match self {
             Self::Values(arg0) => Self::Values(arg0.clone()),
@@ -185,7 +191,9 @@ impl<K: Clone, V: Clone, H: Hasher> Clone for Pointer<K, V, H> {
     }
 }
 
-impl<K: Debug, V: Debug, H: Hasher> std::fmt::Debug for Pointer<K, V, H> {
+impl<K: Debug + CondSync, V: Debug + CondSync, H: Hasher + CondSync> std::fmt::Debug
+    for Pointer<K, V, H>
+{
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Values(arg0) => f.debug_tuple("Values").field(arg0).finish(),
@@ -194,16 +202,16 @@ impl<K: Debug, V: Debug, H: Hasher> std::fmt::Debug for Pointer<K, V, H> {
     }
 }
 
-impl<K, V, H: Hasher> Default for Pointer<K, V, H> {
+impl<K: CondSync, V: CondSync, H: Hasher + CondSync> Default for Pointer<K, V, H> {
     fn default() -> Self {
         Pointer::Values(Vec::new())
     }
 }
 
-impl<K, V, H: Hasher> PartialEq for Pointer<K, V, H>
+impl<K, V, H: Hasher + CondSync> PartialEq for Pointer<K, V, H>
 where
-    K: PartialEq,
-    V: PartialEq,
+    K: PartialEq + CondSync,
+    V: PartialEq + CondSync,
 {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {

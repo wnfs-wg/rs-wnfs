@@ -196,8 +196,7 @@ mod tests {
     use chrono::Utc;
     use rand_chacha::ChaCha12Rng;
     use rand_core::SeedableRng;
-    use std::sync::Arc;
-    use wnfs_common::{BlockStore, MemoryBlockStore};
+    use wnfs_common::{utils::Arc, BlockStore, MemoryBlockStore};
 
     mod helper {
         use crate::{
@@ -210,13 +209,15 @@ mod tests {
         use anyhow::Result;
         use chrono::Utc;
         use rand_core::CryptoRngCore;
-        use std::sync::Arc;
-        use wnfs_common::{BlockStore, CODEC_RAW};
+        use wnfs_common::{
+            utils::{Arc, CondSend},
+            BlockStore, CODEC_RAW,
+        };
 
         pub(super) async fn create_sharer_dir(
             forest: &mut impl PrivateForest,
             store: &impl BlockStore,
-            rng: &mut impl CryptoRngCore,
+            rng: &mut (impl CryptoRngCore + CondSend),
         ) -> Result<Arc<PrivateDirectory>> {
             let mut dir = PrivateDirectory::new_and_store(
                 &forest.empty_name(),

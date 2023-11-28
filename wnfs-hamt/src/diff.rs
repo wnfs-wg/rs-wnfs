@@ -3,8 +3,11 @@ use crate::{Hasher, Node, Pair, Pointer, HAMT_BITMASK_BIT_SIZE};
 use anyhow::{Ok, Result};
 use async_recursion::async_recursion;
 use serde::de::DeserializeOwned;
-use std::{collections::HashMap, hash::Hash, mem, sync::Arc};
-use wnfs_common::{BlockStore, Link};
+use std::{collections::HashMap, hash::Hash, mem};
+use wnfs_common::{
+    utils::{Arc, CondSync},
+    BlockStore, Link,
+};
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
@@ -74,7 +77,7 @@ pub struct KeyValueChange<K, V> {
 ///    println!("Changes {:#?}", changes);
 /// }
 /// ```
-pub async fn diff<K, V, H>(
+pub async fn diff<K: CondSync, V: CondSync, H: CondSync>(
     main_link: Link<Arc<Node<K, V, H>>>,
     other_link: Link<Arc<Node<K, V, H>>>,
     store: &impl BlockStore,
@@ -87,8 +90,9 @@ where
     diff_helper(main_link, other_link, 1, store).await
 }
 
-#[async_recursion(?Send)]
-pub async fn diff_helper<K, V, H>(
+#[cfg_attr(not(target_arch = "wasm32"), async_recursion)]
+#[cfg_attr(target_arch = "wasm32", async_recursion(?Send))]
+pub async fn diff_helper<K: CondSync, V: CondSync, H: CondSync>(
     main_link: Link<Arc<Node<K, V, H>>>,
     other_link: Link<Arc<Node<K, V, H>>>,
     depth: usize,
@@ -163,7 +167,7 @@ where
     Ok(changes)
 }
 
-async fn generate_add_or_remove_changes<K, V, H>(
+async fn generate_add_or_remove_changes<K: CondSync, V: CondSync, H: CondSync>(
     node_pointer: &Pointer<K, V, H>,
     r#type: ChangeType,
     store: &impl BlockStore,
@@ -202,7 +206,7 @@ where
     }
 }
 
-async fn pointers_diff<K, V, H>(
+async fn pointers_diff<K: CondSync, V: CondSync, H: CondSync>(
     main_pointer: Pointer<K, V, H>,
     other_pointer: Pointer<K, V, H>,
     depth: usize,
@@ -279,9 +283,9 @@ async fn create_node_from_pairs<K, V, H>(
     store: &impl BlockStore,
 ) -> Result<Arc<Node<K, V, H>>>
 where
-    K: DeserializeOwned + Clone + AsRef<[u8]>,
-    V: DeserializeOwned + Clone,
-    H: Hasher + Clone + 'static,
+    K: DeserializeOwned + Clone + AsRef<[u8]> + CondSync,
+    V: DeserializeOwned + Clone + CondSync,
+    H: Hasher + Clone + 'static + CondSync,
 {
     let mut node = Arc::new(Node::<_, _, H>::default());
     for Pair { key, value } in values {
@@ -570,9 +574,9 @@ mod proptests {
         ChangeType,
     };
     use async_std::task;
-    use std::{collections::HashSet, sync::Arc};
+    use std::collections::HashSet;
     use test_strategy::proptest;
-    use wnfs_common::{Link, MemoryBlockStore};
+    use wnfs_common::{utils::Arc, Link, MemoryBlockStore};
 
     #[proptest(cases = 100, max_shrink_iters = 4000)]
     fn diff_correspondence(

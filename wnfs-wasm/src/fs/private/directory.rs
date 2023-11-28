@@ -11,7 +11,7 @@ use crate::{
 };
 use chrono::{DateTime, Utc};
 use js_sys::{Array, Date, Promise, Uint8Array};
-use std::sync::Arc;
+use std::rc::Rc;
 use wasm_bindgen::{prelude::wasm_bindgen, JsValue};
 use wasm_bindgen_futures::future_to_promise;
 use wnfs::{
@@ -25,7 +25,7 @@ use wnfs::{
 
 /// A directory in a WNFS public file system.
 #[wasm_bindgen]
-pub struct PrivateDirectory(pub(crate) Arc<WnfsPrivateDirectory>);
+pub struct PrivateDirectory(pub(crate) Rc<WnfsPrivateDirectory>);
 
 //--------------------------------------------------------------------------------------------------
 // Implementations
@@ -38,7 +38,7 @@ impl PrivateDirectory {
     pub fn new(parent_bare_name: Name, time: &Date, mut rng: Rng) -> JsResult<PrivateDirectory> {
         let time = DateTime::<Utc>::from(time);
 
-        Ok(Self(Arc::new(WnfsPrivateDirectory::new(
+        Ok(Self(Rc::new(WnfsPrivateDirectory::new(
             &parent_bare_name.0,
             time,
             &mut rng,
@@ -56,7 +56,7 @@ impl PrivateDirectory {
     ) -> JsResult<Promise> {
         let time = DateTime::<Utc>::from(time);
         let mut store = ForeignBlockStore(store);
-        let mut forest = Arc::clone(&forest.0);
+        let mut forest = Rc::clone(&forest.0);
 
         Ok(future_to_promise(async move {
             let root_dir = WnfsPrivateDirectory::new_and_store(
@@ -80,7 +80,7 @@ impl PrivateDirectory {
     /// Persists the current state of this directory in the BlockStore and PrivateForest.
     /// This will also force a history entry to be created, if there were changes.
     pub fn store(&self, forest: &PrivateForest, store: BlockStore, rng: Rng) -> JsResult<Promise> {
-        let node = PrivateNode(WnfsPrivateNode::Dir(Arc::clone(&self.0)));
+        let node = PrivateNode(WnfsPrivateNode::Dir(Rc::clone(&self.0)));
         node.store(forest, store, rng)
     }
 
@@ -93,10 +93,10 @@ impl PrivateDirectory {
         forest: &PrivateForest,
         store: BlockStore,
     ) -> JsResult<Promise> {
-        let directory = Arc::clone(&self.0);
+        let directory = Rc::clone(&self.0);
         let store = ForeignBlockStore(store);
         let path_segments = utils::convert_path_segments(path_segments)?;
-        let forest = Arc::clone(&forest.0);
+        let forest = Rc::clone(&forest.0);
 
         Ok(future_to_promise(async move {
             let result = directory
@@ -117,10 +117,10 @@ impl PrivateDirectory {
         forest: &PrivateForest,
         store: BlockStore,
     ) -> JsResult<Promise> {
-        let directory = Arc::clone(&self.0);
+        let directory = Rc::clone(&self.0);
         let store = ForeignBlockStore(store);
         let path_segment = path_segment.to_string();
-        let forest = Arc::clone(&forest.0);
+        let forest = Rc::clone(&forest.0);
 
         Ok(future_to_promise(async move {
             let found_node = directory
@@ -140,10 +140,10 @@ impl PrivateDirectory {
         forest: &PrivateForest,
         store: BlockStore,
     ) -> JsResult<Promise> {
-        let directory = Arc::clone(&self.0);
+        let directory = Rc::clone(&self.0);
         let store = ForeignBlockStore(store);
         let path_segments = utils::convert_path_segments(path_segments)?;
-        let forest = Arc::clone(&forest.0);
+        let forest = Rc::clone(&forest.0);
 
         Ok(future_to_promise(async move {
             let result = directory
@@ -167,10 +167,10 @@ impl PrivateDirectory {
         forest: &PrivateForest,
         store: BlockStore,
     ) -> JsResult<Promise> {
-        let directory = Arc::clone(&self.0);
+        let directory = Rc::clone(&self.0);
         let store = ForeignBlockStore(store);
         let path_segments = utils::convert_path_segments(path_segments)?;
-        let forest = Arc::clone(&forest.0);
+        let forest = Rc::clone(&forest.0);
 
         Ok(future_to_promise(async move {
             let result = directory
@@ -195,10 +195,10 @@ impl PrivateDirectory {
         forest: &PrivateForest,
         store: BlockStore,
     ) -> JsResult<Promise> {
-        let mut directory = Arc::clone(&self.0);
+        let mut directory = Rc::clone(&self.0);
         let store = ForeignBlockStore(store);
         let path_segments = utils::convert_path_segments(path_segments)?;
-        let forest = Arc::clone(&forest.0);
+        let forest = Rc::clone(&forest.0);
 
         Ok(future_to_promise(async move {
             let node = directory
@@ -226,11 +226,11 @@ impl PrivateDirectory {
         store: BlockStore,
         mut rng: Rng,
     ) -> JsResult<Promise> {
-        let mut directory = Arc::clone(&self.0);
+        let mut directory = Rc::clone(&self.0);
         let mut store = ForeignBlockStore(store);
         let time = DateTime::<Utc>::from(time);
         let path_segments = utils::convert_path_segments(path_segments)?;
-        let mut forest = Arc::clone(&forest.0);
+        let mut forest = Rc::clone(&forest.0);
 
         Ok(future_to_promise(async move {
             directory
@@ -267,12 +267,12 @@ impl PrivateDirectory {
         store: BlockStore,
         mut rng: Rng,
     ) -> JsResult<Promise> {
-        let mut directory = Arc::clone(&self.0);
+        let mut directory = Rc::clone(&self.0);
         let mut store = ForeignBlockStore(store);
         let time = DateTime::<Utc>::from(time);
         let path_segments_from = utils::convert_path_segments(path_segments_from)?;
         let path_segments_to = utils::convert_path_segments(path_segments_to)?;
-        let mut forest = Arc::clone(&forest.0);
+        let mut forest = Rc::clone(&forest.0);
 
         Ok(future_to_promise(async move {
             directory
@@ -308,12 +308,12 @@ impl PrivateDirectory {
         store: BlockStore,
         mut rng: Rng,
     ) -> JsResult<Promise> {
-        let mut directory = Arc::clone(&self.0);
+        let mut directory = Rc::clone(&self.0);
         let mut store = ForeignBlockStore(store);
         let time = DateTime::<Utc>::from(time);
         let path_segments_from = utils::convert_path_segments(path_segments_from)?;
         let path_segments_to = utils::convert_path_segments(path_segments_to)?;
-        let mut forest = Arc::clone(&forest.0);
+        let mut forest = Rc::clone(&forest.0);
 
         Ok(future_to_promise(async move {
             directory
@@ -349,11 +349,11 @@ impl PrivateDirectory {
         store: BlockStore,
         mut rng: Rng,
     ) -> JsResult<Promise> {
-        let mut directory = Arc::clone(&self.0);
+        let mut directory = Rc::clone(&self.0);
         let store = ForeignBlockStore(store);
         let time = DateTime::<Utc>::from(time);
         let path_segments = utils::convert_path_segments(path_segments)?;
-        let forest = Arc::clone(&forest.0);
+        let forest = Rc::clone(&forest.0);
 
         Ok(future_to_promise(async move {
             directory
@@ -384,7 +384,7 @@ impl PrivateDirectory {
     /// Converts directory to a node.
     #[wasm_bindgen(js_name = "asNode")]
     pub fn as_node(&self) -> PrivateNode {
-        PrivateNode(WnfsPrivateNode::Dir(Arc::clone(&self.0)))
+        PrivateNode(WnfsPrivateNode::Dir(Rc::clone(&self.0)))
     }
 
     /// Gets a unique id for node.

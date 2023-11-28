@@ -21,10 +21,13 @@ use rand_chacha::{rand_core::SeedableRng, ChaCha12Rng};
 use rand_core::CryptoRngCore;
 use semver::Version;
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, sync::Arc};
+use std::collections::HashMap;
 #[cfg(test)]
 use wnfs_common::MemoryBlockStore;
-use wnfs_common::{BlockStore, Metadata, CODEC_RAW};
+use wnfs_common::{
+    utils::{Arc, CondSend},
+    BlockStore, Metadata, CODEC_RAW,
+};
 #[cfg(test)]
 use wnfs_nameaccumulator::AccumulatorSetup;
 
@@ -57,7 +60,7 @@ pub struct RootTreeSerializable {
 impl<'a, B, R> RootTree<'a, B, R>
 where
     B: BlockStore,
-    R: CryptoRngCore,
+    R: CryptoRngCore + CondSend,
 {
     pub async fn new(
         forest: Arc<HamtForest>,

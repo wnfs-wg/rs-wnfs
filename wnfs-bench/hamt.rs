@@ -4,10 +4,12 @@ use criterion::{
     Criterion, Throughput,
 };
 use proptest::{arbitrary::any, collection::vec, test_runner::TestRunner};
-use std::{cmp, sync::Arc};
+use std::cmp;
 use wnfs_common::{
-    async_encode, decode, libipld::cbor::DagCborCodec, utils::Sampleable, BlockStore, Link,
-    MemoryBlockStore,
+    async_encode, decode,
+    libipld::cbor::DagCborCodec,
+    utils::{Arc, Sampleable},
+    BlockStore, Link, MemoryBlockStore,
 };
 use wnfs_hamt::{
     diff, merge,
