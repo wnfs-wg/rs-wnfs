@@ -246,9 +246,9 @@ impl UnixfsNode {
 
     pub fn into_content_reader<B: BlockStore>(
         self,
-        store: B,
+        store: &B,
         pos_max: Option<usize>,
-    ) -> Result<Option<UnixfsFileReader<B>>> {
+    ) -> Result<Option<UnixfsFileReader<'_, B>>> {
         match self {
             UnixfsNode::Raw(_) | UnixfsNode::RawNode(_) | UnixfsNode::File(_) => {
                 let current_links = vec![self.links_owned()?];
@@ -267,27 +267,27 @@ impl UnixfsNode {
 }
 
 #[derive(Debug)]
-pub struct UnixfsFileReader<B: BlockStore> {
+pub struct UnixfsFileReader<'a, B: BlockStore> {
     root_node: UnixfsNode,
     /// Absolute position in bytes
     pos: usize,
     /// Absolute max position in bytes, only used for clipping responses
     pos_max: Option<usize>,
     /// Current node being operated on, only used for nested nodes (not the root).
-    current_node: CurrentNodeState,
+    current_node: CurrentNodeState<'a>,
     /// Stack of links left to traverse.
     current_links: Vec<VecDeque<Link>>,
-    store: B,
+    store: &'a B,
 }
 
-impl<B: BlockStore> UnixfsFileReader<B> {
+impl<'a, B: BlockStore> UnixfsFileReader<'a, B> {
     /// Returns the size in bytes, if known in advance.
     pub fn size(&self) -> Option<u64> {
         self.root_node.filesize()
     }
 }
 
-impl<B: BlockStore + Unpin + Clone + 'static> AsyncRead for UnixfsFileReader<B> {
+impl<'a, B: BlockStore + Unpin + 'static> AsyncRead for UnixfsFileReader<'a, B> {
     fn poll_read(
         mut self: Pin<&mut Self>,
         cx: &mut Context<'_>,
@@ -312,7 +312,7 @@ impl<B: BlockStore + Unpin + Clone + 'static> AsyncRead for UnixfsFileReader<B> 
             UnixfsNode::File(node) => poll_read_file_at(
                 cx,
                 node,
-                store.clone(),
+                *store,
                 pos,
                 *pos_max,
                 buf,
@@ -329,7 +329,7 @@ impl<B: BlockStore + Unpin + Clone + 'static> AsyncRead for UnixfsFileReader<B> 
     }
 }
 
-impl<B: BlockStore + Unpin + Clone + 'static> AsyncSeek for UnixfsFileReader<B> {
+impl<'a, B: BlockStore + Unpin + Clone + 'static> AsyncSeek for UnixfsFileReader<'a, B> {
     fn start_seek(mut self: Pin<&mut Self>, position: std::io::SeekFrom) -> std::io::Result<()> {
         let UnixfsFileReader {
             root_node,
@@ -432,7 +432,7 @@ pub fn find_block(node: &UnixfsNode, pos: u64, node_offset: u64) -> (u64, Option
 }
 
 #[allow(clippy::large_enum_variant)]
-pub enum CurrentNodeState {
+pub enum CurrentNodeState<'a> {
     // Initial state
     Outer,
     // Need to load next node from the list
@@ -448,11 +448,11 @@ pub enum CurrentNodeState {
     // Ongoing loading of the node
     Loading {
         node_offset: usize,
-        fut: BoxFuture<'static, Result<UnixfsNode>>,
+        fut: BoxFuture<'a, Result<UnixfsNode>>,
     },
 }
 
-impl Debug for CurrentNodeState {
+impl<'a> Debug for CurrentNodeState<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             CurrentNodeState::Outer => write!(f, "CurrentNodeState::Outer"),
@@ -474,11 +474,11 @@ impl Debug for CurrentNodeState {
     }
 }
 
-fn load_next_node(
+fn load_next_node<'a>(
     next_node_offset: usize,
-    current_node: &mut CurrentNodeState,
+    current_node: &mut CurrentNodeState<'a>,
     current_links: &mut Vec<VecDeque<Link>>,
-    store: impl BlockStore + 'static,
+    store: &'a impl BlockStore,
 ) -> bool {
     let links = loop {
         if let Some(last_mut) = current_links.last_mut() {
@@ -512,15 +512,15 @@ fn load_next_node(
 }
 
 #[allow(clippy::too_many_arguments)]
-fn poll_read_file_at(
+fn poll_read_file_at<'a>(
     cx: &mut Context<'_>,
     root_node: &Node,
-    store: impl BlockStore + Clone + 'static,
+    store: &'a impl BlockStore,
     pos: &mut usize,
     pos_max: Option<usize>,
     buf: &mut tokio::io::ReadBuf<'_>,
     current_links: &mut Vec<VecDeque<Link>>,
-    current_node: &mut CurrentNodeState,
+    current_node: &mut CurrentNodeState<'a>,
 ) -> Poll<std::io::Result<()>> {
     loop {
         if let Some(pos_max) = pos_max {
@@ -550,12 +550,8 @@ fn poll_read_file_at(
                 };
             }
             CurrentNodeState::NextNodeRequested { next_node_offset } => {
-                let loaded_next_node = load_next_node(
-                    *next_node_offset,
-                    current_node,
-                    current_links,
-                    store.clone(),
-                );
+                let loaded_next_node =
+                    load_next_node(*next_node_offset, current_node, current_links, store);
                 if !loaded_next_node {
                     return Poll::Ready(Ok(()));
                 }
