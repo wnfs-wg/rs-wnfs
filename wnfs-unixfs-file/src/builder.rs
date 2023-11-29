@@ -8,38 +8,13 @@ use anyhow::{ensure, Result};
 use bytes::Bytes;
 use futures::{Stream, StreamExt};
 use prost::Message;
-use std::{fmt::Debug, path::PathBuf, pin::Pin};
+use std::{fmt::Debug, pin::Pin};
 use tokio::io::AsyncRead;
 
-enum Content {
-    Reader(Pin<Box<dyn AsyncRead + Send>>),
-    Path(PathBuf),
-}
-
-impl Debug for Content {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Content::Reader(_) => write!(f, "Content::Reader(Pin<Box<dyn AsyncRead + Send>>)"),
-            Content::Path(p) => write!(f, "Content::Path({})", p.display()),
-        }
-    }
-}
-
-impl PartialEq for Content {
-    fn eq(&self, other: &Self) -> bool {
-        match (self, other) {
-            (Content::Reader(_), Content::Reader(_)) => false,
-            (Content::Path(self_path), Content::Path(other_path)) => self_path == other_path,
-            _ => false,
-        }
-    }
-}
-
 /// Representation of a constructed File.
-#[derive(PartialEq)]
 pub struct File {
     name: String,
-    content: Content,
+    content: Pin<Box<dyn AsyncRead + Send>>,
     tree_builder: TreeBuilder,
     chunker: Chunker,
 }
@@ -48,7 +23,10 @@ impl Debug for File {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("File")
             .field("name", &self.name)
-            .field("content", &self.content)
+            .field(
+                "content",
+                &"Content::Reader(Pin<Box<dyn AsyncRead + Send>>)",
+            )
             .field("tree_builder", &self.tree_builder)
             .field("chunker", &self.chunker)
             .finish()
@@ -73,15 +51,7 @@ impl File {
     }
 
     pub async fn encode(self) -> Result<impl Stream<Item = Result<Block>>> {
-        let reader = match self.content {
-            Content::Path(path) => {
-                let f = tokio::fs::File::open(path).await?;
-                let buf = tokio::io::BufReader::new(f);
-                Box::pin(buf)
-            }
-            Content::Reader(reader) => reader,
-        };
-        let chunks = self.chunker.chunks(reader);
+        let chunks = self.chunker.chunks(self.content);
         Ok(self.tree_builder.stream_tree(chunks))
     }
 }
@@ -89,7 +59,6 @@ impl File {
 /// Constructs a UnixFS file.
 pub struct FileBuilder {
     name: Option<String>,
-    path: Option<PathBuf>,
     reader: Option<Pin<Box<dyn AsyncRead + Send>>>,
     chunker: Chunker,
     degree: usize,
@@ -99,7 +68,6 @@ impl Default for FileBuilder {
     fn default() -> Self {
         Self {
             name: None,
-            path: None,
             reader: None,
             chunker: Chunker::Fixed(chunker::Fixed::default()),
             degree: DEFAULT_DEGREE,
@@ -115,7 +83,6 @@ impl Debug for FileBuilder {
             "None"
         };
         f.debug_struct("FileBuilder")
-            .field("path", &self.path)
             .field("name", &self.name)
             .field("chunker", &self.chunker)
             .field("degree", &self.degree)
@@ -128,11 +95,6 @@ impl Debug for FileBuilder {
 impl FileBuilder {
     pub fn new() -> Self {
         Default::default()
-    }
-
-    pub fn path<P: Into<PathBuf>>(mut self, path: P) -> Self {
-        self.path = Some(path.into());
-        self
     }
 
     pub fn name<N: Into<String>>(mut self, name: N) -> Self {
@@ -177,22 +139,6 @@ impl FileBuilder {
         let degree = self.degree;
         let chunker = self.chunker;
         let tree_builder = TreeBuilder::balanced_tree_with_degree(degree);
-        if let Some(path) = self.path {
-            let name = match self.name {
-                Some(n) => n,
-                None => path
-                    .file_name()
-                    .and_then(|s| s.to_str())
-                    .unwrap_or_default()
-                    .to_string(),
-            };
-            return Ok(File {
-                content: Content::Path(path),
-                name,
-                chunker,
-                tree_builder,
-            });
-        }
 
         if let Some(reader) = self.reader {
             let name = self.name.ok_or_else(|| {
@@ -200,13 +146,13 @@ impl FileBuilder {
             })?;
 
             return Ok(File {
-                content: Content::Reader(reader),
+                content: reader,
                 name,
                 chunker,
                 tree_builder,
             });
         }
-        anyhow::bail!("must have a path to the content or a reader for the content");
+        anyhow::bail!("must have a reader for the content");
     }
 }
 
