@@ -253,9 +253,10 @@ mod proptests {
     use proptest::{option, strategy::Strategy};
     use rand_chacha::ChaCha12Rng;
     use rand_core::{RngCore, SeedableRng};
+    use std::io::SeekFrom;
     use test_strategy::proptest;
     use testresult::TestResult;
-    use tokio::io::AsyncReadExt;
+    use tokio::io::{AsyncReadExt, AsyncSeekExt};
     use wnfs_common::{MemoryBlockStore, MAX_BLOCK_SIZE};
 
     fn arb_chunker() -> impl Strategy<Value = ChunkerConfig> {
@@ -278,7 +279,7 @@ mod proptests {
         rng.fill_bytes(&mut data);
 
         async_std::task::block_on(async {
-            let root = FileBuilder::new()
+            let root_cid = FileBuilder::new()
                 .content_bytes(data.clone())
                 .chunker(chunker)
                 .degree(degree)
@@ -286,7 +287,7 @@ mod proptests {
                 .store(store)
                 .await?;
 
-            let file = UnixFsFile::load(&root, store).await?;
+            let file = UnixFsFile::load(&root_cid, store).await?;
             assert_eq!(file.filesize(), Some(len as u64));
 
             let mut buffer = Vec::new();
@@ -294,6 +295,49 @@ mod proptests {
             reader.read_to_end(&mut buffer).await?;
 
             assert_eq!(buffer, data);
+
+            Ok(()) as TestResult
+        })
+        .unwrap();
+    }
+
+    #[proptest(cases = 256)]
+    fn test_seek_subarray(
+        seed: u64,
+        #[strategy(2..DEFAULT_DEGREE)] degree: usize,
+        #[strategy(0usize..100_000)] len: usize,
+        #[strategy(0usize..100_000)] seek_start: usize,
+        #[strategy(0usize..1_000)] seek_len: usize,
+        #[strategy(arb_chunker())] chunker: ChunkerConfig,
+    ) {
+        let store = &MemoryBlockStore::new();
+        let rng = &mut ChaCha12Rng::seed_from_u64(seed);
+        let mut data = vec![0; len];
+        rng.fill_bytes(&mut data);
+
+        let seek_start = std::cmp::min(seek_start, len);
+        let seek_len = std::cmp::min(seek_start + seek_len, len - seek_start);
+
+        async_std::task::block_on(async {
+            let root_cid = FileBuilder::new()
+                .content_bytes(data.clone())
+                .chunker(chunker)
+                .degree(degree)
+                .build()?
+                .store(store)
+                .await?;
+
+            let file = UnixFsFile::load(&root_cid, store).await?;
+            assert_eq!(file.filesize(), Some(len as u64));
+
+            let mut buffer = vec![0; seek_len];
+            let mut reader = file.into_content_reader(store, None)?;
+            reader.seek(SeekFrom::Start(seek_start as u64)).await?;
+            let read = reader.read_exact(&mut buffer).await?;
+
+            assert_eq!(read, seek_len);
+
+            assert_eq!(buffer, data[seek_start..seek_start + seek_len]);
 
             Ok(()) as TestResult
         })

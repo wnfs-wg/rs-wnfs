@@ -31,6 +31,48 @@
 
 ##
 
-This Rust crate provides an implementation of UnixFS files.
+This Rust crate provides an implementation of UnixFs files. WNFS uses the UnixFs file encoding purely to chunk big byte arrays into multiple blocks and produce a single CID for them to link to from WNFS sttuctures.
+
+This crate is a fork from beetle (previously "iroh")'s [iroh-unixfs crate](https://github.com/n0-computer/beetle/tree/3e137cb2bc18e1d458c3f72d5e817b03d9537d5d/iroh-unixfs).
+
+Major changes relative to that implementation include:
+- Removed support for any UnixFs structures other than files (no directories, directory shards or symlinks)
+- Removed parallelization for hashing to make the crate async runtime-independent (so it can be used in wasm with wasm-bindgen-futures!)
+- Doesn't hard-code use of SHA-256 anymore
+- Integrated with the wnfs-common `BlockStore` trait
 
 ## Usage
+
+```rs
+use wnfs_unixfs_file::builder::FileBuilder;
+use wnfs_common::MemoryBlockStore;
+use tokio::io::AsyncReadExt;
+
+// Where data is stored
+let store = &MemoryBlockStore::new();
+
+// Encoding byte arrays, getting a CID
+let data = vec![1u8; 1_000_000]; // 1MiB of ones
+let root_cid = FileBuilder::new()
+    .content_bytes(data)
+    .build()?
+    .store(store)
+    .await?;
+
+// Taking a CID, reading back a byte array:
+let file = UnixFsFile::load(&root_cid, store).await?;
+println!("filesize: {}", file.filesize());
+let mut buffer = Vec::new();
+let mut reader = file.into_content_reader(store, None)?;
+reader.read_to_end(&mut buffer).await?;
+// buffer now has 1 million ones
+
+// You can also seek
+use tokio::io::AsyncSeekExt;
+use std::io::SeekFrom;
+let mut reader = file.into_content_reader(store, None)?;
+reader.seek(SeekFrom::Start(10_000)).await?;
+let mut slice = [0u8; 10_000];
+reader.read_exact(&mut slice).await?;
+// slice now has 10_000 ones
+```
