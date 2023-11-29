@@ -156,16 +156,16 @@ fn create_unixfs_node_from_links(links: Vec<(Cid, LinkInfo)>) -> Result<UnixFsFi
         .into_iter()
         .map(|(cid, l)| protobufs::PbLink {
             hash: Some(cid.to_bytes()),
-            /// ALL "stem" nodes have `name: None`.
-            /// In kubo, nodes that have links to `leaf` nodes have `name: Some("".to_string())`
+            // ALL "stem" nodes have `name: None`.
+            // In kubo, nodes that have links to `leaf` nodes have `name: Some("".to_string())`
             name: None,
-            /// tsize has no strict definition
-            /// Iroh's definiton of `tsize` is "the cumulative size of the encoded tree
-            /// pointed to by this link", so not just the size of the raw content, but including
-            /// all encoded dag nodes as well.
-            /// In the `go-merkledag` package, the `merkledag.proto` file, states that tsize
-            /// is the "cumulative size of the target object"
-            /// (https://github.com/ipfs/go-merkledag/blob/8335efd4765ed5a512baa7e522c3552d067cf966/pb/merkledag.proto#L29)
+            // tsize has no strict definition
+            // Iroh's definiton of `tsize` is "the cumulative size of the encoded tree
+            // pointed to by this link", so not just the size of the raw content, but including
+            // all encoded dag nodes as well.
+            // In the `go-merkledag` package, the `merkledag.proto` file, states that tsize
+            // is the "cumulative size of the target object"
+            // (https://github.com/ipfs/go-merkledag/blob/8335efd4765ed5a512baa7e522c3552d067cf966/pb/merkledag.proto#L29)
             tsize: Some(l.encoded_len),
         })
         .collect();
