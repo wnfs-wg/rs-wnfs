@@ -13,7 +13,6 @@ use tokio::io::AsyncRead;
 
 /// Representation of a constructed File.
 pub struct File {
-    name: String,
     content: Pin<Box<dyn AsyncRead + Send>>,
     tree_builder: TreeBuilder,
     chunker: Chunker,
@@ -22,7 +21,6 @@ pub struct File {
 impl Debug for File {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("File")
-            .field("name", &self.name)
             .field(
                 "content",
                 &"Content::Reader(Pin<Box<dyn AsyncRead + Send>>)",
@@ -34,10 +32,6 @@ impl Debug for File {
 }
 
 impl File {
-    pub fn name(&self) -> &str {
-        &self.name
-    }
-
     pub async fn encode_root(self) -> Result<Block> {
         let mut current = None;
         let parts = self.encode().await?;
@@ -58,7 +52,6 @@ impl File {
 
 /// Constructs a UnixFS file.
 pub struct FileBuilder {
-    name: Option<String>,
     reader: Option<Pin<Box<dyn AsyncRead + Send>>>,
     chunker: Chunker,
     degree: usize,
@@ -67,7 +60,6 @@ pub struct FileBuilder {
 impl Default for FileBuilder {
     fn default() -> Self {
         Self {
-            name: None,
             reader: None,
             chunker: Chunker::Fixed(chunker::Fixed::default()),
             degree: DEFAULT_DEGREE,
@@ -83,7 +75,6 @@ impl Debug for FileBuilder {
             "None"
         };
         f.debug_struct("FileBuilder")
-            .field("name", &self.name)
             .field("chunker", &self.chunker)
             .field("degree", &self.degree)
             .field("reader", &reader)
@@ -95,11 +86,6 @@ impl Debug for FileBuilder {
 impl FileBuilder {
     pub fn new() -> Self {
         Default::default()
-    }
-
-    pub fn name<N: Into<String>>(mut self, name: N) -> Self {
-        self.name = Some(name.into());
-        self
     }
 
     pub fn chunker(mut self, chunker: Chunker) -> Self {
@@ -141,13 +127,8 @@ impl FileBuilder {
         let tree_builder = TreeBuilder::balanced_tree_with_degree(degree);
 
         if let Some(reader) = self.reader {
-            let name = self.name.ok_or_else(|| {
-                anyhow::anyhow!("must add a name when building a file from a reader or bytes")
-            })?;
-
             return Ok(File {
                 content: reader,
-                name,
                 chunker,
                 tree_builder,
             });
@@ -193,7 +174,6 @@ mod tests {
         let bar_encoded: Vec<_> = {
             let bar_reader = std::io::Cursor::new(b"bar");
             let bar = FileBuilder::new()
-                .name("bar.txt")
                 .content_reader(bar_reader)
                 .build()
                 .await?;
@@ -211,7 +191,6 @@ mod tests {
         let bar_encoded: Vec<_> = {
             let bar_reader = std::io::Cursor::new(vec![1u8; 1024 * 1024]);
             let bar = FileBuilder::new()
-                .name("bar.txt")
                 .content_reader(bar_reader)
                 .build()
                 .await?;
@@ -230,7 +209,6 @@ mod tests {
         let baz_encoded: Vec<_> = {
             let baz_reader = std::io::Cursor::new(baz_content);
             let baz = FileBuilder::new()
-                .name("baz.txt")
                 .content_reader(baz_reader)
                 .build()
                 .await?;
