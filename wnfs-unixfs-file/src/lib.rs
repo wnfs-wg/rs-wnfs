@@ -7,15 +7,14 @@ mod types;
 pub mod unixfs;
 
 use crate::codecs::Codec;
-use anyhow::{bail, Context as _, Result};
+use anyhow::{bail, Result};
 use libipld::{prelude::Codec as _, Cid, Ipld, IpldCodec};
 use std::collections::BTreeSet;
 
 /// Extract links from the given content.
 ///
 /// Links will be returned as a sorted vec
-pub fn parse_links(cid: &Cid, bytes: &[u8]) -> Result<Vec<Cid>> {
-    let codec = Codec::try_from(cid.codec()).context("unknown codec")?;
+pub fn parse_links(codec: Codec, bytes: &[u8]) -> Result<Vec<Cid>> {
     let mut cids = BTreeSet::new();
     let codec = match codec {
         Codec::DagCbor => IpldCodec::DagCbor,

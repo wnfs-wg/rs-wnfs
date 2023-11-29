@@ -7,7 +7,7 @@ use crate::{
 use anyhow::{anyhow, bail, ensure, Result};
 use bytes::Bytes;
 use futures::{future::BoxFuture, FutureExt};
-use libipld::{multihash::MultihashDigest, Cid};
+use libipld::Cid;
 use prost::Message;
 use std::{
     collections::VecDeque,
@@ -118,11 +118,7 @@ impl UnixFsFile {
             UnixFsFile::Raw(data) => {
                 let out = data.clone();
                 let links = vec![];
-                let cid = Cid::new_v1(
-                    Codec::Raw as _,
-                    libipld::multihash::Code::Sha2_256.digest(&out),
-                );
-                Block::new(cid, out, links)
+                Block::new(Codec::Raw, out, links)
             }
             UnixFsFile::Node(node) => {
                 let out = node.encode()?;
@@ -130,11 +126,7 @@ impl UnixFsFile {
                     .links()
                     .map(|x| Ok(x?.cid))
                     .collect::<Result<Vec<_>>>()?;
-                let cid = Cid::new_v1(
-                    Codec::DagPb as _,
-                    libipld::multihash::Code::Sha2_256.digest(&out),
-                );
-                Block::new(cid, out, links)
+                Block::new(Codec::DagPb, out, links)
             }
         };
 

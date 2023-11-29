@@ -7,9 +7,10 @@ use crate::{
 use anyhow::Result;
 use async_stream::try_stream;
 use bytes::Bytes;
-use futures::{Stream, StreamExt, TryFutureExt, TryStreamExt};
+use futures::{Stream, StreamExt};
 use libipld::Cid;
 use std::collections::VecDeque;
+use wnfs_common::BlockStore;
 
 /// Default degree number for balanced tree, taken from unixfs specs
 /// <https://github.com/ipfs/specs/blob/main/UNIXFS.md#layout>
@@ -32,12 +33,13 @@ impl TreeBuilder {
         TreeBuilder::Balanced { degree }
     }
 
-    pub fn stream_tree(
+    pub fn stream_tree<'a>(
         &self,
-        chunks: impl Stream<Item = std::io::Result<Bytes>> + Send,
-    ) -> impl Stream<Item = Result<Block>> {
+        chunks: impl Stream<Item = std::io::Result<Bytes>> + Send + 'a,
+        store: &'a impl BlockStore,
+    ) -> impl Stream<Item = Result<(Cid, Block)>> + 'a {
         match self {
-            TreeBuilder::Balanced { degree } => stream_balanced_tree(chunks, *degree),
+            TreeBuilder::Balanced { degree } => stream_balanced_tree(chunks, *degree, store),
         }
     }
 }
@@ -48,10 +50,11 @@ struct LinkInfo {
     encoded_len: u64,
 }
 
-fn stream_balanced_tree(
-    in_stream: impl Stream<Item = std::io::Result<Bytes>> + Send,
+fn stream_balanced_tree<'a>(
+    in_stream: impl Stream<Item = std::io::Result<Bytes>> + Send + 'a,
     degree: usize,
-) -> impl Stream<Item = Result<Block>> {
+    store: &'a impl BlockStore,
+) -> impl Stream<Item = Result<(Cid, Block)>> + 'a {
     try_stream! {
         // degree = 8
         // VecDeque![ vec![] ]
@@ -78,13 +81,7 @@ fn stream_balanced_tree(
         let mut tree: VecDeque<Vec<(Cid, LinkInfo)>> = VecDeque::new();
         tree.push_back(Vec::with_capacity(degree));
 
-        let hash_par: usize = 8;
-
-        let in_stream = in_stream.err_into::<anyhow::Error>().map(|chunk| {
-            tokio::task::spawn_blocking(|| {
-                chunk.and_then(|chunk| TreeNode::Leaf(chunk).encode())
-            }).err_into::<anyhow::Error>()
-        }).buffered(hash_par).map(|x| x.and_then(|x| x));
+        let in_stream = in_stream.map(|chunk| TreeNode::Leaf(chunk?).encode());
 
         tokio::pin!(in_stream);
 
@@ -110,8 +107,8 @@ fn stream_balanced_tree(
                     // create node, keeping the cid
                     let links = std::mem::replace(&mut tree[i], Vec::with_capacity(degree));
                     let (block, link_info) = TreeNode::Stem(links).encode()?;
-                    let cid = *block.cid();
-                    yield block;
+                    let cid = block.store(store).await?;
+                    yield (cid, block);
 
                     // add link_info to parent node
                     tree[i+1].push((cid, link_info));
@@ -123,8 +120,9 @@ fn stream_balanced_tree(
 
             // now that we know the tree is in a "healthy" state to
             // recieve more links, add the link to the tree
-            tree[0].push((*block.cid(), link_info));
-            yield block;
+            let cid = block.store(store).await?;
+            tree[0].push((cid, link_info));
+            yield (cid, block);
             // at this point, the leaf node may have `degree` number of
             // links, but no other stem node will
         }
@@ -139,8 +137,8 @@ fn stream_balanced_tree(
         // we don't have to worry about "overflow"
         while let Some(links) = tree.pop_front() {
             let (block, link_info) = TreeNode::Stem(links).encode()?;
-            let cid = *block.cid();
-            yield block;
+            let cid = block.store(store).await?;
+            yield (cid, block);
 
             if let Some(front) = tree.front_mut() {
                 front.push((cid, link_info));
@@ -237,6 +235,7 @@ mod tests {
     use super::*;
     use bytes::BytesMut;
     use futures::StreamExt;
+    use wnfs_common::MemoryBlockStore;
 
     // chunks are just a single usize integer
     const CHUNK_SIZE: u64 = std::mem::size_of::<usize>() as u64;
@@ -245,7 +244,8 @@ mod tests {
         futures::stream::iter((0..num_chunks).map(|n| Ok(n.to_be_bytes().to_vec().into())))
     }
 
-    async fn build_expect_tree(num_chunks: usize, degree: usize) -> Vec<Vec<Block>> {
+    async fn build_expect_tree(num_chunks: usize, degree: usize) -> Vec<Vec<(Cid, Block)>> {
+        let store = &MemoryBlockStore::new();
         let chunks = test_chunk_stream(num_chunks);
         tokio::pin!(chunks);
         let mut tree = vec![vec![]];
@@ -255,7 +255,8 @@ mod tests {
             let chunk = chunks.next().await.unwrap().unwrap();
             let leaf = TreeNode::Leaf(chunk);
             let (block, _) = leaf.encode().unwrap();
-            tree[0].push(block);
+            let cid = block.store(store).await.unwrap();
+            tree[0].push((cid, block));
             return tree;
         }
 
@@ -263,8 +264,9 @@ mod tests {
             let chunk = chunk.unwrap();
             let leaf = TreeNode::Leaf(chunk);
             let (block, link_info) = leaf.encode().unwrap();
-            links[0].push((*block.cid(), link_info));
-            tree[0].push(block);
+            let cid = block.store(store).await.unwrap();
+            links[0].push((cid, link_info));
+            tree[0].push((cid, block));
         }
 
         while tree.last().unwrap().len() > 1 {
@@ -275,8 +277,9 @@ mod tests {
             for links in prev_layer.chunks(degree) {
                 let stem = TreeNode::Stem(links.to_vec());
                 let (block, link_info) = stem.encode().unwrap();
-                links_layer.push((*block.cid(), link_info));
-                tree_layer.push(block);
+                let cid = block.store(store).await.unwrap();
+                links_layer.push((cid, link_info));
+                tree_layer.push((cid, block));
             }
             tree.push(tree_layer);
             links.push(links_layer);
@@ -285,10 +288,10 @@ mod tests {
     }
 
     async fn build_expect_vec_from_tree(
-        tree: Vec<Vec<Block>>,
+        tree: Vec<Vec<(Cid, Block)>>,
         num_chunks: usize,
         degree: usize,
-    ) -> Vec<Block> {
+    ) -> Vec<(Cid, Block)> {
         let mut out = vec![];
 
         if num_chunks == 1 {
@@ -330,75 +333,109 @@ mod tests {
         out
     }
 
-    async fn build_expect(num_chunks: usize, degree: usize) -> Vec<Block> {
+    async fn build_expect(num_chunks: usize, degree: usize) -> Vec<(Cid, Block)> {
         let tree = build_expect_tree(num_chunks, degree).await;
         println!("{tree:?}");
         build_expect_vec_from_tree(tree, num_chunks, degree).await
     }
 
-    fn make_leaf(data: usize) -> (Block, LinkInfo) {
-        TreeNode::Leaf(BytesMut::from(&data.to_be_bytes()[..]).freeze())
+    async fn make_leaf(data: usize, store: &impl BlockStore) -> (Cid, Block, LinkInfo) {
+        let (block, link_info) = TreeNode::Leaf(BytesMut::from(&data.to_be_bytes()[..]).freeze())
             .encode()
-            .unwrap()
+            .unwrap();
+        let cid = block.store(store).await.unwrap();
+        (cid, block, link_info)
     }
 
-    fn make_stem(links: Vec<(Cid, LinkInfo)>) -> (Block, LinkInfo) {
-        TreeNode::Stem(links).encode().unwrap()
+    async fn make_stem(
+        links: Vec<(Cid, LinkInfo)>,
+        store: &impl BlockStore,
+    ) -> (Cid, Block, LinkInfo) {
+        let (block, link_info) = TreeNode::Stem(links).encode().unwrap();
+        let cid = block.store(store).await.unwrap();
+        (cid, block, link_info)
     }
 
     #[tokio::test]
     async fn test_build_expect() {
+        let store = &MemoryBlockStore::new();
         // manually build tree made of 7 chunks (11 total nodes)
-        let (leaf_0, len_0) = make_leaf(0);
-        let (leaf_1, len_1) = make_leaf(1);
-        let (leaf_2, len_2) = make_leaf(2);
-        let (stem_0, stem_len_0) = make_stem(vec![
-            (*leaf_0.cid(), len_0),
-            (*leaf_1.cid(), len_1),
-            (*leaf_2.cid(), len_2),
-        ]);
-        let (leaf_3, len_3) = make_leaf(3);
-        let (leaf_4, len_4) = make_leaf(4);
-        let (leaf_5, len_5) = make_leaf(5);
-        let (stem_1, stem_len_1) = make_stem(vec![
-            (*leaf_3.cid(), len_3),
-            (*leaf_4.cid(), len_4),
-            (*leaf_5.cid(), len_5),
-        ]);
-        let (leaf_6, len_6) = make_leaf(6);
-        let (stem_2, stem_len_2) = make_stem(vec![(*leaf_6.cid(), len_6)]);
-        let (root, _root_len) = make_stem(vec![
-            (*stem_0.cid(), stem_len_0),
-            (*stem_1.cid(), stem_len_1),
-            (*stem_2.cid(), stem_len_2),
-        ]);
+        let (leaf_0_cid, leaf_0, len_0) = make_leaf(0, store).await;
+        let (leaf_1_cid, leaf_1, len_1) = make_leaf(1, store).await;
+        let (leaf_2_cid, leaf_2, len_2) = make_leaf(2, store).await;
+        let (stem_0_cid, stem_0, stem_len_0) = make_stem(
+            vec![
+                (leaf_0_cid, len_0),
+                (leaf_1_cid, len_1),
+                (leaf_2_cid, len_2),
+            ],
+            store,
+        )
+        .await;
+        let (leaf_3_cid, leaf_3, len_3) = make_leaf(3, store).await;
+        let (leaf_4_cid, leaf_4, len_4) = make_leaf(4, store).await;
+        let (leaf_5_cid, leaf_5, len_5) = make_leaf(5, store).await;
+        let (stem_1_cid, stem_1, stem_len_1) = make_stem(
+            vec![
+                (leaf_3_cid, len_3),
+                (leaf_4_cid, len_4),
+                (leaf_5_cid, len_5),
+            ],
+            store,
+        )
+        .await;
+        let (leaf_6_cid, leaf_6, len_6) = make_leaf(6, store).await;
+        let (stem_2_cid, stem_2, stem_len_2) = make_stem(vec![(leaf_6_cid, len_6)], store).await;
+        let (root_cid, root, _root_len) = make_stem(
+            vec![
+                (stem_0_cid, stem_len_0),
+                (stem_1_cid, stem_len_1),
+                (stem_2_cid, stem_len_2),
+            ],
+            store,
+        )
+        .await;
 
         let expect_tree = vec![
             vec![
-                leaf_0.clone(),
-                leaf_1.clone(),
-                leaf_2.clone(),
-                leaf_3.clone(),
-                leaf_4.clone(),
-                leaf_5.clone(),
-                leaf_6.clone(),
+                (leaf_0_cid, leaf_0.clone()),
+                (leaf_1_cid, leaf_1.clone()),
+                (leaf_2_cid, leaf_2.clone()),
+                (leaf_3_cid, leaf_3.clone()),
+                (leaf_4_cid, leaf_4.clone()),
+                (leaf_5_cid, leaf_5.clone()),
+                (leaf_6_cid, leaf_6.clone()),
             ],
-            vec![stem_0.clone(), stem_1.clone(), stem_2.clone()],
-            vec![root.clone()],
+            vec![
+                (stem_0_cid, stem_0.clone()),
+                (stem_1_cid, stem_1.clone()),
+                (stem_2_cid, stem_2.clone()),
+            ],
+            vec![(root_cid, root.clone())],
         ];
         let got_tree = build_expect_tree(7, 3).await;
         assert_eq!(expect_tree, got_tree);
 
         let expect_vec = vec![
-            leaf_0, leaf_1, leaf_2, stem_0, leaf_3, leaf_4, leaf_5, stem_1, leaf_6, stem_2, root,
+            (leaf_0_cid, leaf_0),
+            (leaf_1_cid, leaf_1),
+            (leaf_2_cid, leaf_2),
+            (stem_0_cid, stem_0),
+            (leaf_3_cid, leaf_3),
+            (leaf_4_cid, leaf_4),
+            (leaf_5_cid, leaf_5),
+            (stem_1_cid, stem_1),
+            (leaf_6_cid, leaf_6),
+            (stem_2_cid, stem_2),
+            (root_cid, root),
         ];
         let got_vec = build_expect_vec_from_tree(got_tree, 7, 3).await;
         assert_eq!(expect_vec, got_vec);
     }
 
     async fn ensure_equal(
-        expect: Vec<Block>,
-        got: impl Stream<Item = Result<Block>>,
+        expect: Vec<(Cid, Block)>,
+        got: impl Stream<Item = Result<(Cid, Block)>>,
         expected_filesize: u64,
     ) {
         let mut i = 0;
@@ -407,20 +444,18 @@ mod tests {
         let mut expected_tsize = 0;
         let mut got_tsize = 0;
         while let Some(node) = got.next().await {
-            let (expect_cid, expect_bytes, _) = expect
+            let (expect_cid, expect_block) = expect
                 .get(i)
                 .expect("too many nodes in balanced tree stream")
-                .clone()
-                .into_parts();
-            let node = node.expect("unexpected error in balanced tree stream");
-            let (got_cid, got_bytes, _) = node.into_parts();
-            let len = got_bytes.len() as u64;
+                .clone();
+            let (got_cid, got_block) = node.expect("unexpected error in balanced tree stream");
+            let len = got_block.data().len() as u64;
             println!("node index {i}");
             assert_eq!(expect_cid, got_cid);
-            assert_eq!(expect_bytes, got_bytes);
+            assert_eq!(expect_block.data(), got_block.data());
             i += 1;
-            let expect_node = UnixFsFile::decode(&expect_cid, expect_bytes.to_owned()).unwrap();
-            let got_node = UnixFsFile::decode(&got_cid, got_bytes.clone()).unwrap();
+            let expect_node = UnixFsFile::decode(&expect_cid, expect_block.data().clone()).unwrap();
+            let got_node = UnixFsFile::decode(&got_cid, got_block.data().clone()).unwrap();
             if let Some(DataType::File) = got_node.typ() {
                 assert_eq!(
                     got_node.filesize().unwrap(),
@@ -429,7 +464,7 @@ mod tests {
             }
             assert_eq!(expect_node, got_node);
             if expect.len() == i {
-                let node = UnixFsFile::decode(&got_cid, got_bytes).unwrap();
+                let node = UnixFsFile::decode(&got_cid, got_block.data().clone()).unwrap();
                 got_tsize = node.links().map(|l| l.unwrap().tsize.unwrap()).sum();
                 got_filesize = got_node.filesize().unwrap();
             } else {
@@ -449,59 +484,65 @@ mod tests {
 
     #[tokio::test]
     async fn balanced_tree_test_leaf() {
+        let store = &MemoryBlockStore::new();
         let num_chunks = 1;
         let expect = build_expect(num_chunks, 3).await;
-        let got = stream_balanced_tree(test_chunk_stream(1), 3);
+        let got = stream_balanced_tree(test_chunk_stream(1), 3, store);
         tokio::pin!(got);
         ensure_equal(expect, got, num_chunks as u64 * CHUNK_SIZE).await;
     }
 
     #[tokio::test]
     async fn balanced_tree_test_height_one() {
+        let store = &MemoryBlockStore::new();
         let num_chunks = 3;
         let degrees = 3;
         let expect = build_expect(num_chunks, degrees).await;
-        let got = stream_balanced_tree(test_chunk_stream(num_chunks), degrees);
+        let got = stream_balanced_tree(test_chunk_stream(num_chunks), degrees, store);
         tokio::pin!(got);
         ensure_equal(expect, got, num_chunks as u64 * CHUNK_SIZE).await;
     }
 
     #[tokio::test]
     async fn balanced_tree_test_height_two_full() {
+        let store = &MemoryBlockStore::new();
         let degrees = 3;
         let num_chunks = 9;
         let expect = build_expect(num_chunks, degrees).await;
-        let got = stream_balanced_tree(test_chunk_stream(num_chunks), degrees);
+        let got = stream_balanced_tree(test_chunk_stream(num_chunks), degrees, store);
         tokio::pin!(got);
         ensure_equal(expect, got, num_chunks as u64 * CHUNK_SIZE).await;
     }
 
     #[tokio::test]
     async fn balanced_tree_test_height_two_not_full() {
+        let store = &MemoryBlockStore::new();
         let degrees = 3;
         let num_chunks = 10;
         let expect = build_expect(num_chunks, degrees).await;
-        let got = stream_balanced_tree(test_chunk_stream(num_chunks), degrees);
+        let got = stream_balanced_tree(test_chunk_stream(num_chunks), degrees, store);
         tokio::pin!(got);
         ensure_equal(expect, got, num_chunks as u64 * CHUNK_SIZE).await;
     }
 
     #[tokio::test]
     async fn balanced_tree_test_height_three() {
+        let store = &MemoryBlockStore::new();
         let num_chunks = 125;
         let degrees = 5;
         let expect = build_expect(num_chunks, degrees).await;
-        let got = stream_balanced_tree(test_chunk_stream(num_chunks), degrees);
+        let got = stream_balanced_tree(test_chunk_stream(num_chunks), degrees, store);
         tokio::pin!(got);
         ensure_equal(expect, got, num_chunks as u64 * CHUNK_SIZE).await;
     }
 
     #[tokio::test]
     async fn balanced_tree_test_large() {
+        let store = &MemoryBlockStore::new();
         let num_chunks = 780;
         let degrees = 11;
         let expect = build_expect(num_chunks, degrees).await;
-        let got = stream_balanced_tree(test_chunk_stream(num_chunks), degrees);
+        let got = stream_balanced_tree(test_chunk_stream(num_chunks), degrees, store);
         tokio::pin!(got);
         ensure_equal(expect, got, num_chunks as u64 * CHUNK_SIZE).await;
     }

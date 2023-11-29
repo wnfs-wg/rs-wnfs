@@ -9,7 +9,7 @@ use bytes::Bytes;
 use futures::{Stream, TryStreamExt};
 use libipld::Cid;
 use prost::Message;
-use std::{debug_assert_eq, fmt::Debug, pin::Pin};
+use std::{fmt::Debug, pin::Pin};
 use tokio::io::AsyncRead;
 use wnfs_common::BlockStore;
 
@@ -34,35 +34,22 @@ impl Debug for File {
 }
 
 impl File {
-    pub async fn encode_root(self) -> Result<Block> {
-        let mut current = None;
-        let parts = self.encode()?;
-        tokio::pin!(parts);
-
-        while let Some(part) = parts.try_next().await? {
-            current = Some(part);
-        }
-
-        current.ok_or_else(|| anyhow!("error encoding file, no blocks produced"))
-    }
-
-    pub fn encode(self) -> Result<impl Stream<Item = Result<Block>>> {
+    pub fn encode(
+        self,
+        store: &impl BlockStore,
+    ) -> Result<impl Stream<Item = Result<(Cid, Block)>> + '_> {
         let chunks = self.chunker.chunks(self.content);
-        Ok(self.tree_builder.stream_tree(chunks))
+        Ok(self.tree_builder.stream_tree(chunks, store))
     }
 
     pub async fn store(self, store: &impl BlockStore) -> Result<Cid> {
-        let blocks = self.encode()?;
+        let blocks = self.encode(store)?;
         tokio::pin!(blocks);
 
         let mut root_cid = None;
 
-        while let Some(block) = blocks.try_next().await? {
-            root_cid = Some(*block.cid());
-            let cid = store
-                .put_block(block.data().clone(), block.cid().codec())
-                .await?;
-            debug_assert_eq!(block.cid(), &cid);
+        while let Some((cid, _)) = blocks.try_next().await? {
+            root_cid = Some(cid);
         }
 
         root_cid.ok_or_else(|| anyhow!("error encoding file, no blocks produced"))
@@ -187,14 +174,16 @@ mod tests {
     use super::*;
     use crate::chunker::DEFAULT_CHUNKS_SIZE;
     use futures::TryStreamExt;
+    use wnfs_common::MemoryBlockStore;
 
     #[tokio::test]
     async fn test_builder_stream_small() -> Result<()> {
+        let store = &MemoryBlockStore::new();
         // Add a file
         let bar_encoded: Vec<_> = {
             let bar_reader = std::io::Cursor::new(b"bar");
             let bar = FileBuilder::new().content_reader(bar_reader).build()?;
-            bar.encode()?.try_collect().await?
+            bar.encode(store)?.try_collect().await?
         };
         assert_eq!(bar_encoded.len(), 1);
 
@@ -204,11 +193,12 @@ mod tests {
 
     #[tokio::test]
     async fn test_builder_stream_large() -> Result<()> {
+        let store = &MemoryBlockStore::new();
         // Add a file
         let bar_encoded: Vec<_> = {
             let bar_reader = std::io::Cursor::new(vec![1u8; 1024 * 1024]);
             let bar = FileBuilder::new().content_reader(bar_reader).build()?;
-            bar.encode()?.try_collect().await?
+            bar.encode(store)?.try_collect().await?
         };
         assert_eq!(bar_encoded.len(), 5);
 
@@ -223,7 +213,7 @@ mod tests {
         let baz_encoded: Vec<_> = {
             let baz_reader = std::io::Cursor::new(baz_content);
             let baz = FileBuilder::new().content_reader(baz_reader).build()?;
-            baz.encode()?.try_collect().await?
+            baz.encode(store)?.try_collect().await?
         };
         assert_eq!(baz_encoded.len(), 9);
 
