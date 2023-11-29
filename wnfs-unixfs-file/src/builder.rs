@@ -1,47 +1,34 @@
 use crate::{
     balanced_tree::{TreeBuilder, DEFAULT_DEGREE},
     chunker::{self, Chunker, ChunkerConfig, DEFAULT_CHUNK_SIZE_LIMIT},
-    hamt::{bitfield::Bitfield, bits, hash_key},
     protobufs,
     types::Block,
-    unixfs::{DataType, HamtHashFunction, Node, UnixfsNode},
+    unixfs::{DataType, Node, UnixfsNode},
 };
-use anyhow::{ensure, Context, Result};
+use anyhow::{ensure, Result};
 use async_recursion::async_recursion;
 use bytes::Bytes;
 use futures::{
     stream::{self, BoxStream},
-    Stream, StreamExt, TryFutureExt,
+    Stream, StreamExt,
 };
 use prost::Message;
 use std::{
-    collections::BTreeMap,
     fmt::Debug,
     path::{Path, PathBuf},
     pin::Pin,
 };
 use tokio::io::AsyncRead;
 
-// The maximum number of links we allow in a directory
-// Any more links than this and we should switch to a hamt
-// calculation comes from:
-// (hash_length + max_file_name_len + tsize_len )/ block_size
-// (64 bytes + 256 bytes + 8 bytes) / 2 MB ≈ 6400
-// adding a generous buffer, we are using 6k as our link limit
-const DIRECTORY_LINK_LIMIT: usize = 6000;
-
 #[derive(Debug, PartialEq)]
 enum DirectoryType {
     Basic,
-    // TODO: writing hamt sharding not yet implemented
-    Hamt,
 }
 
 /// Representation of a constructed Directory.
 #[derive(Debug, PartialEq)]
 pub enum Directory {
     Basic(BasicDirectory),
-    Hamt(HamtDirectory),
 }
 
 /// A basic / flat directory
@@ -49,13 +36,6 @@ pub enum Directory {
 pub struct BasicDirectory {
     name: String,
     entries: Vec<Entry>,
-}
-
-/// A hamt sharded directory
-#[derive(Debug, PartialEq)]
-pub struct HamtDirectory {
-    name: String,
-    hamt: Box<HamtNode>,
 }
 
 impl Directory {
@@ -70,16 +50,12 @@ impl Directory {
     pub fn name(&self) -> &str {
         match &self {
             Directory::Basic(BasicDirectory { name, .. }) => name,
-            Directory::Hamt(HamtDirectory { name, .. }) => name,
         }
     }
 
     pub fn set_name(&mut self, value: String) {
         match self {
             Directory::Basic(BasicDirectory { name, .. }) => {
-                *name = value;
-            }
-            Directory::Hamt(HamtDirectory { name, .. }) => {
                 *name = value;
             }
         }
@@ -106,7 +82,6 @@ impl Directory {
     pub fn encode<'a>(self) -> BoxStream<'a, Result<Block>> {
         match self {
             Directory::Basic(basic) => basic.encode(),
-            Directory::Hamt(hamt) => hamt.encode(),
         }
     }
 }
@@ -143,12 +118,6 @@ impl BasicDirectory {
             yield node.encode()?;
         }
         .boxed()
-    }
-}
-
-impl HamtDirectory {
-    pub fn encode<'a>(self) -> BoxStream<'a, Result<Block>> {
-        self.hamt.encode()
     }
 }
 
@@ -501,11 +470,6 @@ impl DirectoryBuilder {
         Default::default()
     }
 
-    pub fn hamt(mut self) -> Self {
-        self.typ = DirectoryType::Hamt;
-        self
-    }
-
     pub fn name<N: Into<String>>(mut self, name: N) -> Self {
         self.name = Some(name.into());
         self
@@ -539,9 +503,6 @@ impl DirectoryBuilder {
     }
 
     fn entry(mut self, entry: Entry) -> Self {
-        if self.typ == DirectoryType::Basic && self.entries.len() >= DIRECTORY_LINK_LIMIT {
-            self.typ = DirectoryType::Hamt
-        }
         self.entries.push(entry);
         self
     }
@@ -566,118 +527,8 @@ impl DirectoryBuilder {
             let name = name.unwrap_or_default();
             match typ {
                 DirectoryType::Basic => Directory::Basic(BasicDirectory { name, entries }),
-                DirectoryType::Hamt => {
-                    let hamt = HamtNode::new(entries)
-                        .context("unable to build hamt. Probably a hash collision.")?;
-                    Directory::Hamt(HamtDirectory {
-                        name,
-                        hamt: Box::new(hamt),
-                    })
-                }
             }
         })
-    }
-}
-
-/// A leaf when building a hamt directory.
-///
-/// Basically just an entry and the hash of its name.
-#[derive(Debug, PartialEq)]
-pub struct HamtLeaf([u8; 8], Entry);
-
-/// A node when building a hamt directory.
-///
-/// Either a branch or a leaf. Root will always be a branch,
-/// even if it has only one child.
-#[derive(Debug, PartialEq)]
-enum HamtNode {
-    Branch(BTreeMap<u32, HamtNode>),
-    Leaf(HamtLeaf),
-}
-
-impl HamtNode {
-    fn new(entries: Vec<Entry>) -> anyhow::Result<HamtNode> {
-        // add the hash
-        let entries = entries
-            .into_iter()
-            .map(|entry| {
-                let name = entry.name().to_string();
-                let hash = hash_key(name.as_bytes());
-                HamtLeaf(hash, entry)
-            })
-            .collect::<Vec<_>>();
-        Self::group(entries, 0, 8)
-    }
-
-    fn group(leafs: Vec<HamtLeaf>, pos: u32, len: u32) -> anyhow::Result<HamtNode> {
-        Ok(if leafs.len() == 1 && pos > 0 {
-            HamtNode::Leaf(leafs.into_iter().next().unwrap())
-        } else {
-            let mut res = BTreeMap::<u32, Vec<HamtLeaf>>::new();
-            for leaf in leafs {
-                let value = bits(&leaf.0, pos, len)?;
-                res.entry(value).or_default().push(leaf);
-            }
-            let res = res
-                .into_iter()
-                .map(|(key, leafs)| {
-                    let node = Self::group(leafs, pos + len, len)?;
-                    anyhow::Ok((key, node))
-                })
-                .collect::<anyhow::Result<_>>()?;
-            HamtNode::Branch(res)
-        })
-    }
-
-    fn name(&self) -> &str {
-        match self {
-            HamtNode::Branch(_) => "",
-            HamtNode::Leaf(HamtLeaf(_, entry)) => entry.name(),
-        }
-    }
-
-    pub fn encode<'a>(self) -> BoxStream<'a, Result<Block>> {
-        match self {
-            Self::Branch(tree) => {
-                async_stream::try_stream! {
-                    let mut links = Vec::with_capacity(tree.len());
-                    let mut bitfield = Bitfield::default();
-                    for (prefix, node) in tree {
-                        let name = format!("{:02X}{}", prefix, node.name());
-                        bitfield.set_bit(prefix);
-                        let blocks = node.encode();
-                        let mut root = None;
-                        tokio::pin!(blocks);
-                        while let Some(block) = blocks.next().await {
-                            let block = block?;
-                            root = Some(*block.cid());
-                            yield block;
-                        }
-                        links.push(protobufs::PbLink {
-                            name: Some(name),
-                            hash: root.map(|cid| cid.to_bytes()),
-                            tsize: None,
-                        });
-                    }
-                    let inner = protobufs::Data {
-                        r#type: DataType::HamtShard as i32,
-                        hash_type: Some(HamtHashFunction::Murmur3 as u64),
-                        fanout: Some(256),
-                        data: Some(bitfield.as_bytes().to_vec().into()),
-                        ..Default::default()
-                    };
-                    let outer = encode_unixfs_pb(&inner, links).unwrap();
-                    // it does not really matter what enum variant we choose here as long as
-                    // it is not raw. The type of the node will be HamtShard from above.
-                    let node = UnixfsNode::Directory(crate::unixfs::Node { outer, inner });
-                    yield node.encode()?;
-                }
-                .boxed()
-            }
-            Self::Leaf(HamtLeaf(_hash, entry)) => async move { entry.encode().await }
-                .try_flatten_stream()
-                .boxed(),
-        }
     }
 }
 
@@ -983,54 +834,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_hamt_detection() -> Result<()> {
-        // allow hamt override
-        let builder = DirectoryBuilder::new().hamt();
-        assert_eq!(DirectoryType::Hamt, builder.typ);
-
-        let mut builder = DirectoryBuilder::new();
-
-        for _i in 0..DIRECTORY_LINK_LIMIT {
-            let file = FileBuilder::new()
-                .name("foo.txt")
-                .content_bytes(Bytes::from("hello world"))
-                .build()
-                .await?;
-            builder = builder.add_file(file);
-        }
-
-        // under DIRECTORY_LINK_LIMIT should still be a basic directory
-        assert_eq!(DirectoryType::Basic, builder.typ);
-
-        let file = FileBuilder::new()
-            .name("foo.txt")
-            .content_bytes(Bytes::from("hello world"))
-            .build()
-            .await?;
-        builder = builder.add_file(file);
-
-        // at directory link limit should be processed as a hamt
-        assert_eq!(DirectoryType::Hamt, builder.typ);
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn test_hamt_hash_collision() -> Result<()> {
-        // allow hamt override
-        let mut builder = DirectoryBuilder::new().hamt();
-        for _i in 0..2 {
-            let file = FileBuilder::new()
-                .name("foo.txt")
-                .content_bytes(Bytes::from("hello world"))
-                .build()
-                .await?;
-            builder = builder.add_file(file);
-        }
-        assert!(builder.build().await.is_err());
-        Ok(())
-    }
-
-    #[tokio::test]
     async fn test_make_dir_from_path() -> Result<()> {
         let temp_dir = std::env::temp_dir();
         let dir = temp_dir.join("test_dir");
@@ -1084,7 +887,6 @@ mod tests {
 
         let basic_entries = |dir: Directory| match dir {
             Directory::Basic(basic) => basic.entries,
-            _ => panic!("expected directory"),
         };
 
         // Before comparison sort entries to make test deterministic.

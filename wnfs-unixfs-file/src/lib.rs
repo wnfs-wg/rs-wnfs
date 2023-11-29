@@ -3,7 +3,6 @@ pub mod builder;
 pub mod chunker;
 pub mod codecs;
 pub mod content_loader;
-pub mod hamt;
 pub mod protobufs;
 mod types;
 pub mod unixfs;

@@ -2,7 +2,6 @@ use crate::{
     chunker::DEFAULT_CHUNK_SIZE_LIMIT,
     codecs::Codec,
     content_loader::{ContentLoader, LoaderContext},
-    hamt::Hamt,
     protobufs,
     types::{Block, Link, LinkRef, Links, PbLinks},
 };
@@ -60,7 +59,6 @@ pub enum UnixfsNode {
     Directory(Node),
     File(Node),
     Symlink(Node),
-    HamtShard(Node, Hamt),
 }
 
 #[derive(
@@ -157,11 +155,7 @@ impl UnixfsNode {
                     DataType::Directory => Ok(UnixfsNode::Directory(node)),
                     DataType::File => Ok(UnixfsNode::File(node)),
                     DataType::Symlink => Ok(UnixfsNode::Symlink(node)),
-                    DataType::HamtShard => {
-                        let hamt = Hamt::from_node(&node)?;
-                        Ok(UnixfsNode::HamtShard(node, hamt))
-                    }
-                    DataType::Metadata => bail!("unixfs metadata is not supported"),
+                    _ => bail!("unixfs data type unsupported: {typ:?}"),
                 }
             }
         }
@@ -181,8 +175,7 @@ impl UnixfsNode {
             UnixfsNode::RawNode(node)
             | UnixfsNode::Directory(node)
             | UnixfsNode::File(node)
-            | UnixfsNode::Symlink(node)
-            | UnixfsNode::HamtShard(node, _) => {
+            | UnixfsNode::Symlink(node) => {
                 let out = node.encode()?;
                 let links = node
                     .links()
@@ -212,7 +205,6 @@ impl UnixfsNode {
             UnixfsNode::Directory(_) => Some(DataType::Directory),
             UnixfsNode::File(_) => Some(DataType::File),
             UnixfsNode::Symlink(_) => Some(DataType::Symlink),
-            UnixfsNode::HamtShard(_, _) => Some(DataType::HamtShard),
         }
     }
 
@@ -224,8 +216,7 @@ impl UnixfsNode {
             UnixfsNode::Directory(node)
             | UnixfsNode::RawNode(node)
             | UnixfsNode::File(node)
-            | UnixfsNode::Symlink(node)
-            | UnixfsNode::HamtShard(node, _) => node.size(),
+            | UnixfsNode::Symlink(node) => node.size(),
         }
     }
 
@@ -237,8 +228,7 @@ impl UnixfsNode {
             UnixfsNode::Directory(node)
             | UnixfsNode::RawNode(node)
             | UnixfsNode::File(node)
-            | UnixfsNode::Symlink(node)
-            | UnixfsNode::HamtShard(node, _) => node.filesize(),
+            | UnixfsNode::Symlink(node) => node.filesize(),
         }
     }
 
@@ -250,7 +240,6 @@ impl UnixfsNode {
             UnixfsNode::Directory(node)
             | UnixfsNode::RawNode(node)
             | UnixfsNode::Symlink(node)
-            | UnixfsNode::HamtShard(node, _)
             | UnixfsNode::File(node) => node.blocksizes(),
         }
     }
@@ -262,7 +251,6 @@ impl UnixfsNode {
             UnixfsNode::Directory(node) => Links::Directory(PbLinks::new(&node.outer)),
             UnixfsNode::File(node) => Links::File(PbLinks::new(&node.outer)),
             UnixfsNode::Symlink(node) => Links::Symlink(PbLinks::new(&node.outer)),
-            UnixfsNode::HamtShard(node, _) => Links::HamtShard(PbLinks::new(&node.outer)),
         }
     }
 
@@ -271,7 +259,7 @@ impl UnixfsNode {
     }
 
     pub const fn is_dir(&self) -> bool {
-        matches!(self, Self::Directory(_) | Self::HamtShard(_, _))
+        matches!(self, Self::Directory(_))
     }
 
     pub async fn get_link_by_name<S: AsRef<str>>(
@@ -299,8 +287,8 @@ impl UnixfsNode {
     /// If this is a directory or hamt shard, returns a stream that yields all children of it.
     pub fn as_child_reader<C: ContentLoader>(
         &self,
-        ctx: LoaderContext,
-        loader: C,
+        _ctx: LoaderContext,
+        _loader: C,
     ) -> Result<Option<UnixfsChildStream>> {
         match self {
             UnixfsNode::Raw(_)
@@ -313,10 +301,6 @@ impl UnixfsNode {
 
                 Ok(Some(UnixfsChildStream::Directory { stream }))
             }
-            UnixfsNode::HamtShard(_, hamt) => Ok(Some(UnixfsChildStream::Hamt {
-                stream: hamt.children(ctx, loader).boxed(),
-                pos: 0,
-            })),
         }
     }
 
@@ -343,7 +327,7 @@ impl UnixfsNode {
                     ctx: std::sync::Arc::new(tokio::sync::Mutex::new(ctx)),
                 }))
             }
-            UnixfsNode::HamtShard(_, _) | UnixfsNode::Directory(_) => Ok(None),
+            UnixfsNode::Directory(_) => Ok(None),
         }
     }
 }
