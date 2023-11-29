@@ -5,7 +5,7 @@ use crate::{
     types::{Block, Link, LinkRef, Links, PbLinks},
 };
 use anyhow::{anyhow, bail, ensure, Result};
-use bytes::{Buf, Bytes};
+use bytes::Bytes;
 use futures::{future::BoxFuture, FutureExt};
 use libipld::{multihash::MultihashDigest, Cid};
 use prost::Message;
@@ -31,41 +31,10 @@ pub enum DataType {
     HamtShard = 5,
 }
 
-#[derive(Debug, Clone)]
-pub struct Unixfs {
-    inner: protobufs::Data,
-}
-
-impl Unixfs {
-    pub fn from_bytes<B: Buf>(bytes: B) -> Result<Self> {
-        let proto = protobufs::Data::decode(bytes)?;
-
-        Ok(Unixfs { inner: proto })
-    }
-
-    pub fn typ(&self) -> DataType {
-        self.inner.r#type.try_into().expect("invalid data type")
-    }
-
-    pub fn data(&self) -> Option<&Bytes> {
-        self.inner.data.as_ref()
-    }
-}
-
 #[derive(Debug, PartialEq, Clone)]
-pub enum UnixfsNode {
+pub enum UnixFsFile {
     Raw(Bytes),
-    RawNode(Node),
-    File(Node),
-}
-
-#[derive(
-    Debug, Copy, Clone, PartialEq, Eq, num_enum::IntoPrimitive, num_enum::TryFromPrimitive, Hash,
-)]
-#[repr(u64)]
-pub enum HamtHashFunction {
-    /// Murmur3 6464
-    Murmur3 = 0x22,
+    Node(Node),
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -113,22 +82,12 @@ impl Node {
     pub fn links(&self) -> Links {
         Links::Node(PbLinks::new(&self.outer))
     }
-
-    /// Returns the hash type. Only used for HAMT Shards.
-    pub fn hash_type(&self) -> Option<HamtHashFunction> {
-        self.inner.hash_type.and_then(|t| t.try_into().ok())
-    }
-
-    /// Returns the fanout value. Only used for HAMT Shards.
-    pub fn fanout(&self) -> Option<u32> {
-        self.inner.fanout.and_then(|f| u32::try_from(f).ok())
-    }
 }
 
-impl UnixfsNode {
+impl UnixFsFile {
     pub fn decode(cid: &Cid, buf: Bytes) -> Result<Self> {
         match cid.codec() {
-            c if c == Codec::Raw as u64 => Ok(UnixfsNode::Raw(buf)),
+            c if c == Codec::Raw as u64 => Ok(UnixFsFile::Raw(buf)),
             _ => {
                 let outer = protobufs::PbNode::decode(buf)?;
                 let inner_data = outer
@@ -142,8 +101,7 @@ impl UnixfsNode {
 
                 // ensure correct unixfs type
                 match typ {
-                    DataType::Raw => todo!(),
-                    DataType::File => Ok(UnixfsNode::File(node)),
+                    DataType::File => Ok(UnixFsFile::Node(node)),
                     _ => bail!("unixfs data type unsupported: {typ:?}"),
                 }
             }
@@ -152,7 +110,7 @@ impl UnixfsNode {
 
     pub fn encode(&self) -> Result<Block> {
         let res = match self {
-            UnixfsNode::Raw(data) => {
+            UnixFsFile::Raw(data) => {
                 let out = data.clone();
                 let links = vec![];
                 let cid = Cid::new_v1(
@@ -161,7 +119,7 @@ impl UnixfsNode {
                 );
                 Block::new(cid, out, links)
             }
-            UnixfsNode::RawNode(node) | UnixfsNode::File(node) => {
+            UnixFsFile::Node(node) => {
                 let out = node.encode()?;
                 let links = node
                     .links()
@@ -186,9 +144,8 @@ impl UnixfsNode {
 
     pub const fn typ(&self) -> Option<DataType> {
         match self {
-            UnixfsNode::Raw(_) => None,
-            UnixfsNode::RawNode(_) => Some(DataType::Raw),
-            UnixfsNode::File(_) => Some(DataType::File),
+            UnixFsFile::Raw(_) => None,
+            UnixFsFile::Node(_) => Some(DataType::File),
         }
     }
 
@@ -196,8 +153,8 @@ impl UnixfsNode {
     /// Available only for `Raw` and `File` which are a single block with no links.
     pub fn size(&self) -> Option<usize> {
         match self {
-            UnixfsNode::Raw(data) => Some(data.len()),
-            UnixfsNode::RawNode(node) | UnixfsNode::File(node) => node.size(),
+            UnixFsFile::Raw(data) => Some(data.len()),
+            UnixFsFile::Node(node) => node.size(),
         }
     }
 
@@ -205,8 +162,8 @@ impl UnixfsNode {
     /// Should only be set for `Raw` and `File`.
     pub fn filesize(&self) -> Option<u64> {
         match self {
-            UnixfsNode::Raw(data) => Some(data.len() as u64),
-            UnixfsNode::RawNode(node) | UnixfsNode::File(node) => node.filesize(),
+            UnixFsFile::Raw(data) => Some(data.len() as u64),
+            UnixFsFile::Node(node) => node.filesize(),
         }
     }
 
@@ -214,16 +171,15 @@ impl UnixfsNode {
     /// Should only be set for File
     pub fn blocksizes(&self) -> &[u64] {
         match self {
-            UnixfsNode::Raw(_) => &[],
-            UnixfsNode::RawNode(node) | UnixfsNode::File(node) => node.blocksizes(),
+            UnixFsFile::Raw(_) => &[],
+            UnixFsFile::Node(node) => node.blocksizes(),
         }
     }
 
     pub fn links(&self) -> Links<'_> {
         match self {
-            UnixfsNode::Raw(_) => Links::Leaf,
-            UnixfsNode::RawNode(node) => Links::Node(PbLinks::new(&node.outer)),
-            UnixfsNode::File(node) => Links::Node(PbLinks::new(&node.outer)),
+            UnixFsFile::Raw(_) => Links::Leaf,
+            UnixFsFile::Node(node) => Links::Node(PbLinks::new(&node.outer)),
         }
     }
 
@@ -248,27 +204,23 @@ impl UnixfsNode {
         self,
         store: &B,
         pos_max: Option<usize>,
-    ) -> Result<Option<UnixfsFileReader<'_, B>>> {
-        match self {
-            UnixfsNode::Raw(_) | UnixfsNode::RawNode(_) | UnixfsNode::File(_) => {
-                let current_links = vec![self.links_owned()?];
+    ) -> Result<UnixfsFileReader<'_, B>> {
+        let current_links = vec![self.links_owned()?];
 
-                Ok(Some(UnixfsFileReader {
-                    root_node: self,
-                    pos: 0,
-                    pos_max,
-                    current_node: CurrentNodeState::Outer,
-                    current_links,
-                    store,
-                }))
-            }
-        }
+        Ok(UnixfsFileReader {
+            root_node: self,
+            pos: 0,
+            pos_max,
+            current_node: CurrentNodeState::Outer,
+            current_links,
+            store,
+        })
     }
 }
 
 #[derive(Debug)]
 pub struct UnixfsFileReader<'a, B: BlockStore> {
-    root_node: UnixfsNode,
+    root_node: UnixFsFile,
     /// Absolute position in bytes
     pos: usize,
     /// Absolute max position in bytes, only used for clipping responses
@@ -302,14 +254,13 @@ impl<'a, B: BlockStore + Unpin + 'static> AsyncRead for UnixfsFileReader<'a, B> 
             store,
         } = &mut *self;
 
-        let typ = root_node.typ();
         // let pos_old = *pos; Unused, see bytes_read below
         match root_node {
-            UnixfsNode::Raw(data) => {
+            UnixFsFile::Raw(data) => {
                 read_data_to_buf(pos, *pos_max, &data[*pos..], buf);
                 Poll::Ready(Ok(()))
             }
-            UnixfsNode::File(node) => poll_read_file_at(
+            UnixFsFile::Node(node) => poll_read_file_at(
                 cx,
                 node,
                 *store,
@@ -319,10 +270,6 @@ impl<'a, B: BlockStore + Unpin + 'static> AsyncRead for UnixfsFileReader<'a, B> 
                 current_links,
                 current_node,
             ),
-            _ => Poll::Ready(Err(std::io::Error::new(
-                std::io::ErrorKind::InvalidData,
-                format!("unsupported Unixfs type for file types: {typ:?} "),
-            ))),
         }
         // let bytes_read = *pos - pos_old; // Unused, used to be used for metrics
         // poll_res
@@ -406,7 +353,7 @@ pub fn read_data_to_buf(
     amt
 }
 
-pub fn find_block(node: &UnixfsNode, pos: u64, node_offset: u64) -> (u64, Option<usize>) {
+pub fn find_block(node: &UnixFsFile, pos: u64, node_offset: u64) -> (u64, Option<usize>) {
     let pivots = node
         .blocksizes()
         .iter()
@@ -443,12 +390,12 @@ pub enum CurrentNodeState<'a> {
     Loaded {
         node_offset: usize,
         node_pos: usize,
-        node: UnixfsNode,
+        node: UnixFsFile,
     },
     // Ongoing loading of the node
     Loading {
         node_offset: usize,
-        fut: BoxFuture<'a, Result<UnixfsNode>>,
+        fut: BoxFuture<'a, Result<UnixFsFile>>,
     },
 }
 
@@ -499,7 +446,7 @@ fn load_next_node<'a>(
 
     let fut = async move {
         let block = store.get_block(&link.cid).await?;
-        let node = UnixfsNode::decode(&link.cid, block)?;
+        let node = UnixFsFile::decode(&link.cid, block)?;
 
         Ok(node)
     }
@@ -608,7 +555,7 @@ fn poll_read_file_at<'a>(
                 ref mut node_pos,
                 node: ref mut current_node_inner,
             } => match current_node_inner {
-                UnixfsNode::Raw(data) => {
+                UnixFsFile::Raw(data) => {
                     if *node_offset + data.len() <= *pos {
                         *current_node = CurrentNodeState::NextNodeRequested {
                             next_node_offset: node_offset + data.len(),
@@ -619,7 +566,7 @@ fn poll_read_file_at<'a>(
                     *node_pos += bytes_read;
                     return Poll::Ready(Ok(()));
                 }
-                UnixfsNode::File(node) | UnixfsNode::RawNode(node) => {
+                UnixFsFile::Node(node) => {
                     if let Some(ref data) = node.inner.data {
                         if node_offset + data.len() <= *pos {
                             *current_node = CurrentNodeState::NextNodeRequested {

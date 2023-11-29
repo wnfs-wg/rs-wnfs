@@ -8,19 +8,6 @@ use libipld::{
 use multihash::{Code, MultihashDigest};
 use std::io::Cursor;
 
-#[derive(Debug)]
-pub struct LoadedCid {
-    pub data: Bytes,
-    pub source: Source,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Source {
-    Bitswap,
-    Http(String),
-    Store(&'static str),
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Block {
     cid: Cid,

@@ -2,7 +2,7 @@ use crate::{
     builder::encode_unixfs_pb,
     protobufs,
     types::Block,
-    unixfs::{DataType, Node, UnixfsNode},
+    unixfs::{DataType, Node, UnixFsFile},
 };
 use anyhow::Result;
 use async_stream::try_stream;
@@ -151,7 +151,7 @@ fn stream_balanced_tree(
     }
 }
 
-fn create_unixfs_node_from_links(links: Vec<(Cid, LinkInfo)>) -> Result<UnixfsNode> {
+fn create_unixfs_node_from_links(links: Vec<(Cid, LinkInfo)>) -> Result<UnixFsFile> {
     let blocksizes: Vec<u64> = links.iter().map(|l| l.1.raw_data_len).collect();
     let filesize: u64 = blocksizes.iter().sum();
     let links = links
@@ -186,7 +186,7 @@ fn create_unixfs_node_from_links(links: Vec<(Cid, LinkInfo)>) -> Result<UnixfsNo
     let outer = encode_unixfs_pb(&inner, links)?;
 
     // create UnixfsNode
-    Ok(UnixfsNode::File(Node { inner, outer }))
+    Ok(UnixFsFile::Node(Node { inner, outer }))
 }
 
 // Leaf and Stem nodes are the two types of nodes that can exist in the tree
@@ -202,7 +202,7 @@ impl TreeNode {
         match self {
             TreeNode::Leaf(bytes) => {
                 let len = bytes.len();
-                let node = UnixfsNode::Raw(bytes);
+                let node = UnixFsFile::Raw(bytes);
                 let block = node.encode()?;
                 let link_info = LinkInfo {
                     // in a leaf the raw data len and encoded len are the same since our leaf
@@ -419,8 +419,8 @@ mod tests {
             assert_eq!(expect_cid, got_cid);
             assert_eq!(expect_bytes, got_bytes);
             i += 1;
-            let expect_node = UnixfsNode::decode(&expect_cid, expect_bytes.to_owned()).unwrap();
-            let got_node = UnixfsNode::decode(&got_cid, got_bytes.clone()).unwrap();
+            let expect_node = UnixFsFile::decode(&expect_cid, expect_bytes.to_owned()).unwrap();
+            let got_node = UnixFsFile::decode(&got_cid, got_bytes.clone()).unwrap();
             if let Some(DataType::File) = got_node.typ() {
                 assert_eq!(
                     got_node.filesize().unwrap(),
@@ -429,7 +429,7 @@ mod tests {
             }
             assert_eq!(expect_node, got_node);
             if expect.len() == i {
-                let node = UnixfsNode::decode(&got_cid, got_bytes).unwrap();
+                let node = UnixFsFile::decode(&got_cid, got_bytes).unwrap();
                 got_tsize = node.links().map(|l| l.unwrap().tsize.unwrap()).sum();
                 got_filesize = got_node.filesize().unwrap();
             } else {
