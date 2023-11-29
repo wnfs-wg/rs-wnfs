@@ -36,6 +36,7 @@ This Rust crate provides an implementation of UnixFs files. WNFS uses the UnixFs
 This crate is a fork from beetle (previously "iroh")'s [iroh-unixfs crate](https://github.com/n0-computer/beetle/tree/3e137cb2bc18e1d458c3f72d5e817b03d9537d5d/iroh-unixfs).
 
 Major changes relative to that implementation include:
+- Removed prost code generation, instead it's some hard-coded structs with prost annotations
 - Removed support for any UnixFs structures other than files (no directories, directory shards or symlinks)
 - Removed parallelization for hashing to make the crate async runtime-independent (so it can be used in wasm with wasm-bindgen-futures!)
 - Doesn't hard-code use of SHA-256 anymore
