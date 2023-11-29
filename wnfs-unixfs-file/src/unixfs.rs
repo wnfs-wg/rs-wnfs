@@ -1,7 +1,6 @@
 use crate::{
     chunker::DEFAULT_CHUNK_SIZE_LIMIT,
     codecs::Codec,
-    content_loader::{ContentLoader, LoaderContext},
     protobufs,
     types::{Block, Link, LinkRef, Links, PbLinks},
 };
@@ -17,6 +16,7 @@ use std::{
     task::{Context, Poll},
 };
 use tokio::io::{AsyncRead, AsyncSeek};
+use wnfs_common::BlockStore;
 
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, num_enum::IntoPrimitive, num_enum::TryFromPrimitive,
@@ -244,12 +244,11 @@ impl UnixfsNode {
             .transpose()
     }
 
-    pub fn into_content_reader<C: ContentLoader>(
+    pub fn into_content_reader<B: BlockStore>(
         self,
-        ctx: LoaderContext,
-        loader: C,
+        store: B,
         pos_max: Option<usize>,
-    ) -> Result<Option<UnixfsContentReader<C>>> {
+    ) -> Result<Option<UnixfsContentReader<B>>> {
         match self {
             UnixfsNode::Raw(_) | UnixfsNode::RawNode(_) | UnixfsNode::File(_) => {
                 let current_links = vec![self.links_owned()?];
@@ -260,8 +259,7 @@ impl UnixfsNode {
                     pos_max,
                     current_node: CurrentNodeState::Outer,
                     current_links,
-                    loader,
-                    ctx: std::sync::Arc::new(tokio::sync::Mutex::new(ctx)),
+                    store,
                 }))
             }
         }
@@ -269,7 +267,7 @@ impl UnixfsNode {
 }
 
 #[derive(Debug)]
-pub enum UnixfsContentReader<C: ContentLoader> {
+pub enum UnixfsContentReader<B: BlockStore> {
     File {
         root_node: UnixfsNode,
         /// Absolute position in bytes
@@ -280,12 +278,11 @@ pub enum UnixfsContentReader<C: ContentLoader> {
         current_node: CurrentNodeState,
         /// Stack of links left to traverse.
         current_links: Vec<VecDeque<Link>>,
-        loader: C,
-        ctx: std::sync::Arc<tokio::sync::Mutex<LoaderContext>>,
+        store: B,
     },
 }
 
-impl<C: ContentLoader> UnixfsContentReader<C> {
+impl<B: BlockStore> UnixfsContentReader<B> {
     /// Returns the size in bytes, if known in advance.
     pub fn size(&self) -> Option<u64> {
         match self {
@@ -297,7 +294,7 @@ impl<C: ContentLoader> UnixfsContentReader<C> {
     }
 }
 
-impl<C: ContentLoader + Unpin + 'static> AsyncRead for UnixfsContentReader<C> {
+impl<B: BlockStore + Unpin + Clone + 'static> AsyncRead for UnixfsContentReader<B> {
     fn poll_read(
         mut self: Pin<&mut Self>,
         cx: &mut Context<'_>,
@@ -310,8 +307,7 @@ impl<C: ContentLoader + Unpin + 'static> AsyncRead for UnixfsContentReader<C> {
                 pos_max,
                 current_node,
                 current_links,
-                loader,
-                ctx,
+                store,
             } => {
                 let typ = root_node.typ();
                 // let pos_old = *pos; Unused, see bytes_read below
@@ -323,13 +319,12 @@ impl<C: ContentLoader + Unpin + 'static> AsyncRead for UnixfsContentReader<C> {
                     UnixfsNode::File(node) => poll_read_file_at(
                         cx,
                         node,
-                        loader.clone(),
+                        store.clone(),
                         pos,
                         *pos_max,
                         buf,
                         current_links,
                         current_node,
-                        ctx.clone(),
                     ),
                     _ => Poll::Ready(Err(std::io::Error::new(
                         std::io::ErrorKind::InvalidData,
@@ -343,7 +338,7 @@ impl<C: ContentLoader + Unpin + 'static> AsyncRead for UnixfsContentReader<C> {
     }
 }
 
-impl<C: ContentLoader + Unpin + 'static> AsyncSeek for UnixfsContentReader<C> {
+impl<B: BlockStore + Unpin + Clone + 'static> AsyncSeek for UnixfsContentReader<B> {
     fn start_seek(mut self: Pin<&mut Self>, position: std::io::SeekFrom) -> std::io::Result<()> {
         match &mut *self {
             UnixfsContentReader::File {
@@ -496,12 +491,11 @@ impl Debug for CurrentNodeState {
     }
 }
 
-fn load_next_node<C: ContentLoader + 'static>(
+fn load_next_node(
     next_node_offset: usize,
     current_node: &mut CurrentNodeState,
     current_links: &mut Vec<VecDeque<Link>>,
-    loader: C,
-    ctx: std::sync::Arc<tokio::sync::Mutex<LoaderContext>>,
+    store: impl BlockStore + 'static,
 ) -> bool {
     let links = loop {
         if let Some(last_mut) = current_links.last_mut() {
@@ -521,9 +515,8 @@ fn load_next_node<C: ContentLoader + 'static>(
     let link = links.pop_front().unwrap();
 
     let fut = async move {
-        let ctx = ctx.lock().await;
-        let loaded_cid = loader.load_cid(&link.cid, &ctx).await?;
-        let node = UnixfsNode::decode(&link.cid, loaded_cid.data)?;
+        let block = store.get_block(&link.cid).await?;
+        let node = UnixfsNode::decode(&link.cid, block)?;
 
         Ok(node)
     }
@@ -536,16 +529,15 @@ fn load_next_node<C: ContentLoader + 'static>(
 }
 
 #[allow(clippy::too_many_arguments)]
-fn poll_read_file_at<C: ContentLoader + 'static>(
+fn poll_read_file_at(
     cx: &mut Context<'_>,
     root_node: &Node,
-    loader: C,
+    store: impl BlockStore + Clone + 'static,
     pos: &mut usize,
     pos_max: Option<usize>,
     buf: &mut tokio::io::ReadBuf<'_>,
     current_links: &mut Vec<VecDeque<Link>>,
     current_node: &mut CurrentNodeState,
-    ctx: std::sync::Arc<tokio::sync::Mutex<LoaderContext>>,
 ) -> Poll<std::io::Result<()>> {
     loop {
         if let Some(pos_max) = pos_max {
@@ -579,8 +571,7 @@ fn poll_read_file_at<C: ContentLoader + 'static>(
                     *next_node_offset,
                     current_node,
                     current_links,
-                    loader.clone(),
-                    ctx.clone(),
+                    store.clone(),
                 );
                 if !loaded_next_node {
                     return Poll::Ready(Ok(()));
