@@ -4,12 +4,14 @@ use crate::{
     protobufs,
     types::Block,
 };
-use anyhow::{ensure, Result};
+use anyhow::{anyhow, ensure, Result};
 use bytes::Bytes;
-use futures::{Stream, StreamExt};
+use futures::{Stream, TryStreamExt};
+use libipld::Cid;
 use prost::Message;
-use std::{fmt::Debug, pin::Pin};
+use std::{debug_assert_eq, fmt::Debug, pin::Pin};
 use tokio::io::AsyncRead;
+use wnfs_common::BlockStore;
 
 /// Representation of a constructed File.
 pub struct File {
@@ -34,19 +36,36 @@ impl Debug for File {
 impl File {
     pub async fn encode_root(self) -> Result<Block> {
         let mut current = None;
-        let parts = self.encode().await?;
+        let parts = self.encode()?;
         tokio::pin!(parts);
 
-        while let Some(part) = parts.next().await {
+        while let Some(part) = parts.try_next().await? {
             current = Some(part);
         }
 
-        current.expect("must not be empty")
+        current.ok_or_else(|| anyhow!("error encoding file, no blocks produced"))
     }
 
-    pub async fn encode(self) -> Result<impl Stream<Item = Result<Block>>> {
+    pub fn encode(self) -> Result<impl Stream<Item = Result<Block>>> {
         let chunks = self.chunker.chunks(self.content);
         Ok(self.tree_builder.stream_tree(chunks))
+    }
+
+    pub async fn store(self, store: &impl BlockStore) -> Result<Cid> {
+        let blocks = self.encode()?;
+        tokio::pin!(blocks);
+
+        let mut root_cid = None;
+
+        while let Some(block) = blocks.try_next().await? {
+            root_cid = Some(*block.cid());
+            let cid = store
+                .put_block(block.data().clone(), block.cid().codec())
+                .await?;
+            debug_assert_eq!(block.cid(), &cid);
+        }
+
+        root_cid.ok_or_else(|| anyhow!("error encoding file, no blocks produced"))
     }
 }
 
@@ -88,8 +107,8 @@ impl FileBuilder {
         Default::default()
     }
 
-    pub fn chunker(mut self, chunker: Chunker) -> Self {
-        self.chunker = chunker;
+    pub fn chunker(mut self, chunker: impl Into<Chunker>) -> Self {
+        self.chunker = chunker.into();
         self
     }
 
@@ -121,7 +140,7 @@ impl FileBuilder {
         self
     }
 
-    pub async fn build(self) -> Result<File> {
+    pub fn build(self) -> Result<File> {
         let degree = self.degree;
         let chunker = self.chunker;
         let tree_builder = TreeBuilder::balanced_tree_with_degree(degree);
@@ -133,6 +152,7 @@ impl FileBuilder {
                 tree_builder,
             });
         }
+
         anyhow::bail!("must have a reader for the content");
     }
 }
@@ -173,11 +193,8 @@ mod tests {
         // Add a file
         let bar_encoded: Vec<_> = {
             let bar_reader = std::io::Cursor::new(b"bar");
-            let bar = FileBuilder::new()
-                .content_reader(bar_reader)
-                .build()
-                .await?;
-            bar.encode().await?.try_collect().await?
+            let bar = FileBuilder::new().content_reader(bar_reader).build()?;
+            bar.encode()?.try_collect().await?
         };
         assert_eq!(bar_encoded.len(), 1);
 
@@ -190,11 +207,8 @@ mod tests {
         // Add a file
         let bar_encoded: Vec<_> = {
             let bar_reader = std::io::Cursor::new(vec![1u8; 1024 * 1024]);
-            let bar = FileBuilder::new()
-                .content_reader(bar_reader)
-                .build()
-                .await?;
-            bar.encode().await?.try_collect().await?
+            let bar = FileBuilder::new().content_reader(bar_reader).build()?;
+            bar.encode()?.try_collect().await?
         };
         assert_eq!(bar_encoded.len(), 5);
 
@@ -208,11 +222,8 @@ mod tests {
 
         let baz_encoded: Vec<_> = {
             let baz_reader = std::io::Cursor::new(baz_content);
-            let baz = FileBuilder::new()
-                .content_reader(baz_reader)
-                .build()
-                .await?;
-            baz.encode().await?.try_collect().await?
+            let baz = FileBuilder::new().content_reader(baz_reader).build()?;
+            baz.encode()?.try_collect().await?
         };
         assert_eq!(baz_encoded.len(), 9);
 
@@ -242,5 +253,63 @@ mod tests {
             "rabin".parse::<ChunkerConfig>().unwrap(),
             ChunkerConfig::Rabin
         );
+    }
+}
+
+#[cfg(test)]
+mod proptests {
+    use super::*;
+    use crate::unixfs::UnixFsFile;
+    use proptest::{option, strategy::Strategy};
+    use rand_chacha::ChaCha12Rng;
+    use rand_core::{RngCore, SeedableRng};
+    use test_strategy::proptest;
+    use testresult::TestResult;
+    use tokio::io::AsyncReadExt;
+    use wnfs_common::{MemoryBlockStore, MAX_BLOCK_SIZE};
+
+    fn arb_chunker() -> impl Strategy<Value = ChunkerConfig> {
+        option::of(1_000..MAX_BLOCK_SIZE).prop_map(|opt| match opt {
+            Some(lim) => ChunkerConfig::Fixed(lim),
+            None => ChunkerConfig::Rabin,
+        })
+    }
+
+    #[proptest(cases = 64)]
+    fn test_encode_decode_roundtrip(
+        seed: u64,
+        #[strategy(2..DEFAULT_DEGREE)] degree: usize,
+        #[strategy(0usize..5_000_000)] len: usize,
+        #[strategy(arb_chunker())] chunker: ChunkerConfig,
+    ) {
+        let store = &MemoryBlockStore::new();
+        let rng = &mut ChaCha12Rng::seed_from_u64(seed);
+        let mut data = vec![0; len];
+        rng.fill_bytes(&mut data);
+
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .build()
+            .unwrap();
+        rt.block_on(async {
+            let root = FileBuilder::new()
+                .content_bytes(data.clone())
+                .chunker(chunker)
+                .degree(degree)
+                .build()?
+                .store(store)
+                .await?;
+
+            let file = UnixFsFile::load(&root, store).await?;
+            assert_eq!(file.filesize(), Some(len as u64));
+
+            let mut buffer = Vec::new();
+            let mut reader = file.into_content_reader(store, None)?;
+            reader.read_to_end(&mut buffer).await?;
+
+            assert_eq!(buffer, data);
+
+            Ok(()) as TestResult
+        })
+        .unwrap();
     }
 }

@@ -85,6 +85,11 @@ impl Node {
 }
 
 impl UnixFsFile {
+    pub async fn load(cid: &Cid, store: &impl BlockStore) -> Result<Self> {
+        let block = store.get_block(cid).await?;
+        Self::decode(cid, block)
+    }
+
     pub fn decode(cid: &Cid, buf: Bytes) -> Result<Self> {
         match cid.codec() {
             c if c == Codec::Raw as u64 => Ok(UnixFsFile::Raw(buf)),
