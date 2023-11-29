@@ -277,10 +277,7 @@ mod proptests {
         let mut data = vec![0; len];
         rng.fill_bytes(&mut data);
 
-        let rt = tokio::runtime::Builder::new_current_thread()
-            .build()
-            .unwrap();
-        rt.block_on(async {
+        async_std::task::block_on(async {
             let root = FileBuilder::new()
                 .content_bytes(data.clone())
                 .chunker(chunker)
