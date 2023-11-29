@@ -204,10 +204,10 @@ impl UnixFsFile {
         self,
         store: &B,
         pos_max: Option<usize>,
-    ) -> Result<UnixfsFileReader<'_, B>> {
+    ) -> Result<UnixFsFileReader<'_, B>> {
         let current_links = vec![self.links_owned()?];
 
-        Ok(UnixfsFileReader {
+        Ok(UnixFsFileReader {
             root_node: self,
             pos: 0,
             pos_max,
@@ -219,7 +219,7 @@ impl UnixFsFile {
 }
 
 #[derive(Debug)]
-pub struct UnixfsFileReader<'a, B: BlockStore> {
+pub struct UnixFsFileReader<'a, B: BlockStore> {
     root_node: UnixFsFile,
     /// Absolute position in bytes
     pos: usize,
@@ -232,20 +232,20 @@ pub struct UnixfsFileReader<'a, B: BlockStore> {
     store: &'a B,
 }
 
-impl<'a, B: BlockStore> UnixfsFileReader<'a, B> {
+impl<'a, B: BlockStore> UnixFsFileReader<'a, B> {
     /// Returns the size in bytes, if known in advance.
     pub fn size(&self) -> Option<u64> {
         self.root_node.filesize()
     }
 }
 
-impl<'a, B: BlockStore + Unpin + 'static> AsyncRead for UnixfsFileReader<'a, B> {
+impl<'a, B: BlockStore + Unpin + 'static> AsyncRead for UnixFsFileReader<'a, B> {
     fn poll_read(
         mut self: Pin<&mut Self>,
         cx: &mut Context<'_>,
         buf: &mut tokio::io::ReadBuf<'_>,
     ) -> Poll<std::io::Result<()>> {
-        let UnixfsFileReader {
+        let UnixFsFileReader {
             root_node,
             pos,
             pos_max,
@@ -276,9 +276,9 @@ impl<'a, B: BlockStore + Unpin + 'static> AsyncRead for UnixfsFileReader<'a, B> 
     }
 }
 
-impl<'a, B: BlockStore + Unpin + Clone + 'static> AsyncSeek for UnixfsFileReader<'a, B> {
+impl<'a, B: BlockStore + Unpin + Clone + 'static> AsyncSeek for UnixFsFileReader<'a, B> {
     fn start_seek(mut self: Pin<&mut Self>, position: std::io::SeekFrom) -> std::io::Result<()> {
-        let UnixfsFileReader {
+        let UnixFsFileReader {
             root_node,
             pos,
             current_node,
