@@ -6,120 +6,11 @@ use crate::{
     unixfs::{DataType, Node, UnixfsNode},
 };
 use anyhow::{ensure, Result};
-use async_recursion::async_recursion;
 use bytes::Bytes;
-use futures::{
-    stream::{self, BoxStream},
-    Stream, StreamExt,
-};
+use futures::{Stream, StreamExt};
 use prost::Message;
-use std::{
-    fmt::Debug,
-    path::{Path, PathBuf},
-    pin::Pin,
-};
+use std::{fmt::Debug, path::PathBuf, pin::Pin};
 use tokio::io::AsyncRead;
-
-#[derive(Debug, PartialEq)]
-enum DirectoryType {
-    Basic,
-}
-
-/// Representation of a constructed Directory.
-#[derive(Debug, PartialEq)]
-pub enum Directory {
-    Basic(BasicDirectory),
-}
-
-/// A basic / flat directory
-#[derive(Debug, PartialEq)]
-pub struct BasicDirectory {
-    name: String,
-    entries: Vec<Entry>,
-}
-
-impl Directory {
-    fn single(name: String, entry: Entry) -> Self {
-        Directory::basic(name, vec![entry])
-    }
-
-    pub fn basic(name: String, entries: Vec<Entry>) -> Self {
-        Directory::Basic(BasicDirectory { name, entries })
-    }
-
-    pub fn name(&self) -> &str {
-        match &self {
-            Directory::Basic(BasicDirectory { name, .. }) => name,
-        }
-    }
-
-    pub fn set_name(&mut self, value: String) {
-        match self {
-            Directory::Basic(BasicDirectory { name, .. }) => {
-                *name = value;
-            }
-        }
-    }
-
-    /// Wrap an entry in an unnamed directory. Used when adding a unixfs file or top level directory to
-    /// Iroh in order to preserve the file or directory's name.
-    pub fn wrap(self) -> Self {
-        Directory::single("".into(), Entry::Directory(self))
-    }
-
-    pub async fn encode_root(self) -> Result<Block> {
-        let mut current = None;
-        let parts = self.encode();
-        tokio::pin!(parts);
-
-        while let Some(part) = parts.next().await {
-            current = Some(part);
-        }
-
-        current.expect("must not be empty")
-    }
-
-    pub fn encode<'a>(self) -> BoxStream<'a, Result<Block>> {
-        match self {
-            Directory::Basic(basic) => basic.encode(),
-        }
-    }
-}
-
-impl BasicDirectory {
-    pub fn encode<'a>(self) -> BoxStream<'a, Result<Block>> {
-        async_stream::try_stream! {
-            let mut links = Vec::new();
-            for entry in self.entries {
-                let name = entry.name().to_string();
-                let parts = entry.encode().await?;
-                tokio::pin!(parts);
-                let mut root = None;
-                while let Some(part) = parts.next().await {
-                    let block = part?;
-                    root = Some(block.clone());
-                    yield block;
-                }
-                let root_block = root.expect("file must not be empty");
-                links.push(protobufs::PbLink {
-                    hash: Some(root_block.cid().to_bytes()),
-                    name: Some(name),
-                    tsize: Some(root_block.data().len() as u64),
-                });
-            }
-
-            // directory itself comes last
-            let inner = protobufs::Data {
-                r#type: DataType::Directory as i32,
-                ..Default::default()
-            };
-            let outer = encode_unixfs_pb(&inner, links)?;
-            let node = UnixfsNode::Directory(Node { outer, inner });
-            yield node.encode()?;
-        }
-        .boxed()
-    }
-}
 
 enum Content {
     Reader(Pin<Box<dyn AsyncRead + Send>>),
@@ -170,10 +61,6 @@ impl File {
         &self.name
     }
 
-    pub fn wrap(self) -> Directory {
-        Directory::single("".into(), Entry::File(self))
-    }
-
     pub async fn encode_root(self) -> Result<Block> {
         let mut current = None;
         let parts = self.encode().await?;
@@ -218,10 +105,6 @@ impl Symlink {
                 .to_string(),
             target: target.into(),
         }
-    }
-
-    pub fn wrap(self) -> Directory {
-        Directory::single("".into(), Entry::Symlink(self))
     }
 
     pub fn name(&self) -> &str {
@@ -369,169 +252,6 @@ impl FileBuilder {
     }
 }
 
-/// Entry is the kind of entry in a directory can be either a file or a
-/// folder (if recursive directories are allowed)
-#[derive(Debug, PartialEq)]
-pub enum Entry {
-    File(File),
-    Directory(Directory),
-    Symlink(Symlink),
-}
-
-impl Entry {
-    pub fn name(&self) -> &str {
-        match self {
-            Entry::File(f) => f.name(),
-            Entry::Directory(d) => d.name(),
-            Entry::Symlink(s) => s.name(),
-        }
-    }
-
-    pub async fn encode(self) -> Result<BoxStream<'static, Result<Block>>> {
-        Ok(match self {
-            Entry::File(f) => f.encode().await?.boxed(),
-            Entry::Directory(d) => d.encode(),
-            Entry::Symlink(s) => stream::iter(Some(s.encode())).boxed(),
-        })
-    }
-
-    pub async fn from_path(path: &Path, config: Config) -> Result<Self> {
-        let entry = if path.is_dir() {
-            if let Some(chunker_config) = config.chunker {
-                let chunker = chunker_config.into();
-                let dir = DirectoryBuilder::new()
-                    .chunker(chunker)
-                    .path(path)
-                    .build()
-                    .await?;
-                Entry::Directory(dir)
-            } else {
-                anyhow::bail!("expected a ChunkerConfig in the Config");
-            }
-        } else if path.is_file() {
-            if let Some(chunker_config) = config.chunker {
-                let chunker = chunker_config.into();
-                let file = FileBuilder::new()
-                    .chunker(chunker)
-                    .path(path)
-                    .build()
-                    .await?;
-                Entry::File(file)
-            } else {
-                anyhow::bail!("expected a ChunkerConfig in the Config");
-            }
-        } else if path.is_symlink() {
-            let symlink = SymlinkBuilder::new(path).build().await?;
-            Entry::Symlink(symlink)
-        } else {
-            anyhow::bail!("can only add files, directories, or symlinks");
-        };
-        if config.wrap {
-            return Ok(Entry::Directory(entry.wrap()));
-        }
-        Ok(entry)
-    }
-
-    fn wrap(self) -> Directory {
-        match self {
-            Entry::File(f) => f.wrap(),
-            Entry::Directory(d) => d.wrap(),
-            Entry::Symlink(s) => s.wrap(),
-        }
-    }
-}
-
-/// Construct a UnixFS directory.
-#[derive(Debug)]
-pub struct DirectoryBuilder {
-    name: Option<String>,
-    entries: Vec<Entry>,
-    typ: DirectoryType,
-    chunker: Chunker,
-    degree: usize,
-    path: Option<PathBuf>,
-}
-
-impl Default for DirectoryBuilder {
-    fn default() -> Self {
-        Self {
-            name: None,
-            entries: Default::default(),
-            typ: DirectoryType::Basic,
-            chunker: Chunker::Fixed(chunker::Fixed::default()),
-            degree: DEFAULT_DEGREE,
-            path: None,
-        }
-    }
-}
-
-impl DirectoryBuilder {
-    pub fn new() -> Self {
-        Default::default()
-    }
-
-    pub fn name<N: Into<String>>(mut self, name: N) -> Self {
-        self.name = Some(name.into());
-        self
-    }
-
-    pub fn path(mut self, path: &Path) -> Self {
-        self.path = Some(path.into());
-        self
-    }
-
-    pub fn chunker(mut self, chunker: Chunker) -> Self {
-        self.chunker = chunker;
-        self
-    }
-
-    pub fn degree(mut self, degree: usize) -> Self {
-        self.degree = degree;
-        self
-    }
-
-    pub fn add_dir(self, dir: Directory) -> Result<Self> {
-        Ok(self.entry(Entry::Directory(dir)))
-    }
-
-    pub fn add_file(self, file: File) -> Self {
-        self.entry(Entry::File(file))
-    }
-
-    pub fn add_symlink(self, symlink: Symlink) -> Self {
-        self.entry(Entry::Symlink(symlink))
-    }
-
-    fn entry(mut self, entry: Entry) -> Self {
-        self.entries.push(entry);
-        self
-    }
-
-    pub async fn build(self) -> Result<Directory> {
-        let DirectoryBuilder {
-            name,
-            entries,
-            typ,
-            path,
-            chunker,
-            degree,
-        } = self;
-
-        Ok(if let Some(path) = path {
-            let mut dir = make_dir_from_path(path, chunker.clone(), degree).await?;
-            if let Some(name) = name {
-                dir.set_name(name);
-            }
-            dir
-        } else {
-            let name = name.unwrap_or_default();
-            match typ {
-                DirectoryType::Basic => Directory::Basic(BasicDirectory { name, entries }),
-            }
-        })
-    }
-}
-
 /// Constructs a UnixFS Symlink
 #[derive(Debug)]
 pub struct SymlinkBuilder {
@@ -592,119 +312,15 @@ pub struct Config {
     pub chunker: Option<ChunkerConfig>,
 }
 
-#[async_recursion(?Send)]
-async fn make_dir_from_path<P: Into<PathBuf>>(
-    path: P,
-    chunker: Chunker,
-    degree: usize,
-) -> Result<Directory> {
-    let path = path.into();
-    let mut dir = DirectoryBuilder::new().name(
-        path.file_name()
-            .and_then(|s| s.to_str())
-            .unwrap_or_default(),
-    );
-
-    let mut directory_reader = tokio::fs::read_dir(path.clone()).await?;
-    while let Some(entry) = directory_reader.next_entry().await? {
-        let path = entry.path();
-        if path.is_symlink() {
-            let s = SymlinkBuilder::new(path).build().await?;
-            dir = dir.add_symlink(s);
-        } else if path.is_file() {
-            let f = FileBuilder::new()
-                .chunker(chunker.clone())
-                .degree(degree)
-                .path(path)
-                .build()
-                .await?;
-            dir = dir.add_file(f);
-        } else if path.is_dir() {
-            let d = make_dir_from_path(path, chunker.clone(), degree).await?;
-            dir = dir.add_dir(d)?;
-        } else {
-            anyhow::bail!("directory entry is neither file nor directory")
-        }
-    }
-    dir.build().await
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::chunker::DEFAULT_CHUNKS_SIZE;
     use futures::TryStreamExt;
-    use std::io::Write;
-
-    #[tokio::test]
-    async fn test_builder_basics() -> Result<()> {
-        // Create a directory
-        let dir = DirectoryBuilder::new().name("foo");
-
-        // Add a file
-        let bar = FileBuilder::new()
-            .name("bar.txt")
-            .content_bytes(b"bar".to_vec())
-            .build()
-            .await?;
-        let bar_encoded: Vec<_> = {
-            let bar = FileBuilder::new()
-                .name("bar.txt")
-                .content_bytes(b"bar".to_vec())
-                .build()
-                .await?;
-            bar.encode().await?.try_collect().await?
-        };
-        assert_eq!(bar_encoded.len(), 1);
-
-        // Add a symlink
-        let mut baz = SymlinkBuilder::new("baz.txt");
-        baz.target("bat.txt");
-        let baz = baz.build().await?;
-        let baz_encoded: Block = {
-            let mut baz = SymlinkBuilder::new("baz.txt");
-            baz.target("bat.txt");
-            let baz = baz.build().await?;
-            baz.encode()?
-        };
-
-        let dir = dir.add_file(bar).add_symlink(baz).build().await?;
-
-        let dir_block = dir.encode_root().await?;
-        let decoded_dir = UnixfsNode::decode(dir_block.cid(), dir_block.data().clone())?;
-
-        let links = decoded_dir.links().collect::<Result<Vec<_>>>().unwrap();
-        assert_eq!(links[0].name.unwrap(), "bar.txt");
-        assert_eq!(links[0].cid, *bar_encoded[0].cid());
-        assert_eq!(links[1].name.unwrap(), "baz.txt");
-        assert_eq!(links[1].cid, *baz_encoded.cid());
-
-        // TODO: check content
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn test_recursive_dir_builder() -> Result<()> {
-        let dir = DirectoryBuilder::new().build().await?;
-
-        DirectoryBuilder::new()
-            .add_dir(dir)
-            .expect("recursive directories allowed");
-        Ok(())
-    }
 
     #[tokio::test]
     async fn test_builder_stream_small() -> Result<()> {
-        // Create a directory
-        let dir = DirectoryBuilder::new().name("foo");
-
         // Add a file
-        let bar_reader = std::io::Cursor::new(b"bar");
-        let bar = FileBuilder::new()
-            .name("bar.txt")
-            .content_reader(bar_reader)
-            .build()
-            .await?;
         let bar_encoded: Vec<_> = {
             let bar_reader = std::io::Cursor::new(b"bar");
             let bar = FileBuilder::new()
@@ -715,28 +331,6 @@ mod tests {
             bar.encode().await?.try_collect().await?
         };
         assert_eq!(bar_encoded.len(), 1);
-
-        // Add a symlink
-        let mut baz = SymlinkBuilder::new("baz.txt");
-        baz.target("bat.txt");
-        let baz = baz.build().await?;
-        let baz_encoded: Block = {
-            let mut baz = SymlinkBuilder::new("baz.txt");
-            baz.target("bat.txt");
-            let baz = baz.build().await?;
-            baz.encode()?
-        };
-
-        let dir = dir.add_file(bar).add_symlink(baz).build().await?;
-
-        let dir_block = dir.encode_root().await?;
-        let decoded_dir = UnixfsNode::decode(dir_block.cid(), dir_block.data().clone())?;
-
-        let links = decoded_dir.links().collect::<Result<Vec<_>>>().unwrap();
-        assert_eq!(links[0].name.unwrap(), "bar.txt");
-        assert_eq!(links[0].cid, *bar_encoded[0].cid());
-        assert_eq!(links[1].name.unwrap(), "baz.txt");
-        assert_eq!(links[1].cid, *baz_encoded.cid());
 
         // TODO: check content
         Ok(())
@@ -758,16 +352,7 @@ mod tests {
     }
     #[tokio::test]
     async fn test_builder_stream_large() -> Result<()> {
-        // Create a directory
-        let dir = DirectoryBuilder::new().name("foo");
-
         // Add a file
-        let bar_reader = std::io::Cursor::new(vec![1u8; 1024 * 1024]);
-        let bar = FileBuilder::new()
-            .name("bar.txt")
-            .content_reader(bar_reader)
-            .build()
-            .await?;
         let bar_encoded: Vec<_> = {
             let bar_reader = std::io::Cursor::new(vec![1u8; 1024 * 1024]);
             let bar = FileBuilder::new()
@@ -787,12 +372,6 @@ mod tests {
             }
         }
 
-        let baz_reader = std::io::Cursor::new(baz_content.clone());
-        let baz = FileBuilder::new()
-            .name("baz.txt")
-            .content_reader(baz_reader)
-            .build()
-            .await?;
         let baz_encoded: Vec<_> = {
             let baz_reader = std::io::Cursor::new(baz_content);
             let baz = FileBuilder::new()
@@ -804,99 +383,7 @@ mod tests {
         };
         assert_eq!(baz_encoded.len(), 9);
 
-        let dir = dir.add_file(bar).add_file(baz).build().await?;
-
-        let dir_block = dir.encode_root().await?;
-        let decoded_dir = UnixfsNode::decode(dir_block.cid(), dir_block.data().clone())?;
-
-        let links = decoded_dir.links().collect::<Result<Vec<_>>>().unwrap();
-        assert_eq!(links[0].name.unwrap(), "bar.txt");
-        assert_eq!(links[0].cid, *bar_encoded[4].cid());
-        assert_eq!(links[1].name.unwrap(), "baz.txt");
-        assert_eq!(links[1].cid, *baz_encoded[8].cid());
-
-        for (i, encoded) in baz_encoded.iter().enumerate() {
-            let node = UnixfsNode::decode(encoded.cid(), encoded.data().clone())?;
-            if i == 8 {
-                assert_eq!(node.typ(), Some(DataType::File));
-                assert_eq!(node.links().count(), 8);
-            } else {
-                assert_eq!(node.typ(), None); // raw leaves
-                assert!(node.size().unwrap() > 0);
-                assert_eq!(node.links().count(), 0);
-            }
-        }
-
         // TODO: check content
-        // TODO: add nested directory
-
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn test_make_dir_from_path() -> Result<()> {
-        let temp_dir = std::env::temp_dir();
-        let dir = temp_dir.join("test_dir");
-        std::fs::DirBuilder::new()
-            .recursive(true)
-            .create(dir.clone())
-            .unwrap();
-
-        // create directory and nested file
-        let nested_dir_path = dir.join("nested_dir");
-        let nested_file_path = nested_dir_path.join("bar.txt");
-
-        std::fs::DirBuilder::new()
-            .recursive(true)
-            .create(nested_dir_path.clone())
-            .unwrap();
-
-        let mut file = std::fs::File::create(nested_file_path.clone()).unwrap();
-        file.write_all(b"hello world again").unwrap();
-
-        // create another file in the "test_dir" directory
-        let file_path = dir.join("foo.txt");
-        let mut file = std::fs::File::create(file_path.clone()).unwrap();
-        file.write_all(b"hello world").unwrap();
-
-        // create directory manually
-        let nested_file = FileBuilder::new().path(nested_file_path).build().await?;
-        let nested_dir = Directory::single(
-            String::from(
-                nested_dir_path
-                    .file_name()
-                    .and_then(|s| s.to_str())
-                    .unwrap(),
-            ),
-            Entry::File(nested_file),
-        );
-
-        let file = FileBuilder::new().path(file_path).build().await?;
-
-        let expected = Directory::basic(
-            String::from(dir.clone().file_name().and_then(|s| s.to_str()).unwrap()),
-            vec![Entry::File(file), Entry::Directory(nested_dir)],
-        );
-
-        let got = make_dir_from_path(
-            dir,
-            Chunker::Fixed(chunker::Fixed::default()),
-            DEFAULT_DEGREE,
-        )
-        .await?;
-
-        let basic_entries = |dir: Directory| match dir {
-            Directory::Basic(basic) => basic.entries,
-        };
-
-        // Before comparison sort entries to make test deterministic.
-        // The readdir_r function is used in the underlying platform which
-        // gives no guarantee to return in a specific order.
-        // https://stackoverflow.com/questions/40021882/how-to-sort-readdir-iterator
-        let expected = basic_entries(expected);
-        let mut got = basic_entries(got);
-        got.sort_by_key(|entry| entry.name().to_string());
-        assert_eq!(expected, got);
         Ok(())
     }
 

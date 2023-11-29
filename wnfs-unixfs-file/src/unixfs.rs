@@ -7,7 +7,7 @@ use crate::{
 };
 use anyhow::{anyhow, bail, ensure, Result};
 use bytes::{Buf, Bytes};
-use futures::{future::BoxFuture, stream::BoxStream, FutureExt, Stream, StreamExt};
+use futures::{future::BoxFuture, FutureExt};
 use libipld::{multihash::MultihashDigest, Cid};
 use prost::Message;
 use std::{
@@ -56,7 +56,6 @@ impl Unixfs {
 pub enum UnixfsNode {
     Raw(Bytes),
     RawNode(Node),
-    Directory(Node),
     File(Node),
     Symlink(Node),
 }
@@ -152,7 +151,6 @@ impl UnixfsNode {
                 // ensure correct unixfs type
                 match typ {
                     DataType::Raw => todo!(),
-                    DataType::Directory => Ok(UnixfsNode::Directory(node)),
                     DataType::File => Ok(UnixfsNode::File(node)),
                     DataType::Symlink => Ok(UnixfsNode::Symlink(node)),
                     _ => bail!("unixfs data type unsupported: {typ:?}"),
@@ -172,10 +170,7 @@ impl UnixfsNode {
                 );
                 Block::new(cid, out, links)
             }
-            UnixfsNode::RawNode(node)
-            | UnixfsNode::Directory(node)
-            | UnixfsNode::File(node)
-            | UnixfsNode::Symlink(node) => {
+            UnixfsNode::RawNode(node) | UnixfsNode::File(node) | UnixfsNode::Symlink(node) => {
                 let out = node.encode()?;
                 let links = node
                     .links()
@@ -202,7 +197,6 @@ impl UnixfsNode {
         match self {
             UnixfsNode::Raw(_) => None,
             UnixfsNode::RawNode(_) => Some(DataType::Raw),
-            UnixfsNode::Directory(_) => Some(DataType::Directory),
             UnixfsNode::File(_) => Some(DataType::File),
             UnixfsNode::Symlink(_) => Some(DataType::Symlink),
         }
@@ -213,10 +207,9 @@ impl UnixfsNode {
     pub fn size(&self) -> Option<usize> {
         match self {
             UnixfsNode::Raw(data) => Some(data.len()),
-            UnixfsNode::Directory(node)
-            | UnixfsNode::RawNode(node)
-            | UnixfsNode::File(node)
-            | UnixfsNode::Symlink(node) => node.size(),
+            UnixfsNode::RawNode(node) | UnixfsNode::File(node) | UnixfsNode::Symlink(node) => {
+                node.size()
+            }
         }
     }
 
@@ -225,10 +218,9 @@ impl UnixfsNode {
     pub fn filesize(&self) -> Option<u64> {
         match self {
             UnixfsNode::Raw(data) => Some(data.len() as u64),
-            UnixfsNode::Directory(node)
-            | UnixfsNode::RawNode(node)
-            | UnixfsNode::File(node)
-            | UnixfsNode::Symlink(node) => node.filesize(),
+            UnixfsNode::RawNode(node) | UnixfsNode::File(node) | UnixfsNode::Symlink(node) => {
+                node.filesize()
+            }
         }
     }
 
@@ -237,10 +229,9 @@ impl UnixfsNode {
     pub fn blocksizes(&self) -> &[u64] {
         match self {
             UnixfsNode::Raw(_) => &[],
-            UnixfsNode::Directory(node)
-            | UnixfsNode::RawNode(node)
-            | UnixfsNode::Symlink(node)
-            | UnixfsNode::File(node) => node.blocksizes(),
+            UnixfsNode::RawNode(node) | UnixfsNode::Symlink(node) | UnixfsNode::File(node) => {
+                node.blocksizes()
+            }
         }
     }
 
@@ -248,7 +239,6 @@ impl UnixfsNode {
         match self {
             UnixfsNode::Raw(_) => Links::Raw,
             UnixfsNode::RawNode(node) => Links::RawNode(PbLinks::new(&node.outer)),
-            UnixfsNode::Directory(node) => Links::Directory(PbLinks::new(&node.outer)),
             UnixfsNode::File(node) => Links::File(PbLinks::new(&node.outer)),
             UnixfsNode::Symlink(node) => Links::Symlink(PbLinks::new(&node.outer)),
         }
@@ -256,10 +246,6 @@ impl UnixfsNode {
 
     pub fn links_owned(&self) -> Result<VecDeque<Link>> {
         self.links().map(|l| l.map(|l| l.to_owned())).collect()
-    }
-
-    pub const fn is_dir(&self) -> bool {
-        matches!(self, Self::Directory(_))
     }
 
     pub async fn get_link_by_name<S: AsRef<str>>(
@@ -281,26 +267,6 @@ impl UnixfsNode {
             Ok(Some(link))
         } else {
             Ok(None)
-        }
-    }
-
-    /// If this is a directory or hamt shard, returns a stream that yields all children of it.
-    pub fn as_child_reader<C: ContentLoader>(
-        &self,
-        _ctx: LoaderContext,
-        _loader: C,
-    ) -> Result<Option<UnixfsChildStream>> {
-        match self {
-            UnixfsNode::Raw(_)
-            | UnixfsNode::RawNode(_)
-            | UnixfsNode::File(_)
-            | UnixfsNode::Symlink(_) => Ok(None),
-            UnixfsNode::Directory(_) => {
-                let source = self.links().map(|l| l.map(|l| l.to_owned()));
-                let stream = futures::stream::iter(source).boxed();
-
-                Ok(Some(UnixfsChildStream::Directory { stream }))
-            }
         }
     }
 
@@ -327,32 +293,6 @@ impl UnixfsNode {
                     ctx: std::sync::Arc::new(tokio::sync::Mutex::new(ctx)),
                 }))
             }
-            UnixfsNode::Directory(_) => Ok(None),
-        }
-    }
-}
-
-pub enum UnixfsChildStream<'a> {
-    Hamt {
-        stream: BoxStream<'a, Result<Link>>,
-        pos: usize,
-    },
-    Directory {
-        stream: BoxStream<'a, Result<Link>>,
-    },
-}
-
-impl<'a> Debug for UnixfsChildStream<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            UnixfsChildStream::Hamt { pos, .. } => write!(
-                f,
-                "UnixfsChildStream::Hamt {{ stream: BoxStream<Result<Link>>, pos: {pos} }}"
-            ),
-            UnixfsChildStream::Directory { .. } => write!(
-                f,
-                "UnixfsChildStream::Directory {{ stream: BoxStream<Result<Link>> }}"
-            ),
         }
     }
 }
@@ -382,24 +322,6 @@ impl<C: ContentLoader> UnixfsContentReader<C> {
                 // File size is stored in the protobuf
                 root_node.filesize()
             }
-        }
-    }
-}
-
-impl Stream for UnixfsChildStream<'_> {
-    type Item = Result<Link>;
-
-    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        match &mut *self {
-            UnixfsChildStream::Hamt { stream, .. } => Pin::new(stream).poll_next(cx),
-            UnixfsChildStream::Directory { stream, .. } => Pin::new(stream).poll_next(cx),
-        }
-    }
-
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        match self {
-            UnixfsChildStream::Directory { stream, .. } => stream.size_hint(),
-            UnixfsChildStream::Hamt { .. } => (0, None),
         }
     }
 }
