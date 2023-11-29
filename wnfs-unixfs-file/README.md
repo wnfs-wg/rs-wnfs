@@ -31,7 +31,7 @@
 
 ##
 
-This Rust crate provides an implementation of UnixFs files. WNFS uses the UnixFs file encoding purely to chunk big byte arrays into multiple blocks and produce a single CID for them to link to from WNFS sttuctures.
+This Rust crate provides an implementation of UnixFs files. WNFS uses the UnixFs file encoding purely to chunk big byte arrays into multiple blocks and produce a single CID for them to link to from WNFS structures.
 
 This crate is a fork from beetle (previously "iroh")'s [iroh-unixfs crate](https://github.com/n0-computer/beetle/tree/3e137cb2bc18e1d458c3f72d5e817b03d9537d5d/iroh-unixfs).
 
