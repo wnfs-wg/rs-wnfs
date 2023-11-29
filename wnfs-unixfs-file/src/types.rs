@@ -115,12 +115,8 @@ impl LinkRef<'_> {
 
 #[derive(Debug)]
 pub enum Links<'a> {
-    Raw,
-    RawNode(PbLinks<'a>),
-    Directory(PbLinks<'a>),
-    File(PbLinks<'a>),
-    Symlink(PbLinks<'a>),
-    HamtShard(PbLinks<'a>),
+    Leaf,
+    Node(PbLinks<'a>),
 }
 
 #[derive(Debug)]
@@ -140,23 +136,15 @@ impl<'a> Iterator for Links<'a> {
 
     fn next(&mut self) -> Option<Self::Item> {
         match self {
-            Links::Raw => None,
-            Links::Directory(links)
-            | Links::RawNode(links)
-            | Links::File(links)
-            | Links::Symlink(links)
-            | Links::HamtShard(links) => links.next(),
+            Links::Leaf => None,
+            Links::Node(links) => links.next(),
         }
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
         match self {
-            Links::Raw => (0, Some(0)),
-            Links::Directory(links)
-            | Links::RawNode(links)
-            | Links::File(links)
-            | Links::Symlink(links)
-            | Links::HamtShard(links) => links.size_hint(),
+            Links::Leaf => (0, Some(0)),
+            Links::Node(links) => links.size_hint(),
         }
     }
 }

@@ -3,7 +3,6 @@ use crate::{
     chunker::{self, Chunker, ChunkerConfig, DEFAULT_CHUNK_SIZE_LIMIT},
     protobufs,
     types::Block,
-    unixfs::{DataType, Node, UnixfsNode},
 };
 use anyhow::{ensure, Result};
 use bytes::Bytes;
@@ -84,47 +83,6 @@ impl File {
         };
         let chunks = self.chunker.chunks(reader);
         Ok(self.tree_builder.stream_tree(chunks))
-    }
-}
-
-/// Representation of a constructed Symlink.
-#[derive(Debug, PartialEq, Eq)]
-pub struct Symlink {
-    name: String,
-    target: PathBuf,
-}
-
-impl Symlink {
-    pub fn new<P: Into<PathBuf>>(path: P, target: P) -> Self {
-        Self {
-            name: path
-                .into()
-                .file_name()
-                .and_then(|s| s.to_str())
-                .unwrap_or_default()
-                .to_string(),
-            target: target.into(),
-        }
-    }
-
-    pub fn name(&self) -> &str {
-        &self.name
-    }
-
-    pub fn encode(self) -> Result<Block> {
-        let target = self
-            .target
-            .to_str()
-            .ok_or_else(|| anyhow::anyhow!("target path {:?} is not valid unicode", self.target))?;
-        let target = String::from(target);
-        let inner = protobufs::Data {
-            r#type: DataType::Symlink as i32,
-            data: Some(Bytes::from(target)),
-            ..Default::default()
-        };
-        let outer = encode_unixfs_pb(&inner, Vec::new())?;
-        let node = UnixfsNode::Symlink(Node { outer, inner });
-        node.encode()
     }
 }
 
@@ -252,41 +210,6 @@ impl FileBuilder {
     }
 }
 
-/// Constructs a UnixFS Symlink
-#[derive(Debug)]
-pub struct SymlinkBuilder {
-    path: PathBuf,
-    target: Option<PathBuf>,
-}
-
-impl SymlinkBuilder {
-    pub fn new<P: Into<PathBuf>>(path: P) -> Self {
-        Self {
-            path: path.into(),
-            target: None,
-        }
-    }
-
-    pub fn target<P: Into<PathBuf>>(&mut self, target: P) -> &mut Self {
-        self.target = Some(target.into());
-        self
-    }
-
-    pub async fn build(self) -> Result<Symlink> {
-        let name = self
-            .path
-            .file_name()
-            .and_then(|s| s.to_str())
-            .unwrap_or_default()
-            .to_string();
-        let target = match self.target {
-            Some(target) => target,
-            None => tokio::fs::read_link(&self.path).await?,
-        };
-        Ok(Symlink { name, target })
-    }
-}
-
 pub(crate) fn encode_unixfs_pb(
     inner: &protobufs::Data,
     links: Vec<protobufs::PbLink>,
@@ -335,21 +258,7 @@ mod tests {
         // TODO: check content
         Ok(())
     }
-    #[cfg(not(windows))]
-    #[tokio::test]
-    async fn symlink_from_disk_test() -> Result<()> {
-        let temp_dir = ::tempfile::tempdir()?;
-        let expect_name = "path_to_symlink";
-        let expect_target = temp_dir.path().join("path_to_target");
-        let expect_path = temp_dir.path().join(expect_name);
 
-        tokio::fs::symlink(expect_target.clone(), expect_path.clone()).await?;
-
-        let got_symlink = SymlinkBuilder::new(expect_path).build().await?;
-        assert_eq!(expect_name, got_symlink.name());
-        assert_eq!(expect_target, got_symlink.target);
-        Ok(())
-    }
     #[tokio::test]
     async fn test_builder_stream_large() -> Result<()> {
         // Add a file

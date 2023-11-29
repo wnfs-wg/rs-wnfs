@@ -57,7 +57,6 @@ pub enum UnixfsNode {
     Raw(Bytes),
     RawNode(Node),
     File(Node),
-    Symlink(Node),
 }
 
 #[derive(
@@ -112,14 +111,7 @@ impl Node {
     }
 
     pub fn links(&self) -> Links {
-        match self.typ() {
-            DataType::Raw => Links::RawNode(PbLinks::new(&self.outer)),
-            DataType::Directory => Links::Directory(PbLinks::new(&self.outer)),
-            DataType::File => Links::File(PbLinks::new(&self.outer)),
-            DataType::Symlink => Links::Symlink(PbLinks::new(&self.outer)),
-            DataType::HamtShard => Links::HamtShard(PbLinks::new(&self.outer)),
-            DataType::Metadata => unimplemented!(),
-        }
+        Links::Node(PbLinks::new(&self.outer))
     }
 
     /// Returns the hash type. Only used for HAMT Shards.
@@ -152,7 +144,6 @@ impl UnixfsNode {
                 match typ {
                     DataType::Raw => todo!(),
                     DataType::File => Ok(UnixfsNode::File(node)),
-                    DataType::Symlink => Ok(UnixfsNode::Symlink(node)),
                     _ => bail!("unixfs data type unsupported: {typ:?}"),
                 }
             }
@@ -170,7 +161,7 @@ impl UnixfsNode {
                 );
                 Block::new(cid, out, links)
             }
-            UnixfsNode::RawNode(node) | UnixfsNode::File(node) | UnixfsNode::Symlink(node) => {
+            UnixfsNode::RawNode(node) | UnixfsNode::File(node) => {
                 let out = node.encode()?;
                 let links = node
                     .links()
@@ -198,7 +189,6 @@ impl UnixfsNode {
             UnixfsNode::Raw(_) => None,
             UnixfsNode::RawNode(_) => Some(DataType::Raw),
             UnixfsNode::File(_) => Some(DataType::File),
-            UnixfsNode::Symlink(_) => Some(DataType::Symlink),
         }
     }
 
@@ -207,9 +197,7 @@ impl UnixfsNode {
     pub fn size(&self) -> Option<usize> {
         match self {
             UnixfsNode::Raw(data) => Some(data.len()),
-            UnixfsNode::RawNode(node) | UnixfsNode::File(node) | UnixfsNode::Symlink(node) => {
-                node.size()
-            }
+            UnixfsNode::RawNode(node) | UnixfsNode::File(node) => node.size(),
         }
     }
 
@@ -218,9 +206,7 @@ impl UnixfsNode {
     pub fn filesize(&self) -> Option<u64> {
         match self {
             UnixfsNode::Raw(data) => Some(data.len() as u64),
-            UnixfsNode::RawNode(node) | UnixfsNode::File(node) | UnixfsNode::Symlink(node) => {
-                node.filesize()
-            }
+            UnixfsNode::RawNode(node) | UnixfsNode::File(node) => node.filesize(),
         }
     }
 
@@ -229,18 +215,15 @@ impl UnixfsNode {
     pub fn blocksizes(&self) -> &[u64] {
         match self {
             UnixfsNode::Raw(_) => &[],
-            UnixfsNode::RawNode(node) | UnixfsNode::Symlink(node) | UnixfsNode::File(node) => {
-                node.blocksizes()
-            }
+            UnixfsNode::RawNode(node) | UnixfsNode::File(node) => node.blocksizes(),
         }
     }
 
     pub fn links(&self) -> Links<'_> {
         match self {
-            UnixfsNode::Raw(_) => Links::Raw,
-            UnixfsNode::RawNode(node) => Links::RawNode(PbLinks::new(&node.outer)),
-            UnixfsNode::File(node) => Links::File(PbLinks::new(&node.outer)),
-            UnixfsNode::Symlink(node) => Links::Symlink(PbLinks::new(&node.outer)),
+            UnixfsNode::Raw(_) => Links::Leaf,
+            UnixfsNode::RawNode(node) => Links::Node(PbLinks::new(&node.outer)),
+            UnixfsNode::File(node) => Links::Node(PbLinks::new(&node.outer)),
         }
     }
 
@@ -261,15 +244,6 @@ impl UnixfsNode {
             .transpose()
     }
 
-    pub fn symlink(&self) -> Result<Option<&str>> {
-        if let Self::Symlink(ref node) = self {
-            let link = std::str::from_utf8(node.inner.data.as_deref().unwrap_or_default())?;
-            Ok(Some(link))
-        } else {
-            Ok(None)
-        }
-    }
-
     pub fn into_content_reader<C: ContentLoader>(
         self,
         ctx: LoaderContext,
@@ -277,10 +251,7 @@ impl UnixfsNode {
         pos_max: Option<usize>,
     ) -> Result<Option<UnixfsContentReader<C>>> {
         match self {
-            UnixfsNode::Raw(_)
-            | UnixfsNode::RawNode(_)
-            | UnixfsNode::File(_)
-            | UnixfsNode::Symlink(_) => {
+            UnixfsNode::Raw(_) | UnixfsNode::RawNode(_) | UnixfsNode::File(_) => {
                 let current_links = vec![self.links_owned()?];
 
                 Ok(Some(UnixfsContentReader::File {
@@ -344,7 +315,7 @@ impl<C: ContentLoader + Unpin + 'static> AsyncRead for UnixfsContentReader<C> {
             } => {
                 let typ = root_node.typ();
                 // let pos_old = *pos; Unused, see bytes_read below
-                let poll_res = match root_node {
+                match root_node {
                     UnixfsNode::Raw(data) => {
                         read_data_to_buf(pos, *pos_max, &data[*pos..], buf);
                         Poll::Ready(Ok(()))
@@ -360,18 +331,13 @@ impl<C: ContentLoader + Unpin + 'static> AsyncRead for UnixfsContentReader<C> {
                         current_node,
                         ctx.clone(),
                     ),
-                    UnixfsNode::Symlink(node) => {
-                        let data = node.inner.data.as_deref().unwrap_or_default();
-                        read_data_to_buf(pos, *pos_max, &data[*pos..], buf);
-                        Poll::Ready(Ok(()))
-                    }
                     _ => Poll::Ready(Err(std::io::Error::new(
                         std::io::ErrorKind::InvalidData,
                         format!("unsupported Unixfs type for file types: {typ:?} "),
                     ))),
-                };
+                }
                 // let bytes_read = *pos - pos_old; // Unused, used to be used for metrics
-                poll_res
+                // poll_res
             }
         }
     }
@@ -698,15 +664,6 @@ fn poll_read_file_at<C: ContentLoader + 'static>(
                     *current_node = CurrentNodeState::NextNodeRequested {
                         next_node_offset: *node_offset,
                     };
-                }
-                _ => {
-                    return Poll::Ready(Err(std::io::Error::new(
-                        std::io::ErrorKind::InvalidData,
-                        format!(
-                            "invalid type nested in chunked file: {:?}",
-                            current_node_inner.typ()
-                        ),
-                    )));
                 }
             },
         }
