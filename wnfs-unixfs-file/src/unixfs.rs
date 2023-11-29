@@ -248,12 +248,12 @@ impl UnixfsNode {
         self,
         store: B,
         pos_max: Option<usize>,
-    ) -> Result<Option<UnixfsContentReader<B>>> {
+    ) -> Result<Option<UnixfsFileReader<B>>> {
         match self {
             UnixfsNode::Raw(_) | UnixfsNode::RawNode(_) | UnixfsNode::File(_) => {
                 let current_links = vec![self.links_owned()?];
 
-                Ok(Some(UnixfsContentReader::File {
+                Ok(Some(UnixfsFileReader {
                     root_node: self,
                     pos: 0,
                     pos_max,
@@ -267,146 +267,129 @@ impl UnixfsNode {
 }
 
 #[derive(Debug)]
-pub enum UnixfsContentReader<B: BlockStore> {
-    File {
-        root_node: UnixfsNode,
-        /// Absolute position in bytes
-        pos: usize,
-        /// Absolute max position in bytes, only used for clipping responses
-        pos_max: Option<usize>,
-        /// Current node being operated on, only used for nested nodes (not the root).
-        current_node: CurrentNodeState,
-        /// Stack of links left to traverse.
-        current_links: Vec<VecDeque<Link>>,
-        store: B,
-    },
+pub struct UnixfsFileReader<B: BlockStore> {
+    root_node: UnixfsNode,
+    /// Absolute position in bytes
+    pos: usize,
+    /// Absolute max position in bytes, only used for clipping responses
+    pos_max: Option<usize>,
+    /// Current node being operated on, only used for nested nodes (not the root).
+    current_node: CurrentNodeState,
+    /// Stack of links left to traverse.
+    current_links: Vec<VecDeque<Link>>,
+    store: B,
 }
 
-impl<B: BlockStore> UnixfsContentReader<B> {
+impl<B: BlockStore> UnixfsFileReader<B> {
     /// Returns the size in bytes, if known in advance.
     pub fn size(&self) -> Option<u64> {
-        match self {
-            UnixfsContentReader::File { root_node, .. } => {
-                // File size is stored in the protobuf
-                root_node.filesize()
-            }
-        }
+        self.root_node.filesize()
     }
 }
 
-impl<B: BlockStore + Unpin + Clone + 'static> AsyncRead for UnixfsContentReader<B> {
+impl<B: BlockStore + Unpin + Clone + 'static> AsyncRead for UnixfsFileReader<B> {
     fn poll_read(
         mut self: Pin<&mut Self>,
         cx: &mut Context<'_>,
         buf: &mut tokio::io::ReadBuf<'_>,
     ) -> Poll<std::io::Result<()>> {
-        match &mut *self {
-            UnixfsContentReader::File {
-                root_node,
-                pos,
-                pos_max,
-                current_node,
-                current_links,
-                store,
-            } => {
-                let typ = root_node.typ();
-                // let pos_old = *pos; Unused, see bytes_read below
-                match root_node {
-                    UnixfsNode::Raw(data) => {
-                        read_data_to_buf(pos, *pos_max, &data[*pos..], buf);
-                        Poll::Ready(Ok(()))
-                    }
-                    UnixfsNode::File(node) => poll_read_file_at(
-                        cx,
-                        node,
-                        store.clone(),
-                        pos,
-                        *pos_max,
-                        buf,
-                        current_links,
-                        current_node,
-                    ),
-                    _ => Poll::Ready(Err(std::io::Error::new(
-                        std::io::ErrorKind::InvalidData,
-                        format!("unsupported Unixfs type for file types: {typ:?} "),
-                    ))),
-                }
-                // let bytes_read = *pos - pos_old; // Unused, used to be used for metrics
-                // poll_res
+        let UnixfsFileReader {
+            root_node,
+            pos,
+            pos_max,
+            current_node,
+            current_links,
+            store,
+        } = &mut *self;
+
+        let typ = root_node.typ();
+        // let pos_old = *pos; Unused, see bytes_read below
+        match root_node {
+            UnixfsNode::Raw(data) => {
+                read_data_to_buf(pos, *pos_max, &data[*pos..], buf);
+                Poll::Ready(Ok(()))
             }
+            UnixfsNode::File(node) => poll_read_file_at(
+                cx,
+                node,
+                store.clone(),
+                pos,
+                *pos_max,
+                buf,
+                current_links,
+                current_node,
+            ),
+            _ => Poll::Ready(Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                format!("unsupported Unixfs type for file types: {typ:?} "),
+            ))),
         }
+        // let bytes_read = *pos - pos_old; // Unused, used to be used for metrics
+        // poll_res
     }
 }
 
-impl<B: BlockStore + Unpin + Clone + 'static> AsyncSeek for UnixfsContentReader<B> {
+impl<B: BlockStore + Unpin + Clone + 'static> AsyncSeek for UnixfsFileReader<B> {
     fn start_seek(mut self: Pin<&mut Self>, position: std::io::SeekFrom) -> std::io::Result<()> {
-        match &mut *self {
-            UnixfsContentReader::File {
-                root_node,
-                pos,
-                current_node,
-                current_links,
-                ..
-            } => {
-                let data_len = root_node.size();
-                *current_node = CurrentNodeState::Outer;
-                *current_links = vec![root_node.links_owned().unwrap()];
-                match position {
-                    std::io::SeekFrom::Start(offset) => {
-                        let mut i = offset as usize;
-                        if let Some(data_len) = data_len {
-                            if data_len == 0 {
-                                *pos = 0;
-                                return Ok(());
-                            }
-                            i = std::cmp::min(i, data_len - 1);
-                        }
-                        *pos = i;
+        let UnixfsFileReader {
+            root_node,
+            pos,
+            current_node,
+            current_links,
+            ..
+        } = &mut *self;
+        let data_len = root_node.size();
+        *current_node = CurrentNodeState::Outer;
+        *current_links = vec![root_node.links_owned().unwrap()];
+        match position {
+            std::io::SeekFrom::Start(offset) => {
+                let mut i = offset as usize;
+                if let Some(data_len) = data_len {
+                    if data_len == 0 {
+                        *pos = 0;
+                        return Ok(());
                     }
-                    std::io::SeekFrom::End(offset) => {
-                        if let Some(data_len) = data_len {
-                            if data_len == 0 {
-                                *pos = 0;
-                                return Ok(());
-                            }
-                            let mut i = (data_len as i64 + offset) % data_len as i64;
-                            if i < 0 {
-                                i += data_len as i64;
-                            }
-                            *pos = i as usize;
-                        } else {
-                            return Err(std::io::Error::new(
-                                std::io::ErrorKind::InvalidInput,
-                                "cannot seek from end of unknown length",
-                            ));
-                        }
-                    }
-                    std::io::SeekFrom::Current(offset) => {
-                        let mut i = *pos as i64 + offset;
-                        i = std::cmp::max(0, i);
-
-                        if let Some(data_len) = data_len {
-                            if data_len == 0 {
-                                *pos = 0;
-                                return Ok(());
-                            }
-                            i = std::cmp::min(i, data_len as i64 - 1);
-                        }
-                        *pos = i as usize;
-                    }
+                    i = std::cmp::min(i, data_len - 1);
                 }
+                *pos = i;
+            }
+            std::io::SeekFrom::End(offset) => {
+                if let Some(data_len) = data_len {
+                    if data_len == 0 {
+                        *pos = 0;
+                        return Ok(());
+                    }
+                    let mut i = (data_len as i64 + offset) % data_len as i64;
+                    if i < 0 {
+                        i += data_len as i64;
+                    }
+                    *pos = i as usize;
+                } else {
+                    return Err(std::io::Error::new(
+                        std::io::ErrorKind::InvalidInput,
+                        "cannot seek from end of unknown length",
+                    ));
+                }
+            }
+            std::io::SeekFrom::Current(offset) => {
+                let mut i = *pos as i64 + offset;
+                i = std::cmp::max(0, i);
+
+                if let Some(data_len) = data_len {
+                    if data_len == 0 {
+                        *pos = 0;
+                        return Ok(());
+                    }
+                    i = std::cmp::min(i, data_len as i64 - 1);
+                }
+                *pos = i as usize;
             }
         }
         Ok(())
     }
 
-    fn poll_complete(
-        mut self: Pin<&mut Self>,
-        _cx: &mut Context<'_>,
-    ) -> Poll<std::io::Result<u64>> {
-        match &mut *self {
-            UnixfsContentReader::File { pos, .. } => Poll::Ready(Ok(*pos as u64)),
-        }
+    fn poll_complete(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<std::io::Result<u64>> {
+        Poll::Ready(Ok(self.pos as u64))
     }
 }
 
