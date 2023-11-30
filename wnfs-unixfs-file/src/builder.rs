@@ -14,13 +14,13 @@ use tokio::io::AsyncRead;
 use wnfs_common::BlockStore;
 
 /// Representation of a constructed File.
-pub struct File {
-    content: Pin<Box<dyn AsyncRead + Send>>,
+pub struct File<'a> {
+    content: Pin<Box<dyn AsyncRead + Send + 'a>>,
     tree_builder: TreeBuilder,
     chunker: Chunker,
 }
 
-impl Debug for File {
+impl<'a> Debug for File<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("File")
             .field(
@@ -33,10 +33,10 @@ impl Debug for File {
     }
 }
 
-impl File {
+impl<'a> File<'a> {
     pub fn encode(
         self,
-        store: &impl BlockStore,
+        store: &'a impl BlockStore,
     ) -> Result<impl Stream<Item = Result<(Cid, Block)>> + '_> {
         let chunks = self.chunker.chunks(self.content);
         Ok(self.tree_builder.stream_tree(chunks, store))
@@ -57,13 +57,13 @@ impl File {
 }
 
 /// Constructs a UnixFS file.
-pub struct FileBuilder {
-    reader: Option<Pin<Box<dyn AsyncRead + Send>>>,
+pub struct FileBuilder<'a> {
+    reader: Option<Pin<Box<dyn AsyncRead + Send + 'a>>>,
     chunker: Chunker,
     degree: usize,
 }
 
-impl Default for FileBuilder {
+impl<'a> Default for FileBuilder<'a> {
     fn default() -> Self {
         Self {
             reader: None,
@@ -73,7 +73,7 @@ impl Default for FileBuilder {
     }
 }
 
-impl Debug for FileBuilder {
+impl<'a> Debug for FileBuilder<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let reader = if self.reader.is_some() {
             "Some(Box<AsyncRead>)"
@@ -89,7 +89,7 @@ impl Debug for FileBuilder {
 }
 
 /// FileBuilder separates uses a reader or bytes to chunk the data into raw unixfs nodes
-impl FileBuilder {
+impl<'a> FileBuilder<'a> {
     pub fn new() -> Self {
         Default::default()
     }
@@ -116,18 +116,18 @@ impl FileBuilder {
         self
     }
 
-    pub fn content_bytes<B: Into<Bytes>>(mut self, content: B) -> Self {
+    pub fn content_bytes(mut self, content: impl Into<Bytes>) -> Self {
         let bytes = content.into();
         self.reader = Some(Box::pin(std::io::Cursor::new(bytes)));
         self
     }
 
-    pub fn content_reader<T: AsyncRead + Send + 'static>(mut self, content: T) -> Self {
+    pub fn content_reader(mut self, content: impl AsyncRead + Send + 'a) -> Self {
         self.reader = Some(Box::pin(content));
         self
     }
 
-    pub fn build(self) -> Result<File> {
+    pub fn build(self) -> Result<File<'a>> {
         let degree = self.degree;
         let chunker = self.chunker;
         let tree_builder = TreeBuilder::balanced_tree_with_degree(degree);

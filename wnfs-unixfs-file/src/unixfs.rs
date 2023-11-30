@@ -236,7 +236,7 @@ impl<'a, B: BlockStore> UnixFsFileReader<'a, B> {
     }
 }
 
-impl<'a, B: BlockStore + Unpin + 'static> AsyncRead for UnixFsFileReader<'a, B> {
+impl<'a, B: BlockStore + Unpin + 'a> AsyncRead for UnixFsFileReader<'a, B> {
     fn poll_read(
         mut self: Pin<&mut Self>,
         cx: &mut Context<'_>,
@@ -273,7 +273,7 @@ impl<'a, B: BlockStore + Unpin + 'static> AsyncRead for UnixFsFileReader<'a, B> 
     }
 }
 
-impl<'a, B: BlockStore + Unpin + Clone + 'static> AsyncSeek for UnixFsFileReader<'a, B> {
+impl<'a, B: BlockStore + Unpin + 'a> AsyncSeek for UnixFsFileReader<'a, B> {
     fn start_seek(mut self: Pin<&mut Self>, position: std::io::SeekFrom) -> std::io::Result<()> {
         let UnixFsFileReader {
             root_node,
