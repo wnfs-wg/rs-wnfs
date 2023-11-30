@@ -11,7 +11,7 @@ use async_once_cell::OnceCell;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use libipld_core::cid::Cid;
-use serde::{de::Error as DeError, Deserialize, Deserializer, Serialize, Serializer};
+use serde::{de::Error as DeError, Deserialize, Deserializer, Serializer};
 use std::collections::BTreeSet;
 use wnfs_common::{
     utils::{Arc, CondSend},
@@ -180,9 +180,8 @@ impl PublicNode {
     /// use std::sync::Arc;
     /// use wnfs::public::{PublicFile, PublicNode};
     /// use chrono::Utc;
-    /// use libipld_core::cid::Cid;
     ///
-    /// let file = PublicFile::new_rc(Utc::now(), Cid::default());
+    /// let file = PublicFile::new_rc(Utc::now());
     /// let node = PublicNode::File(Arc::clone(&file));
     ///
     /// assert_eq!(node.as_file().unwrap(), file);
@@ -226,9 +225,8 @@ impl PublicNode {
     /// ```
     /// use wnfs::public::{PublicFile, PublicNode};
     /// use chrono::Utc;
-    /// use libipld_core::cid::Cid;
     ///
-    /// let file = PublicFile::new_rc(Utc::now(), Cid::default());
+    /// let file = PublicFile::new_rc(Utc::now());
     /// let node = PublicNode::File(file);
     ///
     /// assert!(node.is_file());
@@ -312,10 +310,11 @@ impl AsyncSerialize for PublicNode {
     async fn async_serialize<S, B>(&self, serializer: S, store: &B) -> Result<S::Ok, S::Error>
     where
         S: Serializer + CondSend,
+        S::Error: CondSend,
         B: BlockStore + ?Sized,
     {
         match self {
-            Self::File(file) => file.serialize(serializer),
+            Self::File(file) => file.async_serialize(serializer, store).await,
             Self::Dir(dir) => dir.async_serialize(serializer, store).await,
         }
     }
@@ -338,23 +337,28 @@ impl RemembersCid for PublicNode {
 mod tests {
     use crate::public::{PublicDirectory, PublicFile, PublicNode};
     use chrono::Utc;
-    use libipld_core::cid::Cid;
+    use testresult::TestResult;
     use wnfs_common::MemoryBlockStore;
 
     #[async_std::test]
-    async fn serialized_public_node_can_be_deserialized() {
-        let store = &MemoryBlockStore::default();
+    async fn serialized_public_node_can_be_deserialized() -> TestResult {
+        let store = &MemoryBlockStore::new();
         let dir_node: PublicNode = PublicDirectory::new(Utc::now()).into();
-        let file_node: PublicNode = PublicFile::new(Utc::now(), Cid::default()).into();
+        let file_node: PublicNode = PublicFile::new(Utc::now()).into();
 
-        let dir_cid = dir_node.store(store).await.unwrap();
-        let file_cid = file_node.store(store).await.unwrap();
+        // We add a round-trip, because... userland records whether it was newly created/loaded
+        let file_node = PublicNode::load(&file_node.store(store).await?, store).await?;
 
-        let loaded_file_node = PublicNode::load(&file_cid, store).await.unwrap();
-        let loaded_dir_node = PublicNode::load(&dir_cid, store).await.unwrap();
+        let dir_cid = dir_node.store(store).await?;
+        let file_cid = file_node.store(store).await?;
+
+        let loaded_file_node = PublicNode::load(&file_cid, store).await?;
+        let loaded_dir_node = PublicNode::load(&dir_cid, store).await?;
 
         assert_eq!(loaded_file_node, file_node);
         assert_eq!(loaded_dir_node, dir_node);
+
+        Ok(())
     }
 }
 
@@ -370,7 +374,7 @@ mod snapshot_tests {
         let time = Utc.with_ymd_and_hms(1970, 1, 1, 0, 0, 0).unwrap();
 
         let dir_node: PublicNode = PublicDirectory::new(time).into();
-        let file_node: PublicNode = PublicFile::new(time, Cid::default()).into();
+        let file_node: PublicNode = PublicFile::new(time).into();
 
         let dir_cid = dir_node.store(store).await.unwrap();
         let file_cid = file_node.store(store).await.unwrap();
@@ -398,7 +402,7 @@ mod snapshot_tests {
 
         for path in paths.iter() {
             root_dir
-                .write(path, Cid::default(), time, store)
+                .write(path, b"Hello, World!".to_vec(), time, store)
                 .await
                 .unwrap();
         }

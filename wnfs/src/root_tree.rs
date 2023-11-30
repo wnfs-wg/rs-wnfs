@@ -26,7 +26,7 @@ use std::collections::HashMap;
 use wnfs_common::MemoryBlockStore;
 use wnfs_common::{
     utils::{Arc, CondSend},
-    BlockStore, Metadata, CODEC_RAW,
+    BlockStore, Metadata,
 };
 #[cfg(test)]
 use wnfs_nameaccumulator::AccumulatorSetup;
@@ -127,14 +127,8 @@ where
         };
 
         match first.as_str() {
-            "public" => {
-                let cid = self.public_root.read(path_segments, self.store).await?;
-                self.store.get_block(&cid).await.map(|b| b.to_vec())
-            }
-            "exchange" => {
-                let cid = self.exchange_root.read(path_segments, self.store).await?;
-                self.store.get_block(&cid).await.map(|b| b.to_vec())
-            }
+            "public" => self.public_root.read(path_segments, self.store).await,
+            "exchange" => self.exchange_root.read(path_segments, self.store).await,
             _ => {
                 let root = self
                     .private_map
@@ -160,15 +154,13 @@ where
 
         match first.as_str() {
             "public" => {
-                let cid = self.store.put_block(content, CODEC_RAW).await?;
                 self.public_root
-                    .write(path_segments, cid, time, self.store)
+                    .write(path_segments, content, time, self.store)
                     .await
             }
             "exchange" => {
-                let cid = self.store.put_block(content, CODEC_RAW).await?;
                 self.exchange_root
-                    .write(path_segments, cid, time, self.store)
+                    .write(path_segments, content, time, self.store)
                     .await
             }
             _ => {

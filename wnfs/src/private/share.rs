@@ -76,8 +76,7 @@ pub mod sharer {
                 let value = root_dir.ls(&[device.clone()], store).await?;
                 for (name, _) in value {
                     if name == EXCHANGE_KEY_NAME {
-                        let cid = root_dir.read(&[device, name], store).await?;
-                        yield store.get_block(&cid).await?.to_vec();
+                        yield root_dir.read(&[device, name], store).await?;
                         break
                     }
                 }
@@ -196,7 +195,7 @@ mod tests {
     use chrono::Utc;
     use rand_chacha::ChaCha12Rng;
     use rand_core::SeedableRng;
-    use wnfs_common::{utils::Arc, BlockStore, MemoryBlockStore};
+    use wnfs_common::{utils::Arc, MemoryBlockStore};
 
     mod helper {
         use crate::{
@@ -211,7 +210,7 @@ mod tests {
         use rand_core::CryptoRngCore;
         use wnfs_common::{
             utils::{Arc, CondSend},
-            BlockStore, CODEC_RAW,
+            BlockStore,
         };
 
         pub(super) async fn create_sharer_dir(
@@ -247,13 +246,12 @@ mod tests {
         ) -> Result<(RsaPrivateKey, Arc<PublicDirectory>)> {
             let key = RsaPrivateKey::new()?;
             let exchange_key = key.get_public_key().get_public_key_modulus()?;
-            let exchange_key_cid = store.put_block(exchange_key, CODEC_RAW).await?;
 
             let mut root_dir = PublicDirectory::new_rc(Utc::now());
             root_dir
                 .write(
                     &["device1".into(), EXCHANGE_KEY_NAME.into()],
-                    exchange_key_cid,
+                    exchange_key,
                     Utc::now(),
                     store,
                 )
@@ -352,12 +350,10 @@ mod tests {
             helper::create_recipient_exchange_root(store).await.unwrap();
 
         // Get exchange public key
-        let recipient_exchange_key_cid = recipient_exchange_root
+        let recipient_exchange_key = recipient_exchange_root
             .read(&["device1".into(), EXCHANGE_KEY_NAME.into()], store)
             .await
             .unwrap();
-
-        let recipient_exchange_key = store.get_block(&recipient_exchange_key_cid).await.unwrap();
 
         // Test finding latest share before having shared
         let max_share_count_before = find_latest_share_counter(

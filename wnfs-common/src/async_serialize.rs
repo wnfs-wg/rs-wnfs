@@ -48,6 +48,7 @@ pub trait AsyncSerialize {
     async fn async_serialize<S, B>(&self, serializer: S, store: &B) -> Result<S::Ok, S::Error>
     where
         S: Serializer + CondSend,
+        S::Error: CondSend,
         B: BlockStore + ?Sized;
 
     /// Serialize with an IPLD serializer.
@@ -69,6 +70,7 @@ impl<T: AsyncSerialize + CondSync> AsyncSerialize for Arc<T> {
     async fn async_serialize<S, B>(&self, serializer: S, store: &B) -> Result<S::Ok, S::Error>
     where
         S: Serializer + CondSend,
+        S::Error: CondSend,
         B: BlockStore + ?Sized,
     {
         self.as_ref().async_serialize(serializer, store).await

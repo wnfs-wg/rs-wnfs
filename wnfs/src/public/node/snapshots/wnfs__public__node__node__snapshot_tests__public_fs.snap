@@ -3,7 +3,69 @@ source: wnfs/src/public/node/node.rs
 expression: values
 ---
 {
-  "bafyr4ic4bdlnowxtowfynamfdwgetbetifmdgahjun3sdbjfmaq3o7tvpi": {
+  "bafkr4ibirkdkphzauplnztoko4j35lwrpb4yffv57j4rh6rkmlmxe67y7a": {
+    "value": {
+      "/": {
+        "bytes": "SGVsbG8sIFdvcmxkIQ"
+      }
+    },
+    "bytes": "SGVsbG8sIFdvcmxkIQ=="
+  },
+  "bafyr4icjyr6bcipvqzguj3gctaihetpeqxgine3zw7zkw4eyzrn2ojxwhe": {
+    "value": {
+      "wnfs/pub/dir": {
+        "metadata": {
+          "created": 0,
+          "modified": 0
+        },
+        "previous": [],
+        "userland": {
+          "anime": {
+            "/": "bafyr4ihsg6l6g5tw45a3zh2dilphrtafnb6pyc7dpdxbuncgekjycqchnu"
+          }
+        },
+        "version": "1.0.0"
+      }
+    },
+    "bytes": "oWx3bmZzL3B1Yi9kaXKkZ3ZlcnNpb25lMS4wLjBobWV0YWRhdGGiZ2NyZWF0ZWQAaG1vZGlmaWVkAGhwcmV2aW91c4BodXNlcmxhbmShZWFuaW1l2CpYJQABcR4g8jeX43Z250G8n0NC3njMBWh8/AvjeO4aNEYik4FAR20="
+  },
+  "bafyr4ieu4jffr7sjcakgzk6jr4w5gbbmjs6oe7q2trrutjqcugr4orvmuu": {
+    "value": {
+      "wnfs/pub/dir": {
+        "metadata": {
+          "created": 0,
+          "modified": 0
+        },
+        "previous": [],
+        "userland": {
+          "jazz": {
+            "/": "bafyr4ihsg6l6g5tw45a3zh2dilphrtafnb6pyc7dpdxbuncgekjycqchnu"
+          }
+        },
+        "version": "1.0.0"
+      }
+    },
+    "bytes": "oWx3bmZzL3B1Yi9kaXKkZ3ZlcnNpb25lMS4wLjBobWV0YWRhdGGiZ2NyZWF0ZWQAaG1vZGlmaWVkAGhwcmV2aW91c4BodXNlcmxhbmShZGphenrYKlglAAFxHiDyN5fjdnbnQbyfQ0LeeMwFaHz8C+N47ho0RiKTgUBHbQ=="
+  },
+  "bafyr4ifobgzwli26fibfladmtouh32okhnmhc7jpy5dvmocz5dgg3wqrnq": {
+    "value": {
+      "wnfs/pub/dir": {
+        "metadata": {
+          "created": 0,
+          "modified": 0
+        },
+        "previous": [],
+        "userland": {
+          "movies": {
+            "/": "bafyr4icjyr6bcipvqzguj3gctaihetpeqxgine3zw7zkw4eyzrn2ojxwhe"
+          }
+        },
+        "version": "1.0.0"
+      }
+    },
+    "bytes": "oWx3bmZzL3B1Yi9kaXKkZ3ZlcnNpb25lMS4wLjBobWV0YWRhdGGiZ2NyZWF0ZWQAaG1vZGlmaWVkAGhwcmV2aW91c4BodXNlcmxhbmShZm1vdmllc9gqWCUAAXEeIEnEfBEh9YZNROzCmBByTeSFzIaTebfyq3CYzFunJvY5"
+  },
+  "bafyr4igcgvnnbd6xh7waotpqdopqcesi4wfmfcl2u42gyspjfc3djzt6wa": {
     "value": {
       "wnfs/pub/dir": {
         "metadata": {
@@ -17,89 +79,19 @@ expression: values
         ],
         "userland": {
           "music": {
-            "/": "bafyr4ietl6u7ligzk3sxfwqvycd2vhd4ohw3rxn5qv7ajrlzommvzk5la4"
+            "/": "bafyr4ieu4jffr7sjcakgzk6jr4w5gbbmjs6oe7q2trrutjqcugr4orvmuu"
           },
           "text.txt": {
-            "/": "bafyr4ie5jfvlj66jxhhvggxjltfj4ljfhjyirnngts23e33ugezjpc6xaq"
+            "/": "bafyr4ihsg6l6g5tw45a3zh2dilphrtafnb6pyc7dpdxbuncgekjycqchnu"
           },
           "videos": {
-            "/": "bafyr4ifmlt3hmgb5kdaprkhqqg774bcgyra54sli273iceddse25d7xkbe"
+            "/": "bafyr4ifobgzwli26fibfladmtouh32okhnmhc7jpy5dvmocz5dgg3wqrnq"
           }
         },
         "version": "1.0.0"
       }
     },
-    "bytes": "oWx3bmZzL3B1Yi9kaXKkZ3ZlcnNpb25lMS4wLjBobWV0YWRhdGGiZ2NyZWF0ZWQAaG1vZGlmaWVkAGhwcmV2aW91c4HYKlglAAFxHiD7VpD7WhHEVsmy03LYDk//0ZTWX++8Kdc9NpRjpotfhGh1c2VybGFuZKNlbXVzaWPYKlglAAFxHiCTX6n1oNlW5XLaFcCHqpx8ce243b2FfgTFeXMZXKurB2Z2aWRlb3PYKlglAAFxHiCsXPZ2GD1QwPio8IG//gRGxEHeSWjX9oEQY5E10f7qCWh0ZXh0LnR4dNgqWCUAAXEeIJ1JarT7ybnPUxrpXMqeLSU6cIi1ppy1sm90MTKXi9cE"
-  },
-  "bafyr4ie5jfvlj66jxhhvggxjltfj4ljfhjyirnngts23e33ugezjpc6xaq": {
-    "value": {
-      "wnfs/pub/file": {
-        "metadata": {
-          "created": 0,
-          "modified": 0
-        },
-        "previous": [],
-        "userland": {
-          "/": "baeaaaaa"
-        },
-        "version": "1.0.0"
-      }
-    },
-    "bytes": "oW13bmZzL3B1Yi9maWxlpGd2ZXJzaW9uZTEuMC4waG1ldGFkYXRhomdjcmVhdGVkAGhtb2RpZmllZABocHJldmlvdXOAaHVzZXJsYW5k2CpFAAEAAAA="
-  },
-  "bafyr4ielvme7szwdjuhhmiy2h27dqi7ayv5akpry33l365dbz2r7kbuxxu": {
-    "value": {
-      "wnfs/pub/dir": {
-        "metadata": {
-          "created": 0,
-          "modified": 0
-        },
-        "previous": [],
-        "userland": {
-          "anime": {
-            "/": "bafyr4ie5jfvlj66jxhhvggxjltfj4ljfhjyirnngts23e33ugezjpc6xaq"
-          }
-        },
-        "version": "1.0.0"
-      }
-    },
-    "bytes": "oWx3bmZzL3B1Yi9kaXKkZ3ZlcnNpb25lMS4wLjBobWV0YWRhdGGiZ2NyZWF0ZWQAaG1vZGlmaWVkAGhwcmV2aW91c4BodXNlcmxhbmShZWFuaW1l2CpYJQABcR4gnUlqtPvJuc9TGulcyp4tJTpwiLWmnLWyb3QxMpeL1wQ="
-  },
-  "bafyr4ietl6u7ligzk3sxfwqvycd2vhd4ohw3rxn5qv7ajrlzommvzk5la4": {
-    "value": {
-      "wnfs/pub/dir": {
-        "metadata": {
-          "created": 0,
-          "modified": 0
-        },
-        "previous": [],
-        "userland": {
-          "jazz": {
-            "/": "bafyr4ie5jfvlj66jxhhvggxjltfj4ljfhjyirnngts23e33ugezjpc6xaq"
-          }
-        },
-        "version": "1.0.0"
-      }
-    },
-    "bytes": "oWx3bmZzL3B1Yi9kaXKkZ3ZlcnNpb25lMS4wLjBobWV0YWRhdGGiZ2NyZWF0ZWQAaG1vZGlmaWVkAGhwcmV2aW91c4BodXNlcmxhbmShZGphenrYKlglAAFxHiCdSWq0+8m5z1Ma6VzKni0lOnCItaactbJvdDEyl4vXBA=="
-  },
-  "bafyr4ifmlt3hmgb5kdaprkhqqg774bcgyra54sli273iceddse25d7xkbe": {
-    "value": {
-      "wnfs/pub/dir": {
-        "metadata": {
-          "created": 0,
-          "modified": 0
-        },
-        "previous": [],
-        "userland": {
-          "movies": {
-            "/": "bafyr4ielvme7szwdjuhhmiy2h27dqi7ayv5akpry33l365dbz2r7kbuxxu"
-          }
-        },
-        "version": "1.0.0"
-      }
-    },
-    "bytes": "oWx3bmZzL3B1Yi9kaXKkZ3ZlcnNpb25lMS4wLjBobWV0YWRhdGGiZ2NyZWF0ZWQAaG1vZGlmaWVkAGhwcmV2aW91c4BodXNlcmxhbmShZm1vdmllc9gqWCUAAXEeIIurCflmw00OdiMaPr44I+DFegU+ON7Xv3RhzqP1Bpe9"
+    "bytes": "oWx3bmZzL3B1Yi9kaXKkZ3ZlcnNpb25lMS4wLjBobWV0YWRhdGGiZ2NyZWF0ZWQAaG1vZGlmaWVkAGhwcmV2aW91c4HYKlglAAFxHiD7VpD7WhHEVsmy03LYDk//0ZTWX++8Kdc9NpRjpotfhGh1c2VybGFuZKNlbXVzaWPYKlglAAFxHiCU4kpY/kkQFGyryY8t0wQsTLzifhqcY0mmAqGjx0aspWZ2aWRlb3PYKlglAAFxHiCuCbNlo14qAlWAbJuofenKO1hxfS/HR1Y4WejMbdoRbGh0ZXh0LnR4dNgqWCUAAXEeIPI3l+N2dudBvJ9DQt54zAVofPwL43juGjRGIpOBQEdt"
   },
   "bafyr4ih3k2ipwwqryrlmtmwtolma4t772gknmx7pxqu5opjwsrr2nc27qq": {
     "value": {
@@ -114,5 +106,21 @@ expression: values
       }
     },
     "bytes": "oWx3bmZzL3B1Yi9kaXKkZ3ZlcnNpb25lMS4wLjBobWV0YWRhdGGiZ2NyZWF0ZWQAaG1vZGlmaWVkAGhwcmV2aW91c4BodXNlcmxhbmSg"
+  },
+  "bafyr4ihsg6l6g5tw45a3zh2dilphrtafnb6pyc7dpdxbuncgekjycqchnu": {
+    "value": {
+      "wnfs/pub/file": {
+        "metadata": {
+          "created": 0,
+          "modified": 0
+        },
+        "previous": [],
+        "userland": {
+          "/": "bafkr4ibirkdkphzauplnztoko4j35lwrpb4yffv57j4rh6rkmlmxe67y7a"
+        },
+        "version": "1.0.0"
+      }
+    },
+    "bytes": "oW13bmZzL3B1Yi9maWxlpGd2ZXJzaW9uZTEuMC4waG1ldGFkYXRhomdjcmVhdGVkAGhtb2RpZmllZABocHJldmlvdXOAaHVzZXJsYW5k2CpYJQABVR4gKIqGp58go9bczcp3E76u0Xh5gpa9+nkT+ipi2XJ7+Pg="
   }
 }

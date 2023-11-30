@@ -3,7 +3,6 @@
 
 use anyhow::Result;
 use chrono::Utc;
-use libipld_core::cid::Cid;
 use wnfs::{common::MemoryBlockStore, public::PublicDirectory};
 
 #[async_std::main]
@@ -23,7 +22,7 @@ async fn main() -> Result<()> {
     root_dir
         .write(
             &["pictures".into(), "dogs".into(), "billie.jpeg".into()],
-            Cid::default(),
+            b"Hello, world!".to_vec(),
             Utc::now(),
             &store,
         )
