@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1701197278775,
+  "lastUpdate": 1701379266759,
   "repoUrl": "https://github.com/wnfs-wg/rs-wnfs",
   "entries": {
     "Rust Benchmark": [
@@ -19357,6 +19357,102 @@ window.BENCHMARK_DATA = {
             "name": "NameAccumulator serialization",
             "value": 500,
             "range": "± 61",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "philipp.krueger1@gmail.com",
+            "name": "Philipp Krüger",
+            "username": "matheus23"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "ce292b5a50823012c02357eb98821053f18c1ce5",
+          "message": "feat: Implement `wnfs-unixfs-file` crate for encoding big byte arrays in IPLD (#375)\n\nThis adopts some code from iroh-unixfs (from the beetle codebase, previously called \"iroh\").\r\n\r\nThe WNFS spec uses UnixFS files as the byte array encoding for public WNFS files.\r\n\r\nWe've previously put the burden on anyone using rs-wnfs to encode byte arrays and get a CID themselves, now we've got a mechanism inside rs-wnfs to do that. (E.g. previously we've done byte array en/decoding from javascript via js-ipfs-unixfs)\r\n\r\n---\r\n\r\n* feat: Copy over iroh-unixfs without prost codegen\r\n\r\n* chore: Remove `hamt` stuff\r\n\r\n* refactor: Remove directory support\r\n\r\n* refactor: Remove Symlink support\r\n\r\n* refactor: Remove ability to read from file path\r\n\r\n* refactor: Replace `ContentLoader` with WNFS's `BlockStore`\r\n\r\n* refactor: Rename `UnixfsContentReader` to `..FileReader`\r\n\r\n* refactor: Borrow `BlockStore` instead of cloning\r\n\r\n* refactor: Delete unused structs & code\r\n\r\n* refactor: minor rename `Unixfs` -> `UnixFs`\r\n\r\n* refactor: Remove need to provide name for files\r\n\r\n* refactor: Write a round-trip proptest\r\n\r\n* refactor: Use `BlockStore` to compute hashes & store blocks\r\n\r\n* chore: Make sure `async_std` runtime also works\r\n\r\n* chore: Write README (add add a proptest for seeking)\r\n\r\n* chore: Write more readme\r\n\r\n* chore: Fix typo\r\n\r\n* chore: Fix lint\r\n\r\n* chore: Remove unused dependencies\r\n\r\n* chore: Document crate dependencies in the readme\r\n\r\n* fix: More accurate lifetimes for `AsyncRead` and `AsyncSeek`\r\n\r\n* feat: Add  constructor",
+          "timestamp": "2023-11-30T22:16:09+01:00",
+          "tree_id": "7b47ae8255782498e6c0653cd08b6bb474bc3c8d",
+          "url": "https://github.com/wnfs-wg/rs-wnfs/commit/ce292b5a50823012c02357eb98821053f18c1ce5"
+        },
+        "date": 1701379265395,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "node set",
+            "value": 63094,
+            "range": "± 2051",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node set 1000 consecutive",
+            "value": 2891880,
+            "range": "± 227187",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and get",
+            "value": 89166,
+            "range": "± 1398",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and remove",
+            "value": 95990,
+            "range": "± 2125",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt load and decode/0",
+            "value": 34032,
+            "range": "± 343",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt set and encode",
+            "value": 82312,
+            "range": "± 2282",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt diff",
+            "value": 36589,
+            "range": "± 2776",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt merge",
+            "value": 108970,
+            "range": "± 6473",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameSegment::new_hashed",
+            "value": 1807168,
+            "range": "± 214188",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameSegment::new(rng)",
+            "value": 1821946,
+            "range": "± 198462",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameAccumulator::add",
+            "value": 1758915,
+            "range": "± 60404",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameAccumulator serialization",
+            "value": 505,
+            "range": "± 14",
             "unit": "ns/iter"
           }
         ]
