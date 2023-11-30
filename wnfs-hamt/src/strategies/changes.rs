@@ -34,7 +34,7 @@ pub(crate) fn generate_changes<K: Debug + Clone, V: Debug + Clone>(
         pairs
             .clone()
             .into_iter()
-            .zip(randoms.into_iter())
+            .zip(randoms)
             .filter(|(_, (num, _))| *num != 0)
             .map(|((k, _), (num, val))| match num {
                 1 => Change::Add(k, val),
