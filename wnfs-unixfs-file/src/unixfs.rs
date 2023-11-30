@@ -85,6 +85,10 @@ impl Node {
 }
 
 impl UnixFsFile {
+    pub fn empty() -> Self {
+        UnixFsFile::Raw(Bytes::new())
+    }
+
     pub async fn load(cid: &Cid, store: &impl BlockStore) -> Result<Self> {
         let block = store.get_block(cid).await?;
         Self::decode(cid, block)
@@ -236,7 +240,7 @@ impl<'a, B: BlockStore> UnixFsFileReader<'a, B> {
     }
 }
 
-impl<'a, B: BlockStore + Unpin + 'a> AsyncRead for UnixFsFileReader<'a, B> {
+impl<'a, B: BlockStore + 'a> AsyncRead for UnixFsFileReader<'a, B> {
     fn poll_read(
         mut self: Pin<&mut Self>,
         cx: &mut Context<'_>,
@@ -273,7 +277,7 @@ impl<'a, B: BlockStore + Unpin + 'a> AsyncRead for UnixFsFileReader<'a, B> {
     }
 }
 
-impl<'a, B: BlockStore + Unpin + 'a> AsyncSeek for UnixFsFileReader<'a, B> {
+impl<'a, B: BlockStore + 'a> AsyncSeek for UnixFsFileReader<'a, B> {
     fn start_seek(mut self: Pin<&mut Self>, position: std::io::SeekFrom) -> std::io::Result<()> {
         let UnixFsFileReader {
             root_node,
