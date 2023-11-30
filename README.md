@@ -53,10 +53,27 @@ This library is designed with WebAssembly in mind. You can follow instructions o
 ## Crates
 
 - [wnfs](https://github.com/wnfs-wg/rs-wnfs/tree/main/wnfs)
+- [wnfs-wasm](https://github.com/wnfs-wg/rs-wnfs/tree/main/wnfs-wasm)
 - [wnfs-common](https://github.com/wnfs-wg/rs-wnfs/tree/main/wnfs-common)
 - [wnfs-hamt](https://github.com/wnfs-wg/rs-wnfs/tree/main/wnfs-hamt)
 - [wnfs-nameaccumulator](https://github.com/wnfs-wg/rs-wnfs/tree/main/wnfs-nameaccumulator)
-- [wnfs-wasm](https://github.com/wnfs-wg/rs-wnfs/tree/main/wnfs-wasm)
+- [wnfs-unixfs-file](https://github.com/wnfs-wg/rs-wnfs/tree/main/wnfs-unixfs-file)
+
+This is the dependency graph between these crates:
+```mermaid
+flowchart TD
+    wnfs-wasm --> wnfs
+    wnfs-wasm --> wnfs-nameaccumulator
+    %% wnfs-bench --> wnfs
+    %% wnfs-bench --> wnfs-hamt
+    %% wnfs-bench --> wnfs-nameaccumulator
+    wnfs --> wnfs-hamt
+    wnfs --> wnfs-common
+    wnfs --> wnfs-unixfs-file
+    wnfs --> wnfs-nameaccumulator
+    wnfs-unixfs-file --> wnfs-common
+    wnfs-hamt --> wnfs-common
+```
 
 ## Building the Project
 
