@@ -1,7 +1,7 @@
 use bytes::{Bytes, BytesMut};
-use futures::{stream::BoxStream, StreamExt};
 use std::io;
 use tokio::io::{AsyncRead, AsyncReadExt};
+use wnfs_common::utils::{boxed_stream, BoxStream, CondSend};
 
 /// Default size for chunks.
 pub const DEFAULT_CHUNKS_SIZE: usize = 1024 * 256;
@@ -26,12 +26,12 @@ impl Fixed {
         Self { chunk_size }
     }
 
-    pub fn chunks<'a, R: AsyncRead + Unpin + Send + 'a>(
+    pub fn chunks<'a, R: AsyncRead + Unpin + CondSend + 'a>(
         self,
         mut source: R,
     ) -> BoxStream<'a, io::Result<Bytes>> {
         let chunk_size = self.chunk_size;
-        async_stream::stream! {
+        boxed_stream(async_stream::stream! {
             let mut buffer = BytesMut::with_capacity(chunk_size);
             let mut current_len = 0;
 
@@ -68,8 +68,7 @@ impl Fixed {
                     }
                 }
             }
-        }
-        .boxed()
+        })
     }
 }
 

@@ -6,7 +6,7 @@ use crate::{
 };
 use anyhow::{anyhow, bail, ensure, Result};
 use bytes::Bytes;
-use futures::{future::BoxFuture, FutureExt};
+use futures::FutureExt;
 use libipld::Cid;
 use prost::Message;
 use std::{
@@ -16,7 +16,10 @@ use std::{
     task::{Context, Poll},
 };
 use tokio::io::{AsyncRead, AsyncSeek};
-use wnfs_common::BlockStore;
+use wnfs_common::{
+    utils::{boxed_fut, BoxFuture},
+    BlockStore,
+};
 
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, num_enum::IntoPrimitive, num_enum::TryFromPrimitive,
@@ -445,13 +448,12 @@ fn load_next_node<'a>(
 
     let link = links.pop_front().unwrap();
 
-    let fut = async move {
+    let fut = boxed_fut(async move {
         let block = store.get_block(&link.cid).await?;
         let node = UnixFsFile::decode(&link.cid, block)?;
 
         Ok(node)
-    }
-    .boxed();
+    });
     *current_node = CurrentNodeState::Loading {
         node_offset: next_node_offset,
         fut,

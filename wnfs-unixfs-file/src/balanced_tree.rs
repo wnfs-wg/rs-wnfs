@@ -10,7 +10,7 @@ use bytes::Bytes;
 use futures::{Stream, StreamExt};
 use libipld::Cid;
 use std::collections::VecDeque;
-use wnfs_common::BlockStore;
+use wnfs_common::{utils::CondSend, BlockStore};
 
 /// Default degree number for balanced tree, taken from unixfs specs
 /// <https://github.com/ipfs/specs/blob/main/UNIXFS.md#layout>
@@ -35,7 +35,7 @@ impl TreeBuilder {
 
     pub fn stream_tree<'a>(
         &self,
-        chunks: impl Stream<Item = std::io::Result<Bytes>> + Send + 'a,
+        chunks: impl Stream<Item = std::io::Result<Bytes>> + CondSend + 'a,
         store: &'a impl BlockStore,
     ) -> impl Stream<Item = Result<(Cid, Block)>> + 'a {
         match self {
@@ -51,7 +51,7 @@ struct LinkInfo {
 }
 
 fn stream_balanced_tree<'a>(
-    in_stream: impl Stream<Item = std::io::Result<Bytes>> + Send + 'a,
+    in_stream: impl Stream<Item = std::io::Result<Bytes>> + CondSend + 'a,
     degree: usize,
     store: &'a impl BlockStore,
 ) -> impl Stream<Item = Result<(Cid, Block)>> + 'a {

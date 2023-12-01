@@ -125,7 +125,7 @@ impl PublicFile {
 
     pub async fn with_content_streaming<'a>(
         time: DateTime<Utc>,
-        content: impl AsyncRead + Send + 'a,
+        content: impl AsyncRead + CondSend + 'a,
         store: &'a impl BlockStore,
     ) -> Result<Self> {
         let content_cid = FileBuilder::new()
@@ -143,7 +143,7 @@ impl PublicFile {
 
     pub async fn with_content_streaming_rc<'a>(
         time: DateTime<Utc>,
-        content: impl AsyncRead + Send + 'a,
+        content: impl AsyncRead + CondSend + 'a,
         store: &'a impl BlockStore,
     ) -> Result<Arc<Self>> {
         Ok(Arc::new(
@@ -160,7 +160,7 @@ impl PublicFile {
         &'a self,
         byte_offset: u64,
         store: &'a impl BlockStore,
-    ) -> Result<impl AsyncRead + Send + 'a> {
+    ) -> Result<impl AsyncRead + CondSend + 'a> {
         let mut reader = self
             .userland
             .get_cloned(store)

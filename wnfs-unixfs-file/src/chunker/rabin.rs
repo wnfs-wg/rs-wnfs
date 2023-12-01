@@ -1,9 +1,9 @@
 //! Implements a rabin based chunker, following the implementation from [here](https://github.com/ipfs-shipyard/DAGger/blob/master/internal/dagger/chunker/rabin/impl.go).
 
 use bytes::{Bytes, BytesMut};
-use futures::{stream::BoxStream, StreamExt};
 use std::io;
 use tokio::io::{AsyncRead, AsyncReadExt};
+use wnfs_common::utils::{boxed_stream, BoxStream, CondSend};
 
 /// Rabin fingerprinting based chunker.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -45,11 +45,11 @@ impl Rabin {
         }
     }
 
-    pub fn chunks<'a, R: AsyncRead + Unpin + Send + 'a>(
+    pub fn chunks<'a, R: AsyncRead + Unpin + CondSend + 'a>(
         self,
         mut source: R,
     ) -> BoxStream<'a, io::Result<Bytes>> {
-        async_stream::stream! {
+        boxed_stream(async_stream::stream! {
             let target_size = 3 * self.config.max_size;
             let mut buf = BytesMut::with_capacity(target_size);
             let mut use_entire_buffer = false;
@@ -140,8 +140,7 @@ impl Rabin {
                 // remove processed data
                 let _ = buf.split_to(cur_idx);
             }
-        }
-        .boxed()
+        })
     }
 }
 

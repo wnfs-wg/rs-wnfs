@@ -2,20 +2,20 @@ use crate::{
     balanced_tree::{TreeBuilder, DEFAULT_DEGREE},
     chunker::{self, Chunker, ChunkerConfig, DEFAULT_CHUNK_SIZE_LIMIT},
     protobufs,
-    types::Block,
+    types::{Block, BoxAsyncRead},
 };
 use anyhow::{anyhow, ensure, Result};
 use bytes::Bytes;
 use futures::{Stream, TryStreamExt};
 use libipld::Cid;
 use prost::Message;
-use std::{fmt::Debug, pin::Pin};
+use std::fmt::Debug;
 use tokio::io::AsyncRead;
-use wnfs_common::BlockStore;
+use wnfs_common::{utils::CondSend, BlockStore};
 
 /// Representation of a constructed File.
 pub struct File<'a> {
-    content: Pin<Box<dyn AsyncRead + Send + 'a>>,
+    content: BoxAsyncRead<'a>,
     tree_builder: TreeBuilder,
     chunker: Chunker,
 }
@@ -58,7 +58,7 @@ impl<'a> File<'a> {
 
 /// Constructs a UnixFS file.
 pub struct FileBuilder<'a> {
-    reader: Option<Pin<Box<dyn AsyncRead + Send + 'a>>>,
+    reader: Option<BoxAsyncRead<'a>>,
     chunker: Chunker,
     degree: usize,
 }
@@ -122,7 +122,7 @@ impl<'a> FileBuilder<'a> {
         self
     }
 
-    pub fn content_reader(mut self, content: impl AsyncRead + Send + 'a) -> Self {
+    pub fn content_reader(mut self, content: impl AsyncRead + CondSend + 'a) -> Self {
         self.reader = Some(Box::pin(content));
         self
     }
