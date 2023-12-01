@@ -23,7 +23,7 @@ pub mod sharer {
     };
     use anyhow::Result;
     use async_stream::try_stream;
-    use futures::{Stream, StreamExt};
+    use futures::{Stream, TryStreamExt};
     use wnfs_common::{BlockStore, CODEC_RAW};
     use wnfs_nameaccumulator::{Name, NameSegment};
 
@@ -41,9 +41,8 @@ pub mod sharer {
         let mut exchange_keys = fetch_exchange_keys(recipient_exchange_root, store).await;
         let encoded_key = &serde_ipld_dagcbor::to_vec(access_key)?;
 
-        while let Some(result) = exchange_keys.next().await {
-            let public_key_modulus = result?;
-            let exchange_key = K::from_modulus(&public_key_modulus).await?;
+        while let Some(public_key_modulus) = exchange_keys.try_next().await? {
+            let exchange_key = K::from_modulus(public_key_modulus.as_ref()).await?;
             let encrypted_key = exchange_key.encrypt(encoded_key).await?;
             let share_label =
                 create_share_name(share_count, sharer_root_did, &public_key_modulus, forest);

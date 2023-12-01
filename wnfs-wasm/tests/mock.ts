@@ -171,11 +171,10 @@ const createRecipientExchangeRoot = async (
 ): Promise<[PrivateKey, PublicDirectory]> => {
   const key = await PrivateKey.generate();
   const exchangeKey = await key.getPublicKey().getPublicKeyModulus();
-  const exchangeKeyCid = await store.putBlock(exchangeKey, 0x55);
 
   const { rootDir } = await new PublicDirectory(new Date()).write(
     ["device1", "v1.exchange_key"],
-    exchangeKeyCid,
+    exchangeKey,
     new Date(),
     store
   );
