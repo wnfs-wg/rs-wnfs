@@ -115,6 +115,7 @@ impl PublicFile {
         })
     }
 
+    /// A convenience wrapper around `with_content` that also wraps the result in an `Arc`.
     pub async fn with_content_rc(
         time: DateTime<Utc>,
         content: Vec<u8>,
@@ -123,6 +124,38 @@ impl PublicFile {
         Ok(Arc::new(Self::with_content(time, content, store).await?))
     }
 
+    /// Creates a file similar to `with_content`, but allowing streaming in the file.
+    ///
+    /// This is useful to keep memory usage low when importing bigger files, it should
+    /// use only O(log n) memory.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use anyhow::Result;
+    /// use async_std::fs::File;
+    /// use chrono::Utc;
+    /// use wnfs::{
+    ///     public::PublicFile,
+    ///     common::MemoryBlockStore,
+    /// };
+    ///
+    /// #[async_std::main]
+    /// async fn main() -> Result<()> {
+    ///     let disk_file = File::open("./test/fixtures/Clara Schumann, Scherzo no. 2, Op. 14.mp3").await?;
+    ///     let store = &MemoryBlockStore::new();
+    ///     let file = PublicFile::with_content_streaming(
+    ///         Utc::now(),
+    ///         disk_file,
+    ///         store,
+    ///     )
+    ///     .await?;
+    ///
+    ///     println!("file = {:?}", file);
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
     pub async fn with_content_streaming<'a>(
         time: DateTime<Utc>,
         content: impl AsyncRead + CondSend + 'a,
@@ -141,6 +174,8 @@ impl PublicFile {
         })
     }
 
+    /// Convenience wrapper around `with_content_streaming` that additionally
+    /// wraps the result in an `Arc`.
     pub async fn with_content_streaming_rc<'a>(
         time: DateTime<Utc>,
         content: impl AsyncRead + CondSend + 'a,
@@ -151,11 +186,75 @@ impl PublicFile {
         ))
     }
 
+    /// Copy the contents from another file to this file.
+    /// This is an O(1) operation, as WNFS is a copy-on-write file system.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use anyhow::Result;
+    /// use chrono::Utc;
+    /// use wnfs::{
+    ///     public::{PublicDirectory, PublicFile},
+    ///     common::{MemoryBlockStore, utils::get_random_bytes},
+    /// };
+    ///
+    /// #[async_std::main]
+    /// async fn main() -> Result<()> {
+    ///     let store = &MemoryBlockStore::new();
+    ///
+    ///     let file = PublicFile::with_content(
+    ///         Utc::now(),
+    ///         get_random_bytes::<100>(&mut rand_core::OsRng).to_vec(),
+    ///         store,
+    ///     )
+    ///     .await?;
+    ///
+    ///     let root_dir = &mut PublicDirectory::new_rc(Utc::now());
+    ///
+    ///     let copy = root_dir
+    ///         .open_file_mut(&["some".into(), "copy.txt".into()], Utc::now(), store)
+    ///         .await?;
+    ///
+    ///     copy.copy_content_from(&file, Utc::now());
+    ///
+    ///     assert_eq!(file.read_at(0, None, store).await?, copy.read_at(0, None, store).await?);
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
     pub fn copy_content_from(&mut self, other: &Self, time: DateTime<Utc>) {
         self.metadata.upsert_mtime(time);
         self.userland = other.userland.clone();
     }
 
+    /// Stream out the content of this file starting from given byte offset.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use anyhow::Result;
+    /// use chrono::Utc;
+    /// use wnfs::{
+    ///     public::PublicFile,
+    ///     common::{MemoryBlockStore, utils::get_random_bytes},
+    /// };
+    ///
+    /// #[async_std::main]
+    /// async fn main() -> Result<()> {
+    ///     let store = &MemoryBlockStore::new();
+    ///     let content = b"Hello, World!\n".repeat(1000).to_vec();
+    ///     let file = PublicFile::with_content(Utc::now(), content, store).await?;
+    ///
+    ///     let mut content_stream = file.stream_content(0, store).await?;
+    ///
+    ///     // Pipe file contents to stdout
+    ///     let mut stdout = async_std::io::stdout();
+    ///     futures::io::copy(&mut content_stream, &mut stdout).await?;
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
     pub async fn stream_content<'a>(
         &'a self,
         byte_offset: u64,
@@ -170,6 +269,35 @@ impl PublicFile {
         Ok(TokioAsyncReadCompatExt::compat(reader))
     }
 
+    /// Read the contents of this file.
+    /// You can provide a byte offset from which to start reading,
+    /// and you can provide a maximum amount of bytes you want to read.
+    ///
+    /// For more advanced cases, consider using `stream_content` instead.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use anyhow::Result;
+    /// use chrono::Utc;
+    /// use wnfs::{
+    ///     public::PublicFile,
+    ///     common::{MemoryBlockStore, utils::get_random_bytes},
+    /// };
+    ///
+    /// #[async_std::main]
+    /// async fn main() -> Result<()> {
+    ///     let store = &MemoryBlockStore::new();
+    ///     let content = b"Hello, World!\n".repeat(1000).to_vec();
+    ///     let file = PublicFile::with_content(Utc::now(), content, store).await?;
+    ///
+    ///     let content = file.read_at(14, Some(28), store).await?;
+    ///
+    ///     assert_eq!(content, b"Hello, World!\nHello, World!\n");
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
     pub async fn read_at<'a>(
         &'a self,
         byte_offset: u64,
