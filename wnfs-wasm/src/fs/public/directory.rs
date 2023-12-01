@@ -85,7 +85,7 @@ impl PublicDirectory {
                 .await
                 .map_err(error("Cannot add to store"))?;
 
-            let cid_u8array = Uint8Array::from(&cid.to_bytes()[..]);
+            let cid_u8array = Uint8Array::from(cid.to_bytes().as_ref());
 
             Ok(value!(cid_u8array))
         }))
@@ -118,9 +118,9 @@ impl PublicDirectory {
                 .await
                 .map_err(error("Cannot read from directory"))?;
 
-            let result = Uint8Array::from(&result.to_bytes()[..]);
+            let u8array = Uint8Array::from(result.as_ref());
 
-            Ok(value!(result))
+            Ok(value!(u8array))
         }))
     }
 
@@ -165,20 +165,19 @@ impl PublicDirectory {
     pub fn write(
         &self,
         path_segments: &Array,
-        content_cid: Vec<u8>,
+        content: Vec<u8>,
         time: &Date,
         store: BlockStore,
     ) -> JsResult<Promise> {
         let mut directory = Rc::clone(&self.0);
         let store = ForeignBlockStore(store);
 
-        let cid = Cid::try_from(content_cid).map_err(error("Invalid CID"))?;
         let time = DateTime::<Utc>::from(time);
         let path_segments = utils::convert_path_segments(path_segments)?;
 
         Ok(future_to_promise(async move {
             (&mut directory)
-                .write(&path_segments, cid, time, &store)
+                .write(&path_segments, content, time, &store)
                 .await
                 .map_err(error("Cannot write to directory"))?;
 

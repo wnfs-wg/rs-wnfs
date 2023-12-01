@@ -5,7 +5,7 @@ use crate::{
     value,
 };
 use chrono::{DateTime, Utc};
-use js_sys::{Error, Promise, Uint8Array};
+use js_sys::{Error, Number, Promise, Uint8Array};
 use libipld_core::cid::Cid;
 use std::rc::Rc;
 use wasm_bindgen::{prelude::wasm_bindgen, JsValue};
@@ -32,11 +32,9 @@ pub struct PublicFile(pub(crate) Rc<WnfsPublicFile>);
 impl PublicFile {
     /// Creates a new file in a WNFS public file system.
     #[wasm_bindgen(constructor)]
-    pub fn new(time: &js_sys::Date, cid: Vec<u8>) -> JsResult<PublicFile> {
+    pub fn new(time: &js_sys::Date) -> PublicFile {
         let time = DateTime::<Utc>::from(time);
-        let cid = Cid::try_from(&cid[..]).map_err(error("Invalid CID"))?;
-
-        Ok(PublicFile(Rc::new(WnfsPublicFile::new(time, cid))))
+        Self(WnfsPublicFile::new_rc(time))
     }
 
     /// Gets a unique id for node.
@@ -48,11 +46,11 @@ impl PublicFile {
     /// Stores a file in provided block store.
     pub fn store(&self, store: BlockStore) -> JsResult<Promise> {
         let file = Rc::clone(&self.0);
-        let mut store = ForeignBlockStore(store);
+        let store = ForeignBlockStore(store);
 
         Ok(future_to_promise(async move {
             let cid = file
-                .store(&mut store)
+                .store(&store)
                 .await
                 .map_err(|e| Error::new(&format!("Cannot add to store: {e}")))?;
 
@@ -66,6 +64,7 @@ impl PublicFile {
     pub fn load(cid: Vec<u8>, store: BlockStore) -> JsResult<Promise> {
         let store = ForeignBlockStore(store);
         let cid = Cid::try_from(cid).map_err(|e| Error::new(&format!("Cannot parse cid: {e}")))?;
+
         Ok(future_to_promise(async move {
             let file: WnfsPublicFile = store
                 .get_deserializable(&cid)
@@ -96,10 +95,50 @@ impl PublicFile {
         JsMetadata(self.0.get_metadata()).try_into()
     }
 
-    /// Gets the content cid of the file.
-    #[wasm_bindgen(js_name = "contentCid")]
-    pub fn content_cid(&self) -> Vec<u8> {
-        self.0.get_content_cid().to_bytes()
+    /// Gets the content of the file at given offset & with an optional byte limit.
+    #[wasm_bindgen(js_name = "readAt")]
+    pub fn read_at(
+        &self,
+        byte_offset: Number,
+        limit: Option<Number>,
+        store: BlockStore,
+    ) -> JsResult<Promise> {
+        let file = Rc::clone(&self.0);
+        let store = ForeignBlockStore(store);
+        let byte_offset = f64::from(byte_offset) as u64;
+        let limit = limit.map(|lim| f64::from(lim) as usize);
+
+        Ok(future_to_promise(async move {
+            let result = file
+                .read_at(byte_offset, limit, &store)
+                .await
+                .map_err(error("Cannot read file"))?;
+
+            let uint8array = Uint8Array::from(result.as_ref());
+
+            Ok(value!(uint8array))
+        }))
+    }
+
+    /// Sets the content of a file to a byte array.
+    #[wasm_bindgen(js_name = "setContent")]
+    pub fn set_content(
+        &self,
+        time: &js_sys::Date,
+        content: Vec<u8>,
+        store: BlockStore,
+    ) -> JsResult<Promise> {
+        let mut file = Rc::clone(&self.0);
+        let store = ForeignBlockStore(store);
+        let time = DateTime::<Utc>::from(time);
+
+        Ok(future_to_promise(async move {
+            file.set_content(time, content, &store)
+                .await
+                .map_err(error("Cannot set file content"))?;
+
+            Ok(value!(PublicFile(file)))
+        }))
     }
 
     /// Converts this directory to a node.
