@@ -85,7 +85,7 @@ pub async fn diff<K: CondSync, V: CondSync, H: CondSync>(
 where
     K: DeserializeOwned + Clone + Eq + Hash + AsRef<[u8]>,
     V: DeserializeOwned + Clone + Eq,
-    H: Hasher + Clone + 'static,
+    H: Hasher,
 {
     diff_helper(main_link, other_link, 1, store).await
 }
@@ -101,7 +101,7 @@ pub async fn diff_helper<K: CondSync, V: CondSync, H: CondSync>(
 where
     K: DeserializeOwned + Clone + Eq + Hash + AsRef<[u8]>,
     V: DeserializeOwned + Clone + Eq,
-    H: Hasher + Clone + 'static,
+    H: Hasher,
 {
     // If Cids are available, check to see if they are equal so we can skip further comparisons.
     if let (Some(cid), Some(cid2)) = (main_link.get_cid(), other_link.get_cid()) {
@@ -175,7 +175,7 @@ async fn generate_add_or_remove_changes<K: CondSync, V: CondSync, H: CondSync>(
 where
     K: DeserializeOwned + Clone + Eq + Hash + AsRef<[u8]>,
     V: DeserializeOwned + Clone + Eq,
-    H: Hasher + Clone + 'static,
+    H: Hasher,
 {
     match node_pointer {
         Pointer::Values(values) => Ok(values
@@ -215,7 +215,7 @@ async fn pointers_diff<K: CondSync, V: CondSync, H: CondSync>(
 where
     K: DeserializeOwned + Clone + Eq + Hash + AsRef<[u8]>,
     V: DeserializeOwned + Clone + Eq,
-    H: Hasher + Clone + 'static,
+    H: Hasher,
 {
     match (main_pointer, other_pointer) {
         (Pointer::Link(main_link), Pointer::Link(other_link)) => {
@@ -285,7 +285,7 @@ async fn create_node_from_pairs<K, V, H>(
 where
     K: DeserializeOwned + Clone + AsRef<[u8]> + CondSync,
     V: DeserializeOwned + Clone + CondSync,
-    H: Hasher + Clone + 'static + CondSync,
+    H: Hasher + CondSync,
 {
     let mut node = Arc::new(Node::<_, _, H>::default());
     for Pair { key, value } in values {

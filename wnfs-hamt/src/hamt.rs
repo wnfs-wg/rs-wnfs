@@ -1,15 +1,14 @@
 use super::{KeyValueChange, Node, HAMT_VERSION};
-use crate::Hasher;
+use crate::{serializable::HamtSerializable, Hasher};
 use anyhow::Result;
 use async_trait::async_trait;
-use libipld::{serde as ipld_serde, Ipld};
 use semver::Version;
 use serde::{
     de::{DeserializeOwned, Error as DeError},
     ser::Error as SerError,
     Deserialize, Deserializer, Serialize, Serializer,
 };
-use std::{collections::BTreeMap, hash::Hash, str::FromStr};
+use std::hash::Hash;
 use wnfs_common::{
     utils::{Arc, CondSend, CondSync},
     AsyncSerialize, BlockStore, Link,
@@ -121,7 +120,6 @@ impl<K: CondSync, V: CondSync, H: Hasher + CondSync> Hamt<K, V, H> {
     where
         K: DeserializeOwned + Clone + Eq + Hash + AsRef<[u8]>,
         V: DeserializeOwned + Clone + Eq,
-        H: Clone + 'static,
     {
         super::diff(
             Link::from(Arc::clone(&self.root)),
@@ -131,16 +129,26 @@ impl<K: CondSync, V: CondSync, H: Hasher + CondSync> Hamt<K, V, H> {
         .await
     }
 
-    async fn to_ipld<B: BlockStore + ?Sized>(&self, store: &B) -> Result<Ipld>
+    pub(crate) async fn to_serializable(
+        &self,
+        store: &impl BlockStore,
+    ) -> Result<HamtSerializable<K, V>>
     where
-        K: Serialize,
-        V: Serialize,
+        K: Serialize + Clone,
+        V: Serialize + Clone,
     {
-        Ok(Ipld::Map(BTreeMap::from([
-            ("root".into(), self.root.to_ipld(store).await?),
-            ("version".into(), ipld_serde::to_ipld(&self.version)?),
-            ("structure".into(), ipld_serde::to_ipld("hamt")?),
-        ])))
+        Ok(HamtSerializable {
+            root: self.root.to_serializable(store).await?,
+            version: self.version.clone(),
+            structure: "hamt".to_string(),
+        })
+    }
+
+    pub(crate) fn from_serializable(serializable: HamtSerializable<K, V>) -> Result<Self> {
+        Ok(Self {
+            root: Arc::new(Node::from_serializable(serializable.root)?),
+            version: serializable.version,
+        })
     }
 }
 
@@ -148,15 +156,15 @@ impl<K: CondSync, V: CondSync, H: Hasher + CondSync> Hamt<K, V, H> {
 #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl<K, V, H: Hasher + CondSync> AsyncSerialize for Hamt<K, V, H>
 where
-    K: Serialize + CondSync,
-    V: Serialize + CondSync,
+    K: Serialize + Clone + CondSync,
+    V: Serialize + Clone + CondSync,
 {
     async fn async_serialize<S, B>(&self, serializer: S, store: &B) -> Result<S::Ok, S::Error>
     where
         S: Serializer + CondSend,
         B: BlockStore + ?Sized,
     {
-        self.to_ipld(store)
+        self.to_serializable(store)
             .await
             .map_err(SerError::custom)?
             .serialize(serializer)
@@ -172,34 +180,7 @@ where
     where
         D: Deserializer<'de>,
     {
-        Ipld::deserialize(deserializer).and_then(|ipld| ipld.try_into().map_err(DeError::custom))
-    }
-}
-
-impl<K, V> TryFrom<Ipld> for Hamt<K, V>
-where
-    K: DeserializeOwned + CondSync,
-    V: DeserializeOwned + CondSync,
-{
-    type Error = String;
-
-    fn try_from(ipld: Ipld) -> Result<Self, Self::Error> {
-        match ipld {
-            Ipld::Map(mut map) => {
-                let root = Arc::new(
-                    Node::<K, V>::deserialize(map.remove("root").ok_or("Missing root")?)
-                        .map_err(|e| e.to_string())?,
-                );
-
-                let version = match map.get("version").ok_or("Missing version")? {
-                    Ipld::String(v) => Version::from_str(v).map_err(|e| e.to_string())?,
-                    _ => return Err("`version` is not a string".into()),
-                };
-
-                Ok(Self { root, version })
-            }
-            other => Err(format!("Expected `Ipld::Map`, got {other:#?}")),
-        }
+        Self::from_serializable(Deserialize::deserialize(deserializer)?).map_err(DeError::custom)
     }
 }
 

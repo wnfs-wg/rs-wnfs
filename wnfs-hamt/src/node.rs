@@ -3,18 +3,18 @@ use super::{
     hash::{HashNibbles, Hasher},
     HashPrefix, Pair, Pointer, HAMT_BITMASK_BIT_SIZE, HAMT_BITMASK_BYTE_SIZE,
 };
-use crate::HAMT_VALUES_BUCKET_SIZE;
+use crate::{serializable::NodeSerializable, HAMT_VALUES_BUCKET_SIZE};
 use anyhow::{bail, Result};
 use async_once_cell::OnceCell;
 use async_recursion::async_recursion;
 use async_trait::async_trait;
 use bitvec::array::BitArray;
 use either::{Either, Either::*};
-use libipld::{serde as ipld_serde, Cid, Ipld};
+use libipld::Cid;
 #[cfg(feature = "log")]
 use log::debug;
 use serde::{
-    de::{Deserialize, DeserializeOwned},
+    de::{self, Deserialize, DeserializeOwned},
     ser::Error as SerError,
     Deserializer, Serialize, Serializer,
 };
@@ -69,7 +69,7 @@ where
 
 impl<K, V, H> Node<K, V, H>
 where
-    H: Hasher + 'static + CondSync,
+    H: Hasher + CondSync,
     K: CondSync,
     V: CondSync,
 {
@@ -747,9 +747,7 @@ where
 
         Ok(map)
     }
-}
 
-impl<K: CondSync, V: CondSync, H: Hasher + CondSync> Node<K, V, H> {
     /// Returns the count of the values in all the values pointer of a node.
     pub fn count_values(self: &Arc<Self>) -> Result<usize> {
         let mut len = 0;
@@ -764,23 +762,48 @@ impl<K: CondSync, V: CondSync, H: Hasher + CondSync> Node<K, V, H> {
         Ok(len)
     }
 
-    // TODO(appcypher): Do we really need this? Why not use PublicDirectorySerializable style instead.
-    /// Converts a Node to an IPLD object.
-    pub async fn to_ipld<B: BlockStore + ?Sized>(&self, store: &B) -> Result<Ipld>
+    pub(crate) async fn to_serializable(
+        &self,
+        store: &impl BlockStore,
+    ) -> Result<NodeSerializable<K, V>>
     where
-        K: Serialize + CondSync,
-        V: Serialize + CondSync,
+        K: Serialize + Clone + CondSync,
+        V: Serialize + Clone + CondSync,
     {
-        let bitmask_ipld = ipld_serde::to_ipld(ByteArray::from(self.bitmask.into_inner()))?;
-        let pointers_ipld = {
-            let mut tmp = Vec::with_capacity(self.pointers.len());
-            for pointer in self.pointers.iter() {
-                tmp.push(pointer.to_ipld(store).await?);
-            }
-            Ipld::List(tmp)
-        };
+        let bitmask = ByteArray::from(self.bitmask.into_inner());
 
-        Ok(Ipld::List(vec![bitmask_ipld, pointers_ipld]))
+        let mut pointers = Vec::with_capacity(self.pointers.len());
+        for pointer in self.pointers.iter() {
+            pointers.push(pointer.to_serializable(store).await?);
+        }
+
+        Ok(NodeSerializable(bitmask, pointers))
+    }
+
+    pub(crate) fn from_serializable(serializable: NodeSerializable<K, V>) -> Result<Self> {
+        let NodeSerializable(bitmask, pointers) = serializable;
+        let pointers = pointers
+            .into_iter()
+            .map(|pointer| Pointer::from_serializable(pointer))
+            .collect::<Vec<_>>();
+
+        let bitmask = BitArray::<BitMaskType>::new(bitmask.into());
+        let bitmask_bits_set = bitmask.count_ones();
+
+        if pointers.len() != bitmask_bits_set {
+            bail!(
+                "pointers length does not match bitmask, bitmask bits set: {}, pointers length: {}",
+                bitmask_bits_set,
+                pointers.len()
+            );
+        }
+
+        Ok(Self {
+            persisted_as: OnceCell::new(),
+            bitmask,
+            pointers,
+            hasher: PhantomData,
+        })
     }
 }
 
@@ -821,8 +844,8 @@ impl<K: CondSync, V: CondSync, H: Hasher + CondSync> Default for Node<K, V, H> {
 #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl<K, V, H> AsyncSerialize for Node<K, V, H>
 where
-    K: Serialize + CondSync,
-    V: Serialize + CondSync,
+    K: Serialize + Clone + CondSync,
+    V: Serialize + Clone + CondSync,
     H: Hasher + CondSync,
 {
     async fn async_serialize<S, B>(&self, serializer: S, store: &B) -> Result<S::Ok, S::Error>
@@ -830,7 +853,7 @@ where
         S: Serializer + CondSend,
         B: BlockStore + ?Sized,
     {
-        self.to_ipld(store)
+        self.to_serializable(store)
             .await
             .map_err(SerError::custom)?
             .serialize(serializer)
@@ -847,30 +870,7 @@ where
     where
         D: Deserializer<'de>,
     {
-        let (bytes, pointers): (ByteArray<2>, Vec<Pointer<K, V, H>>) =
-            Deserialize::deserialize(deserializer)?;
-
-        let bitmask = BitArray::<BitMaskType>::from(bytes.into_array());
-        if bitmask.len() != HAMT_BITMASK_BIT_SIZE {
-            return Err(serde::de::Error::custom(format!(
-                "invalid bitmask length, expected {HAMT_BITMASK_BIT_SIZE}, but got {}",
-                bitmask.len()
-            )));
-        }
-        let bitmask_bits_set = bitmask.count_ones();
-        if pointers.len() != bitmask_bits_set {
-            return Err(serde::de::Error::custom(format!(
-                "pointers length does not match bitmask, bitmask bits set: {}, pointers length: {}",
-                bitmask_bits_set,
-                pointers.len()
-            )));
-        }
-        Ok(Node {
-            persisted_as: OnceCell::new(),
-            bitmask,
-            pointers,
-            hasher: PhantomData,
-        })
+        Self::from_serializable(Deserialize::deserialize(deserializer)?).map_err(de::Error::custom)
     }
 }
 

@@ -1,11 +1,9 @@
 use super::{error::HamtError, hash::Hasher, Node, HAMT_VALUES_BUCKET_SIZE};
+use crate::serializable::PointerSerializable;
 use anyhow::Result;
 use async_trait::async_trait;
-use libipld::{serde as ipld_serde, Ipld};
 use serde::{
-    de::{DeserializeOwned, Error as DeError},
-    ser::Error as SerError,
-    Deserialize, Deserializer, Serialize, Serializer,
+    de::DeserializeOwned, ser::Error as SerError, Deserialize, Deserializer, Serialize, Serializer,
 };
 use std::fmt::Debug;
 use wnfs_common::{
@@ -110,16 +108,40 @@ impl<K: CondSync, V: CondSync, H: Hasher + CondSync> Pointer<K, V, H> {
         }
     }
 
-    /// Converts a Pointer to an IPLD object.
-    pub async fn to_ipld<B: BlockStore + ?Sized>(&self, store: &B) -> Result<Ipld>
+    /// Converts a Pointer to the serializable representation.
+    pub(crate) async fn to_serializable<B: BlockStore + ?Sized>(
+        &self,
+        store: &B,
+    ) -> Result<PointerSerializable<K, V>>
     where
-        K: Serialize,
-        V: Serialize,
+        K: Serialize + Clone,
+        V: Serialize + Clone,
     {
         Ok(match self {
-            Pointer::Values(values) => ipld_serde::to_ipld(values)?,
-            Pointer::Link(link) => ipld_serde::to_ipld(link.resolve_cid(store).await?)?,
+            Pointer::Values(values) => PointerSerializable::Values(
+                values
+                    .iter()
+                    .map(|pair| (pair.key.clone(), pair.value.clone()))
+                    .collect(),
+            ),
+            Pointer::Link(link) => {
+                let cid = link.resolve_cid(store).await?;
+                PointerSerializable::Link(*cid)
+            }
         })
+    }
+
+    /// Constructs a Pointer from its serializable representation.
+    pub(crate) fn from_serializable(serializable: PointerSerializable<K, V>) -> Self {
+        match serializable {
+            PointerSerializable::Values(values) => Self::Values(
+                values
+                    .into_iter()
+                    .map(|(key, value)| Pair { key, value })
+                    .collect(),
+            ),
+            PointerSerializable::Link(cid) => Self::Link(Link::from_cid(cid)),
+        }
     }
 }
 
@@ -127,8 +149,8 @@ impl<K: CondSync, V: CondSync, H: Hasher + CondSync> Pointer<K, V, H> {
 #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl<K, V, H: Hasher> AsyncSerialize for Pointer<K, V, H>
 where
-    K: Serialize + CondSync,
-    V: Serialize + CondSync,
+    K: Serialize + Clone + CondSync,
+    V: Serialize + Clone + CondSync,
     H: CondSync,
 {
     async fn async_serialize<S, B>(&self, serializer: S, store: &B) -> Result<S::Ok, S::Error>
@@ -136,14 +158,10 @@ where
         S: Serializer + CondSend,
         B: BlockStore + ?Sized,
     {
-        match self {
-            Pointer::Values(vals) => vals.serialize(serializer),
-            Pointer::Link(link) => link
-                .resolve_cid(store)
-                .await
-                .map_err(SerError::custom)?
-                .serialize(serializer),
-        }
+        self.to_serializable(store)
+            .await
+            .map_err(SerError::custom)?
+            .serialize(serializer)
     }
 }
 
@@ -156,29 +174,9 @@ where
     where
         D: Deserializer<'de>,
     {
-        Ipld::deserialize(deserializer).and_then(|ipld| ipld.try_into().map_err(DeError::custom))
-    }
-}
-
-impl<K, V, H: Hasher + CondSync> TryFrom<Ipld> for Pointer<K, V, H>
-where
-    K: DeserializeOwned + CondSync,
-    V: DeserializeOwned + CondSync,
-{
-    type Error = String;
-
-    fn try_from(ipld: Ipld) -> Result<Self, Self::Error> {
-        match ipld {
-            ipld_list @ Ipld::List(_) => {
-                let values: Vec<Pair<K, V>> =
-                    Deserialize::deserialize(ipld_list).map_err(|error| error.to_string())?;
-                Ok(Self::Values(values))
-            }
-            Ipld::Link(cid) => Ok(Self::Link(Link::from_cid(cid))),
-            other => Err(format!(
-                "Expected `Ipld::List` or `Ipld::Link`, got {other:?}",
-            )),
-        }
+        Ok(Self::from_serializable(PointerSerializable::deserialize(
+            deserializer,
+        )?))
     }
 }
 
@@ -219,33 +217,6 @@ where
             (Pointer::Link(link), Pointer::Link(other_link)) => link == other_link,
             _ => false,
         }
-    }
-}
-
-impl<'de, K, V> Deserialize<'de> for Pair<K, V>
-where
-    K: DeserializeOwned,
-    V: DeserializeOwned,
-{
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let (key, value) = <(K, V)>::deserialize(deserializer)?;
-        Ok(Pair { key, value })
-    }
-}
-
-impl<K, V> Serialize for Pair<K, V>
-where
-    K: Serialize,
-    V: Serialize,
-{
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        (&self.key, &self.value).serialize(serializer)
     }
 }
 
