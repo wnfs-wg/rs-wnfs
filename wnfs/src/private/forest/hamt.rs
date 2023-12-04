@@ -61,11 +61,9 @@ pub struct HamtForestSerializable {
     pub(crate) accumulator: AccumulatorSetup,
 }
 
+/// Links to ciphertexts
 #[derive(Serialize, Deserialize, Debug, Clone, Hash, Eq, PartialEq)]
-pub struct Ciphertexts {
-    /// Links to ciphertexts
-    links: BTreeSet<Cid>,
-}
+pub struct Ciphertexts(BTreeSet<Cid>);
 
 impl_storable_from_serde! { Ciphertexts }
 
@@ -214,11 +212,7 @@ impl HamtForest {
         let merged_root = merge(
             Link::from(Arc::clone(&self.hamt.root)),
             Link::from(Arc::clone(&other.hamt.root)),
-            |a, b| {
-                Ok(Ciphertexts {
-                    links: a.links.union(&b.links).cloned().collect(),
-                })
-            },
+            |a, b| Ok(Ciphertexts(a.0.union(&b.0).cloned().collect())),
             store,
         )
         .await?;
@@ -290,12 +284,10 @@ impl PrivateForest for HamtForest {
         let values = values.into_iter();
 
         match self.hamt.root.get_mut(&accumulator, store).await? {
-            Some(ciphers) => ciphers.links.extend(values),
+            Some(ciphers) => ciphers.0.extend(values),
             None => {
                 let label = accumulator.clone();
-                let ciphers = Ciphertexts {
-                    links: values.collect(),
-                };
+                let ciphers = Ciphertexts(values.collect());
                 self.hamt.root.set(label, ciphers, store).await?;
             }
         }
@@ -314,7 +306,7 @@ impl PrivateForest for HamtForest {
             .root
             .get_by_hash(name_hash, store)
             .await?
-            .map(|ciphers| &ciphers.links))
+            .map(|ciphers| &ciphers.0))
     }
 
     async fn get_encrypted(
@@ -339,7 +331,7 @@ impl PrivateForest for HamtForest {
             .await?
             .map(|Pair { key, value }| Pair {
                 key,
-                value: value.links,
+                value: value.0,
             }))
     }
 }

@@ -20,14 +20,14 @@ pub enum PublicNodeSerializable {
 pub struct PublicFileSerializable {
     pub version: Version,
     pub metadata: Metadata,
-    pub userland: Cid,
     pub previous: Vec<Cid>,
+    pub userland: Cid,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PublicDirectorySerializable {
     pub version: Version,
     pub metadata: Metadata,
-    pub userland: BTreeMap<String, Cid>,
     pub previous: Vec<Cid>,
+    pub userland: BTreeMap<String, Cid>,
 }
