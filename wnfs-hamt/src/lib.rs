@@ -19,7 +19,7 @@ mod hash;
 mod merge;
 mod node;
 mod pointer;
-pub(crate) mod serializable;
+pub mod serializable;
 
 pub(crate) use constants::*;
 pub use diff::*;

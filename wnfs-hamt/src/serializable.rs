@@ -17,14 +17,14 @@ use std::marker::PhantomData;
 //--------------------------------------------------------------------------------------------------
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub(crate) struct HamtSerializable<K, V> {
+pub struct HamtSerializable<K, V> {
     pub(crate) root: NodeSerializable<K, V>,
     pub(crate) version: Version,
     pub(crate) structure: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
-pub(crate) struct NodeSerializable<K, V>(
+pub struct NodeSerializable<K, V>(
     pub(crate) ByteArray<HAMT_BITMASK_BYTE_SIZE>,
     pub(crate) Vec<PointerSerializable<K, V>>,
 );

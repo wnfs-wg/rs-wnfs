@@ -33,6 +33,7 @@ parking_lot = "0.12"
 proptest = { version = "1.1", optional = true }
 rand_core = "0.6"
 serde = { version = "1.0", features = ["rc"] }
+serde_ipld_dagcbor = "0.4.2"
 serde_json = { version = "1.0", optional = true }
 thiserror = "1.0"
 

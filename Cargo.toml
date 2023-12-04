@@ -1,12 +1,12 @@
 [workspace]
 members = [
-	"wnfs",
-	"wnfs-bench",
+	# "wnfs",
+	# "wnfs-bench",
 	"wnfs-common",
 	"wnfs-hamt",
 	"wnfs-nameaccumulator",
 	"wnfs-unixfs-file",
-	"wnfs-wasm",
+	# "wnfs-wasm",
 ]
 
 # Speedup build on macOS

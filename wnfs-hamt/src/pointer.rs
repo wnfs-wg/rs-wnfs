@@ -2,13 +2,11 @@ use super::{error::HamtError, hash::Hasher, Node, HAMT_VALUES_BUCKET_SIZE};
 use crate::serializable::PointerSerializable;
 use anyhow::Result;
 use async_trait::async_trait;
-use serde::{
-    de::DeserializeOwned, ser::Error as SerError, Deserialize, Deserializer, Serialize, Serializer,
-};
+use serde::{de::DeserializeOwned, Serialize};
 use std::fmt::Debug;
 use wnfs_common::{
-    utils::{error, Arc, CondSend, CondSync},
-    AsyncSerialize, BlockStore, Link,
+    utils::{error, Arc, CondSync},
+    BlockStore, Link, Storable,
 };
 
 //--------------------------------------------------------------------------------------------------
@@ -66,8 +64,10 @@ impl<K: CondSync, V: CondSync, H: Hasher + CondSync> Pointer<K, V, H> {
     /// Converts a Link pointer to a canonical form to ensure consistent tree representation after deletes.
     pub async fn canonicalize(self, store: &impl BlockStore) -> Result<Option<Self>>
     where
-        K: DeserializeOwned + Clone + AsRef<[u8]>,
-        V: DeserializeOwned + Clone,
+        K: Storable + Clone + AsRef<[u8]>,
+        V: Storable + Clone,
+        K::Serializable: Serialize + DeserializeOwned,
+        V::Serializable: Serialize + DeserializeOwned,
         H: CondSync,
     {
         match self {
@@ -107,23 +107,29 @@ impl<K: CondSync, V: CondSync, H: Hasher + CondSync> Pointer<K, V, H> {
             _ => error(HamtError::NonCanonicalizablePointer),
         }
     }
+}
 
-    /// Converts a Pointer to the serializable representation.
-    pub(crate) async fn to_serializable<B: BlockStore + ?Sized>(
-        &self,
-        store: &B,
-    ) -> Result<PointerSerializable<K, V>>
-    where
-        K: Serialize + Clone,
-        V: Serialize + Clone,
-    {
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
+impl<K, V, H> Storable for Pointer<K, V, H>
+where
+    K: Storable + CondSync,
+    V: Storable + CondSync,
+    K::Serializable: Serialize + DeserializeOwned,
+    V::Serializable: Serialize + DeserializeOwned,
+    H: Hasher + CondSync,
+{
+    type Serializable = PointerSerializable<K::Serializable, V::Serializable>;
+
+    async fn to_serializable(&self, store: &impl BlockStore) -> Result<Self::Serializable> {
         Ok(match self {
-            Pointer::Values(values) => PointerSerializable::Values(
-                values
-                    .iter()
-                    .map(|pair| (pair.key.clone(), pair.value.clone()))
-                    .collect(),
-            ),
+            Pointer::Values(values) => {
+                let mut serializables = Vec::with_capacity(values.len());
+                for pair in values.iter() {
+                    serializables.push(pair.to_serializable(store).await?);
+                }
+                PointerSerializable::Values(serializables)
+            }
             Pointer::Link(link) => {
                 let cid = link.resolve_cid(store).await?;
                 PointerSerializable::Link(*cid)
@@ -131,52 +137,41 @@ impl<K: CondSync, V: CondSync, H: Hasher + CondSync> Pointer<K, V, H> {
         })
     }
 
-    /// Constructs a Pointer from its serializable representation.
-    pub(crate) fn from_serializable(serializable: PointerSerializable<K, V>) -> Self {
-        match serializable {
-            PointerSerializable::Values(values) => Self::Values(
-                values
-                    .into_iter()
-                    .map(|(key, value)| Pair { key, value })
-                    .collect(),
-            ),
+    async fn from_serializable(serializable: Self::Serializable) -> Result<Self> {
+        Ok(match serializable {
+            PointerSerializable::Values(serializables) => {
+                let mut values = Vec::with_capacity(serializables.len());
+                for serializable in serializables {
+                    values.push(Pair::from_serializable(serializable).await?);
+                }
+                Self::Values(values)
+            }
             PointerSerializable::Link(cid) => Self::Link(Link::from_cid(cid)),
-        }
+        })
     }
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), async_trait)]
 #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
-impl<K, V, H: Hasher> AsyncSerialize for Pointer<K, V, H>
+impl<K, V> Storable for Pair<K, V>
 where
-    K: Serialize + Clone + CondSync,
-    V: Serialize + Clone + CondSync,
-    H: CondSync,
+    K: Storable + CondSync,
+    V: Storable + CondSync,
+    K::Serializable: Serialize + DeserializeOwned,
+    V::Serializable: Serialize + DeserializeOwned,
 {
-    async fn async_serialize<S, B>(&self, serializer: S, store: &B) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer + CondSend,
-        B: BlockStore + ?Sized,
-    {
-        self.to_serializable(store)
-            .await
-            .map_err(SerError::custom)?
-            .serialize(serializer)
-    }
-}
+    type Serializable = (K::Serializable, V::Serializable);
 
-impl<'de, K, V, H: Hasher + CondSync> Deserialize<'de> for Pointer<K, V, H>
-where
-    K: DeserializeOwned + CondSync,
-    V: DeserializeOwned + CondSync,
-{
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        Ok(Self::from_serializable(PointerSerializable::deserialize(
-            deserializer,
-        )?))
+    async fn to_serializable(&self, store: &impl BlockStore) -> Result<Self::Serializable> {
+        let key = self.key.to_serializable(store).await?;
+        let value = self.value.to_serializable(store).await?;
+        Ok((key, value))
+    }
+
+    async fn from_serializable((key, value): Self::Serializable) -> Result<Self> {
+        let key = K::from_serializable(key).await?;
+        let value = V::from_serializable(value).await?;
+        Ok(Pair { key, value })
     }
 }
 
@@ -227,11 +222,11 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use libipld::cbor::DagCborCodec;
-    use wnfs_common::{async_encode, decode, MemoryBlockStore};
+    use testresult::TestResult;
+    use wnfs_common::{MemoryBlockStore, Storable};
 
     #[async_std::test]
-    async fn pointer_can_encode_decode_as_cbor() {
+    async fn pointer_can_encode_decode_as_cbor() -> TestResult {
         let store = &MemoryBlockStore::default();
         let pointer: Pointer<String, i32, blake3::Hasher> = Pointer::Values(vec![
             Pair {
@@ -244,21 +239,24 @@ mod tests {
             },
         ]);
 
-        let encoded_pointer = async_encode(&pointer, store, DagCborCodec).await.unwrap();
-        let decoded_pointer: Pointer<String, i32, blake3::Hasher> =
-            decode(encoded_pointer.as_ref(), DagCborCodec).unwrap();
+        let pointer_cid = pointer.store(store).await?;
+        let decoded_pointer =
+            Pointer::<String, i32, blake3::Hasher>::load(&pointer_cid, store).await?;
 
         assert_eq!(pointer, decoded_pointer);
+
+        Ok(())
     }
 }
 
 #[cfg(test)]
 mod snapshot_tests {
     use super::*;
+    use testresult::TestResult;
     use wnfs_common::utils::SnapshotBlockStore;
 
     #[async_std::test]
-    async fn test_pointer() {
+    async fn test_pointer() -> TestResult {
         let store = &SnapshotBlockStore::default();
         let pointer: Pointer<String, i32, blake3::Hasher> = Pointer::Values(vec![
             Pair {
@@ -271,9 +269,11 @@ mod snapshot_tests {
             },
         ]);
 
-        let cid = store.put_async_serializable(&pointer).await.unwrap();
-        let ptr = store.get_block_snapshot(&cid).await.unwrap();
+        let cid = pointer.store(store).await?;
+        let ptr = store.get_block_snapshot(&cid).await?;
 
         insta::assert_json_snapshot!(ptr);
+
+        Ok(())
     }
 }

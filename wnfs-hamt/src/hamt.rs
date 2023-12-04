@@ -3,15 +3,11 @@ use crate::{serializable::HamtSerializable, Hasher};
 use anyhow::Result;
 use async_trait::async_trait;
 use semver::Version;
-use serde::{
-    de::{DeserializeOwned, Error as DeError},
-    ser::Error as SerError,
-    Deserialize, Deserializer, Serialize, Serializer,
-};
+use serde::{de::DeserializeOwned, Serialize};
 use std::hash::Hash;
 use wnfs_common::{
-    utils::{Arc, CondSend, CondSync},
-    AsyncSerialize, BlockStore, Link,
+    utils::{Arc, CondSync},
+    BlockStore, Link, Storable,
 };
 
 //--------------------------------------------------------------------------------------------------
@@ -118,8 +114,10 @@ impl<K: CondSync, V: CondSync, H: Hasher + CondSync> Hamt<K, V, H> {
         store: &impl BlockStore,
     ) -> Result<Vec<KeyValueChange<K, V>>>
     where
-        K: DeserializeOwned + Clone + Eq + Hash + AsRef<[u8]>,
-        V: DeserializeOwned + Clone + Eq,
+        K: Storable + Clone + Eq + Hash + AsRef<[u8]>,
+        V: Storable + Clone + Eq,
+        K::Serializable: Serialize + DeserializeOwned,
+        V::Serializable: Serialize + DeserializeOwned,
     {
         super::diff(
             Link::from(Arc::clone(&self.root)),
@@ -128,15 +126,21 @@ impl<K: CondSync, V: CondSync, H: Hasher + CondSync> Hamt<K, V, H> {
         )
         .await
     }
+}
 
-    pub(crate) async fn to_serializable(
-        &self,
-        store: &impl BlockStore,
-    ) -> Result<HamtSerializable<K, V>>
-    where
-        K: Serialize + Clone,
-        V: Serialize + Clone,
-    {
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
+impl<K, V, H> Storable for Hamt<K, V, H>
+where
+    K: Storable + CondSync,
+    V: Storable + CondSync,
+    K::Serializable: Serialize + DeserializeOwned,
+    V::Serializable: Serialize + DeserializeOwned,
+    H: Hasher + CondSync,
+{
+    type Serializable = HamtSerializable<K::Serializable, V::Serializable>;
+
+    async fn to_serializable(&self, store: &impl BlockStore) -> Result<Self::Serializable> {
         Ok(HamtSerializable {
             root: self.root.to_serializable(store).await?,
             version: self.version.clone(),
@@ -144,43 +148,11 @@ impl<K: CondSync, V: CondSync, H: Hasher + CondSync> Hamt<K, V, H> {
         })
     }
 
-    pub(crate) fn from_serializable(serializable: HamtSerializable<K, V>) -> Result<Self> {
+    async fn from_serializable(serializable: Self::Serializable) -> Result<Self> {
         Ok(Self {
-            root: Arc::new(Node::from_serializable(serializable.root)?),
+            root: Arc::new(Node::from_serializable(serializable.root).await?),
             version: serializable.version,
         })
-    }
-}
-
-#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
-#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
-impl<K, V, H: Hasher + CondSync> AsyncSerialize for Hamt<K, V, H>
-where
-    K: Serialize + Clone + CondSync,
-    V: Serialize + Clone + CondSync,
-{
-    async fn async_serialize<S, B>(&self, serializer: S, store: &B) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer + CondSend,
-        B: BlockStore + ?Sized,
-    {
-        self.to_serializable(store)
-            .await
-            .map_err(SerError::custom)?
-            .serialize(serializer)
-    }
-}
-
-impl<'de, K, V> Deserialize<'de> for Hamt<K, V>
-where
-    K: DeserializeOwned + CondSync,
-    V: DeserializeOwned + CondSync,
-{
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        Self::from_serializable(Deserialize::deserialize(deserializer)?).map_err(DeError::custom)
     }
 }
 
@@ -208,8 +180,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use libipld::cbor::DagCborCodec;
-    use wnfs_common::{async_encode, decode, MemoryBlockStore};
+    use wnfs_common::MemoryBlockStore;
 
     #[async_std::test]
     async fn hamt_can_encode_decode_as_cbor() {
@@ -217,8 +188,8 @@ mod tests {
         let root = Arc::new(Node::default());
         let hamt: Hamt<String, i32> = Hamt::with_root(root);
 
-        let encoded_hamt = async_encode(&hamt, store, DagCborCodec).await.unwrap();
-        let decoded_hamt: Hamt<String, i32> = decode(encoded_hamt.as_ref(), DagCborCodec).unwrap();
+        let hamt_cid = hamt.store(store).await.unwrap();
+        let decoded_hamt = Hamt::load(&hamt_cid, store).await.unwrap();
 
         assert_eq!(hamt, decoded_hamt);
     }
@@ -240,7 +211,7 @@ mod snapshot_tests {
         }
 
         let hamt = Hamt::with_root(Arc::clone(node));
-        let cid = store.put_async_serializable(&hamt).await.unwrap();
+        let cid = hamt.store(store).await.unwrap();
         let hamt = store.get_block_snapshot(&cid).await.unwrap();
 
         insta::assert_json_snapshot!(hamt);

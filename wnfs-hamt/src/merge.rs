@@ -1,11 +1,11 @@
 use super::{ChangeType, Node};
 use crate::{error::HamtError, Hasher};
 use anyhow::Result;
-use serde::de::DeserializeOwned;
+use serde::{de::DeserializeOwned, Serialize};
 use std::hash::Hash;
 use wnfs_common::{
     utils::{Arc, CondSync},
-    BlockStore, Link,
+    BlockStore, Link, Storable,
 };
 
 //--------------------------------------------------------------------------------------------------
@@ -21,8 +21,10 @@ pub async fn merge<K: CondSync, V: CondSync, H, F, B: BlockStore>(
 ) -> Result<Arc<Node<K, V, H>>>
 where
     F: Fn(&V, &V) -> Result<V>,
-    K: DeserializeOwned + Eq + Clone + Hash + AsRef<[u8]>,
-    V: DeserializeOwned + Eq + Clone,
+    K: Storable + Eq + Clone + Hash + AsRef<[u8]>,
+    V: Storable + Eq + Clone,
+    K::Serializable: Serialize + DeserializeOwned,
+    V::Serializable: Serialize + DeserializeOwned,
     H: Hasher + CondSync,
 {
     let kv_changes = super::diff(main_link.clone(), other_link.clone(), store).await?;
