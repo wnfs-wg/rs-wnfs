@@ -11,12 +11,8 @@ use async_once_cell::OnceCell;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use libipld_core::cid::Cid;
-use serde::{de::Error as DeError, Deserialize, Deserializer, Serializer};
 use std::collections::BTreeSet;
-use wnfs_common::{
-    utils::{Arc, CondSend},
-    AsyncSerialize, BlockStore, RemembersCid,
-};
+use wnfs_common::{utils::Arc, BlockStore, LoadIpld, RemembersCid, Storable};
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
@@ -234,20 +230,6 @@ impl PublicNode {
     pub fn is_file(&self) -> bool {
         matches!(self, Self::File(_))
     }
-
-    /// Serializes a node to the block store and returns its CID.
-    pub async fn store(&self, store: &impl BlockStore) -> Result<Cid> {
-        Ok(match self {
-            Self::File(file) => file.store(store).await?,
-            Self::Dir(dir) => dir.store(store).await?,
-        })
-    }
-
-    /// Loads a node from the block store.
-    #[inline]
-    pub async fn load(cid: &Cid, store: &impl BlockStore) -> Result<Self> {
-        store.get_deserializable(cid).await
-    }
 }
 
 impl Id for PublicNode {
@@ -285,38 +267,49 @@ impl From<PublicDirectory> for PublicNode {
     }
 }
 
-impl<'de> Deserialize<'de> for PublicNode {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        Ok(match PublicNodeSerializable::deserialize(deserializer)? {
-            PublicNodeSerializable::File(file) => {
-                let file = PublicFile::from_serializable(file).map_err(DeError::custom)?;
-                Self::File(Arc::new(file))
-            }
-            PublicNodeSerializable::Dir(dir) => {
-                let dir = PublicDirectory::from_serializable(dir).map_err(DeError::custom)?;
-                Self::Dir(Arc::new(dir))
-            }
-        })
-    }
-}
-
-/// Implements async deserialization for serde serializable types.
 #[cfg_attr(not(target_arch = "wasm32"), async_trait)]
 #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
-impl AsyncSerialize for PublicNode {
-    async fn async_serialize<S, B>(&self, serializer: S, store: &B) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer + CondSend,
-        S::Error: CondSend,
-        B: BlockStore + ?Sized,
-    {
+impl Storable for PublicNode {
+    type Serializable = PublicNodeSerializable;
+
+    async fn to_serializable(&self, store: &impl BlockStore) -> Result<Self::Serializable> {
+        Ok(match self {
+            Self::File(file) => file.to_serializable(store).await?,
+            Self::Dir(dir) => dir.to_serializable(store).await?,
+        })
+    }
+
+    async fn from_serializable(serializable: Self::Serializable) -> Result<Self> {
+        // TODO(matheus23) this is weird, refactor?
+        Ok(match serializable {
+            PublicNodeSerializable::File(file) => Self::File(Arc::new(
+                PublicFile::from_serializable(PublicNodeSerializable::File(file)).await?,
+            )),
+            PublicNodeSerializable::Dir(dir) => Self::Dir(Arc::new(
+                PublicDirectory::from_serializable(PublicNodeSerializable::Dir(dir)).await?,
+            )),
+        })
+    }
+
+    async fn store(&self, store: &impl BlockStore) -> Result<Cid> {
         match self {
-            Self::File(file) => file.async_serialize(serializer, store).await,
-            Self::Dir(dir) => dir.async_serialize(serializer, store).await,
+            Self::File(file) => file.store(store).await,
+            Self::Dir(dir) => dir.store(store).await,
         }
+    }
+
+    async fn load(cid: &Cid, store: &impl BlockStore) -> Result<Self> {
+        let bytes = store.get_block(cid).await?;
+        let serializable = PublicNodeSerializable::decode_ipld(cid, bytes)?;
+        let mut node = Self::from_serializable(serializable).await?;
+
+        // TODO(matheus23) refactor this? This sucks
+        match &mut node {
+            Self::File(file) => Arc::make_mut(file).persisted_as = OnceCell::new_with(*cid),
+            Self::Dir(dir) => Arc::make_mut(dir).persisted_as = OnceCell::new_with(*cid),
+        };
+
+        Ok(node)
     }
 }
 
@@ -338,7 +331,7 @@ mod tests {
     use crate::public::{PublicDirectory, PublicFile, PublicNode};
     use chrono::Utc;
     use testresult::TestResult;
-    use wnfs_common::MemoryBlockStore;
+    use wnfs_common::{MemoryBlockStore, Storable};
 
     #[async_std::test]
     async fn serialized_public_node_can_be_deserialized() -> TestResult {

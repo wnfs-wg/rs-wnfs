@@ -14,7 +14,7 @@ use wnfs::{
         AccessKey, PrivateDirectory, PrivateNode,
     },
 };
-use wnfs_common::utils::CondSend;
+use wnfs_common::{utils::CondSend, Storable};
 
 #[async_std::main]
 async fn main() -> Result<()> {

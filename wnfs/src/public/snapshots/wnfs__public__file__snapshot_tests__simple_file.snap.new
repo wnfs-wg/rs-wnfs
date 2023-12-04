@@ -1,0 +1,21 @@
+---
+source: wnfs/src/public/file.rs
+assertion_line: 548
+expression: file
+---
+{
+  "value": {
+    "wnfs/pub/file": {
+      "metadata": {
+        "created": 0,
+        "modified": 0
+      },
+      "previous": [],
+      "userland": {
+        "/": "bafkr4ifpcne3t5pzugtkaqcn5i3nzskjtpfslsnnyejlpte2spfoihzsmi"
+      },
+      "version": "1.0.0"
+    }
+  },
+  "bytes": "oW13bmZzL3B1Yi9maWxlpGd2ZXJzaW9uZTEuMC4waG1ldGFkYXRhomdjcmVhdGVkAGhtb2RpZmllZABodXNlcmxhbmTYKlglAAFVHiCvE0m59fmhpqBATeo23MlJm8slya3BErfMmpPK5B8yYmhwcmV2aW91c4A="
+}

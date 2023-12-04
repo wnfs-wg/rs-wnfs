@@ -8,15 +8,12 @@ use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use futures::{AsyncRead, AsyncReadExt};
 use libipld_core::cid::Cid;
-use serde::{
-    de::Error as DeError, ser::Error as SerError, Deserialize, Deserializer, Serialize, Serializer,
-};
 use std::{collections::BTreeSet, io::SeekFrom};
 use tokio::io::AsyncSeekExt;
 use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
 use wnfs_common::{
     utils::{Arc, CondSend},
-    AsyncSerialize, BlockStore, Metadata, RemembersCid,
+    BlockStore, LoadIpld, Metadata, NodeType, RemembersCid, Storable, StoreIpld,
 };
 use wnfs_unixfs_file::{builder::FileBuilder, unixfs::UnixFsFile};
 
@@ -34,7 +31,7 @@ use wnfs_unixfs_file::{builder::FileBuilder, unixfs::UnixFsFile};
 /// ```
 #[derive(Debug)]
 pub struct PublicFile {
-    persisted_as: OnceCell<Cid>,
+    pub(crate) persisted_as: OnceCell<Cid>,
     pub metadata: Metadata,
     userland: FileUserland,
     pub previous: BTreeSet<Cid>,
@@ -384,37 +381,27 @@ impl PublicFile {
     pub fn get_metadata_mut_rc<'a>(self: &'a mut Arc<Self>) -> &'a mut Metadata {
         self.prepare_next_revision().get_metadata_mut()
     }
+}
 
-    /// Stores file in provided block store.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use wnfs::{
-    ///     public::PublicFile,
-    ///     traits::Id,
-    ///     common::MemoryBlockStore
-    /// };
-    /// use chrono::Utc;
-    /// use libipld_core::cid::Cid;
-    ///
-    /// #[async_std::main]
-    /// async fn main() {
-    ///     let store = &MemoryBlockStore::new();
-    ///     let file = PublicFile::new(Utc::now());
-    ///
-    ///     file.store(store).await.unwrap();
-    /// }
-    /// ```
-    pub async fn store(&self, store: &impl BlockStore) -> Result<Cid> {
-        Ok(*self
-            .persisted_as
-            .get_or_try_init(store.put_async_serializable(self))
-            .await?)
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
+impl Storable for PublicFile {
+    type Serializable = PublicNodeSerializable;
+
+    async fn to_serializable(&self, store: &impl BlockStore) -> Result<Self::Serializable> {
+        Ok(PublicNodeSerializable::File(PublicFileSerializable {
+            version: WNFS_VERSION,
+            metadata: self.metadata.clone(),
+            userland: self.userland.get_stored(store).await?,
+            previous: self.previous.iter().cloned().collect(),
+        }))
     }
 
-    /// Creates a new file from a serializable.
-    pub(crate) fn from_serializable(serializable: PublicFileSerializable) -> Result<Self> {
+    async fn from_serializable(serializable: Self::Serializable) -> Result<Self> {
+        let PublicNodeSerializable::File(serializable) = serializable else {
+            bail!(FsError::UnexpectedNodeType(NodeType::PublicDirectory));
+        };
+
         if !is_readable_wnfs_version(&serializable.version) {
             bail!(FsError::UnexpectedVersion(serializable.version))
         }
@@ -426,46 +413,23 @@ impl PublicFile {
             previous: serializable.previous.iter().cloned().collect(),
         })
     }
-}
 
-#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
-#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
-impl AsyncSerialize for PublicFile {
-    async fn async_serialize<S, B>(&self, serializer: S, store: &B) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer + CondSend,
-        S::Error: CondSend,
-        B: BlockStore,
-    {
-        let userland = self
-            .userland
-            .get_stored(store)
-            .await
-            .map_err(SerError::custom)?;
-
-        PublicNodeSerializable::File(PublicFileSerializable {
-            version: WNFS_VERSION,
-            metadata: self.metadata.clone(),
-            userland,
-            previous: self.previous.iter().cloned().collect(),
-        })
-        .serialize(serializer)
+    async fn store(&self, store: &impl BlockStore) -> Result<Cid> {
+        Ok(*self
+            .persisted_as
+            .get_or_try_init(async {
+                let (bytes, codec) = self.to_serializable(store).await?.encode_ipld()?;
+                store.put_block(bytes, codec).await
+            })
+            .await?)
     }
-}
 
-impl<'de> Deserialize<'de> for PublicFile {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        match PublicNodeSerializable::deserialize(deserializer)? {
-            PublicNodeSerializable::File(file) => {
-                PublicFile::from_serializable(file).map_err(DeError::custom)
-            }
-            _ => Err(DeError::custom(FsError::InvalidDeserialization(
-                "Expected directory".into(),
-            ))),
-        }
+    async fn load(cid: &Cid, store: &impl BlockStore) -> Result<Self> {
+        let bytes = store.get_block(cid).await?;
+        let serializable = Self::Serializable::decode_ipld(cid, bytes)?;
+        let mut file = Self::from_serializable(serializable).await?;
+        file.persisted_as = OnceCell::new_with(*cid);
+        Ok(file)
     }
 }
 

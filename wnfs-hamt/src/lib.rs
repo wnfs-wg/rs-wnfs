@@ -11,7 +11,7 @@
 //!
 //! The implementation is based on [fvm_ipld_hamt](https://github.com/filecoin-project/ref-fvm/tree/master/ipld/hamt) with some modifications for async blockstore access and immutability-by-default.
 
-mod constants;
+pub mod constants;
 mod diff;
 mod error;
 mod hamt;

@@ -1,0 +1,29 @@
+---
+source: wnfs/src/public/directory.rs
+assertion_line: 1338
+expression: dir
+---
+{
+  "value": {
+    "wnfs/pub/dir": {
+      "metadata": {
+        "created": 0,
+        "modified": 0
+      },
+      "previous": [],
+      "userland": {
+        "music": {
+          "/": "bafyr4icllog2ll4f7uc6opsipx5fcj2lgntpmayuzx2omivzzdl64nzt5i"
+        },
+        "text.txt": {
+          "/": "bafyr4iec65xxoogj5t3du44lcyfytfymp2y7he4vmhdux26cr4whwbwfyu"
+        },
+        "videos": {
+          "/": "bafyr4iabeshl3sltnqldyl6pbgjfpov6dfbqubnoe6oigadfmaebid7ooe"
+        }
+      },
+      "version": "1.0.0"
+    }
+  },
+  "bytes": "oWx3bmZzL3B1Yi9kaXKkZ3ZlcnNpb25lMS4wLjBobWV0YWRhdGGiZ2NyZWF0ZWQAaG1vZGlmaWVkAGh1c2VybGFuZKNlbXVzaWPYKlglAAFxHiBLW42lr4X9Bec+SH36USdLM2b2AxTN9OYiucjX7jcz6mZ2aWRlb3PYKlglAAFxHiABJI69yXNsFjwvzwmSV7q+GUMKBa4nnIMAZWAIFA/ucWh0ZXh0LnR4dNgqWCUAAXEeIIL3b3c4yez2OnOLFguJlwx+sfOTlWHHS+vCjyx7BsXFaHByZXZpb3VzgA=="
+}

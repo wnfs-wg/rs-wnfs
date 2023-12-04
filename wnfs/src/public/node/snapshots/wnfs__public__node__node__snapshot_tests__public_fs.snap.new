@@ -1,0 +1,123 @@
+---
+source: wnfs/src/public/node/node.rs
+assertion_line: 406
+expression: values
+---
+{
+  "bafkr4ibirkdkphzauplnztoko4j35lwrpb4yffv57j4rh6rkmlmxe67y7a": {
+    "value": {
+      "/": {
+        "bytes": "SGVsbG8sIFdvcmxkIQ"
+      }
+    },
+    "bytes": "SGVsbG8sIFdvcmxkIQ=="
+  },
+  "bafyr4ibyckurxdmmb34d7zdwi4my4sa23afdrdmznyr2ynbhgoic4pzoyi": {
+    "value": {
+      "wnfs/pub/dir": {
+        "metadata": {
+          "created": 0,
+          "modified": 0
+        },
+        "previous": [],
+        "userland": {
+          "anime": {
+            "/": "bafyr4icz4juppnlhnjsslkoz6s5d2psj3hzjpujjdqrxmywxq3usqtqa3e"
+          }
+        },
+        "version": "1.0.0"
+      }
+    },
+    "bytes": "oWx3bmZzL3B1Yi9kaXKkZ3ZlcnNpb25lMS4wLjBobWV0YWRhdGGiZ2NyZWF0ZWQAaG1vZGlmaWVkAGh1c2VybGFuZKFlYW5pbWXYKlglAAFxHiBZ4mj3tWdqZSWp2fS6PT5J2fKX0SkcI3Zi14bpKE4A2WhwcmV2aW91c4A="
+  },
+  "bafyr4icpzo3lgxle6kg3f6n364e2b3ox5nf4dt2oxnankuxexvbzntfose": {
+    "value": {
+      "wnfs/pub/dir": {
+        "metadata": {
+          "created": 0,
+          "modified": 0
+        },
+        "previous": [],
+        "userland": {},
+        "version": "1.0.0"
+      }
+    },
+    "bytes": "oWx3bmZzL3B1Yi9kaXKkZ3ZlcnNpb25lMS4wLjBobWV0YWRhdGGiZ2NyZWF0ZWQAaG1vZGlmaWVkAGh1c2VybGFuZKBocHJldmlvdXOA"
+  },
+  "bafyr4icz4juppnlhnjsslkoz6s5d2psj3hzjpujjdqrxmywxq3usqtqa3e": {
+    "value": {
+      "wnfs/pub/file": {
+        "metadata": {
+          "created": 0,
+          "modified": 0
+        },
+        "previous": [],
+        "userland": {
+          "/": "bafkr4ibirkdkphzauplnztoko4j35lwrpb4yffv57j4rh6rkmlmxe67y7a"
+        },
+        "version": "1.0.0"
+      }
+    },
+    "bytes": "oW13bmZzL3B1Yi9maWxlpGd2ZXJzaW9uZTEuMC4waG1ldGFkYXRhomdjcmVhdGVkAGhtb2RpZmllZABodXNlcmxhbmTYKlglAAFVHiAoioannyCj1tzNyncTvq7ReHmClr36eRP6KmLZcnv4+GhwcmV2aW91c4A="
+  },
+  "bafyr4ifrempkboixu64ggzsiwpsjfri2j3hig6nm5xexlxiizf2lrsplma": {
+    "value": {
+      "wnfs/pub/dir": {
+        "metadata": {
+          "created": 0,
+          "modified": 0
+        },
+        "previous": [],
+        "userland": {
+          "music": {
+            "/": "bafyr4igvbzo5fmirzgzmyh5gd7rslyyzzcsfj7yrscxgjkdzd3ikamwsti"
+          },
+          "text.txt": {
+            "/": "bafyr4icz4juppnlhnjsslkoz6s5d2psj3hzjpujjdqrxmywxq3usqtqa3e"
+          },
+          "videos": {
+            "/": "bafyr4ig6ehlnvpvhs457xokhmayy54hnxcu2hm66l4aynm3vg77q6pb5pu"
+          }
+        },
+        "version": "1.0.0"
+      }
+    },
+    "bytes": "oWx3bmZzL3B1Yi9kaXKkZ3ZlcnNpb25lMS4wLjBobWV0YWRhdGGiZ2NyZWF0ZWQAaG1vZGlmaWVkAGh1c2VybGFuZKNlbXVzaWPYKlglAAFxHiDVDl3SsRHJsswfph/jJeMZyKRU/xGQrmSoeR7QoDLSmmZ2aWRlb3PYKlglAAFxHiDeIdbavqeXO/u5R2AxjvDtuKmjs95fAYazdTf/Dzw9fWh0ZXh0LnR4dNgqWCUAAXEeIFniaPe1Z2plJanZ9Lo9PknZ8pfRKRwjdmLXhukoTgDZaHByZXZpb3VzgA=="
+  },
+  "bafyr4ig6ehlnvpvhs457xokhmayy54hnxcu2hm66l4aynm3vg77q6pb5pu": {
+    "value": {
+      "wnfs/pub/dir": {
+        "metadata": {
+          "created": 0,
+          "modified": 0
+        },
+        "previous": [],
+        "userland": {
+          "movies": {
+            "/": "bafyr4ibyckurxdmmb34d7zdwi4my4sa23afdrdmznyr2ynbhgoic4pzoyi"
+          }
+        },
+        "version": "1.0.0"
+      }
+    },
+    "bytes": "oWx3bmZzL3B1Yi9kaXKkZ3ZlcnNpb25lMS4wLjBobWV0YWRhdGGiZ2NyZWF0ZWQAaG1vZGlmaWVkAGh1c2VybGFuZKFmbW92aWVz2CpYJQABcR4gOBKpG42MDvg/5HZHGY5IGtgKOI2ZbiOsNCczkC4/LsJocHJldmlvdXOA"
+  },
+  "bafyr4igvbzo5fmirzgzmyh5gd7rslyyzzcsfj7yrscxgjkdzd3ikamwsti": {
+    "value": {
+      "wnfs/pub/dir": {
+        "metadata": {
+          "created": 0,
+          "modified": 0
+        },
+        "previous": [],
+        "userland": {
+          "jazz": {
+            "/": "bafyr4icz4juppnlhnjsslkoz6s5d2psj3hzjpujjdqrxmywxq3usqtqa3e"
+          }
+        },
+        "version": "1.0.0"
+      }
+    },
+    "bytes": "oWx3bmZzL3B1Yi9kaXKkZ3ZlcnNpb25lMS4wLjBobWV0YWRhdGGiZ2NyZWF0ZWQAaG1vZGlmaWVkAGh1c2VybGFuZKFkamF6etgqWCUAAXEeIFniaPe1Z2plJanZ9Lo9PknZ8pfRKRwjdmLXhukoTgDZaHByZXZpb3VzgA=="
+  }
+}
