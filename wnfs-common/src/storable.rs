@@ -1,3 +1,6 @@
+//! Defines the [`Storable`] trait, which defines the `.load` and `.store` functions
+//! that are implemented for most WNFS structures, such as `PublicFile`, `PublicDirectory`,
+//! `PublicNode`, `HamtForest` etc.
 use crate::{
     utils::{Arc, CondSync},
     BlockStore,
@@ -40,20 +43,48 @@ pub use impl_storable_from_serde;
 // Type Definitions
 //--------------------------------------------------------------------------------------------------
 
+/// The trait that defines how to store something in a blockstore.
+///
+/// This works via a two-tiered system, where the actual in-memory representation
+/// (the struct that implements this trait) is not the same as the at-rest
+/// representation of itself.
+/// The at-rest representation is given by the `Serializable` associated type.
+///
+/// Commonly, the `Serializable` type implements serde's `Serialize` and `Deserialize`
+/// traits and thus can automatically be used without having to implement `StoreIpld`
+/// and `LoadIpld` yourself. In that case, the default implementation will use
+/// `serde_ipld_dagcbor`.
+///
+/// This trait also optionally supports memoizing serialization via the `persisted_as` function.
+/// You can add a field `persisted_as: OnceCell<Cid>` to your in-memory representation and
+/// return it in the `persisted_as` function and any `store` calls will automatically populate
+/// that cache.
+/// If you do so, remember to initialize the `OnceCell` if a `Cid` is passed in the
+/// `from_serializable` call, such that a `store` call right after a `load` call is practically
+/// free.
 #[cfg_attr(not(target_arch = "wasm32"), async_trait)]
 #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 pub trait Storable: Sized {
+    /// The at-rest representation of this storable type.
     type Serializable: StoreIpld + LoadIpld + CondSync;
 
+    /// Turn the current type into the at-rest representation of this type.
     async fn to_serializable(&self, store: &impl BlockStore) -> Result<Self::Serializable>;
 
+    /// Take an at-rest representation of this type and turn it into the in-memory representation.
+    /// You can use the `cid` parameter to populate a cache.
     async fn from_serializable(cid: Option<&Cid>, serializable: Self::Serializable)
         -> Result<Self>;
 
+    /// Return a serialization cache, if it exists.
+    /// By default, this always returns `None`.
     fn persisted_as(&self) -> Option<&OnceCell<Cid>> {
         None
     }
 
+    /// Store this data type in a given `BlockStore`.
+    ///
+    /// This will short-circuit by using the `persisted_as` once-cell, if available.
     async fn store(&self, store: &impl BlockStore) -> Result<Cid> {
         let store_future = async {
             let (bytes, codec) = self.to_serializable(store).await?.encode_ipld()?;
@@ -67,6 +98,10 @@ pub trait Storable: Sized {
         }
     }
 
+    /// Try to load a value of this type from a CID.
+    ///
+    /// This will pass on the CID to the `from_serializable` function so it can
+    /// populate a cache in some cases.
     async fn load(cid: &Cid, store: &impl BlockStore) -> Result<Self> {
         let bytes = store.get_block(cid).await?;
         let serializable = Self::Serializable::decode_ipld(cid, bytes)?;
