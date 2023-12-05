@@ -9,7 +9,7 @@ use wnfs_common::Metadata;
 //--------------------------------------------------------------------------------------------------
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub(crate) enum PublicNodeSerializable {
+pub enum PublicNodeSerializable {
     #[serde(rename = "wnfs/pub/file")]
     File(PublicFileSerializable),
     #[serde(rename = "wnfs/pub/dir")]
@@ -17,17 +17,17 @@ pub(crate) enum PublicNodeSerializable {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub(crate) struct PublicFileSerializable {
+pub struct PublicFileSerializable {
     pub version: Version,
     pub metadata: Metadata,
-    pub userland: Cid,
     pub previous: Vec<Cid>,
+    pub userland: Cid,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub(crate) struct PublicDirectorySerializable {
+pub struct PublicDirectorySerializable {
     pub version: Version,
     pub metadata: Metadata,
-    pub userland: BTreeMap<String, Cid>,
     pub previous: Vec<Cid>,
+    pub userland: BTreeMap<String, Cid>,
 }

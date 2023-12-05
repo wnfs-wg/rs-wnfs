@@ -6,10 +6,8 @@ use criterion::{
 use proptest::{arbitrary::any, collection::vec, test_runner::TestRunner};
 use std::cmp;
 use wnfs_common::{
-    async_encode, decode,
-    libipld::cbor::DagCborCodec,
     utils::{Arc, Sampleable},
-    BlockStore, Link, MemoryBlockStore,
+    BlockStore, Link, MemoryBlockStore, Storable, StoreIpld,
 };
 use wnfs_hamt::{
     diff, merge,
@@ -82,17 +80,12 @@ fn node_load_get(c: &mut Criterion) {
             node.set(i.to_string(), i, &store).await.unwrap();
         }
 
-        let encoded_hamt = async_encode(&Hamt::with_root(node), &store, DagCborCodec)
-            .await
-            .unwrap();
-
-        store.put_serializable(&encoded_hamt).await.unwrap()
+        Hamt::with_root(node).store(&store).await.unwrap()
     });
 
     c.bench_function("node load and get", |b| {
         b.to_async(AsyncStdExecutor).iter(|| async {
-            let encoded_hamt = store.get_deserializable::<Vec<u8>>(&cid).await.unwrap();
-            let hamt: Hamt<String, i32> = decode(encoded_hamt.as_ref(), DagCborCodec).unwrap();
+            let hamt = Hamt::<String, i32>::load(&cid, &store).await.unwrap();
 
             for i in 0..50 {
                 assert!(hamt
@@ -114,18 +107,12 @@ fn node_load_remove(c: &mut Criterion) {
             node.set(i.to_string(), i, &store).await.unwrap();
         }
 
-        let encoded_hamt = async_encode(&Hamt::with_root(node), &store, DagCborCodec)
-            .await
-            .unwrap();
-
-        store.put_serializable(&encoded_hamt).await.unwrap()
+        Hamt::with_root(node).store(&store).await.unwrap()
     });
 
     c.bench_function("node load and remove", |b| {
         b.to_async(AsyncStdExecutor).iter(|| async {
-            let encoded_hamt = store.get_deserializable::<Vec<u8>>(&cid).await.unwrap();
-            let mut hamt: Hamt<String, i32> =
-                black_box(decode(encoded_hamt.as_ref(), DagCborCodec).unwrap());
+            let mut hamt = black_box(Hamt::<String, i32>::load(&cid, &store).await.unwrap());
 
             for i in 0..50 {
                 let value = hamt.root.remove(&i.to_string(), &store).await.unwrap();
@@ -143,11 +130,14 @@ fn hamt_load_decode(c: &mut Criterion) {
             node.set(i.to_string(), i, &store).await.unwrap();
         }
 
-        let encoded_hamt = async_encode(&Hamt::with_root(node), &store, DagCborCodec)
+        let (encoded_hamt, codec) = Hamt::with_root(node)
+            .to_serializable(&store)
             .await
+            .unwrap()
+            .encode_ipld()
             .unwrap();
 
-        let cid = store.put_serializable(&encoded_hamt).await.unwrap();
+        let cid = store.put_block(encoded_hamt.clone(), codec).await.unwrap();
 
         (cid, encoded_hamt)
     });
@@ -156,9 +146,7 @@ fn hamt_load_decode(c: &mut Criterion) {
     group.throughput(Throughput::Bytes(bytes.len() as u64));
     group.bench_function("0", |b| {
         b.to_async(AsyncStdExecutor).iter(|| async {
-            let encoded_hamt = store.get_deserializable::<Vec<u8>>(&cid).await.unwrap();
-            let _: Hamt<String, i32> =
-                black_box(decode(encoded_hamt.as_ref(), DagCborCodec).unwrap());
+            black_box(Hamt::<String, i32>::load(&cid, &store).await.unwrap());
         })
     });
     group.finish();
@@ -180,7 +168,13 @@ fn hamt_set_encode(c: &mut Criterion) {
 
                 let hamt = Hamt::with_root(node);
 
-                let _ = black_box(async_encode(&hamt, &store, DagCborCodec).await.unwrap());
+                black_box(
+                    hamt.to_serializable(&store)
+                        .await
+                        .unwrap()
+                        .encode_ipld()
+                        .unwrap(),
+                );
             },
             BatchSize::SmallInput,
         )

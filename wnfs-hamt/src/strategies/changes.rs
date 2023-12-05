@@ -3,11 +3,11 @@ use super::{operations, Operations};
 use crate::Node;
 use anyhow::Result;
 use proptest::{collection::vec, strategy::Strategy};
-use serde::de::DeserializeOwned;
+use serde::{de::DeserializeOwned, Serialize};
 use std::{collections::HashMap, fmt::Debug};
 use wnfs_common::{
     utils::{Arc, CondSync},
-    BlockStore,
+    BlockStore, Storable,
 };
 
 //--------------------------------------------------------------------------------------------------
@@ -61,8 +61,10 @@ pub(crate) async fn apply_changes<K: CondSync, V: CondSync>(
     store: &impl BlockStore,
 ) -> Result<()>
 where
-    K: Debug + Clone + AsRef<[u8]> + DeserializeOwned,
-    V: Debug + Clone + DeserializeOwned,
+    K: Storable + Debug + Clone + AsRef<[u8]>,
+    V: Storable + Debug + Clone,
+    K::Serializable: Serialize + DeserializeOwned,
+    V::Serializable: Serialize + DeserializeOwned,
 {
     for change in changes {
         match change {
@@ -81,15 +83,16 @@ where
     Ok(())
 }
 
-pub(crate) async fn prepare_node<K: CondSync, V: CondSync, B: CondSync>(
+pub(crate) async fn prepare_node<K: CondSync, V: CondSync>(
     node: &mut Arc<Node<K, V>>,
     changes: &Vec<Change<K, V>>,
-    store: &B,
+    store: &impl BlockStore,
 ) -> Result<()>
 where
-    K: Debug + Clone + AsRef<[u8]> + DeserializeOwned,
-    V: Debug + Clone + DeserializeOwned,
-    B: BlockStore,
+    K: Storable + Debug + Clone + AsRef<[u8]>,
+    V: Storable + Debug + Clone,
+    K::Serializable: Serialize + DeserializeOwned,
+    V::Serializable: Serialize + DeserializeOwned,
 {
     for change in changes {
         if let Change::Add(k, _) = change {

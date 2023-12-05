@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+* Remove `TryFrom<Ipld>` instances for `Hamt`, `Node` and `Pointer` and instead refactor handling of serialization internally.
+
 ## 0.1.25 (2023-09-04)
 
 * Fixed a bug causing dropped updates when doing serialization, then continuing writes, then serializing again and loading from that serialized state [#348](https://github.com/wnfs-wg/rs-wnfs/pull/348)

@@ -11,6 +11,7 @@ use once_cell::sync::OnceCell;
 use rand_core::CryptoRngCore;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::{hash::Hash, str::FromStr};
+use wnfs_common::impl_storable_from_serde;
 use zeroize::Zeroize;
 
 /// The domain separation string for deriving the l hash in the PoKE* protocol.
@@ -432,6 +433,8 @@ impl<'a> BatchedProofVerification<'a> {
         Ok(())
     }
 }
+
+impl_storable_from_serde! { AccumulatorSetup, NameSegment, NameAccumulator, UnbatchableProofPart, BatchedProofPart }
 
 impl Serialize for NameSegment {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>

@@ -16,6 +16,7 @@ use wnfs::{
         AccessKey, PrivateDirectory, PrivateNode,
     },
 };
+use wnfs_common::Storable;
 
 #[async_std::main]
 async fn main() -> Result<()> {

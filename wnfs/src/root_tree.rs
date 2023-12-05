@@ -26,7 +26,7 @@ use std::collections::HashMap;
 use wnfs_common::MemoryBlockStore;
 use wnfs_common::{
     utils::{Arc, CondSend},
-    BlockStore, Metadata,
+    BlockStore, Metadata, Storable,
 };
 #[cfg(test)]
 use wnfs_nameaccumulator::AccumulatorSetup;
@@ -320,8 +320,8 @@ where
     ) -> Result<RootTree<'a, B, R>> {
         let deserialized: RootTreeSerializable = store.get_deserializable(cid).await?;
         let forest = Arc::new(HamtForest::load(&deserialized.forest, store).await?);
-        let public_root = Arc::new(store.get_deserializable(&deserialized.public).await?);
-        let exchange_root = Arc::new(store.get_deserializable(&deserialized.exchange).await?);
+        let public_root = Arc::new(PublicDirectory::load(&deserialized.public, store).await?);
+        let exchange_root = Arc::new(PublicDirectory::load(&deserialized.exchange, store).await?);
 
         Ok(Self {
             store,

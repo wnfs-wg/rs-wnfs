@@ -2,11 +2,11 @@ use super::HashNibbles;
 use crate::{Hasher, Node, Pair, Pointer, HAMT_BITMASK_BIT_SIZE};
 use anyhow::{Ok, Result};
 use async_recursion::async_recursion;
-use serde::de::DeserializeOwned;
+use serde::{de::DeserializeOwned, Serialize};
 use std::{collections::HashMap, hash::Hash, mem};
 use wnfs_common::{
     utils::{Arc, CondSync},
-    BlockStore, Link,
+    BlockStore, Link, Storable,
 };
 
 //--------------------------------------------------------------------------------------------------
@@ -28,6 +28,27 @@ pub struct KeyValueChange<K, V> {
     pub key: K,
     pub value1: Option<V>,
     pub value2: Option<V>,
+}
+
+//--------------------------------------------------------------------------------------------------
+// Implementations
+//--------------------------------------------------------------------------------------------------
+
+impl<K, V> KeyValueChange<K, V> {
+    pub fn map<W>(self, f: &impl Fn(V) -> W) -> KeyValueChange<K, W> {
+        let Self {
+            r#type,
+            key,
+            value1,
+            value2,
+        } = self;
+        KeyValueChange {
+            r#type,
+            key,
+            value1: value1.map(f),
+            value2: value2.map(f),
+        }
+    }
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -77,31 +98,35 @@ pub struct KeyValueChange<K, V> {
 ///    println!("Changes {:#?}", changes);
 /// }
 /// ```
-pub async fn diff<K: CondSync, V: CondSync, H: CondSync>(
+pub async fn diff<K, V, H>(
     main_link: Link<Arc<Node<K, V, H>>>,
     other_link: Link<Arc<Node<K, V, H>>>,
     store: &impl BlockStore,
 ) -> Result<Vec<KeyValueChange<K, V>>>
 where
-    K: DeserializeOwned + Clone + Eq + Hash + AsRef<[u8]>,
-    V: DeserializeOwned + Clone + Eq,
-    H: Hasher + Clone + 'static,
+    K: Storable + Clone + Eq + Hash + AsRef<[u8]> + CondSync,
+    V: Storable + Clone + Eq + CondSync,
+    K::Serializable: Serialize + DeserializeOwned,
+    V::Serializable: Serialize + DeserializeOwned,
+    H: Hasher + CondSync,
 {
     diff_helper(main_link, other_link, 1, store).await
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), async_recursion)]
 #[cfg_attr(target_arch = "wasm32", async_recursion(?Send))]
-pub async fn diff_helper<K: CondSync, V: CondSync, H: CondSync>(
+pub async fn diff_helper<K, V, H>(
     main_link: Link<Arc<Node<K, V, H>>>,
     other_link: Link<Arc<Node<K, V, H>>>,
     depth: usize,
     store: &impl BlockStore,
 ) -> Result<Vec<KeyValueChange<K, V>>>
 where
-    K: DeserializeOwned + Clone + Eq + Hash + AsRef<[u8]>,
-    V: DeserializeOwned + Clone + Eq,
-    H: Hasher + Clone + 'static,
+    K: Storable + Clone + Eq + Hash + AsRef<[u8]> + CondSync,
+    V: Storable + Clone + Eq + CondSync,
+    K::Serializable: Serialize + DeserializeOwned,
+    V::Serializable: Serialize + DeserializeOwned,
+    H: Hasher + CondSync,
 {
     // If Cids are available, check to see if they are equal so we can skip further comparisons.
     if let (Some(cid), Some(cid2)) = (main_link.get_cid(), other_link.get_cid()) {
@@ -167,15 +192,17 @@ where
     Ok(changes)
 }
 
-async fn generate_add_or_remove_changes<K: CondSync, V: CondSync, H: CondSync>(
+async fn generate_add_or_remove_changes<K, V, H>(
     node_pointer: &Pointer<K, V, H>,
     r#type: ChangeType,
     store: &impl BlockStore,
 ) -> Result<Vec<KeyValueChange<K, V>>>
 where
-    K: DeserializeOwned + Clone + Eq + Hash + AsRef<[u8]>,
-    V: DeserializeOwned + Clone + Eq,
-    H: Hasher + Clone + 'static,
+    K: Storable + Clone + Eq + Hash + AsRef<[u8]> + CondSync,
+    V: Storable + Clone + Eq + CondSync,
+    K::Serializable: Serialize + DeserializeOwned,
+    V::Serializable: Serialize + DeserializeOwned,
+    H: Hasher + CondSync,
 {
     match node_pointer {
         Pointer::Values(values) => Ok(values
@@ -206,16 +233,18 @@ where
     }
 }
 
-async fn pointers_diff<K: CondSync, V: CondSync, H: CondSync>(
+async fn pointers_diff<K, V, H>(
     main_pointer: Pointer<K, V, H>,
     other_pointer: Pointer<K, V, H>,
     depth: usize,
     store: &impl BlockStore,
 ) -> Result<Vec<KeyValueChange<K, V>>>
 where
-    K: DeserializeOwned + Clone + Eq + Hash + AsRef<[u8]>,
-    V: DeserializeOwned + Clone + Eq,
-    H: Hasher + Clone + 'static,
+    K: Storable + Clone + Eq + Hash + AsRef<[u8]> + CondSync,
+    V: Storable + Clone + Eq + CondSync,
+    K::Serializable: Serialize + DeserializeOwned,
+    V::Serializable: Serialize + DeserializeOwned,
+    H: Hasher + CondSync,
 {
     match (main_pointer, other_pointer) {
         (Pointer::Link(main_link), Pointer::Link(other_link)) => {
@@ -283,9 +312,11 @@ async fn create_node_from_pairs<K, V, H>(
     store: &impl BlockStore,
 ) -> Result<Arc<Node<K, V, H>>>
 where
-    K: DeserializeOwned + Clone + AsRef<[u8]> + CondSync,
-    V: DeserializeOwned + Clone + CondSync,
-    H: Hasher + Clone + 'static + CondSync,
+    K: Storable + Clone + Eq + Hash + AsRef<[u8]> + CondSync,
+    V: Storable + Clone + Eq + CondSync,
+    K::Serializable: Serialize + DeserializeOwned,
+    V::Serializable: Serialize + DeserializeOwned,
+    H: Hasher + CondSync,
 {
     let mut node = Arc::new(Node::<_, _, H>::default());
     for Pair { key, value } in values {

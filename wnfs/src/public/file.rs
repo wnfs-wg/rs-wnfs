@@ -8,15 +8,12 @@ use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use futures::{AsyncRead, AsyncReadExt};
 use libipld_core::cid::Cid;
-use serde::{
-    de::Error as DeError, ser::Error as SerError, Deserialize, Deserializer, Serialize, Serializer,
-};
 use std::{collections::BTreeSet, io::SeekFrom};
 use tokio::io::AsyncSeekExt;
 use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
 use wnfs_common::{
     utils::{Arc, CondSend},
-    AsyncSerialize, BlockStore, Metadata, RemembersCid,
+    BlockStore, Link, Metadata, NodeType, Storable,
 };
 use wnfs_unixfs_file::{builder::FileBuilder, unixfs::UnixFsFile};
 
@@ -35,15 +32,9 @@ use wnfs_unixfs_file::{builder::FileBuilder, unixfs::UnixFsFile};
 #[derive(Debug)]
 pub struct PublicFile {
     persisted_as: OnceCell<Cid>,
-    pub metadata: Metadata,
-    userland: FileUserland,
-    pub previous: BTreeSet<Cid>,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-enum FileUserland {
-    Loaded(UnixFsFile),
-    Stored(Cid),
+    pub(crate) metadata: Metadata,
+    pub(crate) userland: Link<UnixFsFile>,
+    pub(crate) previous: BTreeSet<Cid>,
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -67,7 +58,7 @@ impl PublicFile {
         Self {
             persisted_as: OnceCell::new(),
             metadata: Metadata::new(time),
-            userland: FileUserland::Loaded(UnixFsFile::empty()),
+            userland: Link::from(UnixFsFile::empty()),
             previous: BTreeSet::new(),
         }
     }
@@ -107,10 +98,11 @@ impl PublicFile {
             .build()?
             .store(store)
             .await?;
+
         Ok(Self {
             persisted_as: OnceCell::new(),
             metadata: Metadata::new(time),
-            userland: FileUserland::Loaded(UnixFsFile::load(&content_cid, store).await?),
+            userland: Link::from_cid(content_cid),
             previous: BTreeSet::new(),
         })
     }
@@ -166,10 +158,11 @@ impl PublicFile {
             .build()?
             .store(store)
             .await?;
+
         Ok(Self {
             persisted_as: OnceCell::new(),
             metadata: Metadata::new(time),
-            userland: FileUserland::Loaded(UnixFsFile::load(&content_cid, store).await?),
+            userland: Link::from_cid(content_cid),
             previous: BTreeSet::new(),
         })
     }
@@ -262,8 +255,9 @@ impl PublicFile {
     ) -> Result<impl AsyncRead + CondSend + 'a> {
         let mut reader = self
             .userland
-            .get_cloned(store)
+            .resolve_value(store)
             .await?
+            .clone()
             .into_content_reader(store, None)?;
         reader.seek(SeekFrom::Start(byte_offset)).await?;
         Ok(TokioAsyncReadCompatExt::compat(reader))
@@ -345,11 +339,10 @@ impl PublicFile {
             .build()?
             .store(store)
             .await?;
-        let userland = UnixFsFile::load(&content_cid, store).await?;
 
         let file = self.prepare_next_revision();
         file.metadata.upsert_mtime(time);
-        file.userland = FileUserland::Loaded(userland);
+        file.userland = Link::from_cid(content_cid);
 
         Ok(())
     }
@@ -384,88 +377,44 @@ impl PublicFile {
     pub fn get_metadata_mut_rc<'a>(self: &'a mut Arc<Self>) -> &'a mut Metadata {
         self.prepare_next_revision().get_metadata_mut()
     }
+}
 
-    /// Stores file in provided block store.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use wnfs::{
-    ///     public::PublicFile,
-    ///     traits::Id,
-    ///     common::MemoryBlockStore
-    /// };
-    /// use chrono::Utc;
-    /// use libipld_core::cid::Cid;
-    ///
-    /// #[async_std::main]
-    /// async fn main() {
-    ///     let store = &MemoryBlockStore::new();
-    ///     let file = PublicFile::new(Utc::now());
-    ///
-    ///     file.store(store).await.unwrap();
-    /// }
-    /// ```
-    pub async fn store(&self, store: &impl BlockStore) -> Result<Cid> {
-        Ok(*self
-            .persisted_as
-            .get_or_try_init(store.put_async_serializable(self))
-            .await?)
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
+impl Storable for PublicFile {
+    type Serializable = PublicNodeSerializable;
+
+    async fn to_serializable(&self, store: &impl BlockStore) -> Result<Self::Serializable> {
+        Ok(PublicNodeSerializable::File(PublicFileSerializable {
+            version: WNFS_VERSION,
+            metadata: self.metadata.clone(),
+            userland: self.userland.resolve_cid(store).await?,
+            previous: self.previous.iter().cloned().collect(),
+        }))
     }
 
-    /// Creates a new file from a serializable.
-    pub(crate) fn from_serializable(serializable: PublicFileSerializable) -> Result<Self> {
+    async fn from_serializable(
+        cid: Option<&Cid>,
+        serializable: Self::Serializable,
+    ) -> Result<Self> {
+        let PublicNodeSerializable::File(serializable) = serializable else {
+            bail!(FsError::UnexpectedNodeType(NodeType::PublicDirectory));
+        };
+
         if !is_readable_wnfs_version(&serializable.version) {
             bail!(FsError::UnexpectedVersion(serializable.version))
         }
 
         Ok(Self {
-            persisted_as: OnceCell::new(),
+            persisted_as: cid.cloned().map(OnceCell::new_with).unwrap_or_default(),
             metadata: serializable.metadata,
-            userland: FileUserland::Stored(serializable.userland),
+            userland: Link::from_cid(serializable.userland),
             previous: serializable.previous.iter().cloned().collect(),
         })
     }
-}
 
-#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
-#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
-impl AsyncSerialize for PublicFile {
-    async fn async_serialize<S, B>(&self, serializer: S, store: &B) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer + CondSend,
-        S::Error: CondSend,
-        B: BlockStore,
-    {
-        let userland = self
-            .userland
-            .get_stored(store)
-            .await
-            .map_err(SerError::custom)?;
-
-        PublicNodeSerializable::File(PublicFileSerializable {
-            version: WNFS_VERSION,
-            metadata: self.metadata.clone(),
-            userland,
-            previous: self.previous.iter().cloned().collect(),
-        })
-        .serialize(serializer)
-    }
-}
-
-impl<'de> Deserialize<'de> for PublicFile {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        match PublicNodeSerializable::deserialize(deserializer)? {
-            PublicNodeSerializable::File(file) => {
-                PublicFile::from_serializable(file).map_err(DeError::custom)
-            }
-            _ => Err(DeError::custom(FsError::InvalidDeserialization(
-                "Expected directory".into(),
-            ))),
-        }
+    fn persisted_as(&self) -> Option<&OnceCell<Cid>> {
+        Some(&self.persisted_as)
     }
 }
 
@@ -495,28 +444,6 @@ impl Clone for PublicFile {
             metadata: self.metadata.clone(),
             userland: self.userland.clone(),
             previous: self.previous.clone(),
-        }
-    }
-}
-
-impl RemembersCid for PublicFile {
-    fn persisted_as(&self) -> &OnceCell<Cid> {
-        &self.persisted_as
-    }
-}
-
-impl FileUserland {
-    async fn get_cloned(&self, store: &impl BlockStore) -> Result<UnixFsFile> {
-        match self {
-            Self::Loaded(file) => Ok(file.clone()),
-            Self::Stored(cid) => UnixFsFile::load(cid, store).await,
-        }
-    }
-
-    async fn get_stored(&self, store: &impl BlockStore) -> Result<Cid> {
-        match self {
-            Self::Loaded(file) => file.encode()?.store(store).await,
-            Self::Stored(cid) => Ok(*cid),
         }
     }
 }

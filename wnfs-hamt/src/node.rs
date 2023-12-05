@@ -3,21 +3,17 @@ use super::{
     hash::{HashNibbles, Hasher},
     HashPrefix, Pair, Pointer, HAMT_BITMASK_BIT_SIZE, HAMT_BITMASK_BYTE_SIZE,
 };
-use crate::HAMT_VALUES_BUCKET_SIZE;
+use crate::{serializable::NodeSerializable, HAMT_VALUES_BUCKET_SIZE};
 use anyhow::{bail, Result};
 use async_once_cell::OnceCell;
 use async_recursion::async_recursion;
 use async_trait::async_trait;
 use bitvec::array::BitArray;
 use either::{Either, Either::*};
-use libipld::{serde as ipld_serde, Cid, Ipld};
+use libipld::Cid;
 #[cfg(feature = "log")]
 use log::debug;
-use serde::{
-    de::{Deserialize, DeserializeOwned},
-    ser::Error as SerError,
-    Deserializer, Serialize, Serializer,
-};
+use serde::{de::DeserializeOwned, Serialize};
 use serde_byte_array::ByteArray;
 use std::{
     collections::HashMap,
@@ -27,7 +23,7 @@ use std::{
 };
 use wnfs_common::{
     utils::{Arc, BoxFuture, CondSend, CondSync},
-    AsyncSerialize, BlockStore, HashOutput, Link, RemembersCid,
+    BlockStore, HashOutput, Link, Storable,
 };
 
 //--------------------------------------------------------------------------------------------------
@@ -69,7 +65,7 @@ where
 
 impl<K, V, H> Node<K, V, H>
 where
-    H: Hasher + 'static + CondSync,
+    H: Hasher + CondSync,
     K: CondSync,
     V: CondSync,
 {
@@ -93,8 +89,10 @@ where
     /// ```
     pub async fn set(self: &mut Arc<Self>, key: K, value: V, store: &impl BlockStore) -> Result<()>
     where
-        K: DeserializeOwned + Clone + AsRef<[u8]>,
-        V: DeserializeOwned + Clone,
+        K: Storable + AsRef<[u8]> + Clone,
+        V: Storable + Clone,
+        K::Serializable: Serialize + DeserializeOwned,
+        V::Serializable: Serialize + DeserializeOwned,
     {
         let hash = &H::hash(&key);
 
@@ -125,8 +123,10 @@ where
     /// ```
     pub async fn get<'a>(&'a self, key: &K, store: &impl BlockStore) -> Result<Option<&'a V>>
     where
-        K: DeserializeOwned + AsRef<[u8]>,
-        V: DeserializeOwned,
+        K: Storable + AsRef<[u8]>,
+        V: Storable,
+        K::Serializable: Serialize + DeserializeOwned,
+        V::Serializable: Serialize + DeserializeOwned,
     {
         let hash = &H::hash(key);
 
@@ -169,8 +169,10 @@ where
         store: &'a impl BlockStore,
     ) -> Result<Option<&'a mut V>>
     where
-        K: DeserializeOwned + AsRef<[u8]> + Clone,
-        V: DeserializeOwned + Clone,
+        K: Storable + AsRef<[u8]> + Clone,
+        V: Storable + Clone,
+        K::Serializable: Serialize + DeserializeOwned,
+        V::Serializable: Serialize + DeserializeOwned,
     {
         let hash = &H::hash(key);
 
@@ -211,8 +213,10 @@ where
         store: &impl BlockStore,
     ) -> Result<Option<Pair<K, V>>>
     where
-        K: DeserializeOwned + Clone + AsRef<[u8]>,
-        V: DeserializeOwned + Clone,
+        K: Storable + AsRef<[u8]> + Clone,
+        V: Storable + Clone,
+        K::Serializable: Serialize + DeserializeOwned,
+        V::Serializable: Serialize + DeserializeOwned,
     {
         let hash = &H::hash(key);
 
@@ -248,8 +252,10 @@ where
         store: &impl BlockStore,
     ) -> Result<Option<&'a V>>
     where
-        K: DeserializeOwned + AsRef<[u8]>,
-        V: DeserializeOwned,
+        K: Storable + AsRef<[u8]>,
+        V: Storable,
+        K::Serializable: Serialize + DeserializeOwned,
+        V::Serializable: Serialize + DeserializeOwned,
     {
         #[cfg(feature = "log")]
         debug!("get_by_hash: hash = {:02x?}", hash);
@@ -290,8 +296,10 @@ where
         store: &impl BlockStore,
     ) -> Result<Option<Pair<K, V>>>
     where
-        K: DeserializeOwned + Clone + AsRef<[u8]>,
-        V: DeserializeOwned + Clone,
+        K: Storable + AsRef<[u8]> + Clone,
+        V: Storable + Clone,
+        K::Serializable: Serialize + DeserializeOwned,
+        V::Serializable: Serialize + DeserializeOwned,
     {
         self.remove_value(&mut HashNibbles::new(hash), store).await
     }
@@ -342,9 +350,10 @@ where
         store: &'a impl BlockStore,
     ) -> BoxFuture<'a, Result<()>>
     where
-        K: DeserializeOwned + Clone + AsRef<[u8]> + 'a,
-        V: DeserializeOwned + Clone + 'a,
-        H: 'a,
+        K: Storable + Clone + AsRef<[u8]> + 'a,
+        V: Storable + Clone + 'a,
+        K::Serializable: Serialize + DeserializeOwned,
+        V::Serializable: Serialize + DeserializeOwned,
     {
         Box::pin(async move {
             let bit_index = hashnibbles.try_next()?;
@@ -424,8 +433,10 @@ where
         store: &impl BlockStore,
     ) -> Result<Option<&'a Pair<K, V>>>
     where
-        K: DeserializeOwned + AsRef<[u8]>,
-        V: DeserializeOwned,
+        K: Storable + AsRef<[u8]>,
+        V: Storable,
+        K::Serializable: Serialize + DeserializeOwned,
+        V::Serializable: Serialize + DeserializeOwned,
     {
         let bit_index = hashnibbles.try_next()?;
 
@@ -456,8 +467,10 @@ where
         store: &'a impl BlockStore,
     ) -> Result<Option<&'a mut Pair<K, V>>>
     where
-        K: DeserializeOwned + AsRef<[u8]> + Clone,
-        V: DeserializeOwned + Clone,
+        K: Storable + AsRef<[u8]> + Clone,
+        V: Storable + Clone,
+        K::Serializable: Serialize + DeserializeOwned,
+        V::Serializable: Serialize + DeserializeOwned,
     {
         let bit_index = hashnibbles.try_next()?;
 
@@ -483,18 +496,16 @@ where
         }
     }
 
-    // It's internal and is only more complex because async_recursion doesn't work here
-    #[allow(clippy::type_complexity)]
-    pub fn remove_value<'k, 'v, 'a>(
+    pub fn remove_value<'a>(
         self: &'a mut Arc<Self>,
         hashnibbles: &'a mut HashNibbles,
         store: &'a impl BlockStore,
     ) -> BoxFuture<'a, Result<Option<Pair<K, V>>>>
     where
-        K: DeserializeOwned + Clone + AsRef<[u8]> + 'k,
-        V: DeserializeOwned + Clone + 'v,
-        'k: 'a,
-        'v: 'a,
+        K: Storable + AsRef<[u8]> + Clone + 'a,
+        V: Storable + Clone + 'a,
+        K::Serializable: Serialize + DeserializeOwned,
+        V::Serializable: Serialize + DeserializeOwned,
     {
         Box::pin(async move {
             let bit_index = hashnibbles.try_next()?;
@@ -593,12 +604,13 @@ where
     /// ```
     #[cfg_attr(not(target_arch = "wasm32"), async_recursion)]
     #[cfg_attr(target_arch = "wasm32", async_recursion(?Send))]
-    pub async fn flat_map<F, T, B>(&self, f: &F, store: &B) -> Result<Vec<T>>
+    pub async fn flat_map<F, T>(&self, f: &F, store: &impl BlockStore) -> Result<Vec<T>>
     where
-        B: BlockStore,
         F: Fn(&Pair<K, V>) -> Result<T> + CondSync,
-        K: DeserializeOwned,
-        V: DeserializeOwned,
+        K: Storable + AsRef<[u8]>,
+        V: Storable,
+        K::Serializable: Serialize + DeserializeOwned,
+        V::Serializable: Serialize + DeserializeOwned,
         T: CondSend,
     {
         let mut items = <Vec<T>>::new();
@@ -649,31 +661,33 @@ where
     /// ```
     #[cfg_attr(not(target_arch = "wasm32"), async_recursion)]
     #[cfg_attr(target_arch = "wasm32", async_recursion(?Send))]
-    pub async fn get_node_at<'a, B>(
+    pub async fn get_node_at<'a>(
         &'a self,
         hashprefix: &HashPrefix,
-        store: &B,
+        store: &impl BlockStore,
     ) -> Result<Option<Either<&'a Pair<K, V>, &'a Arc<Self>>>>
     where
-        K: DeserializeOwned + AsRef<[u8]>,
-        V: DeserializeOwned,
-        B: BlockStore,
+        K: Storable + AsRef<[u8]>,
+        V: Storable,
+        K::Serializable: Serialize + DeserializeOwned,
+        V::Serializable: Serialize + DeserializeOwned,
     {
         self.get_node_at_helper(hashprefix, 0, store).await
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), async_recursion)]
     #[cfg_attr(target_arch = "wasm32", async_recursion(?Send))]
-    async fn get_node_at_helper<'a, B>(
+    async fn get_node_at_helper<'a>(
         &'a self,
         hashprefix: &HashPrefix,
         index: u8,
-        store: &B,
+        store: &impl BlockStore,
     ) -> Result<Option<Either<&'a Pair<K, V>, &'a Arc<Self>>>>
     where
-        K: DeserializeOwned + AsRef<[u8]>,
-        V: DeserializeOwned,
-        B: BlockStore,
+        K: Storable + AsRef<[u8]>,
+        V: Storable,
+        K::Serializable: Serialize + DeserializeOwned,
+        V::Serializable: Serialize + DeserializeOwned,
     {
         let bit_index = hashprefix
             .get(index)
@@ -730,8 +744,10 @@ where
     /// ```
     pub async fn to_hashmap<B: BlockStore>(&self, store: &B) -> Result<HashMap<K, V>>
     where
-        K: DeserializeOwned + Clone + Eq + Hash,
-        V: DeserializeOwned + Clone,
+        K: Storable + AsRef<[u8]> + Clone + Eq + Hash,
+        V: Storable + Clone,
+        K::Serializable: Serialize + DeserializeOwned,
+        V::Serializable: Serialize + DeserializeOwned,
     {
         let mut map = HashMap::new();
         let key_values = self
@@ -747,9 +763,7 @@ where
 
         Ok(map)
     }
-}
 
-impl<K: CondSync, V: CondSync, H: Hasher + CondSync> Node<K, V, H> {
     /// Returns the count of the values in all the values pointer of a node.
     pub fn count_values(self: &Arc<Self>) -> Result<usize> {
         let mut len = 0;
@@ -762,25 +776,6 @@ impl<K: CondSync, V: CondSync, H: Hasher + CondSync> Node<K, V, H> {
         }
 
         Ok(len)
-    }
-
-    // TODO(appcypher): Do we really need this? Why not use PublicDirectorySerializable style instead.
-    /// Converts a Node to an IPLD object.
-    pub async fn to_ipld<B: BlockStore + ?Sized>(&self, store: &B) -> Result<Ipld>
-    where
-        K: Serialize + CondSync,
-        V: Serialize + CondSync,
-    {
-        let bitmask_ipld = ipld_serde::to_ipld(ByteArray::from(self.bitmask.into_inner()))?;
-        let pointers_ipld = {
-            let mut tmp = Vec::with_capacity(self.pointers.len());
-            for pointer in self.pointers.iter() {
-                tmp.push(pointer.to_ipld(store).await?);
-            }
-            Ipld::List(tmp)
-        };
-
-        Ok(Ipld::List(vec![bitmask_ipld, pointers_ipld]))
     }
 }
 
@@ -800,12 +795,6 @@ impl<K: Clone + CondSync, V: CondSync + Clone, H: Hasher + CondSync> Clone for N
     }
 }
 
-impl<K: CondSync, V: CondSync, H: Hasher + CondSync> RemembersCid for Node<K, V, H> {
-    fn persisted_as(&self) -> &OnceCell<Cid> {
-        &self.persisted_as
-    }
-}
-
 impl<K: CondSync, V: CondSync, H: Hasher + CondSync> Default for Node<K, V, H> {
     fn default() -> Self {
         Node {
@@ -817,67 +806,12 @@ impl<K: CondSync, V: CondSync, H: Hasher + CondSync> Default for Node<K, V, H> {
     }
 }
 
-#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
-#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
-impl<K, V, H> AsyncSerialize for Node<K, V, H>
-where
-    K: Serialize + CondSync,
-    V: Serialize + CondSync,
-    H: Hasher + CondSync,
-{
-    async fn async_serialize<S, B>(&self, serializer: S, store: &B) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer + CondSend,
-        B: BlockStore + ?Sized,
-    {
-        self.to_ipld(store)
-            .await
-            .map_err(SerError::custom)?
-            .serialize(serializer)
-    }
-}
-
-impl<'de, K, V, H> Deserialize<'de> for Node<K, V, H>
-where
-    K: DeserializeOwned + CondSync,
-    V: DeserializeOwned + CondSync,
-    H: Hasher + CondSync,
-{
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let (bytes, pointers): (ByteArray<2>, Vec<Pointer<K, V, H>>) =
-            Deserialize::deserialize(deserializer)?;
-
-        let bitmask = BitArray::<BitMaskType>::from(bytes.into_array());
-        if bitmask.len() != HAMT_BITMASK_BIT_SIZE {
-            return Err(serde::de::Error::custom(format!(
-                "invalid bitmask length, expected {HAMT_BITMASK_BIT_SIZE}, but got {}",
-                bitmask.len()
-            )));
-        }
-        let bitmask_bits_set = bitmask.count_ones();
-        if pointers.len() != bitmask_bits_set {
-            return Err(serde::de::Error::custom(format!(
-                "pointers length does not match bitmask, bitmask bits set: {}, pointers length: {}",
-                bitmask_bits_set,
-                pointers.len()
-            )));
-        }
-        Ok(Node {
-            persisted_as: OnceCell::new(),
-            bitmask,
-            pointers,
-            hasher: PhantomData,
-        })
-    }
-}
-
 impl<K, V, H> PartialEq for Node<K, V, H>
 where
-    K: PartialEq + CondSync,
-    V: PartialEq + CondSync,
+    K: Storable + PartialEq + CondSync,
+    V: Storable + PartialEq + CondSync,
+    K::Serializable: Serialize + DeserializeOwned,
+    V::Serializable: Serialize + DeserializeOwned,
     H: Hasher + CondSync,
 {
     fn eq(&self, other: &Self) -> bool {
@@ -901,6 +835,64 @@ where
             .field("bitmask", &bitmask_str)
             .field("pointers", &self.pointers)
             .finish()
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
+impl<K, V, H> Storable for Node<K, V, H>
+where
+    K: Storable + CondSync,
+    V: Storable + CondSync,
+    K::Serializable: Serialize + DeserializeOwned,
+    V::Serializable: Serialize + DeserializeOwned,
+    H: Hasher + CondSync,
+{
+    type Serializable = NodeSerializable<K::Serializable, V::Serializable>;
+
+    async fn to_serializable(&self, store: &impl BlockStore) -> Result<Self::Serializable> {
+        let bitmask = ByteArray::from(self.bitmask.into_inner());
+
+        let mut pointers = Vec::with_capacity(self.pointers.len());
+        for pointer in self.pointers.iter() {
+            pointers.push(pointer.to_serializable(store).await?);
+        }
+
+        Ok(NodeSerializable(bitmask, pointers))
+    }
+
+    async fn from_serializable(
+        cid: Option<&Cid>,
+        serializable: Self::Serializable,
+    ) -> Result<Self> {
+        let NodeSerializable(bitmask, ser_pointers) = serializable;
+
+        let bitmask = BitArray::<BitMaskType>::new(bitmask.into());
+        let bitmask_bits_set = bitmask.count_ones();
+
+        if ser_pointers.len() != bitmask_bits_set {
+            bail!(
+                "pointers length does not match bitmask, bitmask bits set: {}, pointers length: {}",
+                bitmask_bits_set,
+                ser_pointers.len()
+            );
+        }
+
+        let mut pointers = Vec::with_capacity(ser_pointers.len());
+        for ser_pointer in ser_pointers {
+            pointers.push(Pointer::from_serializable(cid, ser_pointer).await?);
+        }
+
+        Ok(Self {
+            persisted_as: cid.cloned().map(OnceCell::new_with).unwrap_or_default(),
+            bitmask,
+            pointers,
+            hasher: PhantomData,
+        })
+    }
+
+    fn persisted_as(&self) -> Option<&OnceCell<Cid>> {
+        Some(&self.persisted_as)
     }
 }
 
@@ -1143,8 +1135,8 @@ mod tests {
         node2.set("key 68".into(), 870, store).await.unwrap();
         node2.remove(&"key 17".into(), store).await.unwrap();
 
-        let cid1 = store.put_async_serializable(node1).await.unwrap();
-        let cid2 = store.put_async_serializable(node2).await.unwrap();
+        let cid1 = node1.store(store).await.unwrap();
+        let cid2 = node2.store(store).await.unwrap();
 
         assert_eq!(cid1, cid2);
     }
@@ -1219,10 +1211,9 @@ mod proptests {
     use crate::strategies::{
         node_from_operations, operations, operations_and_shuffled, Operations,
     };
-    use libipld::cbor::DagCborCodec;
     use proptest::prelude::*;
     use test_strategy::proptest;
-    use wnfs_common::{async_encode, decode, MemoryBlockStore};
+    use wnfs_common::MemoryBlockStore;
 
     fn small_key() -> impl Strategy<Value = String> {
         (0..1000).prop_map(|i| format!("key {i}"))
@@ -1242,10 +1233,10 @@ mod proptests {
             let node = &mut node_from_operations(&operations, store).await.unwrap();
 
             node.set(key.clone(), value, store).await.unwrap();
-            let cid1 = store.put_async_serializable(node).await.unwrap();
+            let cid1 = node.store(store).await.unwrap();
 
             node.set(key, value, store).await.unwrap();
-            let cid2 = store.put_async_serializable(node).await.unwrap();
+            let cid2 = node.store(store).await.unwrap();
 
             assert_eq!(cid1, cid2);
         })
@@ -1264,10 +1255,10 @@ mod proptests {
             let node = &mut node_from_operations(&operations, store).await.unwrap();
 
             node.remove(&key, store).await.unwrap();
-            let cid1 = store.put_async_serializable(node).await.unwrap();
+            let cid1 = node.store(store).await.unwrap();
 
             node.remove(&key, store).await.unwrap();
-            let cid2 = store.put_async_serializable(node).await.unwrap();
+            let cid2 = node.store(store).await.unwrap();
 
             assert_eq!(cid1, cid2);
         })
@@ -1284,9 +1275,8 @@ mod proptests {
             let store = &MemoryBlockStore::default();
             let node = node_from_operations(&operations, store).await.unwrap();
 
-            let encoded_node = async_encode(&node, store, DagCborCodec).await.unwrap();
-            let decoded_node: Node<String, u64> =
-                decode(encoded_node.as_ref(), DagCborCodec).unwrap();
+            let node_cid = node.store(store).await.unwrap();
+            let decoded_node = Node::<String, u64>::load(&node_cid, store).await.unwrap();
 
             assert_eq!(*node, decoded_node);
         })
@@ -1307,8 +1297,8 @@ mod proptests {
             let node1 = node_from_operations(&original, store).await.unwrap();
             let node2 = node_from_operations(&shuffled, store).await.unwrap();
 
-            let cid1 = store.put_async_serializable(&node1).await.unwrap();
-            let cid2 = store.put_async_serializable(&node2).await.unwrap();
+            let cid1 = node1.store(store).await.unwrap();
+            let cid2 = node2.store(store).await.unwrap();
 
             assert_eq!(cid1, cid2);
         })
@@ -1364,7 +1354,7 @@ mod snapshot_tests {
                 .unwrap();
         }
 
-        let cid = store.put_async_serializable(node).await.unwrap();
+        let cid = node.store(store).await.unwrap();
         let node = store.get_block_snapshot(&cid).await.unwrap();
 
         insta::assert_json_snapshot!(node);

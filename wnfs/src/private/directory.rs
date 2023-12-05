@@ -2248,7 +2248,7 @@ mod snapshot_tests {
     use chrono::TimeZone;
     use rand_chacha::ChaCha12Rng;
     use rand_core::SeedableRng;
-    use wnfs_common::utils::SnapshotBlockStore;
+    use wnfs_common::{utils::SnapshotBlockStore, Storable};
 
     #[async_std::test]
     async fn test_private_fs() -> Result<()> {

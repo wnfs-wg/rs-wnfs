@@ -12,8 +12,8 @@
 //! use anyhow::Result;
 //! use chrono::Utc;
 //! use wnfs::{
-//!     common::MemoryBlockStore,
-//!     public::PublicDirectory
+//!     common::{MemoryBlockStore, Storable},
+//!     public::PublicDirectory,
 //! };
 //!
 //! #[async_std::main]
@@ -22,7 +22,7 @@
 //!     let dir = &mut PublicDirectory::new_rc(Utc::now());
 //!
 //!     // Create an in-memory block store.
-//!     let store = &MemoryBlockStore::default();
+//!     let store = &MemoryBlockStore::new();
 //!
 //!     // Add a /pictures/cats subdirectory.
 //!     dir.mkdir(&["pictures".into(), "cats".into()], Utc::now(), store)

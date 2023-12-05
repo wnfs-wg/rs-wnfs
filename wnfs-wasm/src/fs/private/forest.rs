@@ -8,8 +8,11 @@ use libipld_core::cid::Cid;
 use std::rc::Rc;
 use wasm_bindgen::prelude::wasm_bindgen;
 use wasm_bindgen_futures::future_to_promise;
-use wnfs::private::forest::{
-    hamt::HamtForest as WnfsHamtForest, traits::PrivateForest as WnfsPrivateForest,
+use wnfs::{
+    common::Storable,
+    private::forest::{
+        hamt::HamtForest as WnfsHamtForest, traits::PrivateForest as WnfsPrivateForest,
+    },
 };
 use wnfs_nameaccumulator::AccumulatorSetup;
 
@@ -47,7 +50,7 @@ impl PrivateForest {
         let cid = Cid::read_bytes(&cid[..]).map_err(error("Cannot parse cid"))?;
 
         Ok(future_to_promise(async move {
-            let forest: WnfsHamtForest = WnfsHamtForest::load(&cid, &store)
+            let forest = WnfsHamtForest::load(&cid, &store)
                 .await
                 .map_err(error("Couldn't deserialize forest"))?;
 
@@ -103,7 +106,7 @@ impl PrivateForest {
 
             Ok(value!(diff
                 .into_iter()
-                .map(|c| value!(ForestChange(c)))
+                .map(|c| value!(ForestChange(c.map(&|c| c.0))))
                 .collect::<Array>()))
         }))
     }
