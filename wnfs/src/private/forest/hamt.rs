@@ -63,7 +63,7 @@ pub struct HamtForestSerializable {
 
 /// Links to ciphertexts
 #[derive(Serialize, Deserialize, Debug, Clone, Hash, Eq, PartialEq)]
-pub struct Ciphertexts(BTreeSet<Cid>);
+pub struct Ciphertexts(pub BTreeSet<Cid>);
 
 impl_storable_from_serde! { Ciphertexts }
 

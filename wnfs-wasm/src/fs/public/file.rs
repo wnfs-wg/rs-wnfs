@@ -11,7 +11,7 @@ use std::rc::Rc;
 use wasm_bindgen::{prelude::wasm_bindgen, JsValue};
 use wasm_bindgen_futures::future_to_promise;
 use wnfs::{
-    common::BlockStore as WnfsBlockStore,
+    common::Storable,
     public::{PublicFile as WnfsPublicFile, PublicNode as WnfsPublicNode},
     traits::Id,
 };
@@ -66,8 +66,7 @@ impl PublicFile {
         let cid = Cid::try_from(cid).map_err(|e| Error::new(&format!("Cannot parse cid: {e}")))?;
 
         Ok(future_to_promise(async move {
-            let file: WnfsPublicFile = store
-                .get_deserializable(&cid)
+            let file = WnfsPublicFile::load(&cid, &store)
                 .await
                 .map_err(|e| Error::new(&format!("Couldn't deserialize directory: {e}")))?;
 
