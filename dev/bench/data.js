@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1701379266759,
+  "lastUpdate": 1701784872805,
   "repoUrl": "https://github.com/wnfs-wg/rs-wnfs",
   "entries": {
     "Rust Benchmark": [
@@ -19453,6 +19453,102 @@ window.BENCHMARK_DATA = {
             "name": "NameAccumulator serialization",
             "value": 505,
             "range": "± 14",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "philipp.krueger1@gmail.com",
+            "name": "Philipp Krüger",
+            "username": "matheus23"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "2b67800bd6cc33cd24560540a3f461b0999444e8",
+          "message": "feat: Bytes-based public file writing API (#376)\n\nPreviously we only had a CID-based API that just \"set\" the file CID to some value.\r\n\r\nThis now requires public files to encode their content as byte arrays.\r\n\r\nNow the public and private APIs are very similar, both operate on the byte-array level for files.\r\n\r\nMade possible through #375 \r\n\r\n* feat: Write public files using bytes/streams instead of CID\r\n\r\n* feat: Support wasm32 target (non-`Send` futures) in unixfs\r\n\r\n* feat: Write wasm bindings for public file content r&w\r\n\r\n* fix: Write exchange key itself, instead of CID of it\r\n\r\n* chore: Write missing docs",
+          "timestamp": "2023-12-05T14:55:58+01:00",
+          "tree_id": "ed981a99c1881d9aece0208c1eca7acc3ea9c4e7",
+          "url": "https://github.com/wnfs-wg/rs-wnfs/commit/2b67800bd6cc33cd24560540a3f461b0999444e8"
+        },
+        "date": 1701784872138,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "node set",
+            "value": 64197,
+            "range": "± 1100",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node set 1000 consecutive",
+            "value": 2954780,
+            "range": "± 128179",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and get",
+            "value": 89417,
+            "range": "± 1390",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and remove",
+            "value": 97507,
+            "range": "± 1934",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt load and decode/0",
+            "value": 34135,
+            "range": "± 964",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt set and encode",
+            "value": 82772,
+            "range": "± 2418",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt diff",
+            "value": 36701,
+            "range": "± 1884",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt merge",
+            "value": 108672,
+            "range": "± 6337",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameSegment::new_hashed",
+            "value": 1789612,
+            "range": "± 234101",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameSegment::new(rng)",
+            "value": 1808115,
+            "range": "± 146962",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameAccumulator::add",
+            "value": 1766351,
+            "range": "± 58108",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameAccumulator serialization",
+            "value": 513,
+            "range": "± 13",
             "unit": "ns/iter"
           }
         ]
