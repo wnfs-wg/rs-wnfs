@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1701784872805,
+  "lastUpdate": 1701799672866,
   "repoUrl": "https://github.com/wnfs-wg/rs-wnfs",
   "entries": {
     "Rust Benchmark": [
@@ -19549,6 +19549,102 @@ window.BENCHMARK_DATA = {
             "name": "NameAccumulator serialization",
             "value": 513,
             "range": "± 13",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "philipp.krueger1@gmail.com",
+            "name": "Philipp Krüger",
+            "username": "matheus23"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "17c14c4284800ea296bd0f28bb6349b1fea0f390",
+          "message": "refactor: Introduce `Storable` trait (#378)\n\nMain use case is allowing us to use `Link<UnixFsFile>` as a type in `PublicFile::userland`.\r\nOther use case is allowing us to nest the WNFS Hamt: `Node<String, Node<String, String>>` is now possible (previously it required `K: Serialize` and `V: Serialize` (and we don't generally want to make both `K: AsyncSerialize` and `V: AsyncSerialize`.\r\n\r\nAlso:\r\n- Remove `AsyncSerializable`\r\n- Remove `RemembersCid` (both of these are now handled by `Storable`)\r\n- Remove `TryFrom<Ipld>` instances that were used for deserialization of some types\r\n- Remove `BlockStore::put_async_serializable` function (you can just use `Storable::store` instead)\r\n- Introduce `NodeSerializable` and `HamtSerializable` for `wnfs-hamt` to follow the pattern used in `wnfs`.\r\n\r\n---\r\n\r\n* refactor: Absorb `RemembersCid` into `Storable`\r\n\r\nThis means `Storable` can do all of the logic for `store` and `load` appropriately.\r\n\r\n* refactor: Remove empty `serializable.rs`\r\n\r\n* refactor: Remove `AsyncSerialize`\r\n\r\n* feat: `impl Storable for UnixFsFile`\r\n\r\n* chore: Adjust comment\r\n\r\n* refactor: Adjust wnfs-wasm code\r\n\r\n* chore: Write some docs",
+          "timestamp": "2023-12-05T19:04:38+01:00",
+          "tree_id": "31baacbea6ace30451169e14bf09c2cc67ea4a7e",
+          "url": "https://github.com/wnfs-wg/rs-wnfs/commit/17c14c4284800ea296bd0f28bb6349b1fea0f390"
+        },
+        "date": 1701799671963,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "node set",
+            "value": 16541,
+            "range": "± 662",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node set 1000 consecutive",
+            "value": 1973544,
+            "range": "± 47495",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and get",
+            "value": 42611,
+            "range": "± 145",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and remove",
+            "value": 49462,
+            "range": "± 119",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt load and decode/0",
+            "value": 4127,
+            "range": "± 43",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt set and encode",
+            "value": 57079,
+            "range": "± 1424",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt diff",
+            "value": 36004,
+            "range": "± 2191",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt merge",
+            "value": 102712,
+            "range": "± 5602",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameSegment::new_hashed",
+            "value": 1761584,
+            "range": "± 156269",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameSegment::new(rng)",
+            "value": 1826251,
+            "range": "± 174338",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameAccumulator::add",
+            "value": 1777642,
+            "range": "± 60851",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameAccumulator serialization",
+            "value": 520,
+            "range": "± 34",
             "unit": "ns/iter"
           }
         ]
