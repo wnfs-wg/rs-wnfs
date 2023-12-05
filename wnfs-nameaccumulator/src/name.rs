@@ -9,10 +9,12 @@ use crate::{
     traits::Big,
 };
 use anyhow::Result;
+use libipld::Cid;
 use once_cell::sync::OnceCell;
 use rand_core::CryptoRngCore;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::{hash::Hash, str::FromStr};
+use wnfs_common::{BlockStore, Storable};
 
 /// The domain separation string for deriving the l hash in the PoKE* protocol.
 const L_HASH_DSI: &str = "wnfs/1.0/PoKE*/l 128-bit hash derivation";
@@ -439,6 +441,36 @@ impl<'a, B: Big> BatchedProofVerification<'a, B> {
         Ok(())
     }
 }
+
+macro_rules! impl_storable {
+    ( $ty:ty ) => {
+        #[cfg_attr(not(target_arch = "wasm32"), ::async_trait::async_trait)]
+        #[cfg_attr(target_arch = "wasm32", ::async_trait::async_trait(?Send))]
+        impl<B: Big> Storable for $ty {
+            type Serializable = $ty;
+
+            async fn to_serializable(
+                &self,
+                _store: &impl BlockStore,
+            ) -> Result<Self::Serializable> {
+                Ok(self.clone())
+            }
+
+            async fn from_serializable(
+                _: Option<&Cid>,
+                serializable: Self::Serializable,
+            ) -> Result<Self> {
+                Ok(serializable)
+            }
+        }
+    };
+}
+
+impl_storable!(AccumulatorSetup<B>);
+impl_storable!(NameSegment<B>);
+impl_storable!(NameAccumulator<B>);
+impl_storable!(UnbatchableProofPart<B>);
+impl_storable!(BatchedProofPart<B>);
 
 impl<B: Big> Serialize for NameSegment<B> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>

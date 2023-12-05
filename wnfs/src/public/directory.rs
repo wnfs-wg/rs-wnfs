@@ -8,18 +8,14 @@ use crate::{
 };
 use anyhow::{bail, ensure, Result};
 use async_once_cell::OnceCell;
-use async_recursion::async_recursion;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use libipld_core::cid::Cid;
-use serde::{
-    de::Error as DeError, ser::Error as SerError, Deserialize, Deserializer, Serialize, Serializer,
+use std::collections::{BTreeMap, BTreeSet};
+use wnfs_common::{
+    utils::{error, Arc},
+    BlockStore, Metadata, NodeType, Storable,
 };
-use std::{
-    collections::{BTreeMap, BTreeSet},
-    sync::Arc,
-};
-use wnfs_common::{utils::error, AsyncSerialize, BlockStore, Metadata, RemembersCid};
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
@@ -40,9 +36,9 @@ use wnfs_common::{utils::error, AsyncSerialize, BlockStore, Metadata, RemembersC
 #[derive(Debug)]
 pub struct PublicDirectory {
     persisted_as: OnceCell<Cid>,
-    pub metadata: Metadata,
-    pub userland: BTreeMap<String, PublicLink>,
-    pub previous: BTreeSet<Cid>,
+    pub(crate) metadata: Metadata,
+    pub(crate) userland: BTreeMap<String, PublicLink>,
+    pub(crate) previous: BTreeSet<Cid>,
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -283,7 +279,7 @@ impl PublicDirectory {
     /// };
     /// use std::sync::Arc;
     /// use chrono::Utc;
-    /// use wnfs_common::libipld::{Ipld, Cid};
+    /// use wnfs_common::libipld::Ipld;
     ///
     /// #[async_std::main]
     /// async fn main() -> Result<()> {
@@ -292,8 +288,7 @@ impl PublicDirectory {
     ///
     ///     // Gain a mutable file reference
     ///     let path = &["Documents".into(), "Notes.md".into()];
-    ///     let initial_content = Cid::default();
-    ///     let file = dir.open_file_mut(path, initial_content, Utc::now(), store).await?;
+    ///     let file = dir.open_file_mut(path, Utc::now(), store).await?;
     ///
     ///     let metadata = Ipld::String("Hello Metadata!".into());
     ///     file.get_metadata_mut().put("custom-metadata", metadata.clone());
@@ -309,18 +304,20 @@ impl PublicDirectory {
     pub async fn open_file_mut<'a>(
         self: &'a mut Arc<Self>,
         path_segments: &[String],
-        initial_content: Cid,
         time: DateTime<Utc>,
         store: &'a impl BlockStore,
     ) -> Result<&'a mut PublicFile> {
         let (path, filename) = utils::split_last(path_segments)?;
 
+        // Resolve the path to an entry
         let file_ref = self
             .get_or_create_leaf_dir_mut(path, time, store)
             .await?
             .userland
             .entry(filename.clone())
-            .or_insert_with(|| PublicLink::with_file(PublicFile::new(time, initial_content)))
+            // Create a file, if it doesn't exist yet
+            .or_insert_with(|| PublicLink::with_file(PublicFile::new(time)))
+            // Get a mutable ref out of the directory entry
             .resolve_value_mut(store)
             .await?
             .as_file_mut()?
@@ -390,19 +387,18 @@ impl PublicDirectory {
     ///     public::PublicDirectory,
     ///     common::MemoryBlockStore
     /// };
-    /// use libipld_core::cid::Cid;
     /// use chrono::Utc;
     ///
     /// #[async_std::main]
     /// async fn main() {
     ///     let dir = &mut PublicDirectory::new_rc(Utc::now());
     ///     let store = &MemoryBlockStore::default();
-    ///     let cid = Cid::default();
+    ///     let content = b"Hello, World!".to_vec();
     ///
     ///     dir
     ///         .write(
     ///             &["pictures".into(), "cats".into(), "tabby.png".into()],
-    ///             cid,
+    ///             content.clone(),
     ///             Utc::now(),
     ///             store
     ///         )
@@ -414,14 +410,14 @@ impl PublicDirectory {
     ///         .await
     ///         .unwrap();
     ///
-    ///     assert_eq!(result, cid);
+    ///     assert_eq!(result, content);
     /// }
     /// ```
-    pub async fn read(&self, path_segments: &[String], store: &impl BlockStore) -> Result<Cid> {
+    pub async fn read(&self, path_segments: &[String], store: &impl BlockStore) -> Result<Vec<u8>> {
         let (path, filename) = utils::split_last(path_segments)?;
         match self.get_leaf_dir(path, store).await? {
             SearchResult::Found(dir) => match dir.lookup_node(filename, store).await? {
-                Some(PublicNode::File(file)) => Ok(file.userland),
+                Some(PublicNode::File(file)) => Ok(file.read_at(0, None, store).await?),
                 Some(_) => error(FsError::NotAFile),
                 None => error(FsError::NotFound),
             },
@@ -438,29 +434,30 @@ impl PublicDirectory {
     ///     public::PublicDirectory,
     ///     common::MemoryBlockStore
     /// };
-    /// use libipld_core::cid::Cid;
     /// use chrono::Utc;
+    /// use anyhow::Result;
     ///
     /// #[async_std::main]
-    /// async fn main() {
+    /// async fn main() -> Result<()> {
     ///     let dir = &mut PublicDirectory::new_rc(Utc::now());
-    ///     let store = &MemoryBlockStore::default();
+    ///     let store = &MemoryBlockStore::new();
     ///
     ///     dir
     ///         .write(
     ///             &["pictures".into(), "cats".into(), "tabby.png".into()],
-    ///             Cid::default(),
+    ///             b"Hello, World!".to_vec(),
     ///             Utc::now(),
     ///             store
     ///         )
-    ///         .await
-    ///         .unwrap();
+    ///         .await?;
+    ///
+    ///     Ok(())
     /// }
     /// ```
     pub async fn write(
         self: &mut Arc<Self>,
         path_segments: &[String],
-        content_cid: Cid,
+        content: Vec<u8>,
         time: DateTime<Utc>,
         store: &impl BlockStore,
     ) -> Result<()> {
@@ -468,12 +465,12 @@ impl PublicDirectory {
         let dir = self.get_or_create_leaf_dir_mut(path, time, store).await?;
 
         match dir.lookup_node_mut(filename, store).await? {
-            Some(PublicNode::File(file)) => file.write(time, content_cid),
+            Some(PublicNode::File(file)) => file.set_content(time, content, store).await?,
             Some(PublicNode::Dir(_)) => bail!(FsError::DirectoryAlreadyExists),
             None => {
                 dir.userland.insert(
                     filename.to_string(),
-                    PublicLink::with_file(PublicFile::new(time, content_cid)),
+                    PublicLink::with_file(PublicFile::with_content(time, content, store).await?),
                 );
             }
         }
@@ -547,7 +544,7 @@ impl PublicDirectory {
     ///     dir
     ///         .write(
     ///             &["pictures".into(), "cats".into(), "tabby.png".into()],
-    ///             Cid::default(),
+    ///             b"Hello, world!".to_vec(),
     ///             Utc::now(),
     ///             &store
     ///         )
@@ -597,42 +594,40 @@ impl PublicDirectory {
     ///     public::PublicDirectory,
     ///     common::MemoryBlockStore
     /// };
-    /// use libipld_core::cid::Cid;
     /// use chrono::Utc;
+    /// use anyhow::Result;
     ///
     /// #[async_std::main]
-    /// async fn main() {
+    /// async fn main() -> Result<()> {
     ///     let dir = &mut PublicDirectory::new_rc(Utc::now());
-    ///     let store = MemoryBlockStore::default();
+    ///     let store = &MemoryBlockStore::new();
     ///
     ///     dir
     ///         .write(
     ///             &["pictures".into(), "cats".into(), "tabby.png".into()],
-    ///             Cid::default(),
+    ///             b"Hello, World!".to_vec(),
     ///             Utc::now(),
-    ///             &store
+    ///             store
     ///         )
-    ///         .await
-    ///         .unwrap();
+    ///         .await?;
     ///
     ///     let result = dir
-    ///         .ls(&["pictures".into()], &store)
-    ///         .await
-    ///         .unwrap();
+    ///         .ls(&["pictures".into()], store)
+    ///         .await?;
     ///
     ///     assert_eq!(result.len(), 1);
     ///
     ///     dir
-    ///         .rm(&["pictures".into(), "cats".into()], &store)
-    ///         .await
-    ///         .unwrap();
+    ///         .rm(&["pictures".into(), "cats".into()], store)
+    ///         .await?;
     ///
     ///     let result = dir
-    ///         .ls(&["pictures".into()], &store)
-    ///         .await
-    ///         .unwrap();
+    ///         .ls(&["pictures".into()], store)
+    ///         .await?;
     ///
     ///     assert_eq!(result.len(), 0);
+    ///
+    ///     Ok(())
     /// }
     /// ```
     pub async fn rm(
@@ -676,7 +671,7 @@ impl PublicDirectory {
     ///     dir
     ///         .write(
     ///             &["pictures".into(), "cats".into(), "tabby.png".into()],
-    ///             Cid::default(),
+    ///             b"Hello, World!".to_vec(),
     ///             Utc::now(),
     ///             &store
     ///         )
@@ -736,7 +731,6 @@ impl PublicDirectory {
     /// use anyhow::Result;
     /// use libipld_core::cid::Cid;
     /// use chrono::Utc;
-    /// use rand::thread_rng;
     /// use wnfs::{
     ///     public::PublicDirectory,
     ///     common::{BlockStore, MemoryBlockStore},
@@ -750,7 +744,7 @@ impl PublicDirectory {
     ///     dir
     ///         .write(
     ///             &["code".into(), "python".into(), "hello.py".into()],
-    ///             Cid::default(),
+    ///             b"Hello, world!".to_vec(),
     ///             Utc::now(),
     ///             store
     ///         )
@@ -801,61 +795,6 @@ impl PublicDirectory {
 
         Ok(())
     }
-
-    #[async_recursion(?Send)]
-    /// Stores directory in provided block store.
-    ///
-    /// This function can be recursive if the directory contains other directories.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use wnfs::{
-    ///     public::PublicDirectory,
-    ///     traits::Id,
-    ///     common::{BlockStore, MemoryBlockStore}
-    /// };
-    /// use chrono::Utc;
-    ///
-    /// #[async_std::main]
-    /// async fn main() {
-    ///     let store = &MemoryBlockStore::default();
-    ///     let dir = PublicDirectory::new(Utc::now());
-    ///
-    ///     let cid = dir.store(store).await.unwrap();
-    ///
-    ///     assert_eq!(
-    ///         dir,
-    ///         store.get_deserializable(&cid).await.unwrap()
-    ///     );
-    /// }
-    /// ```
-    pub async fn store(&self, store: &impl BlockStore) -> Result<Cid> {
-        Ok(*self
-            .persisted_as
-            .get_or_try_init(store.put_async_serializable(self))
-            .await?)
-    }
-
-    /// Creates a new directory from provided serializable.
-    pub(crate) fn from_serializable(serializable: PublicDirectorySerializable) -> Result<Self> {
-        if !is_readable_wnfs_version(&serializable.version) {
-            bail!(FsError::UnexpectedVersion(serializable.version))
-        }
-
-        let userland = serializable
-            .userland
-            .into_iter()
-            .map(|(name, cid)| (name, PublicLink::from_cid(cid)))
-            .collect();
-
-        Ok(Self {
-            persisted_as: OnceCell::new(),
-            metadata: serializable.metadata,
-            userland,
-            previous: serializable.previous.iter().cloned().collect(),
-        })
-    }
 }
 
 impl Id for PublicDirectory {
@@ -888,53 +827,60 @@ impl Clone for PublicDirectory {
     }
 }
 
-impl RemembersCid for PublicDirectory {
-    fn persisted_as(&self) -> &OnceCell<Cid> {
-        &self.persisted_as
-    }
-}
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
+impl Storable for PublicDirectory {
+    type Serializable = PublicNodeSerializable;
 
-#[async_trait(?Send)]
-impl AsyncSerialize for PublicDirectory {
-    async fn async_serialize<S, B>(&self, serializer: S, store: &B) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-        B: BlockStore + ?Sized,
-    {
-        let encoded_userland = {
+    async fn to_serializable(&self, store: &impl BlockStore) -> Result<Self::Serializable> {
+        let userland = {
             let mut map = BTreeMap::new();
             for (name, link) in self.userland.iter() {
-                map.insert(
-                    name.clone(),
-                    *link.resolve_cid(store).await.map_err(SerError::custom)?,
-                );
+                map.insert(name.clone(), link.resolve_cid(store).await?);
             }
             map
         };
 
-        (PublicNodeSerializable::Dir(PublicDirectorySerializable {
+        Ok(PublicNodeSerializable::Dir(PublicDirectorySerializable {
             version: WNFS_VERSION,
             metadata: self.metadata.clone(),
-            userland: encoded_userland,
+            userland,
             previous: self.previous.iter().cloned().collect(),
         }))
-        .serialize(serializer)
     }
-}
 
-impl<'de> Deserialize<'de> for PublicDirectory {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        match PublicNodeSerializable::deserialize(deserializer)? {
-            PublicNodeSerializable::Dir(dir) => {
-                PublicDirectory::from_serializable(dir).map_err(DeError::custom)
-            }
-            _ => Err(DeError::custom(FsError::InvalidDeserialization(
-                "Expected directory".into(),
-            ))),
+    async fn from_serializable(
+        cid: Option<&Cid>,
+        serializable: Self::Serializable,
+    ) -> Result<Self> {
+        println!(
+            "Public Directory from serializable cid: {}",
+            cid.map(Cid::to_string).unwrap_or("None".to_string())
+        );
+        let PublicNodeSerializable::Dir(serializable) = serializable else {
+            bail!(FsError::UnexpectedNodeType(NodeType::PublicFile));
+        };
+
+        if !is_readable_wnfs_version(&serializable.version) {
+            bail!(FsError::UnexpectedVersion(serializable.version))
         }
+
+        let userland = serializable
+            .userland
+            .into_iter()
+            .map(|(name, cid)| (name, PublicLink::from_cid(cid)))
+            .collect();
+
+        Ok(Self {
+            persisted_as: cid.cloned().map(OnceCell::new_with).unwrap_or_default(),
+            metadata: serializable.metadata,
+            userland,
+            previous: serializable.previous.iter().cloned().collect(),
+        })
+    }
+
+    fn persisted_as(&self) -> Option<&OnceCell<Cid>> {
+        Some(&self.persisted_as)
     }
 }
 
@@ -947,28 +893,29 @@ mod tests {
     use super::*;
     use chrono::Utc;
     use libipld_core::ipld::Ipld;
+    use testresult::TestResult;
     use wnfs_common::MemoryBlockStore;
 
     #[async_std::test]
-    async fn look_up_can_fetch_file_added_to_directory() {
+    async fn look_up_can_fetch_file_added_to_directory() -> TestResult {
         let root_dir = &mut PublicDirectory::new_rc(Utc::now());
-        let store = MemoryBlockStore::default();
-        let content_cid = Cid::default();
+        let store = &MemoryBlockStore::new();
         let time = Utc::now();
 
         root_dir
-            .write(&["text.txt".into()], content_cid, time, &store)
-            .await
-            .unwrap();
+            .write(&["text.txt".into()], b"Hello World!".to_vec(), time, store)
+            .await?;
 
-        let node = root_dir.lookup_node("text.txt", &store).await.unwrap();
-
-        assert!(node.is_some());
+        let node = root_dir.lookup_node("text.txt", store).await?;
 
         assert_eq!(
             node,
-            Some(&PublicNode::File(PublicFile::new_rc(time, content_cid)))
+            Some(&PublicNode::File(
+                PublicFile::with_content_rc(time, b"Hello World!".to_vec(), store).await?
+            ))
         );
+
+        Ok(())
     }
 
     #[async_std::test]
@@ -984,233 +931,223 @@ mod tests {
     }
 
     #[async_std::test]
-    async fn get_node_can_fetch_node_from_root_dir() {
+    async fn get_node_can_fetch_node_from_root_dir() -> TestResult {
         let time = Utc::now();
-        let store = MemoryBlockStore::default();
+        let store = &MemoryBlockStore::new();
         let root_dir = &mut PublicDirectory::new_rc(time);
 
         root_dir
-            .mkdir(&["pictures".into(), "dogs".into()], time, &store)
-            .await
-            .unwrap();
+            .mkdir(&["pictures".into(), "dogs".into()], time, store)
+            .await?;
 
         root_dir
             .write(
                 &["pictures".into(), "cats".into(), "tabby.jpg".into()],
-                Cid::default(),
+                b"Hello".to_vec(),
                 time,
-                &store,
+                store,
             )
-            .await
-            .unwrap();
+            .await?;
 
         assert!(root_dir
             .get_node(
                 &["pictures".into(), "cats".into(), "tabby.jpg".into()],
-                &store
+                store
             )
-            .await
-            .unwrap()
+            .await?
             .is_some());
 
         assert!(root_dir
             .get_node(
                 &["pictures".into(), "cats".into(), "tabby.jpeg".into()],
-                &store
+                store
             )
-            .await
-            .unwrap()
+            .await?
             .is_none());
 
         assert!(root_dir
             .get_node(
                 &["images".into(), "parrots".into(), "coco.png".into()],
-                &store
+                store
             )
-            .await
-            .unwrap()
+            .await?
             .is_none());
 
         assert!(root_dir
             .get_node(
                 &["pictures".into(), "dogs".into(), "bingo.jpg".into()],
-                &store
+                store
             )
-            .await
-            .unwrap()
+            .await?
             .is_none());
+
+        Ok(())
     }
 
     #[async_std::test]
-    async fn mkdir_can_create_new_directory() {
+    async fn mkdir_can_create_new_directory() -> TestResult {
         let time = Utc::now();
-        let store = MemoryBlockStore::default();
+        let store = &MemoryBlockStore::new();
         let root_dir = &mut PublicDirectory::new_rc(time);
 
         root_dir
-            .mkdir(&["tamedun".into(), "pictures".into()], time, &store)
-            .await
-            .unwrap();
+            .mkdir(&["tamedun".into(), "pictures".into()], time, store)
+            .await?;
 
         let result = root_dir
-            .get_node(&["tamedun".into(), "pictures".into()], &store)
-            .await
-            .unwrap();
+            .get_node(&["tamedun".into(), "pictures".into()], store)
+            .await?;
 
         assert!(result.is_some());
+
+        Ok(())
     }
 
     #[async_std::test]
-    async fn ls_can_list_children_under_directory() {
+    async fn ls_can_list_children_under_directory() -> TestResult {
         let time = Utc::now();
-        let store = MemoryBlockStore::default();
+        let store = &MemoryBlockStore::new();
         let root_dir = &mut PublicDirectory::new_rc(time);
 
         root_dir
-            .mkdir(&["tamedun".into(), "pictures".into()], time, &store)
-            .await
-            .unwrap();
+            .mkdir(&["tamedun".into(), "pictures".into()], time, store)
+            .await?;
 
         root_dir
             .write(
                 &["tamedun".into(), "pictures".into(), "puppy.jpg".into()],
-                Cid::default(),
+                b"Hello".to_vec(),
                 time,
-                &store,
+                store,
             )
-            .await
-            .unwrap();
+            .await?;
 
         root_dir
             .mkdir(
                 &["tamedun".into(), "pictures".into(), "cats".into()],
                 time,
-                &store,
+                store,
             )
-            .await
-            .unwrap();
+            .await?;
 
         let result = root_dir
-            .ls(&["tamedun".into(), "pictures".into()], &store)
-            .await
-            .unwrap();
+            .ls(&["tamedun".into(), "pictures".into()], store)
+            .await?;
 
         assert_eq!(result.len(), 2);
 
         assert_eq!(result[0].0, String::from("cats"));
 
         assert_eq!(result[1].0, String::from("puppy.jpg"));
+
+        Ok(())
     }
 
     #[async_std::test]
-    async fn rm_can_remove_children_from_directory() {
+    async fn rm_can_remove_children_from_directory() -> TestResult {
         let time = Utc::now();
-        let store = MemoryBlockStore::default();
+        let store = &MemoryBlockStore::new();
         let mut root_dir = PublicDirectory::new_rc(time);
 
         root_dir
-            .mkdir(&["tamedun".into(), "pictures".into()], time, &store)
-            .await
-            .unwrap();
+            .mkdir(&["tamedun".into(), "pictures".into()], time, store)
+            .await?;
 
         root_dir
             .write(
                 &["tamedun".into(), "pictures".into(), "puppy.jpg".into()],
-                Cid::default(),
+                b"Hello".to_vec(),
                 time,
-                &store,
+                store,
             )
-            .await
-            .unwrap();
+            .await?;
 
         root_dir
             .mkdir(
                 &["tamedun".into(), "pictures".into(), "cats".into()],
                 time,
-                &store,
+                store,
             )
-            .await
-            .unwrap();
+            .await?;
 
         let result = root_dir
-            .rm(&["tamedun".into(), "pictures".into()], &store)
+            .rm(&["tamedun".into(), "pictures".into()], store)
             .await;
 
         assert!(result.is_ok());
 
         let result = root_dir
-            .rm(&["tamedun".into(), "pictures".into()], &store)
+            .rm(&["tamedun".into(), "pictures".into()], store)
             .await;
 
         assert!(result.is_err());
+
+        Ok(())
     }
 
     #[async_std::test]
-    async fn read_can_fetch_userland_of_file_added_to_directory() {
-        let store = MemoryBlockStore::default();
-        let content_cid = Cid::default();
+    async fn read_can_fetch_userland_of_file_added_to_directory() -> TestResult {
+        let store = &MemoryBlockStore::new();
         let time = Utc::now();
+        let content = b"Hello".to_vec();
         let mut root_dir = PublicDirectory::new_rc(time);
 
         root_dir
-            .write(&["text.txt".into()], content_cid, time, &store)
-            .await
-            .unwrap();
+            .write(&["text.txt".into()], content.clone(), time, store)
+            .await?;
 
-        let result = root_dir.read(&["text.txt".into()], &store).await.unwrap();
+        let result = root_dir.read(&["text.txt".into()], store).await?;
 
-        assert_eq!(result, content_cid);
+        assert_eq!(result, content);
+
+        Ok(())
     }
 
     #[async_std::test]
-    async fn mv_can_move_sub_directory_to_another_valid_location() {
+    async fn mv_can_move_sub_directory_to_another_valid_location() -> TestResult {
         let time = Utc::now();
-        let store = MemoryBlockStore::default();
+        let store = &MemoryBlockStore::new();
         let mut root_dir = PublicDirectory::new_rc(time);
 
         root_dir
             .write(
                 &["pictures".into(), "cats".into(), "tabby.jpg".into()],
-                Cid::default(),
+                b"Hello".to_vec(),
                 time,
-                &store,
+                store,
             )
-            .await
-            .unwrap();
+            .await?;
 
         root_dir
             .write(
                 &["pictures".into(), "cats".into(), "luna.png".into()],
-                Cid::default(),
+                b"Hello".to_vec(),
                 time,
-                &store,
+                store,
             )
-            .await
-            .unwrap();
+            .await?;
 
-        root_dir
-            .mkdir(&["images".into()], time, &store)
-            .await
-            .unwrap();
+        root_dir.mkdir(&["images".into()], time, store).await?;
 
         root_dir
             .basic_mv(
                 &["pictures".into(), "cats".into()],
                 &["images".into(), "cats".into()],
                 Utc::now(),
-                &store,
+                store,
             )
-            .await
-            .unwrap();
+            .await?;
 
-        let result = root_dir.ls(&["images".into()], &store).await.unwrap();
+        let result = root_dir.ls(&["images".into()], store).await?;
 
         assert_eq!(result.len(), 1);
         assert_eq!(result[0].0, String::from("cats"));
 
-        let result = root_dir.ls(&["pictures".into()], &store).await.unwrap();
+        let result = root_dir.ls(&["pictures".into()], store).await?;
 
         assert_eq!(result.len(), 0);
+
+        Ok(())
     }
 
     #[async_std::test]
@@ -1246,60 +1183,57 @@ mod tests {
     }
 
     #[async_std::test]
-    async fn mv_can_rename_directories() {
+    async fn mv_can_rename_directories() -> TestResult {
         let time = Utc::now();
-        let store = MemoryBlockStore::default();
+        let store = &MemoryBlockStore::new();
         let root_dir = &mut PublicDirectory::new_rc(time);
 
         root_dir
-            .write(&["file.txt".into()], Cid::default(), time, &store)
-            .await
-            .unwrap();
+            .write(&["file.txt".into()], b"Hello".to_vec(), time, store)
+            .await?;
 
         root_dir
             .basic_mv(
                 &["file.txt".into()],
                 &["renamed.txt".into()],
                 Utc::now(),
-                &store,
+                store,
             )
-            .await
-            .unwrap();
+            .await?;
 
-        let result = root_dir
-            .read(&["renamed.txt".into()], &store)
-            .await
-            .unwrap();
+        let result = root_dir.read(&["renamed.txt".into()], store).await?;
 
-        assert!(result == Cid::default());
+        assert_eq!(result, b"Hello".to_vec());
+
+        Ok(())
     }
 
     #[async_std::test]
-    async fn mv_fails_moving_directories_to_files() {
+    async fn mv_fails_moving_directories_to_files() -> TestResult {
         let time = Utc::now();
-        let store = MemoryBlockStore::default();
+        let store = &MemoryBlockStore::new();
         let root_dir = &mut PublicDirectory::new_rc(time);
 
         root_dir
-            .mkdir(&["movies".into(), "ghibli".into()], time, &store)
-            .await
-            .unwrap();
+            .mkdir(&["movies".into(), "ghibli".into()], time, store)
+            .await?;
 
         root_dir
-            .write(&["file.txt".into()], Cid::default(), time, &store)
-            .await
-            .unwrap();
+            .write(&["file.txt".into()], b"Hello".to_vec(), time, store)
+            .await?;
 
         let result = root_dir
             .basic_mv(
                 &["movies".into(), "ghibli".into()],
                 &["file.txt".into()],
                 Utc::now(),
-                &store,
+                store,
             )
             .await;
 
         assert!(result.is_err());
+
+        Ok(())
     }
 
     #[async_std::test]
@@ -1311,7 +1245,10 @@ mod tests {
 
         root_dir.mkdir(&["test".into()], time, store).await.unwrap();
 
-        let ipld = root_dir.async_serialize_ipld(store).await.unwrap();
+        let ipld = store
+            .get_deserializable::<Ipld>(&root_dir.store(store).await.unwrap())
+            .await
+            .unwrap();
         match ipld {
             Ipld::Map(map) => match map.get("wnfs/pub/dir") {
                 Some(Ipld::Map(content)) => match content.get("previous") {
@@ -1377,7 +1314,7 @@ mod snapshot_tests {
 
         for path in paths.iter() {
             root_dir
-                .write(path, Cid::default(), time, store)
+                .write(path, b"Hello".to_vec(), time, store)
                 .await
                 .unwrap();
         }
@@ -1402,9 +1339,11 @@ mod snapshot_tests {
         let root_dir = &mut PublicDirectory::new_rc(time);
         let _ = root_dir.store(store).await.unwrap();
 
+        assert!(root_dir.persisted_as().and_then(OnceCell::get).is_some());
+
         for path in paths.iter() {
             root_dir
-                .write(path, Cid::default(), time, store)
+                .write(path, b"Hello".to_vec(), time, store)
                 .await
                 .unwrap();
         }

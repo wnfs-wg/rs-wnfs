@@ -11,9 +11,8 @@ use async_once_cell::OnceCell;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use libipld_core::cid::Cid;
-use serde::{de::Error as DeError, Deserialize, Deserializer, Serialize, Serializer};
-use std::{collections::BTreeSet, sync::Arc};
-use wnfs_common::{AsyncSerialize, BlockStore, RemembersCid};
+use std::collections::BTreeSet;
+use wnfs_common::{utils::Arc, BlockStore, Storable};
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
@@ -177,9 +176,8 @@ impl PublicNode {
     /// use std::sync::Arc;
     /// use wnfs::public::{PublicFile, PublicNode};
     /// use chrono::Utc;
-    /// use libipld_core::cid::Cid;
     ///
-    /// let file = PublicFile::new_rc(Utc::now(), Cid::default());
+    /// let file = PublicFile::new_rc(Utc::now());
     /// let node = PublicNode::File(Arc::clone(&file));
     ///
     /// assert_eq!(node.as_file().unwrap(), file);
@@ -223,29 +221,14 @@ impl PublicNode {
     /// ```
     /// use wnfs::public::{PublicFile, PublicNode};
     /// use chrono::Utc;
-    /// use libipld_core::cid::Cid;
     ///
-    /// let file = PublicFile::new_rc(Utc::now(), Cid::default());
+    /// let file = PublicFile::new_rc(Utc::now());
     /// let node = PublicNode::File(file);
     ///
     /// assert!(node.is_file());
     /// ```
     pub fn is_file(&self) -> bool {
         matches!(self, Self::File(_))
-    }
-
-    /// Serializes a node to the block store and returns its CID.
-    pub async fn store(&self, store: &impl BlockStore) -> Result<Cid> {
-        Ok(match self {
-            Self::File(file) => file.store(store).await?,
-            Self::Dir(dir) => dir.store(store).await?,
-        })
-    }
-
-    /// Loads a node from the block store.
-    #[inline]
-    pub async fn load(cid: &Cid, store: &impl BlockStore) -> Result<Self> {
-        store.get_deserializable(cid).await
     }
 }
 
@@ -284,44 +267,37 @@ impl From<PublicDirectory> for PublicNode {
     }
 }
 
-impl<'de> Deserialize<'de> for PublicNode {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        Ok(match PublicNodeSerializable::deserialize(deserializer)? {
-            PublicNodeSerializable::File(file) => {
-                let file = PublicFile::from_serializable(file).map_err(DeError::custom)?;
-                Self::File(Arc::new(file))
-            }
-            PublicNodeSerializable::Dir(dir) => {
-                let dir = PublicDirectory::from_serializable(dir).map_err(DeError::custom)?;
-                Self::Dir(Arc::new(dir))
-            }
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
+impl Storable for PublicNode {
+    type Serializable = PublicNodeSerializable;
+
+    async fn to_serializable(&self, store: &impl BlockStore) -> Result<Self::Serializable> {
+        Ok(match self {
+            Self::File(file) => file.to_serializable(store).await?,
+            Self::Dir(dir) => dir.to_serializable(store).await?,
         })
     }
-}
 
-/// Implements async deserialization for serde serializable types.
-#[async_trait(?Send)]
-impl AsyncSerialize for PublicNode {
-    async fn async_serialize<S, B>(&self, serializer: S, store: &B) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-        B: BlockStore + ?Sized,
-    {
-        match self {
-            Self::File(file) => file.serialize(serializer),
-            Self::Dir(dir) => dir.async_serialize(serializer, store).await,
-        }
+    async fn from_serializable(
+        cid: Option<&Cid>,
+        serializable: Self::Serializable,
+    ) -> Result<Self> {
+        // TODO(matheus23) this is weird, refactor?
+        Ok(match serializable {
+            PublicNodeSerializable::File(file) => Self::File(Arc::new(
+                PublicFile::from_serializable(cid, PublicNodeSerializable::File(file)).await?,
+            )),
+            PublicNodeSerializable::Dir(dir) => Self::Dir(Arc::new(
+                PublicDirectory::from_serializable(cid, PublicNodeSerializable::Dir(dir)).await?,
+            )),
+        })
     }
-}
 
-impl RemembersCid for PublicNode {
-    fn persisted_as(&self) -> &OnceCell<Cid> {
+    fn persisted_as(&self) -> Option<&OnceCell<Cid>> {
         match self {
-            PublicNode::File(file) => (*file).persisted_as(),
-            PublicNode::Dir(dir) => (*dir).persisted_as(),
+            PublicNode::File(file) => file.as_ref().persisted_as(),
+            PublicNode::Dir(dir) => dir.as_ref().persisted_as(),
         }
     }
 }
@@ -334,23 +310,28 @@ impl RemembersCid for PublicNode {
 mod tests {
     use crate::public::{PublicDirectory, PublicFile, PublicNode};
     use chrono::Utc;
-    use libipld_core::cid::Cid;
-    use wnfs_common::MemoryBlockStore;
+    use testresult::TestResult;
+    use wnfs_common::{MemoryBlockStore, Storable};
 
     #[async_std::test]
-    async fn serialized_public_node_can_be_deserialized() {
-        let store = &MemoryBlockStore::default();
+    async fn serialized_public_node_can_be_deserialized() -> TestResult {
+        let store = &MemoryBlockStore::new();
         let dir_node: PublicNode = PublicDirectory::new(Utc::now()).into();
-        let file_node: PublicNode = PublicFile::new(Utc::now(), Cid::default()).into();
+        let file_node: PublicNode = PublicFile::new(Utc::now()).into();
 
-        let dir_cid = dir_node.store(store).await.unwrap();
-        let file_cid = file_node.store(store).await.unwrap();
+        // We add a round-trip, because... userland records whether it was newly created/loaded
+        let file_node = PublicNode::load(&file_node.store(store).await?, store).await?;
 
-        let loaded_file_node = PublicNode::load(&file_cid, store).await.unwrap();
-        let loaded_dir_node = PublicNode::load(&dir_cid, store).await.unwrap();
+        let dir_cid = dir_node.store(store).await?;
+        let file_cid = file_node.store(store).await?;
+
+        let loaded_file_node = PublicNode::load(&file_cid, store).await?;
+        let loaded_dir_node = PublicNode::load(&dir_cid, store).await?;
 
         assert_eq!(loaded_file_node, file_node);
         assert_eq!(loaded_dir_node, dir_node);
+
+        Ok(())
     }
 }
 
@@ -366,7 +347,7 @@ mod snapshot_tests {
         let time = Utc.with_ymd_and_hms(1970, 1, 1, 0, 0, 0).unwrap();
 
         let dir_node: PublicNode = PublicDirectory::new(time).into();
-        let file_node: PublicNode = PublicFile::new(time, Cid::default()).into();
+        let file_node: PublicNode = PublicFile::new(time).into();
 
         let dir_cid = dir_node.store(store).await.unwrap();
         let file_cid = file_node.store(store).await.unwrap();
@@ -394,7 +375,7 @@ mod snapshot_tests {
 
         for path in paths.iter() {
             root_dir
-                .write(path, Cid::default(), time, store)
+                .write(path, b"Hello, World!".to_vec(), time, store)
                 .await
                 .unwrap();
         }

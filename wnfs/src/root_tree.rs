@@ -21,10 +21,13 @@ use rand_chacha::{rand_core::SeedableRng, ChaCha12Rng};
 use rand_core::CryptoRngCore;
 use semver::Version;
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, sync::Arc};
+use std::collections::HashMap;
 #[cfg(test)]
 use wnfs_common::MemoryBlockStore;
-use wnfs_common::{BlockStore, Metadata, CODEC_RAW};
+use wnfs_common::{
+    utils::{Arc, CondSend},
+    BlockStore, Metadata, Storable,
+};
 #[cfg(test)]
 use wnfs_nameaccumulator::AccumulatorSetup;
 
@@ -57,7 +60,7 @@ pub struct RootTreeSerializable {
 impl<'a, B, R> RootTree<'a, B, R>
 where
     B: BlockStore,
-    R: CryptoRngCore,
+    R: CryptoRngCore + CondSend,
 {
     pub async fn new(
         forest: Arc<HamtForest>,
@@ -124,14 +127,8 @@ where
         };
 
         match first.as_str() {
-            "public" => {
-                let cid = self.public_root.read(path_segments, self.store).await?;
-                self.store.get_block(&cid).await.map(|b| b.to_vec())
-            }
-            "exchange" => {
-                let cid = self.exchange_root.read(path_segments, self.store).await?;
-                self.store.get_block(&cid).await.map(|b| b.to_vec())
-            }
+            "public" => self.public_root.read(path_segments, self.store).await,
+            "exchange" => self.exchange_root.read(path_segments, self.store).await,
             _ => {
                 let root = self
                     .private_map
@@ -157,15 +154,13 @@ where
 
         match first.as_str() {
             "public" => {
-                let cid = self.store.put_block(content, CODEC_RAW).await?;
                 self.public_root
-                    .write(path_segments, cid, time, self.store)
+                    .write(path_segments, content, time, self.store)
                     .await
             }
             "exchange" => {
-                let cid = self.store.put_block(content, CODEC_RAW).await?;
                 self.exchange_root
-                    .write(path_segments, cid, time, self.store)
+                    .write(path_segments, content, time, self.store)
                     .await
             }
             _ => {
@@ -325,8 +320,8 @@ where
     ) -> Result<RootTree<'a, B, R>> {
         let deserialized: RootTreeSerializable = store.get_deserializable(cid).await?;
         let forest = Arc::new(HamtForest::load(&deserialized.forest, store).await?);
-        let public_root = Arc::new(store.get_deserializable(&deserialized.public).await?);
-        let exchange_root = Arc::new(store.get_deserializable(&deserialized.exchange).await?);
+        let public_root = Arc::new(PublicDirectory::load(&deserialized.public, store).await?);
+        let exchange_root = Arc::new(PublicDirectory::load(&deserialized.exchange, store).await?);
 
         Ok(Self {
             store,

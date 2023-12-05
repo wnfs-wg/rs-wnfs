@@ -23,7 +23,7 @@ pub mod sharer {
     };
     use anyhow::Result;
     use async_stream::try_stream;
-    use futures::{Stream, StreamExt};
+    use futures::{Stream, TryStreamExt};
     use wnfs_common::{BlockStore, CODEC_RAW};
     use wnfs_nameaccumulator::{Name, NameSegment};
 
@@ -41,9 +41,8 @@ pub mod sharer {
         let mut exchange_keys = fetch_exchange_keys(recipient_exchange_root, store).await;
         let encoded_key = &serde_ipld_dagcbor::to_vec(access_key)?;
 
-        while let Some(result) = exchange_keys.next().await {
-            let public_key_modulus = result?;
-            let exchange_key = K::from_modulus(&public_key_modulus).await?;
+        while let Some(public_key_modulus) = exchange_keys.try_next().await? {
+            let exchange_key = K::from_modulus(public_key_modulus.as_ref()).await?;
             let encrypted_key = exchange_key.encrypt(encoded_key).await?;
             let share_label =
                 create_share_name(share_count, sharer_root_did, &public_key_modulus, forest);
@@ -76,8 +75,7 @@ pub mod sharer {
                 let value = root_dir.ls(&[device.clone()], store).await?;
                 for (name, _) in value {
                     if name == EXCHANGE_KEY_NAME {
-                        let cid = root_dir.read(&[device, name], store).await?;
-                        yield store.get_block(&cid).await?.to_vec();
+                        yield root_dir.read(&[device, name], store).await?;
                         break
                     }
                 }
@@ -196,8 +194,7 @@ mod tests {
     use chrono::Utc;
     use rand_chacha::ChaCha12Rng;
     use rand_core::SeedableRng;
-    use std::sync::Arc;
-    use wnfs_common::{BlockStore, MemoryBlockStore};
+    use wnfs_common::{utils::Arc, MemoryBlockStore};
 
     mod helper {
         use crate::{
@@ -210,13 +207,15 @@ mod tests {
         use anyhow::Result;
         use chrono::Utc;
         use rand_core::CryptoRngCore;
-        use std::sync::Arc;
-        use wnfs_common::{BlockStore, CODEC_RAW};
+        use wnfs_common::{
+            utils::{Arc, CondSend},
+            BlockStore,
+        };
 
         pub(super) async fn create_sharer_dir(
             forest: &mut impl PrivateForest,
             store: &impl BlockStore,
-            rng: &mut impl CryptoRngCore,
+            rng: &mut (impl CryptoRngCore + CondSend),
         ) -> Result<Arc<PrivateDirectory>> {
             let mut dir = PrivateDirectory::new_and_store(
                 &forest.empty_name(),
@@ -246,13 +245,12 @@ mod tests {
         ) -> Result<(RsaPrivateKey, Arc<PublicDirectory>)> {
             let key = RsaPrivateKey::new()?;
             let exchange_key = key.get_public_key().get_public_key_modulus()?;
-            let exchange_key_cid = store.put_block(exchange_key, CODEC_RAW).await?;
 
             let mut root_dir = PublicDirectory::new_rc(Utc::now());
             root_dir
                 .write(
                     &["device1".into(), EXCHANGE_KEY_NAME.into()],
-                    exchange_key_cid,
+                    exchange_key,
                     Utc::now(),
                     store,
                 )
@@ -351,12 +349,10 @@ mod tests {
             helper::create_recipient_exchange_root(store).await.unwrap();
 
         // Get exchange public key
-        let recipient_exchange_key_cid = recipient_exchange_root
+        let recipient_exchange_key = recipient_exchange_root
             .read(&["device1".into(), EXCHANGE_KEY_NAME.into()], store)
             .await
             .unwrap();
-
-        let recipient_exchange_key = store.get_block(&recipient_exchange_key_cid).await.unwrap();
 
         // Test finding latest share before having shared
         let max_share_count_before = find_latest_share_counter(

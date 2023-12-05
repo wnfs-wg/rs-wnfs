@@ -1,5 +1,7 @@
+use super::{Arc, CondSend, CondSync};
 use crate::{BlockStore, MemoryBlockStore, CODEC_DAG_CBOR, CODEC_RAW};
 use anyhow::Result;
+use async_trait::async_trait;
 use base64_serde::base64_serde_type;
 use bytes::Bytes;
 use libipld::{
@@ -8,6 +10,7 @@ use libipld::{
     prelude::{Decode, Encode},
     Cid, Ipld,
 };
+use parking_lot::Mutex;
 use proptest::{
     strategy::{Strategy, ValueTree},
     test_runner::TestRunner,
@@ -23,12 +26,16 @@ use std::{
 // Type Definitions
 //--------------------------------------------------------------------------------------------------
 
-type BlockHandler = Box<dyn Fn(&Bytes) -> Result<Ipld>>;
+pub trait BytesToIpld: CondSync {
+    fn convert(&self, bytes: &Bytes) -> Result<Ipld>;
+}
+
+type BlockHandler = Arc<dyn BytesToIpld>;
 
 #[derive(Default)]
 pub struct SnapshotBlockStore {
     inner: MemoryBlockStore,
-    block_handlers: HashMap<Cid, BlockHandler>,
+    block_handlers: Arc<Mutex<HashMap<Cid, BlockHandler>>>,
 }
 
 base64_serde_type!(Base64Standard, base64::engine::general_purpose::STANDARD);
@@ -58,8 +65,8 @@ impl SnapshotBlockStore {
     pub fn handle_block(&self, cid: &Cid, bytes: &Bytes) -> Result<(String, BlockSnapshot)> {
         let ipld = match cid.codec() {
             CODEC_DAG_CBOR => Ipld::decode(DagCborCodec, &mut Cursor::new(bytes))?,
-            CODEC_RAW => match self.block_handlers.get(cid) {
-                Some(func) => func(bytes)?,
+            CODEC_RAW => match self.block_handlers.lock().get(cid) {
+                Some(func) => func.convert(bytes)?,
                 None => Ipld::Bytes(bytes.to_vec()),
             },
             _ => unimplemented!(),
@@ -81,18 +88,19 @@ impl SnapshotBlockStore {
     pub fn get_all_block_snapshots(&self) -> Result<BTreeMap<String, BlockSnapshot>> {
         self.inner
             .0
-            .borrow()
+            .lock()
             .iter()
             .map(|(cid, bytes)| self.handle_block(cid, bytes))
             .collect()
     }
 
     pub fn add_block_handler(&mut self, cid: Cid, f: BlockHandler) {
-        self.block_handlers.insert(cid, f);
+        self.block_handlers.lock().insert(cid, f);
     }
 }
 
-#[async_trait::async_trait(?Send)]
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl BlockStore for SnapshotBlockStore {
     #[inline]
     async fn get_block(&self, cid: &Cid) -> Result<Bytes> {
@@ -100,7 +108,7 @@ impl BlockStore for SnapshotBlockStore {
     }
 
     #[inline]
-    async fn put_block(&self, bytes: impl Into<Bytes>, codec: u64) -> Result<Cid> {
+    async fn put_block(&self, bytes: impl Into<Bytes> + CondSend, codec: u64) -> Result<Cid> {
         self.inner.put_block(bytes, codec).await
     }
 }

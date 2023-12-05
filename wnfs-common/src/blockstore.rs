@@ -1,4 +1,8 @@
-use crate::{decode, encode, AsyncSerialize, BlockStoreError, MAX_BLOCK_SIZE};
+use crate::{
+    decode, encode,
+    utils::{Arc, CondSend, CondSync},
+    BlockStoreError, MAX_BLOCK_SIZE,
+};
 use anyhow::{bail, Result};
 use async_trait::async_trait;
 use bytes::Bytes;
@@ -8,8 +12,9 @@ use libipld::{
     multihash::{Code, MultihashDigest},
     serde as ipld_serde, Cid,
 };
+use parking_lot::Mutex;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
-use std::{cell::RefCell, collections::HashMap};
+use std::collections::HashMap;
 
 //--------------------------------------------------------------------------------------------------
 // Constants
@@ -44,10 +49,11 @@ pub const CODEC_RAW: u64 = 0x55;
 //--------------------------------------------------------------------------------------------------
 
 /// For types that implement block store operations like adding, getting content from the store.
-#[async_trait(?Send)]
-pub trait BlockStore: Sized {
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
+pub trait BlockStore: Sized + CondSync {
     async fn get_block(&self, cid: &Cid) -> Result<Bytes>;
-    async fn put_block(&self, bytes: impl Into<Bytes>, codec: u64) -> Result<Cid>;
+    async fn put_block(&self, bytes: impl Into<Bytes> + CondSend, codec: u64) -> Result<Cid>;
 
     async fn get_deserializable<V>(&self, cid: &Cid) -> Result<V>
     where
@@ -60,18 +66,9 @@ pub trait BlockStore: Sized {
 
     async fn put_serializable<V>(&self, value: &V) -> Result<Cid>
     where
-        V: Serialize,
+        V: Serialize + CondSync,
     {
         let bytes = encode(&ipld_serde::to_ipld(value)?, DagCborCodec)?;
-        self.put_block(bytes, CODEC_DAG_CBOR).await
-    }
-
-    async fn put_async_serializable<V>(&self, value: &V) -> Result<Cid>
-    where
-        V: AsyncSerialize,
-    {
-        let ipld = value.async_serialize_ipld(self).await?;
-        let bytes = encode(&ipld, DagCborCodec)?;
         self.put_block(bytes, CODEC_DAG_CBOR).await
     }
 
@@ -99,11 +96,12 @@ pub trait BlockStore: Sized {
 /// An in-memory block store to simulate IPFS.
 ///
 /// IPFS is basically a glorified HashMap.
+
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct MemoryBlockStore(
     #[serde(serialize_with = "crate::utils::serialize_cid_map")]
     #[serde(deserialize_with = "crate::utils::deserialize_cid_map")]
-    pub(crate) RefCell<HashMap<Cid, Bytes>>,
+    pub(crate) Arc<Mutex<HashMap<Cid, Bytes>>>,
 );
 
 impl MemoryBlockStore {
@@ -113,13 +111,14 @@ impl MemoryBlockStore {
     }
 }
 
-#[async_trait(?Send)]
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl BlockStore for MemoryBlockStore {
     /// Retrieves an array of bytes from the block store with given CID.
     async fn get_block(&self, cid: &Cid) -> Result<Bytes> {
         let bytes = self
             .0
-            .borrow()
+            .lock()
             .get(cid)
             .ok_or(BlockStoreError::CIDNotFound(*cid))?
             .clone();
@@ -128,7 +127,7 @@ impl BlockStore for MemoryBlockStore {
     }
 
     /// Stores an array of bytes in the block store.
-    async fn put_block(&self, bytes: impl Into<Bytes>, codec: u64) -> Result<Cid> {
+    async fn put_block(&self, bytes: impl Into<Bytes> + CondSend, codec: u64) -> Result<Cid> {
         // Convert the bytes into a Bytes object
         let bytes: Bytes = bytes.into();
 
@@ -136,7 +135,7 @@ impl BlockStore for MemoryBlockStore {
         let cid = self.create_cid(&bytes, codec)?;
 
         // Insert the bytes into the HashMap using the CID as the key
-        self.0.borrow_mut().insert(cid, bytes);
+        self.0.lock().insert(cid, bytes);
 
         Ok(cid)
     }
@@ -149,7 +148,7 @@ impl BlockStore for MemoryBlockStore {
 /// Tests the retrieval property of a BlockStore-conforming type.
 pub async fn bs_retrieval_test<T>(store: &T) -> Result<()>
 where
-    T: BlockStore + Send + 'static,
+    T: BlockStore + 'static,
 {
     // Example objects to insert and remove from the blockstore
     let first_bytes = vec![1, 2, 3, 4, 5];
@@ -173,7 +172,7 @@ where
 /// Tests the duplication of a BlockStore-conforming type.
 pub async fn bs_duplication_test<T>(store: &T) -> Result<()>
 where
-    T: BlockStore + Send + 'static,
+    T: BlockStore + 'static,
 {
     // Example objects to insert and remove from the blockstore
     let first_bytes = vec![1, 2, 3, 4, 5];
@@ -203,7 +202,7 @@ where
 /// Tests the serialization of a BlockStore-conforming type.
 pub async fn bs_serialization_test<T>(store: &T) -> Result<()>
 where
-    T: BlockStore + Send + Serialize + 'static + for<'de> Deserialize<'de>,
+    T: BlockStore + Serialize + 'static + for<'de> Deserialize<'de>,
 {
     // Example objects to insert and remove from the blockstore
     let bytes = vec![1, 2, 3, 4, 5];

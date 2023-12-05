@@ -12,8 +12,8 @@
 //! use anyhow::Result;
 //! use chrono::Utc;
 //! use wnfs::{
-//!     common::MemoryBlockStore,
-//!     public::PublicDirectory
+//!     common::{MemoryBlockStore, Storable},
+//!     public::PublicDirectory,
 //! };
 //!
 //! #[async_std::main]
@@ -22,7 +22,7 @@
 //!     let dir = &mut PublicDirectory::new_rc(Utc::now());
 //!
 //!     // Create an in-memory block store.
-//!     let store = &MemoryBlockStore::default();
+//!     let store = &MemoryBlockStore::new();
 //!
 //!     // Add a /pictures/cats subdirectory.
 //!     dir.mkdir(&["pictures".into(), "cats".into()], Utc::now(), store)
@@ -49,7 +49,8 @@
 //! ```rust
 //! use anyhow::Result;
 //! use chrono::Utc;
-//! use rand::thread_rng;
+//! use rand_chacha::ChaCha12Rng;
+//! use rand_core::SeedableRng;
 //! use wnfs::{
 //!     common::MemoryBlockStore,
 //!     private::{
@@ -64,7 +65,7 @@
 //!     let store = &MemoryBlockStore::default();
 //!
 //!     // A random number generator.
-//!     let rng = &mut thread_rng();
+//!     let rng = &mut ChaCha12Rng::from_entropy();
 //!
 //!     // Create a private forest.
 //!     let forest = &mut HamtForest::new_trusted_rc(rng);

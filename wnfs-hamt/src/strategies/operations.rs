@@ -2,8 +2,11 @@ use crate::Node;
 use anyhow::Result;
 use proptest::{collection::*, prelude::*, strategy::Shuffleable};
 use serde::{de::DeserializeOwned, Serialize};
-use std::{collections::HashMap, fmt::Debug, hash::Hash, sync::Arc};
-use wnfs_common::BlockStore;
+use std::{collections::HashMap, fmt::Debug, hash::Hash};
+use wnfs_common::{
+    utils::{Arc, CondSync},
+    BlockStore, Storable,
+};
 
 //--------------------------------------------------------------------------------------------------
 // Types
@@ -180,13 +183,15 @@ where
 ///     println!("{:?}", node);
 /// }
 /// ```
-pub async fn node_from_operations<K, V>(
+pub async fn node_from_operations<K: CondSync, V: CondSync>(
     operations: &Operations<K, V>,
     store: &impl BlockStore,
 ) -> Result<Arc<Node<K, V>>>
 where
-    K: DeserializeOwned + Serialize + Clone + Debug + AsRef<[u8]>,
-    V: DeserializeOwned + Serialize + Clone + Debug,
+    K: Storable + Clone + Debug + AsRef<[u8]>,
+    V: Storable + Clone + Debug,
+    K::Serializable: Serialize + DeserializeOwned,
+    V::Serializable: Serialize + DeserializeOwned,
 {
     let mut node: Arc<Node<K, V>> = Arc::new(Node::default());
     for op in &operations.0 {
@@ -198,8 +203,8 @@ where
                 node.remove(key, store).await?;
             }
             Operation::Reserialize => {
-                let cid = store.put_async_serializable(node.as_ref()).await?;
-                node = Arc::new(store.get_deserializable(&cid).await?);
+                let cid = node.store(store).await?;
+                node = Arc::new(Node::<K, V>::load(&cid, store).await?);
             }
         };
     }

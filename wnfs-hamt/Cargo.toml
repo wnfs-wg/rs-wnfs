@@ -36,6 +36,9 @@ rand_core = "0.6"
 semver = { version = "1.0", features = ["serde"] }
 serde = { version = "1.0", features = ["rc"] }
 serde-byte-array = "0.1.2"
+serde_bytes = "0.11.12"
+serde_ipld_dagcbor = "0.4.2"
+testresult = "0.3.0"
 thiserror = "1.0"
 wnfs-common = { path = "../wnfs-common", version = "=0.1.25" }
 

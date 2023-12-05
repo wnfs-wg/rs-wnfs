@@ -1,7 +1,7 @@
 use super::{metadata::JsMetadata, PrivateDirectory, PrivateForest, PublicDirectory};
 use crate::{fs::JsResult, value};
 use js_sys::{Array, Error, Object, Reflect};
-use std::{fmt::Debug, sync::Arc};
+use std::{fmt::Debug, rc::Rc};
 use wasm_bindgen::JsValue;
 use wnfs::{
     common::Metadata,
@@ -48,7 +48,7 @@ pub(crate) fn convert_path_segments(path_segments: &Array) -> JsResult<Vec<Strin
 }
 
 pub(crate) fn create_public_op_result<T: Into<JsValue>>(
-    root_dir: Arc<WnfsPublicDirectory>,
+    root_dir: Rc<WnfsPublicDirectory>,
     result: T,
 ) -> JsResult<JsValue> {
     let op_result = Object::new();
@@ -66,8 +66,8 @@ pub(crate) fn create_public_op_result<T: Into<JsValue>>(
 }
 
 pub(crate) fn create_private_op_result<T: Into<JsValue>>(
-    root_dir: Arc<WnfsPrivateDirectory>,
-    forest: Arc<WnfsHamtForest>,
+    root_dir: Rc<WnfsPrivateDirectory>,
+    forest: Rc<WnfsHamtForest>,
     result: T,
 ) -> JsResult<JsValue> {
     let op_result = Array::new();
@@ -88,7 +88,7 @@ pub(crate) fn create_private_op_result<T: Into<JsValue>>(
 
 pub(crate) fn create_private_forest_result(
     result: JsValue,
-    forest: Arc<WnfsHamtForest>,
+    forest: Rc<WnfsHamtForest>,
 ) -> JsResult<JsValue> {
     let op_result = Array::new();
 

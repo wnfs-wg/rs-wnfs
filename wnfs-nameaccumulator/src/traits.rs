@@ -15,6 +15,7 @@ use std::{
     ops::{BitOr, BitOrAssign, Mul, MulAssign, Rem, RemAssign},
     str::FromStr,
 };
+use wnfs_common::utils::CondSync;
 #[cfg(feature = "num-bigint-dig")]
 use zeroize::Zeroize;
 
@@ -35,6 +36,7 @@ pub trait Big: Eq + Clone + Hash {
         + BitOr
         + BitOrAssign
         + From<u8>
+        + CondSync
         + FromStr;
 
     fn one() -> Self::Num;

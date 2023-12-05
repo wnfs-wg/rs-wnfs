@@ -53,10 +53,27 @@ This library is designed with WebAssembly in mind. You can follow instructions o
 ## Crates
 
 - [wnfs](https://github.com/wnfs-wg/rs-wnfs/tree/main/wnfs)
+- [wnfs-wasm](https://github.com/wnfs-wg/rs-wnfs/tree/main/wnfs-wasm)
 - [wnfs-common](https://github.com/wnfs-wg/rs-wnfs/tree/main/wnfs-common)
 - [wnfs-hamt](https://github.com/wnfs-wg/rs-wnfs/tree/main/wnfs-hamt)
 - [wnfs-nameaccumulator](https://github.com/wnfs-wg/rs-wnfs/tree/main/wnfs-nameaccumulator)
-- [wnfs-wasm](https://github.com/wnfs-wg/rs-wnfs/tree/main/wnfs-wasm)
+- [wnfs-unixfs-file](https://github.com/wnfs-wg/rs-wnfs/tree/main/wnfs-unixfs-file)
+
+This is the dependency graph between these crates:
+```mermaid
+flowchart TD
+    wnfs-wasm --> wnfs
+    wnfs-wasm --> wnfs-nameaccumulator
+    %% wnfs-bench --> wnfs
+    %% wnfs-bench --> wnfs-hamt
+    %% wnfs-bench --> wnfs-nameaccumulator
+    wnfs --> wnfs-hamt
+    wnfs --> wnfs-common
+    wnfs --> wnfs-unixfs-file
+    wnfs --> wnfs-nameaccumulator
+    wnfs-unixfs-file --> wnfs-common
+    wnfs-hamt --> wnfs-common
+```
 
 ## Building the Project
 
@@ -215,7 +232,8 @@ That's the public filesystem, the private filesystem, on the other hand, is a bi
 ```rust
 use anyhow::Result;
 use chrono::Utc;
-use rand::thread_rng;
+use rand_chacha::ChaCha12Rng;
+use rand_core::SeedableRng;
 use wnfs::{
     common::MemoryBlockStore,
     private::{
@@ -230,7 +248,7 @@ async fn main() -> Result<()> {
     let store = &MemoryBlockStore::default();
 
     // A random number generator.
-    let rng = &mut thread_rng();
+    let rng = &mut ChaCha12Rng::from_entropy();
 
     // Create a private forest.
     let forest = &mut HamtForest::new_trusted_rc(rng);

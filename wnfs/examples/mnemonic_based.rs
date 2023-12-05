@@ -2,14 +2,13 @@ use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use bip39::{Language, Mnemonic, MnemonicType, Seed};
 use chrono::Utc;
-use libipld_core::cid::Cid;
 use rand_chacha::ChaCha12Rng;
 use rand_core::SeedableRng;
 use rsa::{traits::PublicKeyParts, BigUint, Oaep, RsaPrivateKey, RsaPublicKey};
 use sha2::Sha256;
 use std::sync::Arc;
 use wnfs::{
-    common::{BlockStore, MemoryBlockStore, CODEC_RAW},
+    common::{BlockStore, MemoryBlockStore},
     private::{
         forest::{hamt::HamtForest, traits::PrivateForest},
         share::{recipient, sharer},
@@ -56,7 +55,7 @@ async fn main() -> Result<()> {
 
 async fn root_dir_setup(store: &impl BlockStore) -> Result<(Arc<HamtForest>, AccessKey)> {
     // We generate a new simple example file system:
-    let rng = &mut rand::thread_rng();
+    let rng = &mut ChaCha12Rng::from_entropy();
     let forest = &mut HamtForest::new_trusted_rc(rng);
     let root_dir =
         &mut PrivateDirectory::new_and_store(&forest.empty_name(), Utc::now(), forest, store, rng)
@@ -92,12 +91,11 @@ async fn setup_seeded_keypair_access(
 
     // Store the public key inside some public WNFS.
     // Building from scratch in this case. Would actually be stored next to the private forest usually.
-    let public_key_cid = exchange_keypair.store_public_key(store).await?;
     let mut exchange_root = PublicDirectory::new_rc(Utc::now());
     exchange_root
         .write(
             &["main".into(), "v1.exchange_key".into()],
-            public_key_cid,
+            exchange_keypair.encode_public_key(),
             Utc::now(),
             store,
         )
@@ -184,16 +182,13 @@ impl SeededExchangeKey {
         Ok(Self(private_key))
     }
 
-    pub async fn store_public_key(&self, store: &impl BlockStore) -> Result<Cid> {
-        store.put_block(self.encode_public_key(), CODEC_RAW).await
-    }
-
     pub fn encode_public_key(&self) -> Vec<u8> {
         self.0.n().to_bytes_be()
     }
 }
 
-#[async_trait(?Send)]
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl PrivateKey for SeededExchangeKey {
     async fn decrypt(&self, ciphertext: &[u8]) -> Result<Vec<u8>> {
         let padding = Oaep::new::<Sha256>();
@@ -201,12 +196,13 @@ impl PrivateKey for SeededExchangeKey {
     }
 }
 
-#[async_trait(?Send)]
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl ExchangeKey for PublicExchangeKey {
     async fn encrypt(&self, data: &[u8]) -> Result<Vec<u8>> {
         let padding = Oaep::new::<Sha256>();
         self.0
-            .encrypt(&mut rand::thread_rng(), padding, data)
+            .encrypt(&mut ChaCha12Rng::from_entropy(), padding, data)
             .map_err(|e| anyhow!(e))
     }
 

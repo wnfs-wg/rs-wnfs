@@ -3,7 +3,8 @@
 
 use anyhow::Result;
 use chrono::Utc;
-use rand::thread_rng;
+use rand_chacha::ChaCha12Rng;
+use rand_core::SeedableRng;
 use wnfs::private::{
     forest::{hamt::HamtForest, traits::PrivateForest},
     PrivateFile, PrivateForestContent,
@@ -14,7 +15,7 @@ use wnfs_common::MemoryBlockStore;
 async fn main() -> Result<()> {
     // The usual in-memory testing setup for WNFS
     let store = &MemoryBlockStore::default();
-    let rng = &mut thread_rng();
+    let rng = &mut ChaCha12Rng::from_entropy();
     let forest = &mut HamtForest::new_rsa_2048(rng);
 
     // Create a new file (detached from any directory)
@@ -42,7 +43,7 @@ async fn main() -> Result<()> {
     .await?;
 
     // We store the content in the file metadata.
-    // This will update the `file: Rc<PrivateFile>` for us with a new reference.
+    // This will update the `file: Arc<PrivateFile>` for us with a new reference.
     file.get_metadata_mut_rc()?
         .put("thumbnail", content.as_metadata_value()?);
 

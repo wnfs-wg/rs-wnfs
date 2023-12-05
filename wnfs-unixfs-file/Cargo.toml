@@ -1,0 +1,45 @@
+[package]
+name = "wnfs-unixfs-file"
+version = "0.1.25"
+description = "IPLD UnixFS File implementation for Webnative Filesystem"
+keywords = ["wnfs", "unixfs", "webnative", "ipfs", "decentralisation"]
+categories = [
+  "filesystem",
+  "cryptography",
+  "web-programming",
+  "wasm",
+]
+license = "Apache-2.0"
+readme = "README.md"
+edition = "2021"
+repository = "https://github.com/wnfs-wg/rs-wnfs/tree/main/wnfs-unixfs-file"
+homepage = "https://fission.codes"
+authors = ["The Fission Authors"]
+
+[dependencies]
+anyhow = "1.0"
+async-stream = "0.3"
+async-trait = "0.1"
+bytes = "1.5"
+futures = "0.3"
+libipld = { version = "0.16", features = [] }
+num_enum = "0.5"
+proptest = { version = "1.1", optional = true }
+prost = "0.12"
+rand_core = "0.6"
+testresult = "0.3"
+tokio = { version = "1.34", features = ["io-util"] }
+wnfs-common = { path = "../wnfs-common", version = "=0.1.25" }
+
+[dev-dependencies]
+async-std = { version = "1.11", features = ["attributes"] }
+data-encoding = "2.5.0"
+proptest = "1.1"
+rand = "0.8"
+rand_chacha = "0.3.1"
+tempfile = "3.8.1"
+test-strategy = "0.3"
+tokio = { version = "1.34", features = ["fs", "rt", "macros"] }
+tokio-test = "0.4.3"
+tokio-util = { version = "0.7", features = ["io"] }
+wnfs-common = { path = "../wnfs-common", features = ["test_utils"] }

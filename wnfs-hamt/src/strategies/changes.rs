@@ -3,9 +3,12 @@ use super::{operations, Operations};
 use crate::Node;
 use anyhow::Result;
 use proptest::{collection::vec, strategy::Strategy};
-use serde::de::DeserializeOwned;
-use std::{collections::HashMap, fmt::Debug, sync::Arc};
-use wnfs_common::BlockStore;
+use serde::{de::DeserializeOwned, Serialize};
+use std::{collections::HashMap, fmt::Debug};
+use wnfs_common::{
+    utils::{Arc, CondSync},
+    BlockStore, Storable,
+};
 
 //--------------------------------------------------------------------------------------------------
 // Types
@@ -31,7 +34,7 @@ pub(crate) fn generate_changes<K: Debug + Clone, V: Debug + Clone>(
         pairs
             .clone()
             .into_iter()
-            .zip(randoms.into_iter())
+            .zip(randoms)
             .filter(|(_, (num, _))| *num != 0)
             .map(|((k, _), (num, val))| match num {
                 1 => Change::Add(k, val),
@@ -52,14 +55,16 @@ pub(crate) fn generate_ops_and_changes(
     })
 }
 
-pub(crate) async fn apply_changes<K, V>(
+pub(crate) async fn apply_changes<K: CondSync, V: CondSync>(
     node: &mut Arc<Node<K, V>>,
     changes: &Vec<Change<K, V>>,
     store: &impl BlockStore,
 ) -> Result<()>
 where
-    K: Debug + Clone + AsRef<[u8]> + DeserializeOwned,
-    V: Debug + Clone + DeserializeOwned,
+    K: Storable + Debug + Clone + AsRef<[u8]>,
+    V: Storable + Debug + Clone,
+    K::Serializable: Serialize + DeserializeOwned,
+    V::Serializable: Serialize + DeserializeOwned,
 {
     for change in changes {
         match change {
@@ -78,15 +83,16 @@ where
     Ok(())
 }
 
-pub(crate) async fn prepare_node<K, V, B>(
+pub(crate) async fn prepare_node<K: CondSync, V: CondSync>(
     node: &mut Arc<Node<K, V>>,
     changes: &Vec<Change<K, V>>,
-    store: &B,
+    store: &impl BlockStore,
 ) -> Result<()>
 where
-    K: Debug + Clone + AsRef<[u8]> + DeserializeOwned,
-    V: Debug + Clone + DeserializeOwned,
-    B: BlockStore,
+    K: Storable + Debug + Clone + AsRef<[u8]>,
+    V: Storable + Debug + Clone,
+    K::Serializable: Serialize + DeserializeOwned,
+    V::Serializable: Serialize + DeserializeOwned,
 {
     for change in changes {
         if let Change::Add(k, _) = change {
