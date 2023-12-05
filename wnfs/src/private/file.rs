@@ -488,19 +488,19 @@ impl PrivateFile {
     /// ```
     pub fn stream_content<'a>(
         &'a self,
-        index: usize,
+        block_index: usize,
         forest: &'a impl PrivateForest,
         store: &'a impl BlockStore,
     ) -> BoxStream<'a, Result<Vec<u8>>> {
         match &self.content.content {
             FileContent::Inline { data } => Box::pin(try_stream! {
-                if index != 0 {
+                if block_index != 0 {
                     Err(FsError::FileShardNotFound)?
                 }
 
                 yield data.clone()
             }),
-            FileContent::External(content) => Box::pin(content.stream(index, forest, store)),
+            FileContent::External(content) => Box::pin(content.stream(block_index, forest, store)),
         }
     }
 
@@ -900,14 +900,14 @@ impl PrivateForestContent {
     /// Decrypt & stream out the contents that `self` points to in given forest.
     pub fn stream<'a>(
         &'a self,
-        index: usize,
+        block_index: usize,
         forest: &'a impl PrivateForest,
         store: &'a impl BlockStore,
     ) -> impl Stream<Item = Result<Vec<u8>>> + 'a {
         try_stream! {
             for name in Self::generate_shard_labels(
                 &self.key,
-                index,
+                block_index,
                 self.block_count,
                 &Name::new(self.base_name.clone(), []),
             ) {
@@ -983,17 +983,17 @@ impl PrivateForestContent {
     /// Generates the labels for all of the content shard blocks.
     pub(crate) fn generate_shard_labels<'a>(
         key: &'a SnapshotKey,
-        mut index: usize,
+        mut block_index: usize,
         block_count: usize,
         base_name: &'a Name,
     ) -> impl Iterator<Item = Name> + 'a {
         iter::from_fn(move || {
-            if index >= block_count {
+            if block_index >= block_count {
                 return None;
             }
 
-            let label = Self::create_block_name(key, index, base_name);
-            index += 1;
+            let label = Self::create_block_name(key, block_index, base_name);
+            block_index += 1;
             Some(label)
         })
     }

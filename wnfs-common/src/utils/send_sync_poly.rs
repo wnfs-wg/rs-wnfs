@@ -59,3 +59,31 @@ impl<S> CondSync for S where S: Send + Sync {}
 
 #[cfg(target_arch = "wasm32")]
 impl<S> CondSync for S {}
+
+#[cfg(not(target_arch = "wasm32"))]
+pub fn boxed_fut<'a, T>(
+    fut: impl futures::future::Future<Output = T> + Sized + CondSend + 'a,
+) -> BoxFuture<'a, T> {
+    futures::future::FutureExt::boxed(fut)
+}
+
+#[cfg(target_arch = "wasm32")]
+pub fn boxed_fut<'a, T>(
+    fut: impl futures::future::Future<Output = T> + Sized + CondSend + 'a,
+) -> BoxFuture<'a, T> {
+    futures::future::FutureExt::boxed_local(fut)
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+pub fn boxed_stream<'a, T>(
+    stream: impl futures::stream::Stream<Item = T> + Sized + CondSend + 'a,
+) -> BoxStream<'a, T> {
+    futures::stream::StreamExt::boxed(stream)
+}
+
+#[cfg(target_arch = "wasm32")]
+pub fn boxed_stream<'a, T>(
+    stream: impl futures::stream::Stream<Item = T> + Sized + CondSend + 'a,
+) -> BoxStream<'a, T> {
+    futures::stream::StreamExt::boxed_local(stream)
+}

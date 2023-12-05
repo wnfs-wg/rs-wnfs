@@ -4,11 +4,21 @@ use super::{PublicFileSerializable, PublicNodeSerializable};
 use crate::{error::FsError, is_readable_wnfs_version, traits::Id, WNFS_VERSION};
 use anyhow::{bail, Result};
 use async_once_cell::OnceCell;
+use async_trait::async_trait;
 use chrono::{DateTime, Utc};
+use futures::{AsyncRead, AsyncReadExt};
 use libipld_core::cid::Cid;
-use serde::{de::Error as DeError, Deserialize, Deserializer, Serialize, Serializer};
-use std::collections::BTreeSet;
-use wnfs_common::{utils::Arc, BlockStore, Metadata, RemembersCid};
+use serde::{
+    de::Error as DeError, ser::Error as SerError, Deserialize, Deserializer, Serialize, Serializer,
+};
+use std::{collections::BTreeSet, io::SeekFrom};
+use tokio::io::AsyncSeekExt;
+use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
+use wnfs_common::{
+    utils::{Arc, CondSend},
+    AsyncSerialize, BlockStore, Metadata, RemembersCid,
+};
+use wnfs_unixfs_file::{builder::FileBuilder, unixfs::UnixFsFile};
 
 /// A file in the WNFS public file system.
 ///
@@ -17,9 +27,8 @@ use wnfs_common::{utils::Arc, BlockStore, Metadata, RemembersCid};
 /// ```
 /// use wnfs::public::PublicFile;
 /// use chrono::Utc;
-/// use libipld_core::cid::Cid;
 ///
-/// let file = PublicFile::new(Utc::now(), Cid::default());
+/// let file = PublicFile::new(Utc::now());
 ///
 /// println!("File: {:?}", file);
 /// ```
@@ -27,8 +36,14 @@ use wnfs_common::{utils::Arc, BlockStore, Metadata, RemembersCid};
 pub struct PublicFile {
     persisted_as: OnceCell<Cid>,
     pub metadata: Metadata,
-    pub userland: Cid,
+    userland: FileUserland,
     pub previous: BTreeSet<Cid>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+enum FileUserland {
+    Loaded(UnixFsFile),
+    Stored(Cid),
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -36,43 +51,269 @@ pub struct PublicFile {
 //--------------------------------------------------------------------------------------------------
 
 impl PublicFile {
-    /// Creates a new file with provided content CID.
+    /// Creates a new, empty file.
     ///
     /// # Examples
     ///
     /// ```
-    /// use wnfs::public::PublicFile;
+    /// use wnfs::{public::PublicFile, common::MemoryBlockStore};
     /// use chrono::Utc;
-    /// use libipld_core::cid::Cid;
     ///
-    /// let file = PublicFile::new(Utc::now(), Cid::default());
+    /// let file = PublicFile::new(Utc::now());
     ///
     /// println!("File: {:?}", file);
     /// ```
-    pub fn new(time: DateTime<Utc>, content_cid: Cid) -> Self {
+    pub fn new(time: DateTime<Utc>) -> Self {
         Self {
             persisted_as: OnceCell::new(),
             metadata: Metadata::new(time),
-            userland: content_cid,
+            userland: FileUserland::Loaded(UnixFsFile::empty()),
             previous: BTreeSet::new(),
         }
     }
 
-    /// Creates an `Arc` wrapped file.
+    /// Creates an `Arc` wrapped empty file, a shorthand wrapper around `PublicFile::new`.
+    pub fn new_rc(time: DateTime<Utc>) -> Arc<Self> {
+        Arc::new(Self::new(time))
+    }
+
+    /// Creates a file with given content bytes.
     ///
     /// # Examples
     ///
     /// ```
-    /// use wnfs::public::PublicFile;
+    /// use anyhow::Result;
+    /// use wnfs::{public::PublicFile, common::MemoryBlockStore};
     /// use chrono::Utc;
-    /// use libipld_core::cid::Cid;
     ///
-    /// let file = PublicFile::new(Utc::now(), Cid::default());
+    /// #[async_std::main]
+    /// async fn main() -> Result<()> {
+    ///     let store = &MemoryBlockStore::new();
+    ///     let content = b"Hello, World!".to_vec();
+    ///     let file = PublicFile::with_content(Utc::now(), content, store).await?;
     ///
-    /// println!("File: {:?}", file);
+    ///     println!("File: {:?}", file);
+    ///
+    ///     Ok(())
+    /// }
     /// ```
-    pub fn new_rc(time: DateTime<Utc>, content_cid: Cid) -> Arc<Self> {
-        Arc::new(Self::new(time, content_cid))
+    pub async fn with_content(
+        time: DateTime<Utc>,
+        content: Vec<u8>,
+        store: &impl BlockStore,
+    ) -> Result<Self> {
+        let content_cid = FileBuilder::new()
+            .content_bytes(content)
+            .build()?
+            .store(store)
+            .await?;
+        Ok(Self {
+            persisted_as: OnceCell::new(),
+            metadata: Metadata::new(time),
+            userland: FileUserland::Loaded(UnixFsFile::load(&content_cid, store).await?),
+            previous: BTreeSet::new(),
+        })
+    }
+
+    /// A convenience wrapper around `with_content` that also wraps the result in an `Arc`.
+    pub async fn with_content_rc(
+        time: DateTime<Utc>,
+        content: Vec<u8>,
+        store: &impl BlockStore,
+    ) -> Result<Arc<Self>> {
+        Ok(Arc::new(Self::with_content(time, content, store).await?))
+    }
+
+    /// Creates a file similar to `with_content`, but allowing streaming in the file.
+    ///
+    /// This is useful to keep memory usage low when importing bigger files, it should
+    /// use only O(log n) memory.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use anyhow::Result;
+    /// use async_std::fs::File;
+    /// use chrono::Utc;
+    /// use wnfs::{
+    ///     public::PublicFile,
+    ///     common::MemoryBlockStore,
+    /// };
+    ///
+    /// #[async_std::main]
+    /// async fn main() -> Result<()> {
+    ///     let disk_file = File::open("./test/fixtures/Clara Schumann, Scherzo no. 2, Op. 14.mp3").await?;
+    ///     let store = &MemoryBlockStore::new();
+    ///     let file = PublicFile::with_content_streaming(
+    ///         Utc::now(),
+    ///         disk_file,
+    ///         store,
+    ///     )
+    ///     .await?;
+    ///
+    ///     println!("file = {:?}", file);
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
+    pub async fn with_content_streaming<'a>(
+        time: DateTime<Utc>,
+        content: impl AsyncRead + CondSend + 'a,
+        store: &'a impl BlockStore,
+    ) -> Result<Self> {
+        let content_cid = FileBuilder::new()
+            .content_reader(FuturesAsyncReadCompatExt::compat(content))
+            .build()?
+            .store(store)
+            .await?;
+        Ok(Self {
+            persisted_as: OnceCell::new(),
+            metadata: Metadata::new(time),
+            userland: FileUserland::Loaded(UnixFsFile::load(&content_cid, store).await?),
+            previous: BTreeSet::new(),
+        })
+    }
+
+    /// Convenience wrapper around `with_content_streaming` that additionally
+    /// wraps the result in an `Arc`.
+    pub async fn with_content_streaming_rc<'a>(
+        time: DateTime<Utc>,
+        content: impl AsyncRead + CondSend + 'a,
+        store: &'a impl BlockStore,
+    ) -> Result<Arc<Self>> {
+        Ok(Arc::new(
+            Self::with_content_streaming(time, content, store).await?,
+        ))
+    }
+
+    /// Copy the contents from another file to this file.
+    /// This is an O(1) operation, as WNFS is a copy-on-write file system.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use anyhow::Result;
+    /// use chrono::Utc;
+    /// use wnfs::{
+    ///     public::{PublicDirectory, PublicFile},
+    ///     common::{MemoryBlockStore, utils::get_random_bytes},
+    /// };
+    ///
+    /// #[async_std::main]
+    /// async fn main() -> Result<()> {
+    ///     let store = &MemoryBlockStore::new();
+    ///
+    ///     let file = PublicFile::with_content(
+    ///         Utc::now(),
+    ///         get_random_bytes::<100>(&mut rand_core::OsRng).to_vec(),
+    ///         store,
+    ///     )
+    ///     .await?;
+    ///
+    ///     let root_dir = &mut PublicDirectory::new_rc(Utc::now());
+    ///
+    ///     let copy = root_dir
+    ///         .open_file_mut(&["some".into(), "copy.txt".into()], Utc::now(), store)
+    ///         .await?;
+    ///
+    ///     copy.copy_content_from(&file, Utc::now());
+    ///
+    ///     assert_eq!(file.read_at(0, None, store).await?, copy.read_at(0, None, store).await?);
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
+    pub fn copy_content_from(&mut self, other: &Self, time: DateTime<Utc>) {
+        self.metadata.upsert_mtime(time);
+        self.userland = other.userland.clone();
+    }
+
+    /// Stream out the content of this file starting from given byte offset.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use anyhow::Result;
+    /// use chrono::Utc;
+    /// use wnfs::{
+    ///     public::PublicFile,
+    ///     common::{MemoryBlockStore, utils::get_random_bytes},
+    /// };
+    ///
+    /// #[async_std::main]
+    /// async fn main() -> Result<()> {
+    ///     let store = &MemoryBlockStore::new();
+    ///     let content = b"Hello, World!\n".repeat(1000).to_vec();
+    ///     let file = PublicFile::with_content(Utc::now(), content, store).await?;
+    ///
+    ///     let mut content_stream = file.stream_content(0, store).await?;
+    ///
+    ///     // Pipe file contents to stdout
+    ///     let mut stdout = async_std::io::stdout();
+    ///     futures::io::copy(&mut content_stream, &mut stdout).await?;
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
+    pub async fn stream_content<'a>(
+        &'a self,
+        byte_offset: u64,
+        store: &'a impl BlockStore,
+    ) -> Result<impl AsyncRead + CondSend + 'a> {
+        let mut reader = self
+            .userland
+            .get_cloned(store)
+            .await?
+            .into_content_reader(store, None)?;
+        reader.seek(SeekFrom::Start(byte_offset)).await?;
+        Ok(TokioAsyncReadCompatExt::compat(reader))
+    }
+
+    /// Read the contents of this file.
+    /// You can provide a byte offset from which to start reading,
+    /// and you can provide a maximum amount of bytes you want to read.
+    ///
+    /// For more advanced cases, consider using `stream_content` instead.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use anyhow::Result;
+    /// use chrono::Utc;
+    /// use wnfs::{
+    ///     public::PublicFile,
+    ///     common::{MemoryBlockStore, utils::get_random_bytes},
+    /// };
+    ///
+    /// #[async_std::main]
+    /// async fn main() -> Result<()> {
+    ///     let store = &MemoryBlockStore::new();
+    ///     let content = b"Hello, World!\n".repeat(1000).to_vec();
+    ///     let file = PublicFile::with_content(Utc::now(), content, store).await?;
+    ///
+    ///     let content = file.read_at(14, Some(28), store).await?;
+    ///
+    ///     assert_eq!(content, b"Hello, World!\nHello, World!\n");
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
+    pub async fn read_at<'a>(
+        &'a self,
+        byte_offset: u64,
+        len_limit: Option<usize>,
+        store: &'a impl BlockStore,
+    ) -> Result<Vec<u8>> {
+        let mut reader = self.stream_content(byte_offset, store).await?;
+        if let Some(len) = len_limit {
+            let mut buffer = vec![0; len];
+            reader.read_exact(&mut buffer).await?;
+            Ok(buffer)
+        } else {
+            let mut buffer = Vec::new();
+            reader.read_to_end(&mut buffer).await?;
+            Ok(buffer)
+        }
     }
 
     /// Takes care of creating previous links, in case the current
@@ -93,10 +334,24 @@ impl PublicFile {
 
     /// Writes a new content cid to the file.
     /// This will create a new revision of the file.
-    pub(crate) fn write(self: &mut Arc<Self>, time: DateTime<Utc>, content_cid: Cid) {
+    pub async fn set_content(
+        self: &mut Arc<Self>,
+        time: DateTime<Utc>,
+        content: Vec<u8>,
+        store: &impl BlockStore,
+    ) -> Result<()> {
+        let content_cid = FileBuilder::new()
+            .content_bytes(content)
+            .build()?
+            .store(store)
+            .await?;
+        let userland = UnixFsFile::load(&content_cid, store).await?;
+
         let file = self.prepare_next_revision();
-        file.userland = content_cid;
         file.metadata.upsert_mtime(time);
+        file.userland = FileUserland::Loaded(userland);
+
+        Ok(())
     }
 
     /// Gets the previous value of the file.
@@ -130,11 +385,6 @@ impl PublicFile {
         self.prepare_next_revision().get_metadata_mut()
     }
 
-    /// Gets the content cid of a file
-    pub fn get_content_cid(&self) -> &Cid {
-        &self.userland
-    }
-
     /// Stores file in provided block store.
     ///
     /// # Examples
@@ -150,16 +400,16 @@ impl PublicFile {
     ///
     /// #[async_std::main]
     /// async fn main() {
-    ///     let mut store = MemoryBlockStore::default();
-    ///     let file = PublicFile::new(Utc::now(), Cid::default());
+    ///     let store = &MemoryBlockStore::new();
+    ///     let file = PublicFile::new(Utc::now());
     ///
-    ///     file.store(&mut store).await.unwrap();
+    ///     file.store(store).await.unwrap();
     /// }
     /// ```
     pub async fn store(&self, store: &impl BlockStore) -> Result<Cid> {
         Ok(*self
             .persisted_as
-            .get_or_try_init(store.put_serializable(self))
+            .get_or_try_init(store.put_async_serializable(self))
             .await?)
     }
 
@@ -172,21 +422,31 @@ impl PublicFile {
         Ok(Self {
             persisted_as: OnceCell::new(),
             metadata: serializable.metadata,
-            userland: serializable.userland,
+            userland: FileUserland::Stored(serializable.userland),
             previous: serializable.previous.iter().cloned().collect(),
         })
     }
 }
 
-impl Serialize for PublicFile {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
+impl AsyncSerialize for PublicFile {
+    async fn async_serialize<S, B>(&self, serializer: S, store: &B) -> Result<S::Ok, S::Error>
     where
-        S: Serializer,
+        S: Serializer + CondSend,
+        S::Error: CondSend,
+        B: BlockStore,
     {
+        let userland = self
+            .userland
+            .get_stored(store)
+            .await
+            .map_err(SerError::custom)?;
+
         PublicNodeSerializable::File(PublicFileSerializable {
             version: WNFS_VERSION,
             metadata: self.metadata.clone(),
-            userland: self.userland,
+            userland,
             previous: self.previous.iter().cloned().collect(),
         })
         .serialize(serializer)
@@ -233,7 +493,7 @@ impl Clone for PublicFile {
                 .map(OnceCell::new_with)
                 .unwrap_or_default(),
             metadata: self.metadata.clone(),
-            userland: self.userland,
+            userland: self.userland.clone(),
             previous: self.previous.clone(),
         }
     }
@@ -245,6 +505,22 @@ impl RemembersCid for PublicFile {
     }
 }
 
+impl FileUserland {
+    async fn get_cloned(&self, store: &impl BlockStore) -> Result<UnixFsFile> {
+        match self {
+            Self::Loaded(file) => Ok(file.clone()),
+            Self::Stored(cid) => UnixFsFile::load(cid, store).await,
+        }
+    }
+
+    async fn get_stored(&self, store: &impl BlockStore) -> Result<Cid> {
+        match self {
+            Self::Loaded(file) => file.encode()?.store(store).await,
+            Self::Stored(cid) => Ok(*cid),
+        }
+    }
+}
+
 //--------------------------------------------------------------------------------------------------
 // Tests
 //--------------------------------------------------------------------------------------------------
@@ -253,19 +529,14 @@ impl RemembersCid for PublicFile {
 mod tests {
     use super::*;
     use chrono::Utc;
-    use wnfs_common::{MemoryBlockStore, CODEC_RAW};
+    use wnfs_common::MemoryBlockStore;
 
     #[async_std::test]
     async fn previous_links_get_set() {
         let time = Utc::now();
         let store = &MemoryBlockStore::default();
 
-        let content_cid = store
-            .put_block(b"Hello World".to_vec(), CODEC_RAW)
-            .await
-            .unwrap();
-
-        let file = &mut PublicFile::new_rc(time, content_cid);
+        let file = &mut PublicFile::new_rc(time);
         let previous_cid = &file.store(store).await.unwrap();
         let next_file = file.prepare_next_revision();
 
@@ -279,12 +550,8 @@ mod tests {
     async fn prepare_next_revision_shortcuts_if_possible() {
         let time = Utc::now();
         let store = &MemoryBlockStore::default();
-        let content_cid = store
-            .put_block(b"Hello World".to_vec(), CODEC_RAW)
-            .await
-            .unwrap();
 
-        let file = &mut PublicFile::new_rc(time, content_cid);
+        let file = &mut PublicFile::new_rc(time);
         let previous_cid = &file.store(store).await.unwrap();
         let next_file = file.prepare_next_revision();
         let next_file_clone = &mut Arc::new(next_file.clone());
@@ -301,34 +568,40 @@ mod tests {
 mod snapshot_tests {
     use super::*;
     use chrono::TimeZone;
+    use testresult::TestResult;
     use wnfs_common::utils::SnapshotBlockStore;
 
     #[async_std::test]
-    async fn test_simple_file() {
+    async fn test_simple_file() -> TestResult {
         let store = &SnapshotBlockStore::default();
         let time = Utc.with_ymd_and_hms(1970, 1, 1, 0, 0, 0).unwrap();
 
-        let file = &mut PublicFile::new_rc(time, Cid::default());
-        let cid = file.store(store).await.unwrap();
+        let file = &mut PublicFile::new_rc(time);
+        let cid = file.store(store).await?;
 
-        let file = store.get_block_snapshot(&cid).await.unwrap();
+        let file = store.get_block_snapshot(&cid).await?;
 
         insta::assert_json_snapshot!(file);
+
+        Ok(())
     }
 
     #[async_std::test]
-    async fn test_file_with_previous_links() {
+    async fn test_file_with_previous_links() -> TestResult {
         let store = &SnapshotBlockStore::default();
         let time = Utc.with_ymd_and_hms(1970, 1, 1, 0, 0, 0).unwrap();
 
-        let file = &mut PublicFile::new_rc(time, Cid::default());
-        let _ = file.store(store).await.unwrap();
+        let file = &mut PublicFile::new_rc(time);
+        let _ = file.store(store).await?;
 
-        file.write(time, Cid::default());
-        let cid = file.store(store).await.unwrap();
+        file.set_content(time, b"Hello, World!".to_vec(), store)
+            .await?;
+        let cid = file.store(store).await?;
 
-        let file = store.get_block_snapshot(&cid).await.unwrap();
+        let file = store.get_block_snapshot(&cid).await?;
 
         insta::assert_json_snapshot!(file);
+
+        Ok(())
     }
 }

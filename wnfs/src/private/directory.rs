@@ -1265,7 +1265,7 @@ impl PrivateDirectory {
             .into_private_ref(content_cid))
     }
 
-    /// Creates a  new [`PrivateDirectory`] from a [`PrivateDirectoryContentSerializable`].
+    /// Creates a new [`PrivateDirectory`] from a [`PrivateDirectoryContentSerializable`].
     pub(crate) async fn from_serializable(
         serializable: PrivateDirectoryContentSerializable,
         temporal_key: &TemporalKey,

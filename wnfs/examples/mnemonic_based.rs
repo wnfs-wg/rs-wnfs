@@ -2,14 +2,13 @@ use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use bip39::{Language, Mnemonic, MnemonicType, Seed};
 use chrono::Utc;
-use libipld_core::cid::Cid;
 use rand_chacha::ChaCha12Rng;
 use rand_core::SeedableRng;
 use rsa::{traits::PublicKeyParts, BigUint, Oaep, RsaPrivateKey, RsaPublicKey};
 use sha2::Sha256;
 use std::sync::Arc;
 use wnfs::{
-    common::{BlockStore, MemoryBlockStore, CODEC_RAW},
+    common::{BlockStore, MemoryBlockStore},
     private::{
         forest::{hamt::HamtForest, traits::PrivateForest},
         share::{recipient, sharer},
@@ -92,12 +91,11 @@ async fn setup_seeded_keypair_access(
 
     // Store the public key inside some public WNFS.
     // Building from scratch in this case. Would actually be stored next to the private forest usually.
-    let public_key_cid = exchange_keypair.store_public_key(store).await?;
     let mut exchange_root = PublicDirectory::new_rc(Utc::now());
     exchange_root
         .write(
             &["main".into(), "v1.exchange_key".into()],
-            public_key_cid,
+            exchange_keypair.encode_public_key(),
             Utc::now(),
             store,
         )
@@ -182,10 +180,6 @@ impl SeededExchangeKey {
         let rng = &mut ChaCha12Rng::from_seed(seed_bytes);
         let private_key = RsaPrivateKey::new(rng, 2048)?;
         Ok(Self(private_key))
-    }
-
-    pub async fn store_public_key(&self, store: &impl BlockStore) -> Result<Cid> {
-        store.put_block(self.encode_public_key(), CODEC_RAW).await
     }
 
     pub fn encode_public_key(&self) -> Vec<u8> {

@@ -1,6 +1,6 @@
 use anyhow::{anyhow, Context};
 use bytes::Bytes;
-use futures::{stream::BoxStream, Stream};
+use futures::Stream;
 use std::{
     fmt::{Debug, Display},
     io,
@@ -9,6 +9,7 @@ use std::{
     task,
 };
 use tokio::io::AsyncRead;
+use wnfs_common::utils::{BoxStream, CondSend};
 
 mod fixed;
 mod rabin;
@@ -126,7 +127,7 @@ impl<'a> Stream for ChunkerStream<'a> {
 }
 
 impl Chunker {
-    pub fn chunks<'a, R: AsyncRead + Unpin + Send + 'a>(self, source: R) -> ChunkerStream<'a> {
+    pub fn chunks<'a, R: AsyncRead + Unpin + CondSend + 'a>(self, source: R) -> ChunkerStream<'a> {
         match self {
             Self::Fixed(chunker) => ChunkerStream::Fixed(chunker.chunks(source)),
             Self::Rabin(chunker) => ChunkerStream::Rabin(chunker.chunks(source)),

@@ -2,7 +2,8 @@ use crate::{codecs::Codec, parse_links, protobufs};
 use anyhow::{anyhow, Result};
 use bytes::Bytes;
 use libipld::Cid;
-use std::io::Cursor;
+use std::{io::Cursor, pin::Pin};
+use tokio::io::AsyncRead;
 use wnfs_common::BlockStore;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -161,3 +162,9 @@ impl<'a> Iterator for PbLinks<'a> {
         (self.outer.links.len(), Some(self.outer.links.len()))
     }
 }
+
+#[cfg(not(target_arch = "wasm32"))]
+pub type BoxAsyncRead<'a> = Pin<Box<dyn AsyncRead + Send + 'a>>;
+
+#[cfg(target_arch = "wasm32")]
+pub type BoxAsyncRead<'a> = Pin<Box<dyn AsyncRead + 'a>>;

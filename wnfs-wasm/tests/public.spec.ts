@@ -288,13 +288,59 @@ test.describe("PublicDirectory", () => {
     const result = await page.evaluate(async () => {
       const {
         wnfs: { PublicFile },
-        mock: { sampleCID },
       } = await window.setup();
 
       const time = new Date();
-      return new PublicFile(time, sampleCID).metadata();
+      return new PublicFile(time).metadata();
     });
 
     expect(result.created).not.toBeUndefined();
+  });
+
+  test("A PublicFile can be written and read", async ({ page }) => {
+    const result = await page.evaluate(async () => {
+      const {
+        wnfs: { PublicFile },
+        mock: { MemoryBlockStore },
+      } = await window.setup();
+
+      const store = new MemoryBlockStore();
+      const time = new Date();
+      const file = new PublicFile(time);
+
+      const content = new TextEncoder().encode("Hello, World!");
+      const file2 = await file.setContent(time, content, store);
+
+      const readBack = await file2.readAt(0, undefined, store);
+
+      return new TextDecoder().decode(readBack);
+    });
+
+    expect(result).toEqual("Hello, World!");
+  });
+
+  test("A PublicFile supports chunking files", async ({ page }) => {
+    const longString = "x".repeat(5 * 1024 * 1024); // 5 MiB
+
+    const result = await page.evaluate(async () => {
+      const {
+        wnfs: { PublicFile },
+        mock: { MemoryBlockStore },
+      } = await window.setup();
+
+      const store = new MemoryBlockStore();
+      const time = new Date();
+      const file = new PublicFile(time);
+
+      const longString = "x".repeat(5 * 1024 * 1024);
+      const content = new TextEncoder().encode(longString);
+      const file2 = await file.setContent(time, content, store);
+
+      const readBack = await file2.readAt(0, undefined, store);
+
+      return new TextDecoder().decode(readBack);
+    });
+
+    expect(result).toEqual(longString);
   });
 });
