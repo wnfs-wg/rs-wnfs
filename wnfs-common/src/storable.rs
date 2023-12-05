@@ -104,10 +104,10 @@ impl<T: DeserializeOwned + Sized> LoadIpld for T {
 // Implementations
 //--------------------------------------------------------------------------------------------------
 
-// We need to choose *one* blanket implementation.
-// I was going back and forth on this.
-// I think the `Arc<T>` implementation is used just
-// slightly more often.
+// We need to choose *one* blanket implementation, and unfortunately
+// you can't `impl Storable for Arc<MyType>` outside of this module,
+// because that'd be an orphan instance. So instead we're providing a
+// macro and implement the `Arc<T>` instance generically here.
 
 // #[cfg_attr(not(target_arch = "wasm32"), async_trait)]
 // #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
