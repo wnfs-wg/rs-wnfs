@@ -2,6 +2,7 @@ use super::{error::HamtError, hash::Hasher, Node, HAMT_VALUES_BUCKET_SIZE};
 use crate::serializable::PointerSerializable;
 use anyhow::Result;
 use async_trait::async_trait;
+use libipld::Cid;
 use serde::{de::DeserializeOwned, Serialize};
 use std::fmt::Debug;
 use wnfs_common::{
@@ -132,17 +133,20 @@ where
             }
             Pointer::Link(link) => {
                 let cid = link.resolve_cid(store).await?;
-                PointerSerializable::Link(*cid)
+                PointerSerializable::Link(cid)
             }
         })
     }
 
-    async fn from_serializable(serializable: Self::Serializable) -> Result<Self> {
+    async fn from_serializable(
+        _cid: Option<&Cid>,
+        serializable: Self::Serializable,
+    ) -> Result<Self> {
         Ok(match serializable {
             PointerSerializable::Values(serializables) => {
                 let mut values = Vec::with_capacity(serializables.len());
                 for serializable in serializables {
-                    values.push(Pair::from_serializable(serializable).await?);
+                    values.push(Pair::from_serializable(None, serializable).await?);
                 }
                 Self::Values(values)
             }
@@ -168,9 +172,12 @@ where
         Ok((key, value))
     }
 
-    async fn from_serializable((key, value): Self::Serializable) -> Result<Self> {
-        let key = K::from_serializable(key).await?;
-        let value = V::from_serializable(value).await?;
+    async fn from_serializable(
+        _cid: Option<&Cid>,
+        (key, value): Self::Serializable,
+    ) -> Result<Self> {
+        let key = K::from_serializable(None, key).await?;
+        let value = V::from_serializable(None, value).await?;
         Ok(Pair { key, value })
     }
 }
@@ -203,8 +210,10 @@ impl<K: CondSync, V: CondSync, H: Hasher + CondSync> Default for Pointer<K, V, H
 
 impl<K, V, H: Hasher + CondSync> PartialEq for Pointer<K, V, H>
 where
-    K: PartialEq + CondSync,
-    V: PartialEq + CondSync,
+    K: Storable + PartialEq + CondSync,
+    V: Storable + PartialEq + CondSync,
+    K::Serializable: Serialize + DeserializeOwned,
+    V::Serializable: Serialize + DeserializeOwned,
 {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {

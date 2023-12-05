@@ -23,7 +23,7 @@ use std::{
 };
 use wnfs_common::{
     utils::{Arc, BoxFuture, CondSend, CondSync},
-    BlockStore, HashOutput, Link, RemembersCid, Storable,
+    BlockStore, HashOutput, Link, Storable,
 };
 
 //--------------------------------------------------------------------------------------------------
@@ -795,12 +795,6 @@ impl<K: Clone + CondSync, V: CondSync + Clone, H: Hasher + CondSync> Clone for N
     }
 }
 
-impl<K: CondSync, V: CondSync, H: Hasher + CondSync> RemembersCid for Node<K, V, H> {
-    fn persisted_as(&self) -> &OnceCell<Cid> {
-        &self.persisted_as
-    }
-}
-
 impl<K: CondSync, V: CondSync, H: Hasher + CondSync> Default for Node<K, V, H> {
     fn default() -> Self {
         Node {
@@ -814,8 +808,10 @@ impl<K: CondSync, V: CondSync, H: Hasher + CondSync> Default for Node<K, V, H> {
 
 impl<K, V, H> PartialEq for Node<K, V, H>
 where
-    K: PartialEq + CondSync,
-    V: PartialEq + CondSync,
+    K: Storable + PartialEq + CondSync,
+    V: Storable + PartialEq + CondSync,
+    K::Serializable: Serialize + DeserializeOwned,
+    V::Serializable: Serialize + DeserializeOwned,
     H: Hasher + CondSync,
 {
     fn eq(&self, other: &Self) -> bool {
@@ -865,7 +861,10 @@ where
         Ok(NodeSerializable(bitmask, pointers))
     }
 
-    async fn from_serializable(serializable: Self::Serializable) -> Result<Self> {
+    async fn from_serializable(
+        cid: Option<&Cid>,
+        serializable: Self::Serializable,
+    ) -> Result<Self> {
         let NodeSerializable(bitmask, ser_pointers) = serializable;
 
         let bitmask = BitArray::<BitMaskType>::new(bitmask.into());
@@ -881,15 +880,19 @@ where
 
         let mut pointers = Vec::with_capacity(ser_pointers.len());
         for ser_pointer in ser_pointers {
-            pointers.push(Pointer::from_serializable(ser_pointer).await?);
+            pointers.push(Pointer::from_serializable(cid, ser_pointer).await?);
         }
 
         Ok(Self {
-            persisted_as: OnceCell::new(),
+            persisted_as: cid.cloned().map(OnceCell::new_with).unwrap_or_default(),
             bitmask,
             pointers,
             hasher: PhantomData,
         })
+    }
+
+    fn persisted_as(&self) -> Option<&OnceCell<Cid>> {
+        Some(&self.persisted_as)
     }
 }
 

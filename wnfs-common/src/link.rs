@@ -1,8 +1,4 @@
-use crate::{
-    traits::IpldEq,
-    utils::{Arc, CondSync},
-    BlockStore, Storable,
-};
+use crate::{traits::IpldEq, utils::CondSync, BlockStore, Storable};
 use anyhow::Result;
 use async_once_cell::OnceCell;
 use async_trait::async_trait;
@@ -25,7 +21,7 @@ pub enum Link<T> {
     Encoded { cid: Cid, value_cache: OnceCell<T> },
     /// A variant of `Link` that started out as a deserialized value `T`.
     /// If the cid is resolved using `resolve_cid`, then `T`'s `.persisted_as` from the
-    /// `RemembersCid` trait is called and that `OnceCell<Cid>` is populated, preventing
+    /// `Storable` trait is called and that `OnceCell<Cid>` is populated, preventing
     /// further calls to `resolve_cid` from duplicating work.
     Decoded { value: T },
 }
@@ -34,7 +30,7 @@ pub enum Link<T> {
 // Implementations
 //--------------------------------------------------------------------------------------------------
 
-impl<T: RemembersCid + CondSync> Link<T> {
+impl<T: Storable + CondSync> Link<T> {
     /// Creates a new `Link` that starts out as a Cid.
     pub fn from_cid(cid: Cid) -> Self {
         Self::Encoded {
@@ -44,52 +40,30 @@ impl<T: RemembersCid + CondSync> Link<T> {
     }
 
     /// Gets the Cid stored in type. It attempts to get it from the store if it is not present in type.
-    pub async fn resolve_cid(&self, store: &impl BlockStore) -> Result<&Cid>
-    where
-        T: Storable,
-    {
+    pub async fn resolve_cid(&self, store: &impl BlockStore) -> Result<Cid> {
         match self {
-            Self::Encoded { cid, .. } => Ok(cid),
-            Self::Decoded { value } => {
-                let cid_cache = value.persisted_as();
-                cid_cache.get_or_try_init(value.store(store)).await
-            }
+            Self::Encoded { cid, .. } => Ok(*cid),
+            Self::Decoded { value } => value.store(store).await,
         }
     }
 
     /// Gets the value stored in link. It attempts to get it from the store if it is not present in link.
-    pub async fn resolve_value(&self, store: &impl BlockStore) -> Result<&T>
-    where
-        T: Storable,
-    {
+    pub async fn resolve_value(&self, store: &impl BlockStore) -> Result<&T> {
         match self {
             Self::Encoded { cid, value_cache } => {
-                value_cache
-                    .get_or_try_init(async {
-                        let value = T::load(cid, store).await?;
-                        value.persisted_as().get_or_init(async { *cid }).await;
-                        Ok(value)
-                    })
-                    .await
+                value_cache.get_or_try_init(T::load(cid, store)).await
             }
             Self::Decoded { value, .. } => Ok(value),
         }
     }
 
     /// Gets mut value stored in link. It attempts to get it from the store if it is not present in link.
-    pub async fn resolve_value_mut(&mut self, store: &impl BlockStore) -> Result<&mut T>
-    where
-        T: Storable,
-    {
+    pub async fn resolve_value_mut(&mut self, store: &impl BlockStore) -> Result<&mut T> {
         match self {
             Self::Encoded { cid, value_cache } => {
                 let value = match value_cache.take() {
                     Some(v) => v,
-                    None => {
-                        let value = T::load(cid, store).await?;
-                        value.persisted_as().get_or_init(async { *cid }).await;
-                        value
-                    }
+                    None => T::load(cid, store).await?,
                 };
 
                 *self = Self::Decoded { value };
@@ -109,7 +83,7 @@ impl<T: RemembersCid + CondSync> Link<T> {
     pub fn get_cid(&self) -> Option<&Cid> {
         match self {
             Self::Encoded { cid, .. } => Some(cid),
-            Self::Decoded { value } => value.persisted_as().get(),
+            Self::Decoded { value } => value.persisted_as().and_then(OnceCell::get),
         }
     }
 
@@ -131,11 +105,7 @@ impl<T: RemembersCid + CondSync> Link<T> {
         match self {
             Self::Encoded { cid, value_cache } => match value_cache.into_inner() {
                 Some(cached) => Ok(cached),
-                None => {
-                    let value = T::load(&cid, store).await?;
-                    value.persisted_as().get_or_init(async { cid }).await;
-                    Ok(value)
-                }
+                None => Ok(T::load(&cid, store).await?),
             },
             Self::Decoded { value, .. } => Ok(value),
         }
@@ -143,10 +113,7 @@ impl<T: RemembersCid + CondSync> Link<T> {
 
     /// Checks if there is a Cid cached in link.
     pub fn has_cid(&self) -> bool {
-        match self {
-            Self::Decoded { value } => value.persisted_as().get().is_some(),
-            _ => true,
-        }
+        self.get_cid().is_some()
     }
 
     /// Checks if there is a value stored in link.
@@ -172,7 +139,7 @@ impl<T: RemembersCid + CondSync> Link<T> {
 
 #[cfg_attr(not(target_arch = "wasm32"), async_trait)]
 #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
-impl<T: PartialEq + Storable + RemembersCid + CondSync> IpldEq for Link<T> {
+impl<T: PartialEq + Storable + CondSync> IpldEq for Link<T> {
     async fn eq(&self, other: &Link<T>, store: &impl BlockStore) -> Result<bool> {
         if self == other {
             return Ok(true);
@@ -182,7 +149,7 @@ impl<T: PartialEq + Storable + RemembersCid + CondSync> IpldEq for Link<T> {
     }
 }
 
-impl<T: RemembersCid> From<T> for Link<T> {
+impl<T: Storable> From<T> for Link<T> {
     fn from(value: T) -> Self {
         Self::Decoded { value }
     }
@@ -209,7 +176,7 @@ where
     }
 }
 
-impl<T: RemembersCid + CondSync> PartialEq for Link<T>
+impl<T: Storable + CondSync> PartialEq for Link<T>
 where
     T: PartialEq,
 {
@@ -251,28 +218,18 @@ where
     }
 }
 
-pub trait RemembersCid {
-    fn persisted_as(&self) -> &OnceCell<Cid>;
-}
-
-impl<T: RemembersCid> RemembersCid for Arc<T> {
-    fn persisted_as(&self) -> &OnceCell<Cid> {
-        self.as_ref().persisted_as()
-    }
-}
-
 //--------------------------------------------------------------------------------------------------
 // Tests
 //--------------------------------------------------------------------------------------------------
 
 #[cfg(test)]
 mod tests {
-    use crate::{
-        impl_storable_from_serde, BlockStore, Link, MemoryBlockStore, RemembersCid, Storable,
-    };
-    use ::serde::{Deserialize, Serialize};
+    use crate::{BlockStore, Link, MemoryBlockStore, Storable};
+    use anyhow::Result;
     use async_once_cell::OnceCell;
+    use async_trait::async_trait;
     use libipld::Cid;
+    use serde::{Deserialize, Serialize};
 
     #[derive(Debug, Serialize, Deserialize)]
     struct Example {
@@ -281,7 +238,26 @@ mod tests {
         persisted_as: OnceCell<Cid>,
     }
 
-    impl_storable_from_serde! { Example }
+    #[async_trait]
+    impl Storable for Example {
+        type Serializable = Example;
+
+        async fn to_serializable(&self, _store: &impl BlockStore) -> Result<Self::Serializable> {
+            Ok(self.clone())
+        }
+
+        async fn from_serializable(
+            cid: Option<&Cid>,
+            mut serializable: Self::Serializable,
+        ) -> Result<Self> {
+            serializable.persisted_as = cid.cloned().map(OnceCell::new_with).unwrap_or_default();
+            Ok(serializable)
+        }
+
+        fn persisted_as(&self) -> Option<&OnceCell<Cid>> {
+            Some(&self.persisted_as)
+        }
+    }
 
     impl Clone for Example {
         fn clone(&self) -> Self {
@@ -309,12 +285,6 @@ mod tests {
                 price,
                 persisted_as: OnceCell::new(),
             }
-        }
-    }
-
-    impl RemembersCid for Example {
-        fn persisted_as(&self) -> &OnceCell<Cid> {
-            &self.persisted_as
         }
     }
 

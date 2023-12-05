@@ -13,7 +13,7 @@ use tokio::io::AsyncSeekExt;
 use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
 use wnfs_common::{
     utils::{Arc, CondSend},
-    BlockStore, LoadIpld, Metadata, NodeType, RemembersCid, Storable, StoreIpld,
+    BlockStore, Metadata, NodeType, Storable,
 };
 use wnfs_unixfs_file::{builder::FileBuilder, unixfs::UnixFsFile};
 
@@ -397,7 +397,10 @@ impl Storable for PublicFile {
         }))
     }
 
-    async fn from_serializable(serializable: Self::Serializable) -> Result<Self> {
+    async fn from_serializable(
+        cid: Option<&Cid>,
+        serializable: Self::Serializable,
+    ) -> Result<Self> {
         let PublicNodeSerializable::File(serializable) = serializable else {
             bail!(FsError::UnexpectedNodeType(NodeType::PublicDirectory));
         };
@@ -407,29 +410,15 @@ impl Storable for PublicFile {
         }
 
         Ok(Self {
-            persisted_as: OnceCell::new(),
+            persisted_as: cid.cloned().map(OnceCell::new_with).unwrap_or_default(),
             metadata: serializable.metadata,
             userland: FileUserland::Stored(serializable.userland),
             previous: serializable.previous.iter().cloned().collect(),
         })
     }
 
-    async fn store(&self, store: &impl BlockStore) -> Result<Cid> {
-        Ok(*self
-            .persisted_as
-            .get_or_try_init(async {
-                let (bytes, codec) = self.to_serializable(store).await?.encode_ipld()?;
-                store.put_block(bytes, codec).await
-            })
-            .await?)
-    }
-
-    async fn load(cid: &Cid, store: &impl BlockStore) -> Result<Self> {
-        let bytes = store.get_block(cid).await?;
-        let serializable = Self::Serializable::decode_ipld(cid, bytes)?;
-        let mut file = Self::from_serializable(serializable).await?;
-        file.persisted_as = OnceCell::new_with(*cid);
-        Ok(file)
+    fn persisted_as(&self) -> Option<&OnceCell<Cid>> {
+        Some(&self.persisted_as)
     }
 }
 
@@ -460,12 +449,6 @@ impl Clone for PublicFile {
             userland: self.userland.clone(),
             previous: self.previous.clone(),
         }
-    }
-}
-
-impl RemembersCid for PublicFile {
-    fn persisted_as(&self) -> &OnceCell<Cid> {
-        &self.persisted_as
     }
 }
 

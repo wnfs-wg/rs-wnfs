@@ -14,7 +14,7 @@ use libipld_core::cid::Cid;
 use std::collections::{BTreeMap, BTreeSet};
 use wnfs_common::{
     utils::{error, Arc},
-    BlockStore, LoadIpld, Metadata, NodeType, RemembersCid, Storable, StoreIpld,
+    BlockStore, Metadata, NodeType, Storable,
 };
 
 //--------------------------------------------------------------------------------------------------
@@ -827,12 +827,6 @@ impl Clone for PublicDirectory {
     }
 }
 
-impl RemembersCid for PublicDirectory {
-    fn persisted_as(&self) -> &OnceCell<Cid> {
-        &self.persisted_as
-    }
-}
-
 #[cfg_attr(not(target_arch = "wasm32"), async_trait)]
 #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl Storable for PublicDirectory {
@@ -842,7 +836,7 @@ impl Storable for PublicDirectory {
         let userland = {
             let mut map = BTreeMap::new();
             for (name, link) in self.userland.iter() {
-                map.insert(name.clone(), *link.resolve_cid(store).await?);
+                map.insert(name.clone(), link.resolve_cid(store).await?);
             }
             map
         };
@@ -855,7 +849,14 @@ impl Storable for PublicDirectory {
         }))
     }
 
-    async fn from_serializable(serializable: Self::Serializable) -> Result<Self> {
+    async fn from_serializable(
+        cid: Option<&Cid>,
+        serializable: Self::Serializable,
+    ) -> Result<Self> {
+        println!(
+            "Public Directory from serializable cid: {}",
+            cid.map(Cid::to_string).unwrap_or("None".to_string())
+        );
         let PublicNodeSerializable::Dir(serializable) = serializable else {
             bail!(FsError::UnexpectedNodeType(NodeType::PublicFile));
         };
@@ -871,29 +872,15 @@ impl Storable for PublicDirectory {
             .collect();
 
         Ok(Self {
-            persisted_as: OnceCell::new(),
+            persisted_as: cid.cloned().map(OnceCell::new_with).unwrap_or_default(),
             metadata: serializable.metadata,
             userland,
             previous: serializable.previous.iter().cloned().collect(),
         })
     }
 
-    async fn store(&self, store: &impl BlockStore) -> Result<Cid> {
-        Ok(*self
-            .persisted_as
-            .get_or_try_init(async {
-                let (bytes, codec) = self.to_serializable(store).await?.encode_ipld()?;
-                store.put_block(bytes, codec).await
-            })
-            .await?)
-    }
-
-    async fn load(cid: &Cid, store: &impl BlockStore) -> Result<Self> {
-        let bytes = store.get_block(cid).await?;
-        let serializable = Self::Serializable::decode_ipld(cid, bytes)?;
-        let mut dir = Self::from_serializable(serializable).await?;
-        dir.persisted_as = OnceCell::new_with(*cid);
-        Ok(dir)
+    fn persisted_as(&self) -> Option<&OnceCell<Cid>> {
+        Some(&self.persisted_as)
     }
 }
 
@@ -1351,6 +1338,8 @@ mod snapshot_tests {
 
         let root_dir = &mut PublicDirectory::new_rc(time);
         let _ = root_dir.store(store).await.unwrap();
+
+        assert!(root_dir.persisted_as().and_then(OnceCell::get).is_some());
 
         for path in paths.iter() {
             root_dir

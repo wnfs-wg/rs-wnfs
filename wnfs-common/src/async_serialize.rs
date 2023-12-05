@@ -3,6 +3,7 @@ use crate::{
     BlockStore,
 };
 use anyhow::{bail, Result};
+use async_once_cell::OnceCell;
 use async_trait::async_trait;
 use bytes::Bytes;
 use libipld::{cbor::DagCborCodec, error::SerdeError, serde as ipld_serde, Cid, Ipld};
@@ -43,7 +44,7 @@ macro_rules! impl_storable_from_serde {
                     Ok(self.clone())
                 }
 
-                async fn from_serializable(serializable: Self::Serializable) -> ::anyhow::Result<Self> {
+                async fn from_serializable(_cid: Option<&$crate::libipld::Cid>, serializable: Self::Serializable) -> ::anyhow::Result<Self> {
                     Ok(serializable)
                 }
             }
@@ -92,17 +93,30 @@ pub trait Storable: Sized {
 
     async fn to_serializable(&self, store: &impl BlockStore) -> Result<Self::Serializable>;
 
-    async fn from_serializable(serializable: Self::Serializable) -> Result<Self>;
+    async fn from_serializable(cid: Option<&Cid>, serializable: Self::Serializable)
+        -> Result<Self>;
+
+    fn persisted_as(&self) -> Option<&OnceCell<Cid>> {
+        None
+    }
 
     async fn store(&self, store: &impl BlockStore) -> Result<Cid> {
-        let (bytes, codec) = self.to_serializable(store).await?.encode_ipld()?;
-        store.put_block(bytes, codec).await
+        let store_future = async {
+            let (bytes, codec) = self.to_serializable(store).await?.encode_ipld()?;
+            store.put_block(bytes, codec).await
+        };
+
+        if let Some(persisted_as) = self.persisted_as() {
+            persisted_as.get_or_try_init(store_future).await.cloned()
+        } else {
+            store_future.await
+        }
     }
 
     async fn load(cid: &Cid, store: &impl BlockStore) -> Result<Self> {
         let bytes = store.get_block(cid).await?;
         let serializable = Self::Serializable::decode_ipld(cid, bytes)?;
-        Self::from_serializable(serializable).await
+        Self::from_serializable(Some(cid), serializable).await
     }
 }
 
@@ -155,8 +169,15 @@ impl<T: Storable + CondSync> Storable for Arc<T> {
         self.as_ref().to_serializable(store).await
     }
 
-    async fn from_serializable(serializable: Self::Serializable) -> Result<Self> {
-        Ok(Arc::new(T::from_serializable(serializable).await?))
+    async fn from_serializable(
+        cid: Option<&Cid>,
+        serializable: Self::Serializable,
+    ) -> Result<Self> {
+        Ok(Arc::new(T::from_serializable(cid, serializable).await?))
+    }
+
+    fn persisted_as(&self) -> Option<&OnceCell<Cid>> {
+        self.as_ref().persisted_as()
     }
 }
 

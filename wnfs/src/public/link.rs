@@ -52,7 +52,7 @@ impl PublicLink {
 
     /// Gets the Cid stored in type. It attempts to get it from the store if it is not present in type.
     #[inline]
-    pub async fn resolve_cid(&self, store: &(impl BlockStore + ?Sized)) -> Result<&Cid> {
+    pub async fn resolve_cid(&self, store: &(impl BlockStore + ?Sized)) -> Result<Cid> {
         self.0.resolve_cid(store).await
     }
 

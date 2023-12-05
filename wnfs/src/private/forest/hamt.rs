@@ -411,10 +411,16 @@ impl Storable for HamtForest {
         })
     }
 
-    async fn from_serializable(serializable: Self::Serializable) -> Result<Self> {
+    async fn from_serializable(
+        _cid: Option<&Cid>,
+        serializable: Self::Serializable,
+    ) -> Result<Self> {
         Ok(Self {
-            hamt: Hamt::with_root(Arc::new(Node::from_serializable(serializable.root).await?)),
-            accumulator: AccumulatorSetup::from_serializable(serializable.accumulator).await?,
+            hamt: Hamt::with_root(Arc::new(
+                Node::from_serializable(None, serializable.root).await?,
+            )),
+            accumulator: AccumulatorSetup::from_serializable(None, serializable.accumulator)
+                .await?,
             name_cache: Arc::new(Cache::new(NAME_CACHE_CAPACITY)),
         })
     }

@@ -12,7 +12,7 @@ use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use libipld_core::cid::Cid;
 use std::collections::BTreeSet;
-use wnfs_common::{utils::Arc, BlockStore, LoadIpld, RemembersCid, Storable};
+use wnfs_common::{utils::Arc, BlockStore, Storable};
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
@@ -279,45 +279,25 @@ impl Storable for PublicNode {
         })
     }
 
-    async fn from_serializable(serializable: Self::Serializable) -> Result<Self> {
+    async fn from_serializable(
+        cid: Option<&Cid>,
+        serializable: Self::Serializable,
+    ) -> Result<Self> {
         // TODO(matheus23) this is weird, refactor?
         Ok(match serializable {
             PublicNodeSerializable::File(file) => Self::File(Arc::new(
-                PublicFile::from_serializable(PublicNodeSerializable::File(file)).await?,
+                PublicFile::from_serializable(cid, PublicNodeSerializable::File(file)).await?,
             )),
             PublicNodeSerializable::Dir(dir) => Self::Dir(Arc::new(
-                PublicDirectory::from_serializable(PublicNodeSerializable::Dir(dir)).await?,
+                PublicDirectory::from_serializable(cid, PublicNodeSerializable::Dir(dir)).await?,
             )),
         })
     }
 
-    async fn store(&self, store: &impl BlockStore) -> Result<Cid> {
+    fn persisted_as(&self) -> Option<&OnceCell<Cid>> {
         match self {
-            Self::File(file) => file.store(store).await,
-            Self::Dir(dir) => dir.store(store).await,
-        }
-    }
-
-    async fn load(cid: &Cid, store: &impl BlockStore) -> Result<Self> {
-        let bytes = store.get_block(cid).await?;
-        let serializable = PublicNodeSerializable::decode_ipld(cid, bytes)?;
-        let mut node = Self::from_serializable(serializable).await?;
-
-        // TODO(matheus23) refactor this? This sucks
-        match &mut node {
-            Self::File(file) => Arc::make_mut(file).persisted_as = OnceCell::new_with(*cid),
-            Self::Dir(dir) => Arc::make_mut(dir).persisted_as = OnceCell::new_with(*cid),
-        };
-
-        Ok(node)
-    }
-}
-
-impl RemembersCid for PublicNode {
-    fn persisted_as(&self) -> &OnceCell<Cid> {
-        match self {
-            PublicNode::File(file) => (*file).persisted_as(),
-            PublicNode::Dir(dir) => (*dir).persisted_as(),
+            PublicNode::File(file) => file.as_ref().persisted_as(),
+            PublicNode::Dir(dir) => dir.as_ref().persisted_as(),
         }
     }
 }

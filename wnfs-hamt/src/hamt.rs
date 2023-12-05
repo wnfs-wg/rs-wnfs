@@ -2,6 +2,7 @@ use super::{KeyValueChange, Node, HAMT_VERSION};
 use crate::{serializable::HamtSerializable, Hasher};
 use anyhow::Result;
 use async_trait::async_trait;
+use libipld::Cid;
 use semver::Version;
 use serde::{de::DeserializeOwned, Serialize};
 use std::hash::Hash;
@@ -148,9 +149,12 @@ where
         })
     }
 
-    async fn from_serializable(serializable: Self::Serializable) -> Result<Self> {
+    async fn from_serializable(
+        _cid: Option<&Cid>,
+        serializable: Self::Serializable,
+    ) -> Result<Self> {
         Ok(Self {
-            root: Arc::new(Node::from_serializable(serializable.root).await?),
+            root: Arc::new(Node::from_serializable(None, serializable.root).await?),
             version: serializable.version,
         })
     }
@@ -164,8 +168,10 @@ impl<K: CondSync, V: CondSync, H: Hasher + CondSync> Default for Hamt<K, V, H> {
 
 impl<K: CondSync, V: CondSync, H> PartialEq for Hamt<K, V, H>
 where
-    K: PartialEq,
-    V: PartialEq,
+    K: Storable + PartialEq + CondSync,
+    V: Storable + PartialEq + CondSync,
+    K::Serializable: Serialize + DeserializeOwned,
+    V::Serializable: Serialize + DeserializeOwned,
     H: Hasher + CondSync,
 {
     fn eq(&self, other: &Self) -> bool {
