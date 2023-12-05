@@ -13,7 +13,7 @@ use tokio::io::AsyncSeekExt;
 use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
 use wnfs_common::{
     utils::{Arc, CondSend},
-    BlockStore, Metadata, NodeType, Storable,
+    BlockStore, Link, Metadata, NodeType, Storable,
 };
 use wnfs_unixfs_file::{builder::FileBuilder, unixfs::UnixFsFile};
 
@@ -31,16 +31,10 @@ use wnfs_unixfs_file::{builder::FileBuilder, unixfs::UnixFsFile};
 /// ```
 #[derive(Debug)]
 pub struct PublicFile {
-    pub(crate) persisted_as: OnceCell<Cid>,
-    pub metadata: Metadata,
-    userland: FileUserland,
-    pub previous: BTreeSet<Cid>,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-enum FileUserland {
-    Loaded(UnixFsFile),
-    Stored(Cid),
+    persisted_as: OnceCell<Cid>,
+    pub(crate) metadata: Metadata,
+    pub(crate) userland: Link<UnixFsFile>,
+    pub(crate) previous: BTreeSet<Cid>,
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -64,7 +58,7 @@ impl PublicFile {
         Self {
             persisted_as: OnceCell::new(),
             metadata: Metadata::new(time),
-            userland: FileUserland::Loaded(UnixFsFile::empty()),
+            userland: Link::from(UnixFsFile::empty()),
             previous: BTreeSet::new(),
         }
     }
@@ -104,10 +98,11 @@ impl PublicFile {
             .build()?
             .store(store)
             .await?;
+
         Ok(Self {
             persisted_as: OnceCell::new(),
             metadata: Metadata::new(time),
-            userland: FileUserland::Loaded(UnixFsFile::load(&content_cid, store).await?),
+            userland: Link::from_cid(content_cid),
             previous: BTreeSet::new(),
         })
     }
@@ -163,10 +158,11 @@ impl PublicFile {
             .build()?
             .store(store)
             .await?;
+
         Ok(Self {
             persisted_as: OnceCell::new(),
             metadata: Metadata::new(time),
-            userland: FileUserland::Loaded(UnixFsFile::load(&content_cid, store).await?),
+            userland: Link::from_cid(content_cid),
             previous: BTreeSet::new(),
         })
     }
@@ -259,8 +255,9 @@ impl PublicFile {
     ) -> Result<impl AsyncRead + CondSend + 'a> {
         let mut reader = self
             .userland
-            .get_cloned(store)
+            .resolve_value(store)
             .await?
+            .clone()
             .into_content_reader(store, None)?;
         reader.seek(SeekFrom::Start(byte_offset)).await?;
         Ok(TokioAsyncReadCompatExt::compat(reader))
@@ -342,11 +339,10 @@ impl PublicFile {
             .build()?
             .store(store)
             .await?;
-        let userland = UnixFsFile::load(&content_cid, store).await?;
 
         let file = self.prepare_next_revision();
         file.metadata.upsert_mtime(time);
-        file.userland = FileUserland::Loaded(userland);
+        file.userland = Link::from_cid(content_cid);
 
         Ok(())
     }
@@ -392,7 +388,7 @@ impl Storable for PublicFile {
         Ok(PublicNodeSerializable::File(PublicFileSerializable {
             version: WNFS_VERSION,
             metadata: self.metadata.clone(),
-            userland: self.userland.get_stored(store).await?,
+            userland: self.userland.resolve_cid(store).await?,
             previous: self.previous.iter().cloned().collect(),
         }))
     }
@@ -412,7 +408,7 @@ impl Storable for PublicFile {
         Ok(Self {
             persisted_as: cid.cloned().map(OnceCell::new_with).unwrap_or_default(),
             metadata: serializable.metadata,
-            userland: FileUserland::Stored(serializable.userland),
+            userland: Link::from_cid(serializable.userland),
             previous: serializable.previous.iter().cloned().collect(),
         })
     }
@@ -448,22 +444,6 @@ impl Clone for PublicFile {
             metadata: self.metadata.clone(),
             userland: self.userland.clone(),
             previous: self.previous.clone(),
-        }
-    }
-}
-
-impl FileUserland {
-    async fn get_cloned(&self, store: &impl BlockStore) -> Result<UnixFsFile> {
-        match self {
-            Self::Loaded(file) => Ok(file.clone()),
-            Self::Stored(cid) => UnixFsFile::load(cid, store).await,
-        }
-    }
-
-    async fn get_stored(&self, store: &impl BlockStore) -> Result<Cid> {
-        match self {
-            Self::Loaded(file) => file.encode()?.store(store).await,
-            Self::Stored(cid) => Ok(*cid),
         }
     }
 }

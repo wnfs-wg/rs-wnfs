@@ -35,10 +35,10 @@ use wnfs_common::{
 /// ```
 #[derive(Debug)]
 pub struct PublicDirectory {
-    pub(crate) persisted_as: OnceCell<Cid>,
-    pub metadata: Metadata,
-    pub userland: BTreeMap<String, PublicLink>,
-    pub previous: BTreeSet<Cid>,
+    persisted_as: OnceCell<Cid>,
+    pub(crate) metadata: Metadata,
+    pub(crate) userland: BTreeMap<String, PublicLink>,
+    pub(crate) previous: BTreeSet<Cid>,
 }
 
 //--------------------------------------------------------------------------------------------------
