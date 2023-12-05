@@ -1,21 +1,21 @@
 //! This crate contains the common types and functions used by the WNFS crates.
-mod async_serialize;
 pub mod blockstore;
 mod encoding;
 mod error;
 mod link;
 mod metadata;
 mod pathnodes;
+mod storable;
 mod traits;
 pub mod utils;
 
-pub use async_serialize::*;
 pub use blockstore::*;
 pub use encoding::*;
 pub use error::*;
 pub use link::*;
 pub use metadata::*;
 pub use pathnodes::*;
+pub use storable::*;
 
 //--------------------------------------------------------------------------------------------------
 // Constants

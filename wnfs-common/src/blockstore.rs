@@ -1,7 +1,7 @@
 use crate::{
     decode, encode,
     utils::{Arc, CondSend, CondSync},
-    AsyncSerialize, BlockStoreError, MAX_BLOCK_SIZE,
+    BlockStoreError, MAX_BLOCK_SIZE,
 };
 use anyhow::{bail, Result};
 use async_trait::async_trait;
@@ -69,15 +69,6 @@ pub trait BlockStore: Sized + CondSync {
         V: Serialize + CondSync,
     {
         let bytes = encode(&ipld_serde::to_ipld(value)?, DagCborCodec)?;
-        self.put_block(bytes, CODEC_DAG_CBOR).await
-    }
-
-    async fn put_async_serializable<V>(&self, value: &V) -> Result<Cid>
-    where
-        V: AsyncSerialize + CondSync,
-    {
-        let ipld = value.async_serialize_ipld(self).await?;
-        let bytes = encode(&ipld, DagCborCodec)?;
         self.put_block(bytes, CODEC_DAG_CBOR).await
     }
 
