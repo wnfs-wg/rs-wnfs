@@ -1,7 +1,7 @@
-#[cfg(not(feature = "rug"))]
 #[cfg(feature = "num-bigint-dig")]
 use crate::BigNumDig;
 #[cfg(feature = "rug")]
+#[cfg(not(feature = "num-bigint-dig"))]
 use crate::BigNumRug;
 use crate::{
     error::VerificationError,
@@ -24,11 +24,11 @@ const L_HASH_DSI: &str = "wnfs/1.0/PoKE*/l 128-bit hash derivation";
 // Type Definitions
 //--------------------------------------------------------------------------------------------------
 
-#[cfg(not(feature = "rug"))]
 #[cfg(feature = "num-bigint-dig")]
 pub type DefaultBig = BigNumDig;
 
 #[cfg(feature = "rug")]
+#[cfg(not(feature = "num-bigint-dig"))]
 pub type DefaultBig = BigNumRug;
 
 /// A WNFS name.

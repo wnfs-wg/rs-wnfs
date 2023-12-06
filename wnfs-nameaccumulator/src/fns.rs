@@ -62,7 +62,7 @@ pub(crate) fn blake3_prime_digest<B: Big>(
         hasher.update(&counter.to_le_bytes());
         hasher.finalize_xof_reset_into(&mut hash);
 
-        let mut candidate = B::from_bytes_le(&hash);
+        let mut candidate = B::from_bytes_be(&hash);
 
         candidate |= B::Num::one();
 
@@ -89,7 +89,7 @@ pub(crate) fn blake3_prime_digest_fast<B: Big>(
     hasher.update(&counter.to_le_bytes());
     hasher.finalize_xof_into(&mut hash);
 
-    let mut to_verify = B::from_bytes_le(&hash);
+    let mut to_verify = B::from_bytes_be(&hash);
     to_verify |= B::Num::one();
 
     if !B::is_probably_prime(&to_verify) {
@@ -111,7 +111,7 @@ mod tests {
         let (output, counter) = blake3_prime_digest::<BigNumDig>(TEST_DSI, "Hello, World!", 16);
         assert_eq!(
             (output.to_str_radix(16), counter),
-            ("9ef50db608f1e61acedaf2fe6ad982ed".into(), 6)
+            ("7f1f785675ccdf2fb20238124fe3e80f".into(), 23)
         );
     }
 }

@@ -78,12 +78,6 @@ pub trait Big: Eq + Clone + Hash {
     where
         Self::Num: 'a;
 
-    /// Parses a little-endian-encoded number
-    fn from_bytes_le(bytes: &[u8]) -> Self::Num;
-
-    /// Turns a number into a little-encoded byte slice
-    fn to_bytes_le<const N: usize>(n: &Self::Num) -> [u8; N];
-
     /// Parses a big-endian-encoded number
     ///
     /// (Big endian is the standard encoding for RSA numbers.)
@@ -152,17 +146,6 @@ impl Big for BigNumDig {
 
         use num_integer::Integer;
         product.div_mod_floor(divisor)
-    }
-
-    fn from_bytes_le(bytes: &[u8]) -> Self::Num {
-        BigUint::from_bytes_le(bytes)
-    }
-
-    fn to_bytes_le<const N: usize>(n: &Self::Num) -> [u8; N] {
-        let vec = n.to_bytes_le();
-        let mut bytes = [0u8; N];
-        bytes.copy_from_slice(&vec);
-        bytes
     }
 
     fn from_bytes_be(bytes: &[u8]) -> Self::Num {
@@ -248,17 +231,6 @@ impl Big for BigNumRug {
         }
 
         product.div_rem_floor(divisor.clone())
-    }
-
-    fn from_bytes_le(bytes: &[u8]) -> Self::Num {
-        Integer::from_digits(bytes, Order::LsfLe)
-    }
-
-    fn to_bytes_le<const N: usize>(n: &Self::Num) -> [u8; N] {
-        let vec = n.to_digits(Order::LsfLe);
-        let mut bytes = [0u8; N];
-        bytes.copy_from_slice(&vec);
-        bytes
     }
 
     fn from_bytes_be(bytes: &[u8]) -> Self::Num {

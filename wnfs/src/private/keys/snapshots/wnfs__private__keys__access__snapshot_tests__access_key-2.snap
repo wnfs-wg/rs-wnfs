@@ -3,6 +3,7 @@ source: wnfs/src/private/keys/access.rs
 expression: snap_key
 ---
 {
+  "cid": "bafyr4ics27f5xqe7ryshkpoln5w7nkvvsdnoaw55r5gfb5earluczlil4a",
   "value": {
     "wnfs/share/snapshot": {
       "contentCid": {
