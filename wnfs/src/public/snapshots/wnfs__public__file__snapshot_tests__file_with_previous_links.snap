@@ -3,6 +3,7 @@ source: wnfs/src/public/file.rs
 expression: file
 ---
 {
+  "cid": "bafyr4ibvauaso7jbhy5f7tuyrhdbbrxxvfo4ds5ylzrnvnosbn4sbgv3n4",
   "value": {
     "wnfs/pub/file": {
       "metadata": {

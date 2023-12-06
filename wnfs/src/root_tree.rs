@@ -467,9 +467,11 @@ mod snapshot_tests {
             .get(&vec!["private".to_string()])
             .unwrap();
 
+        let root_cid = forest.store(store).await.unwrap();
+
         utils::walk_dir(store, forest, root_dir, rng).await.unwrap();
 
-        let values = store.get_all_block_snapshots().unwrap();
+        let values = store.get_dag_snapshot(root_cid).await.unwrap();
 
         insta::assert_json_snapshot!(values);
     }

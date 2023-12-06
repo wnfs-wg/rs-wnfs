@@ -7,8 +7,8 @@ use bytes::Bytes;
 use libipld::{
     cbor::DagCborCodec,
     json::DagJsonCodec,
-    prelude::{Decode, Encode},
-    Cid, Ipld,
+    prelude::{Decode, Encode, References},
+    Cid, Ipld, IpldCodec,
 };
 use parking_lot::Mutex;
 use proptest::{
@@ -18,7 +18,7 @@ use proptest::{
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::{HashMap, HashSet, VecDeque},
     io::Cursor,
 };
 
@@ -42,6 +42,7 @@ base64_serde_type!(Base64Standard, base64::engine::general_purpose::STANDARD);
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct BlockSnapshot {
+    pub cid: String,
     pub value: Value,
     #[serde(with = "Base64Standard")]
     pub bytes: Bytes,
@@ -59,10 +60,10 @@ pub trait Sampleable {
 impl SnapshotBlockStore {
     pub async fn get_block_snapshot(&self, cid: &Cid) -> Result<BlockSnapshot> {
         let bytes = self.get_block(cid).await?;
-        self.handle_block(cid, &bytes).map(|(_, snapshot)| snapshot)
+        self.handle_block(cid, &bytes)
     }
 
-    pub fn handle_block(&self, cid: &Cid, bytes: &Bytes) -> Result<(String, BlockSnapshot)> {
+    pub fn handle_block(&self, cid: &Cid, bytes: &Bytes) -> Result<BlockSnapshot> {
         let ipld = match cid.codec() {
             CODEC_DAG_CBOR => Ipld::decode(DagCborCodec, &mut Cursor::new(bytes))?,
             CODEC_RAW => match self.block_handlers.lock().get(cid) {
@@ -76,22 +77,34 @@ impl SnapshotBlockStore {
         ipld.encode(DagJsonCodec, &mut json_bytes)?;
 
         let value = serde_json::from_slice(&json_bytes)?;
-        Ok((
-            cid.to_string(),
-            BlockSnapshot {
-                value,
-                bytes: bytes.clone(),
-            },
-        ))
+        Ok(BlockSnapshot {
+            cid: cid.to_string(),
+            value,
+            bytes: bytes.clone(),
+        })
     }
 
-    pub fn get_all_block_snapshots(&self) -> Result<BTreeMap<String, BlockSnapshot>> {
-        self.inner
-            .0
-            .lock()
-            .iter()
-            .map(|(cid, bytes)| self.handle_block(cid, bytes))
-            .collect()
+    pub async fn get_dag_snapshot(&self, root_cid: Cid) -> Result<Vec<BlockSnapshot>> {
+        let mut frontier = VecDeque::from([root_cid]);
+        let mut visited = HashSet::new();
+        let mut snapshots = Vec::new();
+
+        while let Some(cid) = frontier.pop_front() {
+            if !visited.insert(cid) {
+                continue;
+            }
+
+            let snapshot = self.get_block_snapshot(&cid).await?;
+            let codec: IpldCodec = cid.codec().try_into()?;
+            <Ipld as References<IpldCodec>>::references(
+                codec,
+                &mut Cursor::new(&snapshot.bytes),
+                &mut frontier,
+            )?;
+            snapshots.push(snapshot);
+        }
+
+        Ok(snapshots)
     }
 
     pub fn add_block_handler(&mut self, cid: Cid, f: BlockHandler) {

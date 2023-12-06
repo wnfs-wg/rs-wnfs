@@ -380,9 +380,9 @@ mod snapshot_tests {
                 .unwrap();
         }
 
-        let _ = root_dir.store(store).await.unwrap();
+        let cid = root_dir.store(store).await.unwrap();
 
-        let values = store.get_all_block_snapshots().unwrap();
+        let values = store.get_dag_snapshot(cid).await.unwrap();
         insta::assert_json_snapshot!(values)
     }
 }
