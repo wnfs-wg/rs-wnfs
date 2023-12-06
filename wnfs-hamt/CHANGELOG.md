@@ -1,8 +1,11 @@
 # Changelog
 
-## Unreleased
+## 0.1.26 (2023-12-06)
 
-* Remove `TryFrom<Ipld>` instances for `Hamt`, `Node` and `Pointer` and instead refactor handling of serialization internally.
+* Refactored the API to use a `Storable` trait instead of `AsyncSerialize` ([#378](https://github.com/wnfs-wg/rs-wnfs/pull/378))
+  This enables writing non-dag-cbor data, such as UnixFS files to WNFS, which powers the new file writing features.
+  As part of that `TryFrom<Ipld>` instances were removed for `Hamt`, `Node` and `Pointer` and instead these use `Storable` and `HamtSerializable`, `NodeSerializable` and `PointerSerializable` structs.
+  This also enables using `Node` in a nested way such as `Node<String, Node<String, String>>`.
 
 ## 0.1.25 (2023-09-04)
 
