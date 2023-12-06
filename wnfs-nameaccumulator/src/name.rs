@@ -1,18 +1,21 @@
+#[cfg(not(feature = "rug"))]
+#[cfg(feature = "num-bigint-dig")]
+use crate::BigNumDig;
+#[cfg(feature = "rug")]
+use crate::BigNumRug;
 use crate::{
     error::VerificationError,
-    fns::{blake3_prime_digest, blake3_prime_digest_fast, multi_exp, nlogn_product},
-    uint256_serde_be::to_bytes_helper,
+    fns::{blake3_prime_digest, blake3_prime_digest_fast, multi_exp},
+    traits::Big,
 };
 use anyhow::Result;
-use num_bigint_dig::{BigUint, ModInverse, RandBigInt, RandPrime};
-use num_integer::Integer;
-use num_traits::One;
+use libipld::Cid;
+use num_traits::{One, Zero};
 use once_cell::sync::OnceCell;
 use rand_core::CryptoRngCore;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::{hash::Hash, str::FromStr};
-use wnfs_common::impl_storable_from_serde;
-use zeroize::Zeroize;
+use wnfs_common::{BlockStore, Storable};
 
 /// The domain separation string for deriving the l hash in the PoKE* protocol.
 const L_HASH_DSI: &str = "wnfs/1.0/PoKE*/l 128-bit hash derivation";
@@ -21,6 +24,13 @@ const L_HASH_DSI: &str = "wnfs/1.0/PoKE*/l 128-bit hash derivation";
 // Type Definitions
 //--------------------------------------------------------------------------------------------------
 
+#[cfg(not(feature = "rug"))]
+#[cfg(feature = "num-bigint-dig")]
+pub type DefaultBig = BigNumDig;
+
+#[cfg(feature = "rug")]
+pub type DefaultBig = BigNumRug;
+
 /// A WNFS name.
 /// Each file or directory has a name.
 /// Names consist of a set of name segments and are commited to name accumulators.
@@ -28,25 +38,29 @@ const L_HASH_DSI: &str = "wnfs/1.0/PoKE*/l 128-bit hash derivation";
 /// to prove a relationship between two names, e.g a file being contained in
 /// a sub-directory of a directory while leaking as little information as possible.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct Name {
-    relative_to: NameAccumulator,
-    segments: Vec<NameSegment>,
+pub struct Name<B: Big = DefaultBig> {
+    relative_to: NameAccumulator<B>,
+    segments: Vec<NameSegment<B>>,
 }
 
 /// Represents a setup needed for RSA accumulator operation.
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Deserialize, Serialize)]
-pub struct AccumulatorSetup {
-    #[serde(with = "crate::uint256_serde_be")]
-    modulus: BigUint,
-    #[serde(with = "crate::uint256_serde_be")]
-    pub generator: BigUint,
+pub struct AccumulatorSetup<B: Big = DefaultBig> {
+    #[serde(bound = "B: Big")]
+    #[serde(deserialize_with = "crate::uint256_serde_be::deserialize::<B, _>")]
+    #[serde(serialize_with = "crate::uint256_serde_be::serialize::<B, _>")]
+    modulus: B::Num,
+    #[serde(bound = "B: Big")]
+    #[serde(deserialize_with = "crate::uint256_serde_be::deserialize::<B, _>")]
+    #[serde(serialize_with = "crate::uint256_serde_be::serialize::<B, _>")]
+    pub generator: B::Num,
 }
 
 /// A WNFS name represented as the RSA accumulator of all of its name segments.
 #[derive(Clone, Eq)]
-pub struct NameAccumulator {
+pub struct NameAccumulator<B: Big = DefaultBig> {
     /// A 2048-bit number
-    state: BigUint,
+    state: B::Num,
     /// A cache for its serialized form
     serialized_cache: OnceCell<[u8; 256]>,
 }
@@ -54,65 +68,67 @@ pub struct NameAccumulator {
 /// A name accumluator segment. A name accumulator commits to a set of these.
 /// They are represented as 256-bit prime numbers.
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct NameSegment(
+pub struct NameSegment<B: Big = DefaultBig>(
     /// Invariant: Must be a 256-bit prime
-    BigUint,
+    B::Num,
 );
 
 /// PoKE* (Proof of Knowledge of Exponent),
 /// assuming that the base is trusted
 /// (e.g. part of a common reference string).
 #[derive(Clone, PartialEq, Eq)]
-pub struct ElementsProof {
+pub struct ElementsProof<B: Big = DefaultBig> {
     /// The accumulator's base, $u$
-    pub base: BigUint,
+    pub base: B::Num,
     /// A part of the proof, $Q = u^q$, where $element = q*l + r$
-    pub big_q: BigUint,
+    pub big_q: B::Num,
     /// Part of the proof that can't be batched
-    pub part: UnbatchableProofPart,
+    pub part: UnbatchableProofPart<B>,
 }
 
 /// The part of PoKE* (Proof of Knowledge of Exponent) proofs that can't be batched.
 /// This is very small (serialized typically <20 bytes, most likely just 17 bytes).
 #[derive(Clone, PartialEq, Eq)]
-pub struct UnbatchableProofPart {
+pub struct UnbatchableProofPart<B: Big = DefaultBig> {
     /// The number to increase a hash by to land on the next prime.
     /// Helps to more quickly generate/verify the prime number $l$.
     pub l_hash_inc: u32,
     /// A part of the proof, the residue of the element that's proven, i.e. $r$ in $element = q*l + r$
-    pub r: BigUint,
+    pub r: B::Num,
 }
 
 /// The part of a name accumulator proof that can be batched,
 /// i.e. the size of this part of the proof is independent of
 /// the number of elements being proven. It's always 2048-bit.
 #[derive(Clone, Eq, PartialEq, Serialize, Deserialize)]
-pub struct BatchedProofPart {
-    #[serde(with = "crate::uint256_serde_be")]
-    big_q_product: BigUint,
+pub struct BatchedProofPart<B: Big = DefaultBig> {
+    #[serde(bound = "B: Big")]
+    #[serde(deserialize_with = "crate::uint256_serde_be::deserialize::<B, _>")]
+    #[serde(serialize_with = "crate::uint256_serde_be::serialize::<B, _>")]
+    big_q_product: B::Num,
 }
 
 /// Data that is kept around for verifying batch proofs.
-pub struct BatchedProofVerification<'a> {
-    bases_and_exponents: Vec<(BigUint, BigUint)>,
-    setup: &'a AccumulatorSetup,
+pub struct BatchedProofVerification<'a, B: Big = DefaultBig> {
+    bases_and_exponents: Vec<(B::Num, B::Num)>,
+    setup: &'a AccumulatorSetup<B>,
 }
 
 //--------------------------------------------------------------------------------------------------
 // Implementations
 //--------------------------------------------------------------------------------------------------
 
-impl Name {
+impl<B: Big> Name<B> {
     /// Create the empty name
-    pub fn empty(setup: &AccumulatorSetup) -> Self {
+    pub fn empty(setup: &AccumulatorSetup<B>) -> Self {
         Self::new(NameAccumulator::empty(setup), None)
     }
 
     /// Create a name relative to some other committed name
     /// and with given segments added to that name.
     pub fn new(
-        relative_to: NameAccumulator,
-        segments: impl IntoIterator<Item = NameSegment>,
+        relative_to: NameAccumulator<B>,
+        segments: impl IntoIterator<Item = NameSegment<B>>,
     ) -> Self {
         Self {
             relative_to,
@@ -132,7 +148,7 @@ impl Name {
     }
 
     /// Return the parent name, if possible.
-    pub fn parent(&self) -> Option<Name> {
+    pub fn parent(&self) -> Option<Name<B>> {
         if self.is_root() {
             None
         } else {
@@ -142,15 +158,15 @@ impl Name {
         }
     }
 
-    pub fn get_segments(&self) -> &Vec<NameSegment> {
+    pub fn get_segments(&self) -> &Vec<NameSegment<B>> {
         &self.segments
     }
 
-    pub fn add_segments(&mut self, segments: impl IntoIterator<Item = NameSegment>) {
+    pub fn add_segments(&mut self, segments: impl IntoIterator<Item = NameSegment<B>>) {
         self.segments.extend(segments);
     }
 
-    pub fn with_segments_added(&self, segments: impl IntoIterator<Item = NameSegment>) -> Self {
+    pub fn with_segments_added(&self, segments: impl IntoIterator<Item = NameSegment<B>>) -> Self {
         let mut clone = self.clone();
         clone.add_segments(segments);
         clone
@@ -163,22 +179,22 @@ impl Name {
     /// This proof process is memoized. Running it twice won't duplicate work.
     pub fn into_proven_accumulator(
         &self,
-        setup: &AccumulatorSetup,
-    ) -> (NameAccumulator, ElementsProof) {
+        setup: &AccumulatorSetup<B>,
+    ) -> (NameAccumulator<B>, ElementsProof<B>) {
         let mut name = self.relative_to.clone();
         let proof = name.add(self.segments.iter(), setup);
         (name, proof)
     }
 
     /// Return what name accumulator this name commits to.
-    pub fn into_accumulator(&self, setup: &AccumulatorSetup) -> NameAccumulator {
+    pub fn into_accumulator(&self, setup: &AccumulatorSetup<B>) -> NameAccumulator<B> {
         self.into_proven_accumulator(setup).0
     }
 }
 
-impl NameAccumulator {
+impl<B: Big> NameAccumulator<B> {
     /// Create the empty accumulator.
-    pub fn empty(setup: &AccumulatorSetup) -> Self {
+    pub fn empty(setup: &AccumulatorSetup<B>) -> Self {
         Self {
             state: setup.generator.clone(),
             serialized_cache: OnceCell::new(),
@@ -187,9 +203,12 @@ impl NameAccumulator {
 
     /// Create an accumulator with given segments inside.
     pub fn with_segments<'a>(
-        segments: impl IntoIterator<Item = &'a NameSegment>,
-        setup: &AccumulatorSetup,
-    ) -> Self {
+        segments: impl IntoIterator<Item = &'a NameSegment<B>> + Clone,
+        setup: &AccumulatorSetup<B>,
+    ) -> Self
+    where
+        B: 'a,
+    {
         let mut acc = Self::empty(setup);
         acc.add(segments, setup); // ignore proof
         acc
@@ -199,7 +218,7 @@ impl NameAccumulator {
     ///
     /// This needs to be a 2048-bit number in the RSA group from
     /// the accumulator setup used.
-    pub fn from_state(state: BigUint) -> Self {
+    pub fn from_state(state: B::Num) -> Self {
         Self {
             state,
             serialized_cache: OnceCell::new(),
@@ -210,26 +229,33 @@ impl NameAccumulator {
     /// elements proof that verifies the change of state of the accumulator.
     pub fn add<'a>(
         &mut self,
-        segments: impl IntoIterator<Item = &'a NameSegment>,
-        setup: &AccumulatorSetup,
-    ) -> ElementsProof {
+        segments: impl IntoIterator<Item = &'a NameSegment<B>>,
+        setup: &AccumulatorSetup<B>,
+    ) -> ElementsProof<B>
+    where
+        B: 'a,
+    {
+        let segments = segments
+            .into_iter()
+            .map(|s| s.0.clone())
+            .collect::<Vec<_>>();
+
         // Reset the serialized state
         self.serialized_cache = OnceCell::new();
-
-        let mut product = BigUint::one();
-        for segment in segments {
-            product *= &segment.0;
-        }
-
         let witness = self.state.clone();
-        self.state = self.state.modpow(&product, &setup.modulus);
 
-        let data = poke_fiat_shamir_l_hash_data(&setup.modulus, &witness, &self.state);
-        let (l, l_hash_inc) = blake3_prime_digest(L_HASH_DSI, data, 16);
+        self.state = B::modpow_product(&self.state, segments.iter(), &setup.modulus);
 
-        let (q, r) = product.div_mod_floor(&l);
+        let data = poke_fiat_shamir_l_hash_data::<B>(&setup.modulus, &witness, &self.state);
+        let (l, l_hash_inc) = blake3_prime_digest::<B>(L_HASH_DSI, data, 16);
 
-        let big_q = witness.modpow(&q, &setup.modulus);
+        let (q, r) = B::quotrem_product(segments.iter(), &l);
+
+        let big_q = if B::Num::is_zero(&q) {
+            B::Num::one()
+        } else {
+            B::modpow(&witness, &q, &setup.modulus)
+        };
 
         ElementsProof {
             base: witness,
@@ -249,7 +275,7 @@ impl NameAccumulator {
 
     /// Deserialize a name accumulator from bytes.
     pub fn parse_slice(slice: [u8; 256]) -> Self {
-        let state = BigUint::from_bytes_be(&slice);
+        let state = B::from_bytes_be(&slice);
         Self {
             state,
             serialized_cache: OnceCell::from(slice),
@@ -260,9 +286,7 @@ impl NameAccumulator {
     pub fn into_bytes(self) -> [u8; 256] {
         let cache = self.serialized_cache;
         let state = self.state;
-        cache
-            .into_inner()
-            .unwrap_or_else(|| to_bytes_helper(&state))
+        cache.into_inner().unwrap_or_else(|| B::to_bytes_be(&state))
     }
 
     /// Serialize a name accumulator to bytes and return a reference.
@@ -270,33 +294,31 @@ impl NameAccumulator {
     /// This call is memoized, serializing twice won't duplicate work.
     pub fn as_bytes(&self) -> &[u8; 256] {
         self.serialized_cache
-            .get_or_init(|| to_bytes_helper(&self.state))
+            .get_or_init(|| B::to_bytes_be(&self.state))
     }
 }
 
-fn poke_fiat_shamir_l_hash_data(
-    modulus: &BigUint,
-    base: &BigUint,
-    commitment: &BigUint,
+fn poke_fiat_shamir_l_hash_data<B: Big>(
+    modulus: &B::Num,
+    base: &B::Num,
+    commitment: &B::Num,
 ) -> impl AsRef<[u8]> {
     [
-        to_bytes_helper::<256>(modulus),
-        to_bytes_helper::<256>(base),
-        to_bytes_helper::<256>(commitment),
+        B::to_bytes_be::<256>(modulus),
+        B::to_bytes_be::<256>(base),
+        B::to_bytes_be::<256>(commitment),
     ]
     .concat()
 }
 
-impl AccumulatorSetup {
+impl<B: Big> AccumulatorSetup<B> {
     /// Finishes a setup given a 2048-bit RSA modulus encoded in big-endian.
     ///
     /// Remaining work is safe and doesn't require a trusted environment.
     pub fn with_modulus(modulus_big_endian: &[u8; 256], rng: &mut impl CryptoRngCore) -> Self {
-        let modulus = BigUint::from_bytes_be(modulus_big_endian);
+        let modulus = B::from_bytes_be(modulus_big_endian);
         // The generator is just some random quadratic residue.
-        let generator = rng
-            .gen_biguint_below(&modulus)
-            .modpow(&BigUint::from(2u8), &modulus);
+        let generator = B::squaremod(&B::rand_below(&modulus, rng), &modulus);
         Self { modulus, generator }
     }
 
@@ -308,19 +330,9 @@ impl AccumulatorSetup {
     /// priviliged process to observe the memory and copy out the toxic waste
     /// before it's deleted.
     pub fn trusted(rng: &mut impl CryptoRngCore) -> Self {
-        // This is a trusted setup.
-        // The prime factors are "toxic waste", they need to be
-        // disposed immediately.
-        let mut p = rng.gen_prime(1024);
-        let mut q = rng.gen_prime(1024);
-        let modulus = &p * &q;
-        // Make sure to delete toxic waste
-        p.zeroize();
-        q.zeroize();
+        let modulus = B::rand_rsa_modulus(rng);
         // The generator is just some random quadratic residue.
-        let generator = rng
-            .gen_biguint_below(&modulus)
-            .modpow(&BigUint::from(2u8), &modulus);
+        let generator = B::squaremod(&B::rand_below(&modulus, rng), &modulus);
         Self { modulus, generator }
     }
 
@@ -331,47 +343,45 @@ impl AccumulatorSetup {
     ///
     /// [rsa factoring challenge]: https://en.wikipedia.org/wiki/RSA_numbers#RSA-2048
     pub fn from_rsa_2048(rng: &mut impl CryptoRngCore) -> Self {
-        let modulus = BigUint::from_str(
+        let modulus = B::Num::from_str(
             "25195908475657893494027183240048398571429282126204032027777137836043662020707595556264018525880784406918290641249515082189298559149176184502808489120072844992687392807287776735971418347270261896375014971824691165077613379859095700097330459748808428401797429100642458691817195118746121515172654632282216869987549182422433637259085141865462043576798423387184774447920739934236584823824281198163815010674810451660377306056201619676256133844143603833904414952634432190114657544454178424020924616515723350778707749817125772467962926386356373289912154831438167899885040445364023527381951378636564391212010397122822120720357",
-        ).unwrap();
-        let generator = rng
-            .gen_biguint_below(&modulus)
-            .modpow(&BigUint::from(2u8), &modulus);
+        ).ok().unwrap();
+        let generator = B::squaremod(&B::rand_below(&modulus, rng), &modulus);
         Self { modulus, generator }
     }
 }
 
-impl NameSegment {
+impl<B: Big> NameSegment<B> {
     /// Create a new, random name segment
     pub fn new(rng: &mut impl CryptoRngCore) -> Self {
-        Self(rng.gen_prime(256))
+        Self(B::rand_prime_256bit(rng))
     }
 
     /// Derive a name segment as the hash from some data
     pub fn new_hashed(domain_separation_info: &str, data: impl AsRef<[u8]>) -> Self {
-        Self(blake3_prime_digest(domain_separation_info, data, 32).0)
+        Self(blake3_prime_digest::<B>(domain_separation_info, data, 32).0)
     }
 }
 
-impl BatchedProofPart {
+impl<B: Big> BatchedProofPart<B> {
     /// Create a new proof batcher.
     pub fn new() -> Self {
         Self {
-            big_q_product: BigUint::one(),
+            big_q_product: B::Num::one(),
         }
     }
 
     /// Add the batchable portion of a proof of elements
     /// for a certain name accumulator to this batch proof.
-    pub fn add(&mut self, proof: &ElementsProof, setup: &AccumulatorSetup) {
+    pub fn add(&mut self, proof: &ElementsProof<B>, setup: &AccumulatorSetup<B>) {
         self.big_q_product *= &proof.big_q;
         self.big_q_product %= &setup.modulus;
     }
 }
 
-impl<'a> BatchedProofVerification<'a> {
+impl<'a, B: Big> BatchedProofVerification<'a, B> {
     /// Create a new verifier
-    pub fn new(setup: &'a AccumulatorSetup) -> Self {
+    pub fn new(setup: &'a AccumulatorSetup<B>) -> Self {
         Self {
             bases_and_exponents: Vec::new(),
             setup,
@@ -388,26 +398,26 @@ impl<'a> BatchedProofVerification<'a> {
     /// don't fit this proof part.
     pub fn add(
         &mut self,
-        base: &NameAccumulator,
-        commitment: &NameAccumulator,
-        proof_part: &UnbatchableProofPart,
+        base: &NameAccumulator<B>,
+        commitment: &NameAccumulator<B>,
+        proof_part: &UnbatchableProofPart<B>,
     ) -> Result<()> {
         let hasher =
-            poke_fiat_shamir_l_hash_data(&self.setup.modulus, &base.state, &commitment.state);
-        let l = blake3_prime_digest_fast(L_HASH_DSI, hasher, 16, proof_part.l_hash_inc)
+            poke_fiat_shamir_l_hash_data::<B>(&self.setup.modulus, &base.state, &commitment.state);
+        let l = blake3_prime_digest_fast::<B>(L_HASH_DSI, hasher, 16, proof_part.l_hash_inc)
             .ok_or(VerificationError::LHashNonPrime)?;
 
         if proof_part.r >= l {
             Err(VerificationError::ResidueOutsideRange)?;
         }
 
-        let proof_kcr_base = (&commitment.state
-            * (&base.state)
-                .mod_inverse(&self.setup.modulus)
-                .unwrap()
-                .to_biguint()
-                .unwrap()
-                .modpow(&proof_part.r, &self.setup.modulus))
+        let proof_kcr_base = (commitment.state.clone()
+            * B::modpow(
+                &B::mod_inv(&base.state, &self.setup.modulus)
+                    .ok_or(VerificationError::NoInverse)?,
+                &proof_part.r,
+                &self.setup.modulus,
+            ))
             % &self.setup.modulus;
 
         self.bases_and_exponents.push((proof_kcr_base, l));
@@ -419,14 +429,11 @@ impl<'a> BatchedProofVerification<'a> {
     /// the batched proof.
     ///
     /// Will return an error if verification fails.
-    pub fn verify(&self, batched_proof: &BatchedProofPart) -> Result<()> {
-        let l_star = nlogn_product(&self.bases_and_exponents, |(_, l)| l);
+    pub fn verify(&self, batched_proof: &BatchedProofPart<B>) -> Result<()> {
+        let exponents = self.bases_and_exponents.iter().map(|(_, l)| l);
+        let tmp = B::modpow_product(&batched_proof.big_q_product, exponents, &self.setup.modulus);
 
-        if batched_proof
-            .big_q_product
-            .modpow(&l_star, &self.setup.modulus)
-            != multi_exp(&self.bases_and_exponents, &self.setup.modulus)
-        {
+        if tmp != multi_exp::<B>(&self.bases_and_exponents, &self.setup.modulus) {
             return Err(VerificationError::ValidationFailed.into());
         }
 
@@ -434,28 +441,56 @@ impl<'a> BatchedProofVerification<'a> {
     }
 }
 
-impl_storable_from_serde! { AccumulatorSetup, NameSegment, NameAccumulator, UnbatchableProofPart, BatchedProofPart }
+macro_rules! impl_storable {
+    ( $ty:ty ) => {
+        #[cfg_attr(not(target_arch = "wasm32"), ::async_trait::async_trait)]
+        #[cfg_attr(target_arch = "wasm32", ::async_trait::async_trait(?Send))]
+        impl<B: Big> Storable for $ty {
+            type Serializable = $ty;
 
-impl Serialize for NameSegment {
+            async fn to_serializable(
+                &self,
+                _store: &impl BlockStore,
+            ) -> Result<Self::Serializable> {
+                Ok(self.clone())
+            }
+
+            async fn from_serializable(
+                _: Option<&Cid>,
+                serializable: Self::Serializable,
+            ) -> Result<Self> {
+                Ok(serializable)
+            }
+        }
+    };
+}
+
+impl_storable!(AccumulatorSetup<B>);
+impl_storable!(NameSegment<B>);
+impl_storable!(NameAccumulator<B>);
+impl_storable!(UnbatchableProofPart<B>);
+impl_storable!(BatchedProofPart<B>);
+
+impl<B: Big> Serialize for NameSegment<B> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
     {
-        serde_bytes::serialize(to_bytes_helper::<32>(&self.0).as_ref(), serializer)
+        serde_bytes::serialize(B::to_bytes_be::<32>(&self.0).as_ref(), serializer)
     }
 }
 
-impl<'de> Deserialize<'de> for NameSegment {
+impl<'de, B: Big> Deserialize<'de> for NameSegment<B> {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: serde::Deserializer<'de>,
     {
         let bytes: Vec<u8> = serde_bytes::deserialize(deserializer)?;
-        Ok(NameSegment(BigUint::from_bytes_be(&bytes)))
+        Ok(NameSegment(B::from_bytes_be(&bytes)))
     }
 }
 
-impl<'de> Deserialize<'de> for NameAccumulator {
+impl<'de, B: Big> Deserialize<'de> for NameAccumulator<B> {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: serde::Deserializer<'de>,
@@ -465,7 +500,7 @@ impl<'de> Deserialize<'de> for NameAccumulator {
     }
 }
 
-impl Serialize for NameAccumulator {
+impl<B: Big> Serialize for NameAccumulator<B> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
@@ -474,47 +509,47 @@ impl Serialize for NameAccumulator {
     }
 }
 
-impl<'de> Deserialize<'de> for UnbatchableProofPart {
+impl<'de, B: Big> Deserialize<'de> for UnbatchableProofPart<B> {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: Deserializer<'de>,
     {
         let (l_hash_inc, r): (u32, &serde_bytes::Bytes) = Deserialize::deserialize(deserializer)?;
-        let r = BigUint::from_bytes_be(r);
+        let r = B::from_bytes_be(r);
         Ok(Self { l_hash_inc, r })
     }
 }
 
-impl Serialize for UnbatchableProofPart {
+impl<B: Big> Serialize for UnbatchableProofPart<B> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
     {
-        let residue = to_bytes_helper::<16>(&self.r);
+        let residue = B::to_bytes_be::<16>(&self.r);
         let r = serde_bytes::Bytes::new(&residue);
         (self.l_hash_inc, r).serialize(serializer)
     }
 }
 
-impl PartialEq for NameAccumulator {
+impl<B: Big> PartialEq for NameAccumulator<B> {
     fn eq(&self, other: &Self) -> bool {
         self.state == other.state
     }
 }
 
-impl Ord for NameAccumulator {
+impl<B: Big> Ord for NameAccumulator<B> {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         self.state.cmp(&other.state)
     }
 }
 
-impl PartialOrd for NameAccumulator {
+impl<B: Big> PartialOrd for NameAccumulator<B> {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         Some(self.cmp(other))
     }
 }
 
-impl std::fmt::Debug for NameAccumulator {
+impl<B: Big> std::fmt::Debug for NameAccumulator<B> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("NameAccumulator")
             .field("state", &self.state.to_string())
@@ -522,25 +557,25 @@ impl std::fmt::Debug for NameAccumulator {
     }
 }
 
-impl Hash for NameAccumulator {
+impl<B: Big> Hash for NameAccumulator<B> {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         self.state.hash(state);
     }
 }
 
-impl AsRef<[u8]> for NameAccumulator {
+impl<B: Big> AsRef<[u8]> for NameAccumulator<B> {
     fn as_ref(&self) -> &[u8] {
         self.as_bytes()
     }
 }
 
-impl Default for BatchedProofPart {
+impl<B: Big> Default for BatchedProofPart<B> {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl std::fmt::Debug for NameSegment {
+impl<B: Big> std::fmt::Debug for NameSegment<B> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_tuple("NameSegment")
             .field(&self.0.to_string())
@@ -548,7 +583,7 @@ impl std::fmt::Debug for NameSegment {
     }
 }
 
-impl std::fmt::Debug for AccumulatorSetup {
+impl<B: Big> std::fmt::Debug for AccumulatorSetup<B> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("AccumulatorSetup")
             .field("modulus", &self.modulus.to_string())
@@ -557,7 +592,7 @@ impl std::fmt::Debug for AccumulatorSetup {
     }
 }
 
-impl std::fmt::Debug for UnbatchableProofPart {
+impl<B: Big> std::fmt::Debug for UnbatchableProofPart<B> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("UnbatchableProofPart")
             .field("l_hash_inc", &self.l_hash_inc)
@@ -566,7 +601,7 @@ impl std::fmt::Debug for UnbatchableProofPart {
     }
 }
 
-impl std::fmt::Debug for ElementsProof {
+impl<B: Big> std::fmt::Debug for ElementsProof<B> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ElementsProof")
             .field("base", &self.base.to_string())
@@ -576,7 +611,7 @@ impl std::fmt::Debug for ElementsProof {
     }
 }
 
-impl std::fmt::Debug for BatchedProofPart {
+impl<B: Big> std::fmt::Debug for BatchedProofPart<B> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("BatchedProofPart")
             .field("big_q_product", &self.big_q_product.to_string())
@@ -590,9 +625,10 @@ impl std::fmt::Debug for BatchedProofPart {
 
 #[cfg(test)]
 mod tests {
+    use super::DefaultBig;
     use crate::{
-        uint256_serde_be::to_bytes_helper, AccumulatorSetup, BatchedProofPart,
-        BatchedProofVerification, Name, NameAccumulator, NameSegment,
+        AccumulatorSetup, BatchedProofPart, BatchedProofVerification, Big, BigNumDig, Name,
+        NameAccumulator, NameSegment,
     };
     use anyhow::Result;
     use libipld::{
@@ -647,7 +683,7 @@ mod tests {
     #[test]
     fn name_batched_proof_example() -> Result<()> {
         let rng = &mut thread_rng();
-        let setup = &AccumulatorSetup::from_rsa_2048(rng);
+        let setup = &AccumulatorSetup::<DefaultBig>::from_rsa_2048(rng);
         let mut name_note = Name::empty(setup);
         let mut name_image = Name::empty(setup);
 
@@ -683,7 +719,7 @@ mod tests {
     #[test]
     fn equals_ignores_serialization_cache() -> Result<()> {
         let rng = &mut thread_rng();
-        let setup = &AccumulatorSetup::from_rsa_2048(rng);
+        let setup = &AccumulatorSetup::<DefaultBig>::from_rsa_2048(rng);
 
         let mut name_one = NameAccumulator::empty(setup);
         let mut name_two = NameAccumulator::empty(setup);
@@ -710,7 +746,7 @@ mod tests {
     #[proptest(cases = 32)]
     fn batch_proofs(do_batch_step: [bool; 4], do_verify_step: [bool; 4], seed: u64) {
         let rng = &mut ChaCha12Rng::seed_from_u64(seed);
-        let setup = &AccumulatorSetup::from_rsa_2048(rng);
+        let setup = &AccumulatorSetup::<DefaultBig>::from_rsa_2048(rng);
         let base_a = NameAccumulator::with_segments(&[NameSegment::new(rng)], setup);
         let base_b = NameAccumulator::with_segments(&[NameSegment::new(rng)], setup);
 
@@ -775,7 +811,7 @@ mod tests {
     #[proptest]
     fn padded_biguint_encoding_roundtrips(num: u64) {
         let num = BigUint::from(num);
-        let bytes = to_bytes_helper::<8>(&num);
+        let bytes = BigNumDig::to_bytes_be::<8>(&num);
         let parsed = BigUint::from_bytes_be(bytes.as_ref());
         prop_assert_eq!(parsed, num);
     }
@@ -784,7 +820,7 @@ mod tests {
 #[cfg(test)]
 mod snapshot_tests {
     use super::*;
-    use crate::NameSegment;
+    use crate::{BigNumDig, NameSegment};
     use rand_chacha::ChaCha12Rng;
     use rand_core::SeedableRng;
     use wnfs_common::{utils::SnapshotBlockStore, BlockStore};
@@ -793,7 +829,7 @@ mod snapshot_tests {
     async fn test_name_accumulator() {
         let rng = &mut ChaCha12Rng::seed_from_u64(0);
         let store = &SnapshotBlockStore::default();
-        let setup = &AccumulatorSetup::from_rsa_2048(rng);
+        let setup = &AccumulatorSetup::<BigNumDig>::from_rsa_2048(rng);
         let mut acc = NameAccumulator::empty(setup);
 
         acc.add(

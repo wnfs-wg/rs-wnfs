@@ -3,6 +3,7 @@ source: wnfs-hamt/src/pointer.rs
 expression: ptr
 ---
 {
+  "cid": "bafyr4icjrohmzg3axrk7guxd42zmfwhdx7ptio3n4lsg23hywjrmjgpmpa",
   "value": [
     [
       "James",

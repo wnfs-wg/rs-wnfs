@@ -3,6 +3,7 @@ source: wnfs/src/public/directory.rs
 expression: dir
 ---
 {
+  "cid": "bafyr4ih337krqssypjw3gxte33y46ou4dh7looyd3vv2whxgyxumntt6pi",
   "value": {
     "wnfs/pub/dir": {
       "metadata": {
