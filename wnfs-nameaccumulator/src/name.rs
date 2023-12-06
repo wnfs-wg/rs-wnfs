@@ -10,6 +10,7 @@ use crate::{
 };
 use anyhow::Result;
 use libipld::Cid;
+use num_traits::{One, Zero};
 use once_cell::sync::OnceCell;
 use rand_core::CryptoRngCore;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -250,8 +251,8 @@ impl<B: Big> NameAccumulator<B> {
 
         let (q, r) = B::quotrem_product(segments.iter(), &l);
 
-        let big_q = if B::is_zero(&q) {
-            B::one()
+        let big_q = if B::Num::is_zero(&q) {
+            B::Num::one()
         } else {
             B::modpow(&witness, &q, &setup.modulus)
         };
@@ -285,9 +286,7 @@ impl<B: Big> NameAccumulator<B> {
     pub fn into_bytes(self) -> [u8; 256] {
         let cache = self.serialized_cache;
         let state = self.state;
-        cache
-            .into_inner()
-            .unwrap_or_else(|| B::to_256_bytes_be(&state))
+        cache.into_inner().unwrap_or_else(|| B::to_bytes_be(&state))
     }
 
     /// Serialize a name accumulator to bytes and return a reference.
@@ -295,7 +294,7 @@ impl<B: Big> NameAccumulator<B> {
     /// This call is memoized, serializing twice won't duplicate work.
     pub fn as_bytes(&self) -> &[u8; 256] {
         self.serialized_cache
-            .get_or_init(|| B::to_256_bytes_be(&self.state))
+            .get_or_init(|| B::to_bytes_be(&self.state))
     }
 }
 
@@ -305,9 +304,9 @@ fn poke_fiat_shamir_l_hash_data<B: Big>(
     commitment: &B::Num,
 ) -> impl AsRef<[u8]> {
     [
-        B::to_256_bytes_be(modulus),
-        B::to_256_bytes_be(base),
-        B::to_256_bytes_be(commitment),
+        B::to_bytes_be::<256>(modulus),
+        B::to_bytes_be::<256>(base),
+        B::to_bytes_be::<256>(commitment),
     ]
     .concat()
 }
@@ -368,7 +367,7 @@ impl<B: Big> BatchedProofPart<B> {
     /// Create a new proof batcher.
     pub fn new() -> Self {
         Self {
-            big_q_product: B::one(),
+            big_q_product: B::Num::one(),
         }
     }
 
@@ -477,7 +476,7 @@ impl<B: Big> Serialize for NameSegment<B> {
     where
         S: serde::Serializer,
     {
-        serde_bytes::serialize(B::to_bytes_le::<32>(&self.0).as_ref(), serializer)
+        serde_bytes::serialize(B::to_bytes_be::<32>(&self.0).as_ref(), serializer)
     }
 }
 
@@ -487,7 +486,7 @@ impl<'de, B: Big> Deserialize<'de> for NameSegment<B> {
         D: serde::Deserializer<'de>,
     {
         let bytes: Vec<u8> = serde_bytes::deserialize(deserializer)?;
-        Ok(NameSegment(B::from_bytes_le(&bytes)))
+        Ok(NameSegment(B::from_bytes_be(&bytes)))
     }
 }
 
@@ -516,7 +515,7 @@ impl<'de, B: Big> Deserialize<'de> for UnbatchableProofPart<B> {
         D: Deserializer<'de>,
     {
         let (l_hash_inc, r): (u32, &serde_bytes::Bytes) = Deserialize::deserialize(deserializer)?;
-        let r = B::from_bytes_le(r);
+        let r = B::from_bytes_be(r);
         Ok(Self { l_hash_inc, r })
     }
 }
@@ -526,7 +525,7 @@ impl<B: Big> Serialize for UnbatchableProofPart<B> {
     where
         S: Serializer,
     {
-        let residue = B::to_bytes_le::<16>(&self.r);
+        let residue = B::to_bytes_be::<16>(&self.r);
         let r = serde_bytes::Bytes::new(&residue);
         (self.l_hash_inc, r).serialize(serializer)
     }
@@ -628,7 +627,7 @@ impl<B: Big> std::fmt::Debug for BatchedProofPart<B> {
 mod tests {
     use super::DefaultBig;
     use crate::{
-        AccumulatorSetup, BatchedProofPart, BatchedProofVerification, BigNumDig, Name,
+        AccumulatorSetup, BatchedProofPart, BatchedProofVerification, Big, BigNumDig, Name,
         NameAccumulator, NameSegment,
     };
     use anyhow::Result;
@@ -812,7 +811,7 @@ mod tests {
     #[proptest]
     fn padded_biguint_encoding_roundtrips(num: u64) {
         let num = BigUint::from(num);
-        let bytes = BigNumDig::to_bytes_helper::<8>(&num);
+        let bytes = BigNumDig::to_bytes_be::<8>(&num);
         let parsed = BigUint::from_bytes_be(bytes.as_ref());
         prop_assert_eq!(parsed, num);
     }

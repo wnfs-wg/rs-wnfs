@@ -12,14 +12,16 @@ use rug::{
 use std::{
     fmt::{Debug, Display},
     hash::Hash,
-    ops::{BitOr, BitOrAssign, Mul, MulAssign, Rem, RemAssign},
+    ops::{BitOrAssign, MulAssign, Rem, RemAssign},
     str::FromStr,
 };
 use wnfs_common::utils::CondSync;
 #[cfg(feature = "num-bigint-dig")]
 use zeroize::Zeroize;
 
-/// Necessary implementations for the nameaccumulator backend that implements big integer math
+/// Big integer math functions required to implement name accumulators.
+///
+/// This allows abstracting the big number library backend.
 pub trait Big: Eq + Clone + Hash {
     /// The big unsigned integer for this backend
     type Num: Clone
@@ -28,21 +30,20 @@ pub trait Big: Eq + Clone + Hash {
         + PartialEq
         + Eq
         + Hash
-        + Ord
-        + Mul<Output = Self::Num>
+        + CondSync
+        // number-related traits
+        + FromStr
+        + Zero
+        + One
         + for<'a> MulAssign<&'a Self::Num>
         + for<'a> RemAssign<&'a Self::Num>
         + for<'a> Rem<&'a Self::Num, Output = Self::Num>
-        + BitOr
         + BitOrAssign
-        + From<u8>
-        + CondSync
-        + FromStr;
+        + Ord;
 
-    fn one() -> Self::Num;
-
-    fn is_zero(n: &Self::Num) -> bool;
-
+    /// Computes the power of base to the product of some numbers all under a modulus.
+    ///
+    /// `modpow_product(b, exps, N) = b ^ product(exps) mod N`
     fn modpow_product<'a>(
         base: &Self::Num,
         exponents: impl Iterator<Item = &'a Self::Num>,
@@ -51,12 +52,25 @@ pub trait Big: Eq + Clone + Hash {
     where
         Self::Num: 'a;
 
+    /// Computes `(base ^ exponent) mod modulus`
     fn modpow(base: &Self::Num, exponent: &Self::Num, modulus: &Self::Num) -> Self::Num;
 
+    /// Computes the modulo multiplicative inverse of `base`.
+    ///
+    /// `(mod_inv(base, N) * base) mod N = 1`
     fn mod_inv(base: &Self::Num, modulus: &Self::Num) -> Option<Self::Num>;
 
+    /// Computes `(base ^ 2) mod N`.
+    ///
+    /// A specialization of `modpow` with `exponent = 2`.
     fn squaremod(base: &Self::Num, modulus: &Self::Num) -> Self::Num;
 
+    /// Computes the quotient and remainder of a product of numbers divided
+    /// by `divisor`.
+    ///
+    /// `quotrem_product(fs, d).0 * d + quotrem_product(fs, d).1 = product(fs)`
+    ///
+    /// Returns `(quotient, remainder)`.
     fn quotrem_product<'a>(
         factors: impl Iterator<Item = &'a Self::Num>,
         divisor: &Self::Num,
@@ -64,20 +78,33 @@ pub trait Big: Eq + Clone + Hash {
     where
         Self::Num: 'a;
 
+    /// Parses a little-endian-encoded number
     fn from_bytes_le(bytes: &[u8]) -> Self::Num;
 
+    /// Turns a number into a little-encoded byte slice
     fn to_bytes_le<const N: usize>(n: &Self::Num) -> [u8; N];
 
+    /// Parses a big-endian-encoded number
+    ///
+    /// (Big endian is the standard encoding for RSA numbers.)
     fn from_bytes_be(bytes: &[u8]) -> Self::Num;
 
-    fn to_256_bytes_be(n: &Self::Num) -> [u8; 256];
+    /// Turns a 2048-bit number into a big-endian encoded slice.
+    ///
+    /// (Big endian is the standard encoding for RSA numbers.)
+    fn to_bytes_be<const N: usize>(n: &Self::Num) -> [u8; N];
 
+    /// Returns whether given number is probably prime.
+    /// The propability of the number being non-prime must be neglegible.
     fn is_probably_prime(candidate: &Self::Num) -> bool;
 
+    /// Generates a random number less than the non-zero ceiling, given some randomness.
     fn rand_below(ceiling: &Self::Num, rng: &mut impl CryptoRngCore) -> Self::Num;
 
+    /// Generate a random modulus `N = p * q` where `p` and `q` are prime.
     fn rand_rsa_modulus(rng: &mut impl CryptoRngCore) -> Self::Num;
 
+    /// Generate a random 256-bit prime number.
     fn rand_prime_256bit(rng: &mut impl CryptoRngCore) -> Self::Num;
 }
 
@@ -89,20 +116,12 @@ pub struct BigNumDig;
 impl Big for BigNumDig {
     type Num = BigUint;
 
-    fn one() -> Self::Num {
-        BigUint::one()
-    }
-
-    fn is_zero(n: &Self::Num) -> bool {
-        n.is_zero()
-    }
-
     fn modpow_product<'a>(
         base: &Self::Num,
         exponents: impl Iterator<Item = &'a Self::Num>,
         modulus: &Self::Num,
     ) -> Self::Num {
-        let mut product = Self::one();
+        let mut product = Self::Num::one();
         for exponent in exponents {
             product *= exponent;
         }
@@ -142,8 +161,7 @@ impl Big for BigNumDig {
     fn to_bytes_le<const N: usize>(n: &Self::Num) -> [u8; N] {
         let vec = n.to_bytes_le();
         let mut bytes = [0u8; N];
-        let zero_bytes = N - vec.len();
-        bytes[zero_bytes..].copy_from_slice(&vec);
+        bytes.copy_from_slice(&vec);
         bytes
     }
 
@@ -151,8 +169,12 @@ impl Big for BigNumDig {
         BigUint::from_bytes_be(bytes)
     }
 
-    fn to_256_bytes_be(n: &Self::Num) -> [u8; 256] {
-        Self::to_bytes_helper(n)
+    fn to_bytes_be<const N: usize>(n: &Self::Num) -> [u8; N] {
+        let vec = n.to_bytes_be();
+        let mut bytes = [0u8; N];
+        let zero_bytes = N - vec.len();
+        bytes[zero_bytes..].copy_from_slice(&vec);
+        bytes
     }
 
     fn is_probably_prime(candidate: &Self::Num) -> bool {
@@ -181,17 +203,6 @@ impl Big for BigNumDig {
     }
 }
 
-#[cfg(feature = "num-bigint-dig")]
-impl BigNumDig {
-    pub(crate) fn to_bytes_helper<const N: usize>(state: &BigUint) -> [u8; N] {
-        let vec = state.to_bytes_be();
-        let mut bytes = [0u8; N];
-        let zero_bytes = N - vec.len();
-        bytes[zero_bytes..].copy_from_slice(&vec);
-        bytes
-    }
-}
-
 #[cfg(feature = "rug")]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct BigNumRug;
@@ -200,20 +211,12 @@ pub struct BigNumRug;
 impl Big for BigNumRug {
     type Num = Integer;
 
-    fn one() -> Self::Num {
-        Integer::from_digits(&[1u8], Order::LsfLe)
-    }
-
-    fn is_zero(n: &Self::Num) -> bool {
-        n.is_zero()
-    }
-
     fn modpow_product<'a>(
         base: &Self::Num,
         exponents: impl Iterator<Item = &'a Self::Num>,
         modulus: &Self::Num,
     ) -> Self::Num {
-        let mut product = Self::one();
+        let mut product = Self::Num::one();
         for exponent in exponents {
             product *= exponent;
         }
@@ -239,7 +242,7 @@ impl Big for BigNumRug {
         factors: impl Iterator<Item = &'a Self::Num>,
         divisor: &Self::Num,
     ) -> (Self::Num, Self::Num) {
-        let mut product = Self::one();
+        let mut product = Self::Num::one();
         for factor in factors {
             product *= factor;
         }
@@ -254,8 +257,7 @@ impl Big for BigNumRug {
     fn to_bytes_le<const N: usize>(n: &Self::Num) -> [u8; N] {
         let vec = n.to_digits(Order::LsfLe);
         let mut bytes = [0u8; N];
-        let zero_bytes = N - vec.len();
-        bytes[zero_bytes..].copy_from_slice(&vec);
+        bytes.copy_from_slice(&vec);
         bytes
     }
 
@@ -263,10 +265,10 @@ impl Big for BigNumRug {
         Integer::from_digits(bytes, Order::MsfBe)
     }
 
-    fn to_256_bytes_be(n: &Self::Num) -> [u8; 256] {
+    fn to_bytes_be<const N: usize>(n: &Self::Num) -> [u8; N] {
         let vec = n.to_digits(Order::MsfBe);
-        let mut bytes = [0u8; 256];
-        let zero_bytes = 256 - vec.len();
+        let mut bytes = [0u8; N];
+        let zero_bytes = N - vec.len();
         bytes[zero_bytes..].copy_from_slice(&vec);
         bytes
     }

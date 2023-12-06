@@ -13,5 +13,5 @@ pub(crate) fn serialize<B: Big, S>(uint: &B::Num, serializer: S) -> Result<S::Ok
 where
     S: Serializer,
 {
-    serde_bytes::serialize(B::to_256_bytes_be(uint).as_ref(), serializer)
+    serde_bytes::serialize(B::to_bytes_be::<256>(uint).as_ref(), serializer)
 }
