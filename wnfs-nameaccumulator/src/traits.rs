@@ -234,11 +234,11 @@ impl Big for BigNumRug {
     }
 
     fn from_bytes_be(bytes: &[u8]) -> Self::Num {
-        Integer::from_digits(bytes, Order::MsfBe)
+        Integer::from_digits(bytes, Order::MsfLe)
     }
 
     fn to_bytes_be<const N: usize>(n: &Self::Num) -> [u8; N] {
-        let vec = n.to_digits(Order::MsfBe);
+        let vec = n.to_digits(Order::MsfLe);
         let mut bytes = [0u8; N];
         let zero_bytes = N - vec.len();
         bytes[zero_bytes..].copy_from_slice(&vec);
@@ -260,8 +260,10 @@ impl Big for BigNumRug {
 
     fn rand_rsa_modulus(rng: &mut impl CryptoRngCore) -> Self::Num {
         let mut rng = Self::setup_rand_state(rng);
-        let p: Integer = Integer::random_bits(1024, &mut rng).into();
-        let q: Integer = Integer::random_bits(1024, &mut rng).into();
+        let p_pre: Integer = Integer::random_bits(1024, &mut rng).into();
+        let q_pre: Integer = Integer::random_bits(1024, &mut rng).into();
+        let p = p_pre.next_prime();
+        let q = q_pre.next_prime();
         p * q
     }
 
@@ -282,5 +284,34 @@ impl BigNumRug {
         let mut rng = RandState::new();
         rng.seed(&seed);
         rng
+    }
+}
+
+#[cfg(feature = "rug")]
+#[cfg(test)]
+mod rug_tests {
+    use crate::{Big, BigNumRug};
+    use rand_chacha::ChaCha12Rng;
+    use rand_core::SeedableRng;
+
+    /// We need this property for snapshot testing
+    #[test]
+    fn rand_prime_is_deterministic() {
+        let run_one = BigNumRug::rand_prime_256bit(&mut ChaCha12Rng::seed_from_u64(0));
+        let run_two = BigNumRug::rand_prime_256bit(&mut ChaCha12Rng::seed_from_u64(0));
+        assert_eq!(run_one, run_two);
+        let run_three = BigNumRug::rand_prime_256bit(&mut ChaCha12Rng::seed_from_u64(1));
+        assert_ne!(run_one, run_three);
+    }
+
+    /// We need this property for snapshot testing
+    #[test]
+    fn rand_below_is_deterministic() {
+        let ceiling = BigNumRug::rand_prime_256bit(&mut ChaCha12Rng::seed_from_u64(0));
+        let run_one = BigNumRug::rand_below(&ceiling, &mut ChaCha12Rng::seed_from_u64(0));
+        let run_two = BigNumRug::rand_below(&ceiling, &mut ChaCha12Rng::seed_from_u64(0));
+        assert_eq!(run_one, run_two);
+        let run_three = BigNumRug::rand_below(&ceiling, &mut ChaCha12Rng::seed_from_u64(1));
+        assert_ne!(run_one, run_three);
     }
 }
