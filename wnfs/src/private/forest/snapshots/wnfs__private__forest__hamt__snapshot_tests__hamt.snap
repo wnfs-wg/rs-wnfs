@@ -3,6 +3,7 @@ source: wnfs/src/private/forest/hamt.rs
 expression: store
 ---
 {
+  "cid": "bafyr4idfgswgdwgzkqwq2xdcvwre2qp56ycn3buuzgc6c6pgft3knuqpoe",
   "value": {
     "accumulator": {
       "generator": {

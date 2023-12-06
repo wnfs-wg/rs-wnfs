@@ -3,6 +3,7 @@ source: wnfs/src/private/keys/access.rs
 expression: temp_key
 ---
 {
+  "cid": "bafyr4ih2hblsecub5jvxxlbkhjgmabg2mnaxzq7jtzkchd4s4sacqxwbge",
   "value": {
     "wnfs/share/temporal": {
       "contentCid": {

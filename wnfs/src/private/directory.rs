@@ -2276,16 +2276,15 @@ mod snapshot_tests {
                     store,
                     rng,
                 )
-                .await
-                .unwrap();
+                .await?;
         }
 
-        let _ = root_dir.store(forest, store, rng).await.unwrap();
-        forest.store(store).await.unwrap();
+        let _ = root_dir.store(forest, store, rng).await?;
+        let cid = forest.store(store).await?;
 
-        utils::walk_dir(store, forest, root_dir, rng).await.unwrap();
+        utils::walk_dir(store, forest, root_dir, rng).await?;
 
-        let values = store.get_all_block_snapshots()?;
+        let values = store.get_dag_snapshot(cid).await?;
         insta::assert_json_snapshot!(values);
 
         Ok(())
