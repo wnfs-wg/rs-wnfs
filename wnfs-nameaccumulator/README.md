@@ -82,3 +82,22 @@ verification.add(&name_base, &accum_note, &proof_note.part)?;
 verification.add(&name_base, &accum_image, &proof_image.part)?;
 verification.verify(&batched_proof)?;
 ```
+
+## The `rug` feature
+
+This enables a different backend for big unsigned integer arithmetic, based on the [rug crate] (which is based on the [GNU multiprecision library], also abbreviated GMP).
+
+It is roughly 2x faster than the `num-bigint-dig` implementation when building for release, but as a bonus is also fast in debug builds (e.g. during tests) due to rug containing a statically linked release build of GMP.
+
+However, it doesn't work in Wasm and it should be noted that GMP is licensed as [LGPLv3].
+
+If you depend on the `wnfs` crate, but want to use the `rug` backend for your application, then simply add a `wnfs-nameaccumulator` as a dependency and enable its `rug` feature. This will make `wnfs` use a version of `wnfs-nameaccumulator` with `rug` enabled:
+
+```toml
+wnfs-nameaccumulator = { version = "*", default-features = false, features = ["rug"] }
+```
+
+
+[rug crate]: https://crates.io/crates/rug
+[GNU multiprecision library]: https://gmplib.org/
+[LGPLv3]: https://www.gnu.org/licenses/lgpl-3.0.en.html
