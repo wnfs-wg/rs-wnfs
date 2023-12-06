@@ -3,6 +3,7 @@ source: wnfs-hamt/src/hamt.rs
 expression: hamt
 ---
 {
+  "cid": "bafyr4iaveogpzpomn7qakjyrq6nynt6b2pemjiejr7unlxhalfdciw74qa",
   "value": {
     "root": [
       {

@@ -3,6 +3,7 @@ source: wnfs-hamt/src/node.rs
 expression: node
 ---
 {
+  "cid": "bafyr4igc6oq6uq55xmd4v6dheqdydlyzexhqs5zfewtudpwsinanqmylyq",
   "value": [
     {
       "/": {
