@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1701799672866,
+  "lastUpdate": 1701868996168,
   "repoUrl": "https://github.com/wnfs-wg/rs-wnfs",
   "entries": {
     "Rust Benchmark": [
@@ -19645,6 +19645,126 @@ window.BENCHMARK_DATA = {
             "name": "NameAccumulator serialization",
             "value": 520,
             "range": "± 34",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "philipp.krueger1@gmail.com",
+            "name": "Philipp Krüger",
+            "username": "matheus23"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "c407818721bc6057b612a4345eb2adea41737218",
+          "message": "feat: Big integer abstraction for Name accumulators & `rug`-based BigInt backend (#373)\n\nThis introduces the `Big` trait in the `wnfs-nameaccumulator` crate which abstracts the type & functions needed from the bigint library to support name accumulators.\r\nThis allows us to experiment with different backends.\r\nIn this I've implemented a `rug` based backend and tested it against the `num-bigint-dig` backend, it improves name accumulator performance by roughly 2x.\r\n\r\n---\r\n\r\n* refactor: Factor out  for bignums trait in name accumulators\r\n\r\n* feat: `rug` backend prototype\r\n\r\n* feat: Give a good compiler error message on exclusive features\r\n\r\n* fix: Reproduce snapshots with abstracted backend\r\n\r\n* chore: Topologically sort blocks in snapshots for better diffs\r\n\r\n* refactor: Only use big-endian in nameaccumulator protocols\r\n\r\n* chore: Add some snapshot test updates\r\n\r\n* feat: Enable `rug` feature for wnfs tests\r\n\r\n* chore: Add note about enabling the `rug` feature",
+          "timestamp": "2023-12-06T14:18:15+01:00",
+          "tree_id": "da87c74ea5b23ace71278b01f23e3166f0417276",
+          "url": "https://github.com/wnfs-wg/rs-wnfs/commit/c407818721bc6057b612a4345eb2adea41737218"
+        },
+        "date": 1701868995516,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "node set",
+            "value": 16057,
+            "range": "± 613",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node set 1000 consecutive",
+            "value": 1943022,
+            "range": "± 33903",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and get",
+            "value": 43259,
+            "range": "± 325",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and remove",
+            "value": 49736,
+            "range": "± 687",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt load and decode/0",
+            "value": 4052,
+            "range": "± 33",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt set and encode",
+            "value": 56225,
+            "range": "± 1310",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt diff",
+            "value": 36577,
+            "range": "± 1903",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt merge",
+            "value": 103137,
+            "range": "± 5736",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameSegment::<BigNumDig>::new_hashed",
+            "value": 1774258,
+            "range": "± 198702",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameSegment::<BigNumRug>::new_hashed",
+            "value": 314095,
+            "range": "± 25724",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameSegment::<BigNumDig>::new(rng)",
+            "value": 1810024,
+            "range": "± 218607",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameSegment::<BigNumRug>::new(rng)",
+            "value": 599346,
+            "range": "± 22661",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameAccumulator::<BigNumDig>::add",
+            "value": 1768043,
+            "range": "± 60513",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameAccumulator::<BigNumRug>::add",
+            "value": 1003074,
+            "range": "± 27845",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameAccumulator::<BigNumDig> serialization",
+            "value": 483,
+            "range": "± 14",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameAccumulator::<BigNumRug> serialization",
+            "value": 664,
+            "range": "± 42",
             "unit": "ns/iter"
           }
         ]
