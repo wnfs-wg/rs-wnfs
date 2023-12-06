@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.1.26 (2023-12-06)
+
+* Removed `AsyncSerialize` and `RemembersCid` traits.
+* Added `Storable`, `StoreIpld` and `LoadIpld` traits.
+* Removed `BlockStore::store_async_serializable`. Use `Storable::store` instead.
+
+These traits allow the `Link` type to be used with data that doesn't necessarily encode as `dag-cbor`, such as `UnixFS` files, which encode as `dag-pb`.
+For details see [#378](https://github.com/wnfs-wg/rs-wnfs/pull/378).
+
 ## 0.1.25 (2023-09-04)
 
 * Small documentation improvements

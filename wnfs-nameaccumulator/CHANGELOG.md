@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.26 (2023-12-06)
+
+* Abstracted out the integer library used to support multiple backends ([#373](https://github.com/wnfs-wg/rs-wnfs/pull/373)).
+  Every type now has a `<B: Big>` type parameter, where `Big` is a trait that abstracts over integer operations.
+  By default `B` is set to the `DefaultBig` backend, which is based on either `num-bigint-dig` (enabled by default) or `rug` (enabled with the `rug` feature).
+* Modified all use of integer serialization to use big-endian, to reduce room for error and match specification plans (see [#76](https://github.com/wnfs-wg/spec/pull/76) in the spec).
+
 ## [0.1.25](https://github.com/wnfs-wg/rs-wnfs/compare/wnfs-nameaccumulator-v0.1.24...wnfs-nameaccumulator-v0.1.25) (2023-08-30)
 
 

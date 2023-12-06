@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.28 (2023-12-06)
+
+* `PublicDirectory` and `PublicFile` now support writing byte-arrays as file contents instead of just CIDs. ([#375](https://github.com/wnfs-wg/rs-wnfs/pull/375) and [#376](https://github.com/wnfs-wg/rs-wnfs/pull/376))
+
 ## 0.1.26 (2023-09-10)
 
 * Bumped wnfs dependency from 0.1.25 to 0.1.26

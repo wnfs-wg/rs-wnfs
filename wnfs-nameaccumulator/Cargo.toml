@@ -1,6 +1,6 @@
 [package]
 name = "wnfs-nameaccumulator"
-version = "0.1.25"
+version = "0.1.26"
 description = "Cryptographic accumulators for the Webnative Filesystem"
 keywords = ["wnfs", "webnative", "ipfs", "decentralisation"]
 categories = [
@@ -30,7 +30,7 @@ rug = { version = "1.22", optional = true, default-features = false, features = 
 serde = { version = "1.0", features = ["rc"] }
 serde_bytes = "0.11.9"
 thiserror = "1.0"
-wnfs-common = { path = "../wnfs-common", version = "=0.1.25" }
+wnfs-common = { path = "../wnfs-common", version = "=0.1.26" }
 zeroize = "1.6"
 
 [dev-dependencies]

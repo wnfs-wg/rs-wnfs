@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.1.27 (2023-12-06)
+
+* Switched from `Rc` to `Arc` and generally enabled rs-wnfs APIs to work in multithreaded contexts ([#366](https://github.com/wnfs-wg/rs-wnfs/pull/366) and #[#372](https://github.com/wnfs-wg/rs-wnfs/pull/372))
+  For any `wasm32` target, this still falls back to `Rc` via conditional compilation.
+* `PublicDirectory` and `PublicFile` now support writing byte-arrays as file contents instead of just CIDs. ([#375](https://github.com/wnfs-wg/rs-wnfs/pull/375) and [#376](https://github.com/wnfs-wg/rs-wnfs/pull/376))
+  This supports chunking huge files, streaming files without needing to have the file in-memory all at once and reading files at offsets.
+* Refactored the API to use a `Storable` trait instead of `AsyncSerialize` ([#378](https://github.com/wnfs-wg/rs-wnfs/pull/378))
+  This enables writing non-dag-cbor data, such as UnixFS files to WNFS, which powers the new file writing features.
+* WNFS can now make use of a new integer math backend based on `rug`, which is based on GMP ([#373](https://github.com/wnfs-wg/rs-wnfs/pull/373))
+  This backend is ~2x faster for pure nameaccumulator operations, but only available in native code, not in Wasm.
+
 ## 0.1.26 (2023-09-04)
 
 * Added `PrivateForestContent` API for storing encrypted data in private file metadata

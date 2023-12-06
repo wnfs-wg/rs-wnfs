@@ -1,6 +1,6 @@
 [package]
 name = "wnfs-bench"
-version = "0.1.25"
+version = "0.1.26"
 description = "WNFS Benchmarks"
 publish = false
 edition = "2021"
