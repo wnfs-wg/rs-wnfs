@@ -347,6 +347,12 @@ impl PublicFile {
         Ok(())
     }
 
+    /// Gets the content cid of the file.
+    pub async fn get_raw_content_cid(&self, store: &impl BlockStore) -> Cid {
+        let content_cid: Result<Cid> = self.userland.resolve_cid(store).await;
+        content_cid.unwrap()
+    }
+
     /// Gets the previous value of the file.
     ///
     /// # Examples
