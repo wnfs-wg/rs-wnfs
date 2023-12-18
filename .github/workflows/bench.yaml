@@ -28,7 +28,7 @@ jobs:
         run: cargo bench -q -p wnfs-bench -- --output-format bencher | tee output.txt
 
       - name: Upload Benchmark Result Artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: bench_result
           path: output.txt
