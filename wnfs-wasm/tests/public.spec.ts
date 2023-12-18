@@ -343,4 +343,26 @@ test.describe("PublicDirectory", () => {
 
     expect(result).toEqual(longString);
   });
+
+  test("A PublicFile has a content CID", async ({ page }) => {
+    const result = await page.evaluate(async () => {
+      const {
+        wnfs: { PublicFile },
+        mock: { CID, MemoryBlockStore },
+      } = await window.setup();
+
+      const store = new MemoryBlockStore();
+      const time = new Date();
+      const file = new PublicFile(time);
+
+      const content = new TextEncoder().encode("hello");
+      const file2 = await file.setContent(time, content, store);
+
+      const cid_bytes = await file2.getRawContentCid(store);
+      return cid_bytes ? CID.decode(cid_bytes).toV1().toString() : undefined;
+    });
+
+    expect(result).not.toBeUndefined();
+    expect(result).toEqual("bafkreibm6jg3ux5qumhcn2b3flc3tyu6dmlb4xa7u5bf44yegnrjhc4yeq");
+  });
 });
