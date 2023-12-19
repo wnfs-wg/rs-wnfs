@@ -504,17 +504,66 @@ impl PrivateFile {
         }
     }
 
-    /// Reads a number of bytes starting from a given offset.
+    /// Read the contents of this file.
+    /// You can provide a byte offset from which to start reading,
+    /// and you can provide a maximum amount of bytes you want to read.
+    ///
+    /// For more advanced cases, consider using `stream_content` instead.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use anyhow::Result;
+    /// use chrono::Utc;
+    /// use rand_chacha::ChaCha12Rng;
+    /// use rand_core::SeedableRng;
+    /// use wnfs::{
+    ///     private::{PrivateDirectory, PrivateFile, forest::{hamt::HamtForest, traits::PrivateForest}},
+    ///     common::{MemoryBlockStore, utils::get_random_bytes},
+    /// };
+    ///
+    /// #[async_std::main]
+    /// async fn main() -> Result<()> {
+    ///     let store = &MemoryBlockStore::new();
+    ///     let rng = &mut ChaCha12Rng::from_entropy();
+    ///     let forest = &mut HamtForest::new_rsa_2048_rc(rng);
+    ///     let content = b"Hello, World!\n".repeat(1000).to_vec();
+    ///
+    ///     let file = PrivateFile::with_content(
+    ///         &forest.empty_name(),
+    ///         Utc::now(),
+    ///         content,
+    ///         forest,
+    ///         store,
+    ///         rng,
+    ///     )
+    ///     .await
+    ///     .unwrap();
+    ///
+    ///     let content = file.read_at(14, Some(28), forest, store).await?;
+    ///
+    ///     assert_eq!(content, b"Hello, World!\nHello, World!\n");
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
     pub async fn read_at<'a>(
         &'a self,
-        offset: usize,
-        len: usize,
+        byte_offset: usize,
+        len_limit: Option<usize>,
         forest: &'a impl PrivateForest,
         store: &'a impl BlockStore,
     ) -> Result<Vec<u8>> {
         match &self.content.content {
-            FileContent::Inline { data } => Ok(data[offset..offset + len].to_vec()),
-            FileContent::External(external) => external.read_at(offset, len, forest, store).await,
+            FileContent::Inline { data } => match len_limit {
+                Some(len) => Ok(data[byte_offset..byte_offset + len].to_vec()),
+                None => Ok(data[byte_offset..].to_vec()),
+            },
+            FileContent::External(external) => {
+                external
+                    .read_at(byte_offset, len_limit, forest, store)
+                    .await
+            }
         }
     }
 
@@ -922,19 +971,27 @@ impl PrivateForestContent {
     pub async fn read_at<'a>(
         &'a self,
         offset: usize,
-        len: usize,
+        len_limit: Option<usize>,
         forest: &'a impl PrivateForest,
         store: &'a impl BlockStore,
     ) -> Result<Vec<u8>> {
         let block_content_size = MAX_BLOCK_CONTENT_SIZE;
-        let chunk_size_upper_bound = (self.get_size_upper_bound() - offset).min(len);
+        let mut chunk_size_upper_bound = self.get_size_upper_bound() - offset;
+
+        if len_limit.is_some() {
+            chunk_size_upper_bound = chunk_size_upper_bound.min(len_limit.unwrap());
+        }
+
         if chunk_size_upper_bound == 0 {
             return Ok(vec![]);
         }
+
         let first_block = offset / block_content_size;
-        let last_block = (offset + len) / block_content_size;
+        let last_block = len_limit.map(|len| (offset + len) / block_content_size);
+
         let mut bytes = Vec::with_capacity(chunk_size_upper_bound);
         let mut content_stream = Box::pin(self.stream(first_block, forest, store)).enumerate();
+
         while let Some((i, chunk)) = content_stream.next().await {
             let chunk = chunk?;
             let index = first_block + i;
@@ -943,13 +1000,13 @@ impl PrivateForestContent {
             } else {
                 0
             };
-            let to = if index == last_block {
-                (offset + len - index * block_content_size).min(chunk.len())
+            let to = if Some(index) == last_block {
+                (offset + len_limit.unwrap() - index * block_content_size).min(chunk.len())
             } else {
                 chunk.len()
             };
             bytes.extend_from_slice(&chunk[from..to]);
-            if index == last_block {
+            if Some(index) == last_block {
                 break;
             }
         }
@@ -1307,7 +1364,10 @@ mod proptests {
                 .await
                 .unwrap();
             disk_file.read_exact(&mut source_content).await.unwrap();
-            let wnfs_content = file.read_at(offset, size, forest, store).await.unwrap();
+            let wnfs_content = file
+                .read_at(offset, Some(size), forest, store)
+                .await
+                .unwrap();
 
             assert_eq!(source_content, wnfs_content);
         })
