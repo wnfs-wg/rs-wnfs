@@ -107,7 +107,7 @@ impl PrivateFile {
         let store = ForeignBlockStore(store);
         let forest = Rc::clone(&forest.0);
 
-        let byte_offset = f64::from(byte_offset) as usize;
+        let byte_offset = f64::from(byte_offset) as u64;
         let limit = limit.map(|lim| f64::from(lim) as usize);
 
         Ok(future_to_promise(async move {
