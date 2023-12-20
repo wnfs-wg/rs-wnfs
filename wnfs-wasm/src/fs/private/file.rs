@@ -9,7 +9,7 @@ use crate::{
     value,
 };
 use chrono::{DateTime, Utc};
-use js_sys::{Date, Promise, Uint8Array};
+use js_sys::{Date, Number, Promise, Uint8Array};
 use std::rc::Rc;
 use wasm_bindgen::{prelude::wasm_bindgen, JsValue};
 use wasm_bindgen_futures::future_to_promise;
@@ -86,23 +86,40 @@ impl PrivateFile {
     /// Gets the entire content of a file.
     #[wasm_bindgen(js_name = "getContent")]
     pub fn get_content(&self, forest: &PrivateForest, store: BlockStore) -> JsResult<Promise> {
-        let file = Rc::clone(&self.0);
-        let store = ForeignBlockStore(store);
-        let forest = Rc::clone(&forest.0);
-
-        Ok(future_to_promise(async move {
-            let content = file
-                .get_content(&forest, &store)
-                .await
-                .map_err(error("Cannot get content of file"))?;
-
-            Ok(value!(Uint8Array::from(content.as_slice())))
-        }))
+        self.read_at(value!(0).into(), None, forest, store)
     }
 
     /// Gets the metadata of this file.
     pub fn metadata(&self) -> JsResult<JsValue> {
         JsMetadata(self.0.get_metadata()).try_into()
+    }
+
+    /// Gets the content of the file at given offset & with an optional byte limit.
+    #[wasm_bindgen(js_name = "readAt")]
+    pub fn read_at(
+        &self,
+        byte_offset: Number,
+        limit: Option<Number>,
+        forest: &PrivateForest,
+        store: BlockStore,
+    ) -> JsResult<Promise> {
+        let file = Rc::clone(&self.0);
+        let store = ForeignBlockStore(store);
+        let forest = Rc::clone(&forest.0);
+
+        let byte_offset = f64::from(byte_offset) as u64;
+        let limit = limit.map(|lim| f64::from(lim) as usize);
+
+        Ok(future_to_promise(async move {
+            let result = file
+                .read_at(byte_offset, limit, &forest, &store)
+                .await
+                .map_err(error("Cannot read file"))?;
+
+            let uint8array = Uint8Array::from(result.as_ref());
+
+            Ok(value!(uint8array))
+        }))
     }
 
     /// Gets a unique id for node.

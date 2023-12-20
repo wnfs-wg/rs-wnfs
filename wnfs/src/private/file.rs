@@ -488,7 +488,7 @@ impl PrivateFile {
     /// ```
     pub fn stream_content<'a>(
         &'a self,
-        block_index: usize,
+        block_index: u64,
         forest: &'a impl PrivateForest,
         store: &'a impl BlockStore,
     ) -> BoxStream<'a, Result<Vec<u8>>> {
@@ -504,17 +504,70 @@ impl PrivateFile {
         }
     }
 
-    /// Reads a number of bytes starting from a given offset.
+    /// Read the contents of this file.
+    /// You can provide a byte offset from which to start reading,
+    /// and you can provide a maximum amount of bytes you want to read.
+    ///
+    /// For more advanced cases, consider using `stream_content` instead.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use anyhow::Result;
+    /// use chrono::Utc;
+    /// use rand_chacha::ChaCha12Rng;
+    /// use rand_core::SeedableRng;
+    /// use wnfs::{
+    ///     private::{PrivateDirectory, PrivateFile, forest::{hamt::HamtForest, traits::PrivateForest}},
+    ///     common::{MemoryBlockStore, utils::get_random_bytes},
+    /// };
+    ///
+    /// #[async_std::main]
+    /// async fn main() -> Result<()> {
+    ///     let store = &MemoryBlockStore::new();
+    ///     let rng = &mut ChaCha12Rng::from_entropy();
+    ///     let forest = &mut HamtForest::new_rsa_2048_rc(rng);
+    ///     let content = b"Hello, World!\n".repeat(1000).to_vec();
+    ///
+    ///     let file = PrivateFile::with_content(
+    ///         &forest.empty_name(),
+    ///         Utc::now(),
+    ///         content,
+    ///         forest,
+    ///         store,
+    ///         rng,
+    ///     )
+    ///     .await
+    ///     .unwrap();
+    ///
+    ///     let content = file.read_at(14, Some(28), forest, store).await?;
+    ///
+    ///     assert_eq!(content, b"Hello, World!\nHello, World!\n");
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
     pub async fn read_at<'a>(
         &'a self,
-        offset: usize,
-        len: usize,
+        byte_offset: u64,
+        len_limit: Option<usize>,
         forest: &'a impl PrivateForest,
         store: &'a impl BlockStore,
     ) -> Result<Vec<u8>> {
         match &self.content.content {
-            FileContent::Inline { data } => Ok(data[offset..offset + len].to_vec()),
-            FileContent::External(external) => external.read_at(offset, len, forest, store).await,
+            FileContent::Inline { data } => {
+                let offset = byte_offset as usize;
+
+                match len_limit {
+                    Some(len) => Ok(data[offset..offset + len].to_vec()),
+                    None => Ok(data[offset..].to_vec()),
+                }
+            }
+            FileContent::External(external) => {
+                external
+                    .read_at(byte_offset, len_limit, forest, store)
+                    .await
+            }
         }
     }
 
@@ -576,10 +629,7 @@ impl PrivateFile {
         forest: &impl PrivateForest,
         store: &impl BlockStore,
     ) -> Result<Vec<u8>> {
-        match &self.content.content {
-            FileContent::Inline { data } => Ok(data.clone()),
-            FileContent::External(external) => external.get_content(forest, store).await,
-        }
+        self.read_at(0, None, forest, store).await
     }
 
     /// Sets the content of a file.
@@ -875,7 +925,7 @@ impl PrivateForestContent {
         Ok(PrivateForestContent {
             key,
             base_name: forest.get_accumulated_name(&base_name),
-            block_count: block_index,
+            block_count: block_index as usize,
             block_content_size: MAX_BLOCK_CONTENT_SIZE,
         })
     }
@@ -900,7 +950,7 @@ impl PrivateForestContent {
     /// Decrypt & stream out the contents that `self` points to in given forest.
     pub fn stream<'a>(
         &'a self,
-        block_index: usize,
+        block_index: u64,
         forest: &'a impl PrivateForest,
         store: &'a impl BlockStore,
     ) -> impl Stream<Item = Result<Vec<u8>>> + 'a {
@@ -921,35 +971,44 @@ impl PrivateForestContent {
     /// Reads a number of bytes starting from a given offset.
     pub async fn read_at<'a>(
         &'a self,
-        offset: usize,
-        len: usize,
+        byte_offset: u64,
+        len_limit: Option<usize>,
         forest: &'a impl PrivateForest,
         store: &'a impl BlockStore,
     ) -> Result<Vec<u8>> {
-        let block_content_size = MAX_BLOCK_CONTENT_SIZE;
-        let chunk_size_upper_bound = (self.get_size_upper_bound() - offset).min(len);
+        let block_content_size = MAX_BLOCK_CONTENT_SIZE as u64;
+        let mut chunk_size_upper_bound = self.get_size_upper_bound() - byte_offset as usize;
+
+        if let Some(len_limit) = len_limit {
+            chunk_size_upper_bound = chunk_size_upper_bound.min(len_limit);
+        }
+
         if chunk_size_upper_bound == 0 {
             return Ok(vec![]);
         }
-        let first_block = offset / block_content_size;
-        let last_block = (offset + len) / block_content_size;
+
+        let first_block = byte_offset / block_content_size;
+        let last_block = len_limit.map(|len| (byte_offset + len as u64) / block_content_size);
+
         let mut bytes = Vec::with_capacity(chunk_size_upper_bound);
         let mut content_stream = Box::pin(self.stream(first_block, forest, store)).enumerate();
+
         while let Some((i, chunk)) = content_stream.next().await {
             let chunk = chunk?;
-            let index = first_block + i;
+            let index = first_block + i as u64;
             let from = if index == first_block {
-                (offset - index * block_content_size).min(chunk.len())
+                (byte_offset - index * block_content_size).min(chunk.len() as u64)
             } else {
                 0
             };
-            let to = if index == last_block {
-                (offset + len - index * block_content_size).min(chunk.len())
+            let to = if Some(index) == last_block {
+                (byte_offset + len_limit.unwrap_or_default() as u64 - index * block_content_size)
+                    .min(chunk.len() as u64)
             } else {
-                chunk.len()
+                chunk.len() as u64
             };
-            bytes.extend_from_slice(&chunk[from..to]);
-            if index == last_block {
+            bytes.extend_from_slice(&chunk[(from as usize)..(to as usize)]);
+            if Some(index) == last_block {
                 break;
             }
         }
@@ -983,12 +1042,12 @@ impl PrivateForestContent {
     /// Generates the labels for all of the content shard blocks.
     pub(crate) fn generate_shard_labels<'a>(
         key: &'a SnapshotKey,
-        mut block_index: usize,
+        mut block_index: u64,
         block_count: usize,
         base_name: &'a Name,
     ) -> impl Iterator<Item = Name> + 'a {
         iter::from_fn(move || {
-            if block_index >= block_count {
+            if block_index >= block_count as u64 {
                 return None;
             }
 
@@ -1018,10 +1077,10 @@ impl PrivateForestContent {
         Ok(bytes)
     }
 
-    fn create_block_name(key: &SnapshotKey, index: usize, base_name: &Name) -> Name {
+    fn create_block_name(key: &SnapshotKey, index: u64, base_name: &Name) -> Name {
         let mut vec = Vec::with_capacity(40);
         vec.extend(key.0); // 32 bytes
-        vec.extend((index as u64).to_le_bytes()); // 8 bytes
+        vec.extend(index.to_le_bytes()); // 8 bytes
         let block_segment = NameSegment::new_hashed(BLOCK_SEGMENT_DSI, vec);
 
         base_name.with_segments_added(Some(block_segment))
@@ -1275,11 +1334,11 @@ mod proptests {
     #[proptest(cases = 10)]
     fn can_read_section_of_file(
         #[strategy(0..FIXTURE_SCHERZO_SIZE)] size: usize,
-        #[strategy(0..FIXTURE_SCHERZO_SIZE)] offset: usize,
+        #[strategy(0..FIXTURE_SCHERZO_SIZE as u64)] offset: u64,
     ) {
         use async_std::{io::SeekFrom, prelude::*};
         async_std::task::block_on(async {
-            let size = size.min(FIXTURE_SCHERZO_SIZE - offset);
+            let size = size.min(FIXTURE_SCHERZO_SIZE - offset as usize);
             let mut disk_file = async_std::fs::File::open(
                 "./test/fixtures/Clara Schumann, Scherzo no. 2, Op. 14.mp3",
             )
@@ -1302,12 +1361,12 @@ mod proptests {
             .unwrap();
 
             let mut source_content = vec![0u8; size];
-            disk_file
-                .seek(SeekFrom::Start(offset as u64))
+            disk_file.seek(SeekFrom::Start(offset)).await.unwrap();
+            disk_file.read_exact(&mut source_content).await.unwrap();
+            let wnfs_content = file
+                .read_at(offset, Some(size), forest, store)
                 .await
                 .unwrap();
-            disk_file.read_exact(&mut source_content).await.unwrap();
-            let wnfs_content = file.read_at(offset, size, forest, store).await.unwrap();
 
             assert_eq!(source_content, wnfs_content);
         })

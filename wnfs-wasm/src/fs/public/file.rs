@@ -89,6 +89,12 @@ impl PublicFile {
         arr
     }
 
+    /// Gets the entire content of a file.
+    #[wasm_bindgen(js_name = "getContent")]
+    pub fn get_content(&self, store: BlockStore) -> JsResult<Promise> {
+        self.read_at(value!(0).into(), None, store)
+    }
+
     /// Gets the metadata of this file.
     pub fn metadata(&self) -> JsResult<JsValue> {
         JsMetadata(self.0.get_metadata()).try_into()
