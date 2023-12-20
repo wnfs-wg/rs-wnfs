@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1703090693453,
+  "lastUpdate": 1703090695975,
   "repoUrl": "https://github.com/wnfs-wg/rs-wnfs",
   "entries": {
     "Rust Benchmark": [
@@ -21205,6 +21205,126 @@ window.BENCHMARK_DATA = {
             "name": "NameAccumulator::<BigNumRug> serialization",
             "value": 654,
             "range": "± 53",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "49699333+dependabot[bot]@users.noreply.github.com",
+            "name": "dependabot[bot]",
+            "username": "dependabot[bot]"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "75bfc119a048107658db9ad6e0cd31e60dd1b158",
+          "message": "chore(npm)(deps-dev): bump html-webpack-plugin in /wnfs-wasm (#381)\n\nBumps [html-webpack-plugin](https://github.com/jantimon/html-webpack-plugin) from 5.5.3 to 5.5.4.\r\n- [Release notes](https://github.com/jantimon/html-webpack-plugin/releases)\r\n- [Changelog](https://github.com/jantimon/html-webpack-plugin/blob/main/CHANGELOG.md)\r\n- [Commits](https://github.com/jantimon/html-webpack-plugin/compare/v5.5.3...v5.5.4)\r\n\r\n---\r\nupdated-dependencies:\r\n- dependency-name: html-webpack-plugin\r\n  dependency-type: direct:development\r\n  update-type: version-update:semver-patch\r\n...\r\n\r\nSigned-off-by: dependabot[bot] <support@github.com>\r\nCo-authored-by: dependabot[bot] <49699333+dependabot[bot]@users.noreply.github.com>",
+          "timestamp": "2023-12-20T17:38:17+01:00",
+          "tree_id": "7c9f4d980d7a0e4347686dd5af1f505b0cf4b081",
+          "url": "https://github.com/wnfs-wg/rs-wnfs/commit/75bfc119a048107658db9ad6e0cd31e60dd1b158"
+        },
+        "date": 1703090695280,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "node set",
+            "value": 16634,
+            "range": "± 308",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node set 1000 consecutive",
+            "value": 1974499,
+            "range": "± 55512",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and get",
+            "value": 43345,
+            "range": "± 803",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and remove",
+            "value": 50208,
+            "range": "± 821",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt load and decode/0",
+            "value": 4258,
+            "range": "± 39",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt set and encode",
+            "value": 56796,
+            "range": "± 883",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt diff",
+            "value": 36461,
+            "range": "± 2207",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt merge",
+            "value": 105350,
+            "range": "± 6388",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameSegment::<BigNumDig>::new_hashed",
+            "value": 1764261,
+            "range": "± 181238",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameSegment::<BigNumRug>::new_hashed",
+            "value": 312632,
+            "range": "± 23263",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameSegment::<BigNumDig>::new(rng)",
+            "value": 1805370,
+            "range": "± 196334",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameSegment::<BigNumRug>::new(rng)",
+            "value": 600871,
+            "range": "± 23485",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameAccumulator::<BigNumDig>::add",
+            "value": 1758726,
+            "range": "± 56921",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameAccumulator::<BigNumRug>::add",
+            "value": 1006957,
+            "range": "± 26100",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameAccumulator::<BigNumDig> serialization",
+            "value": 497,
+            "range": "± 27",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameAccumulator::<BigNumRug> serialization",
+            "value": 666,
+            "range": "± 52",
             "unit": "ns/iter"
           }
         ]
