@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1702926871550,
+  "lastUpdate": 1703090458363,
   "repoUrl": "https://github.com/wnfs-wg/rs-wnfs",
   "entries": {
     "Rust Benchmark": [
@@ -20725,6 +20725,126 @@ window.BENCHMARK_DATA = {
             "name": "NameAccumulator::<BigNumRug> serialization",
             "value": 655,
             "range": "± 25",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "steven.vandevelde@hey.com",
+            "name": "Steven Vandevelde",
+            "username": "icidasset"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "502c4c372a189655b6bed1464f4a552249ae57a2",
+          "message": "Match the public and private APIs for content reading (#386)\n\n`wnfs` changes:\r\n- Made the length param optional and renamed the offset param to match the public side.\r\n- Copied the doc test from the public side to the private side.\r\n- Made it so that `PrivateFile.get_content` uses its `read_at` method.\r\n- Added `PublicFile.get_content` to reflect the private side.\r\n- Made `PrivateFile.read_at` take `byte_offset` as `u64` instead of `usize`\r\n\r\n`wnfs-wasm` changes:\r\n- Added `PrivateFile.read_at`\r\n- Made it so that `PrivateFile.get_content` uses its `read_at` method.\r\n- Added `PublicFile.get_content`\r\n- Adjusted tests to use new and changed methods.\r\n\r\n---\r\n\r\n* refactor: (wnfs) make PrivateFile.read_at's length param an option to reflect the public side\r\n\r\n* refactor: `get_content` should use `read_at` and add `get_content` to `PublicFile`\r\n\r\n* feat: (wnfs-wasm) add `read_at` to `PrivateFile` and add `get_content` to `PublicFile`\r\n\r\n* refactor: (wnfs) use u64 type for block indexes\r\n\r\n* fix: (wnfs-wasm) adjust to new `read_at` `byte_offset` param type\r\n\r\n* Apply suggestions from code review\r\n\r\nCo-authored-by: Philipp Krüger <philipp.krueger1@gmail.com>\r\nSigned-off-by: Steven Vandevelde <steven.vandevelde@hey.com>\r\n\r\n* refactor: make `offset` a `u64` in `can_read_section_of_file`\r\n\r\n* fix: remove unstable let expression\r\n\r\n---------\r\n\r\nSigned-off-by: Steven Vandevelde <steven.vandevelde@hey.com>\r\nCo-authored-by: Philipp Krüger <philipp.krueger1@gmail.com>",
+          "timestamp": "2023-12-20T17:36:17+01:00",
+          "tree_id": "627f8ce7335d95b4f92be2a329d0fdfdd1886d30",
+          "url": "https://github.com/wnfs-wg/rs-wnfs/commit/502c4c372a189655b6bed1464f4a552249ae57a2"
+        },
+        "date": 1703090457734,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "node set",
+            "value": 16341,
+            "range": "± 390",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node set 1000 consecutive",
+            "value": 1966679,
+            "range": "± 40270",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and get",
+            "value": 43235,
+            "range": "± 1254",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and remove",
+            "value": 50333,
+            "range": "± 3353",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt load and decode/0",
+            "value": 4284,
+            "range": "± 78",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt set and encode",
+            "value": 57015,
+            "range": "± 908",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt diff",
+            "value": 36386,
+            "range": "± 1923",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt merge",
+            "value": 102866,
+            "range": "± 5678",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameSegment::<BigNumDig>::new_hashed",
+            "value": 1763979,
+            "range": "± 223365",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameSegment::<BigNumRug>::new_hashed",
+            "value": 313169,
+            "range": "± 22560",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameSegment::<BigNumDig>::new(rng)",
+            "value": 1828848,
+            "range": "± 173529",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameSegment::<BigNumRug>::new(rng)",
+            "value": 598367,
+            "range": "± 32445",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameAccumulator::<BigNumDig>::add",
+            "value": 1760159,
+            "range": "± 62501",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameAccumulator::<BigNumRug>::add",
+            "value": 1000309,
+            "range": "± 17626",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameAccumulator::<BigNumDig> serialization",
+            "value": 495,
+            "range": "± 15",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameAccumulator::<BigNumRug> serialization",
+            "value": 652,
+            "range": "± 18",
             "unit": "ns/iter"
           }
         ]
