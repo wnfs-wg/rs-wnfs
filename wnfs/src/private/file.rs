@@ -1001,8 +1001,8 @@ impl PrivateForestContent {
             } else {
                 0
             };
-            let to = if let Some(len_limit) = len_limit && Some(index) == last_block {
-                (byte_offset + len_limit as u64 - index * block_content_size)
+            let to = if Some(index) == last_block {
+                (byte_offset + len_limit.unwrap_or_default() as u64 - index * block_content_size)
                     .min(chunk.len() as u64)
             } else {
                 chunk.len() as u64
