@@ -310,6 +310,43 @@ impl PublicFile {
         }
     }
 
+    /// Gets the entire content of a file.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use anyhow::Result;
+    /// use rand_chacha::ChaCha12Rng;
+    /// use rand_core::SeedableRng;
+    /// use chrono::Utc;
+    /// use wnfs::{
+    ///     public::PublicFile,
+    ///     common::{MemoryBlockStore, utils::get_random_bytes},
+    /// };
+    ///
+    /// #[async_std::main]
+    /// async fn main() -> Result<()> {
+    ///     let store = &MemoryBlockStore::new();
+    ///     let rng = &mut ChaCha12Rng::from_entropy();
+    ///     let content = get_random_bytes::<100>(rng).to_vec();
+    ///     let file = PublicFile::with_content(
+    ///         Utc::now(),
+    ///         content.clone(),
+    ///         store,
+    ///     )
+    ///     .await?;
+    ///
+    ///     let mut all_content = file.get_content(store).await?;
+    ///
+    ///     assert_eq!(content, all_content);
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
+    pub async fn get_content(&self, store: &impl BlockStore) -> Result<Vec<u8>> {
+        self.read_at(0, None, store).await
+    }
+
     /// Takes care of creating previous links, in case the current
     /// directory was previously `.store()`ed.
     /// In any case it'll try to give you ownership of the directory if possible,

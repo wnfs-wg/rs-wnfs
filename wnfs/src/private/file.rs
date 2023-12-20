@@ -625,10 +625,7 @@ impl PrivateFile {
         forest: &impl PrivateForest,
         store: &impl BlockStore,
     ) -> Result<Vec<u8>> {
-        match &self.content.content {
-            FileContent::Inline { data } => Ok(data.clone()),
-            FileContent::External(external) => external.get_content(forest, store).await,
-        }
+        self.read_at(0, None, forest, store).await
     }
 
     /// Sets the content of a file.
