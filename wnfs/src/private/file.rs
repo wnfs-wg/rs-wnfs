@@ -1334,11 +1334,11 @@ mod proptests {
     #[proptest(cases = 10)]
     fn can_read_section_of_file(
         #[strategy(0..FIXTURE_SCHERZO_SIZE)] size: usize,
-        #[strategy(0..FIXTURE_SCHERZO_SIZE)] offset: usize,
+        #[strategy(0..FIXTURE_SCHERZO_SIZE as u64)] offset: u64,
     ) {
         use async_std::{io::SeekFrom, prelude::*};
         async_std::task::block_on(async {
-            let size = size.min(FIXTURE_SCHERZO_SIZE - offset);
+            let size = size.min(FIXTURE_SCHERZO_SIZE - offset as usize);
             let mut disk_file = async_std::fs::File::open(
                 "./test/fixtures/Clara Schumann, Scherzo no. 2, Op. 14.mp3",
             )
@@ -1361,13 +1361,10 @@ mod proptests {
             .unwrap();
 
             let mut source_content = vec![0u8; size];
-            disk_file
-                .seek(SeekFrom::Start(offset as u64))
-                .await
-                .unwrap();
+            disk_file.seek(SeekFrom::Start(offset)).await.unwrap();
             disk_file.read_exact(&mut source_content).await.unwrap();
             let wnfs_content = file
-                .read_at(offset as u64, Some(size), forest, store)
+                .read_at(offset, Some(size), forest, store)
                 .await
                 .unwrap();
 
