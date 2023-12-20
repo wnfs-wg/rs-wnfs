@@ -13,7 +13,7 @@ test.describe("Share", () => {
   test("share and recieve share", async ({ page }) => {
     const result = await page.evaluate(async () => {
       const {
-        wnfs: { PrivateForest, share, createShareName, receiveShare },
+        wnfs: { PrivateForest, Name, NameAccumulator, share, createShareName, receiveShare },
         mock: {
           MemoryBlockStore,
           Rng,
@@ -31,7 +31,7 @@ test.describe("Share", () => {
       const sharerRootDid = "did:key:z6MkqZjY";
       const store = new MemoryBlockStore();
 
-      var { rootDir: sharerDir, forest: forest } = await createSharerDir(
+      var { rootDir: sharerDir, forest } = await createSharerDir(
         forest,
         store,
         rng
@@ -58,8 +58,11 @@ test.describe("Share", () => {
       const modulus = await recipientKey.getPublicKey().getPublicKeyModulus();
       const shareLabel = createShareName(0, sharerRootDid, modulus, forest2);
 
+      const shareLabelSerialized = shareLabel.toNameAccumulator(forest2).toBytes();
+      const shareLabelDeserialized = new Name(NameAccumulator.fromBytes(shareLabelSerialized));
+
       const sharedNode = await receiveShare(
-        shareLabel,
+        shareLabelDeserialized,
         recipientKey,
         forest2,
         store
