@@ -311,12 +311,17 @@ test.describe("PublicDirectory", () => {
       const content = new TextEncoder().encode("Hello, World!");
       const file2 = await file.setContent(time, content, store);
 
-      const readBack = await file2.readAt(0, undefined, store);
+      const readBack = await file2.getContent(store);
+      const partialRead = await file2.readAt(7, 5, store);
 
-      return new TextDecoder().decode(readBack);
+      return [
+        new TextDecoder().decode(readBack),
+        new TextDecoder().decode(partialRead)
+      ];
     });
 
-    expect(result).toEqual("Hello, World!");
+    expect(result[0]).toEqual("Hello, World!");
+    expect(result[1]).toEqual("World");
   });
 
   test("A PublicFile supports chunking files", async ({ page }) => {

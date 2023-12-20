@@ -29,7 +29,7 @@ test.describe("PrivateDirectory", () => {
         new Date(),
         initialForest,
         store,
-        rng
+        rng,
       );
 
       return await rootDir.lookupNode("text.txt", true, forest, store);
@@ -56,7 +56,7 @@ test.describe("PrivateDirectory", () => {
         new Date(),
         initialForest,
         store,
-        rng
+        rng,
       );
 
       var { rootDir, forest } = await rootDir.write(
@@ -66,22 +66,12 @@ test.describe("PrivateDirectory", () => {
         new Date(),
         forest,
         store,
-        rng
+        rng,
       );
 
-      var result0 = await rootDir.getNode(
-        ["pictures", "cats", "tabby.png"],
-        true,
-        forest,
-        store
-      );
+      var result0 = await rootDir.getNode(["pictures", "cats", "tabby.png"], true, forest, store);
 
-      var result1 = await rootDir.getNode(
-        ["pictures", "dogs", "bingo.png"],
-        true,
-        forest,
-        store
-      );
+      var result1 = await rootDir.getNode(["pictures", "dogs", "bingo.png"], true, forest, store);
 
       console.log(result0);
       console.log(result1);
@@ -93,9 +83,7 @@ test.describe("PrivateDirectory", () => {
     expect(result1).toBeUndefined();
   });
 
-  test("lookupNode cannot fetch file not added to directory", async ({
-    page,
-  }) => {
+  test("lookupNode cannot fetch file not added to directory", async ({ page }) => {
     const result = await page.evaluate(async () => {
       const {
         wnfs: { PrivateDirectory, PrivateForest },
@@ -131,7 +119,7 @@ test.describe("PrivateDirectory", () => {
         new Date(),
         initialForest,
         store,
-        rng
+        rng,
       );
 
       var { rootDir, forest } = await rootDir.write(
@@ -141,15 +129,10 @@ test.describe("PrivateDirectory", () => {
         new Date(),
         forest,
         store,
-        rng
+        rng,
       );
 
-      var result = await rootDir.getNode(
-        ["pictures", "cats", "tabby.png"],
-        true,
-        forest,
-        store
-      );
+      var result = await rootDir.getNode(["pictures", "cats", "tabby.png"], true, forest, store);
 
       return result;
     });
@@ -175,7 +158,7 @@ test.describe("PrivateDirectory", () => {
         new Date(),
         initialForest,
         store,
-        rng
+        rng,
       );
 
       var { rootDir, forest } = await rootDir.write(
@@ -185,7 +168,7 @@ test.describe("PrivateDirectory", () => {
         new Date(),
         forest,
         store,
-        rng
+        rng,
       );
 
       var { result } = await rootDir.ls(["pictures"], true, forest, store);
@@ -217,7 +200,7 @@ test.describe("PrivateDirectory", () => {
         new Date(),
         initialForest,
         store,
-        rng
+        rng,
       );
 
       var { rootDir, forest } = await rootDir.write(
@@ -227,16 +210,10 @@ test.describe("PrivateDirectory", () => {
         new Date(),
         forest,
         store,
-        rng
+        rng,
       );
 
-      var { rootDir, forest } = await rootDir.rm(
-        ["pictures", "cats"],
-        true,
-        forest,
-        store,
-        rng
-      );
+      var { rootDir, forest } = await rootDir.rm(["pictures", "cats"], true, forest, store, rng);
 
       var { result } = await rootDir.ls(["pictures"], true, forest, store);
 
@@ -266,7 +243,7 @@ test.describe("PrivateDirectory", () => {
         new Date(),
         initialForest,
         store,
-        rng
+        rng,
       );
 
       var { rootDir, forest } = await rootDir.write(
@@ -276,7 +253,7 @@ test.describe("PrivateDirectory", () => {
         new Date(),
         forest,
         store,
-        rng
+        rng,
       );
 
       var { rootDir, forest } = await rootDir.mkdir(
@@ -285,7 +262,7 @@ test.describe("PrivateDirectory", () => {
         new Date(),
         forest,
         store,
-        rng
+        rng,
       );
 
       var { rootDir, forest } = await rootDir.basicMv(
@@ -295,22 +272,12 @@ test.describe("PrivateDirectory", () => {
         new Date(),
         forest,
         store,
-        rng
+        rng,
       );
 
-      var { result: imagesContent, forest } = await rootDir.ls(
-        ["images"],
-        true,
-        forest,
-        store
-      );
+      var { result: imagesContent, forest } = await rootDir.ls(["images"], true, forest, store);
 
-      var { result: picturesContent, forest } = await rootDir.ls(
-        ["pictures"],
-        true,
-        forest,
-        store
-      );
+      var { result: picturesContent, forest } = await rootDir.ls(["pictures"], true, forest, store);
 
       return [imagesContent, picturesContent];
     });
@@ -339,7 +306,7 @@ test.describe("PrivateDirectory", () => {
         new Date(),
         initialForest,
         store,
-        rng
+        rng,
       );
 
       var { rootDir, forest } = await rootDir.write(
@@ -349,7 +316,7 @@ test.describe("PrivateDirectory", () => {
         new Date(),
         forest,
         store,
-        rng
+        rng,
       );
 
       var { rootDir, forest } = await rootDir.mkdir(
@@ -358,7 +325,7 @@ test.describe("PrivateDirectory", () => {
         new Date(),
         forest,
         store,
-        rng
+        rng,
       );
 
       var { rootDir, forest } = await rootDir.cp(
@@ -368,22 +335,12 @@ test.describe("PrivateDirectory", () => {
         new Date(),
         forest,
         store,
-        rng
+        rng,
       );
 
-      var { result: imagesContent, forest } = await rootDir.ls(
-        ["images"],
-        true,
-        forest,
-        store
-      );
+      var { result: imagesContent, forest } = await rootDir.ls(["images"], true, forest, store);
 
-      var { result: picturesContent, forest } = await rootDir.ls(
-        ["pictures"],
-        true,
-        forest,
-        store
-      );
+      var { result: picturesContent, forest } = await rootDir.ls(["pictures"], true, forest, store);
 
       return [imagesContent, picturesContent];
     });
@@ -430,7 +387,7 @@ test.describe("PrivateFile", () => {
         new Uint8Array([1, 2, 3, 4, 5]),
         forest,
         store,
-        rng
+        rng,
       );
 
       return file.getId();
@@ -455,7 +412,7 @@ test.describe("PrivateFile", () => {
         new Uint8Array([1, 2, 3, 4, 5]),
         initialForest,
         store,
-        rng
+        rng,
       );
 
       let content = await file.getContent(forest, store);
@@ -465,6 +422,35 @@ test.describe("PrivateFile", () => {
 
     expect(length).toEqual(5);
     expect(type).toEqual("Uint8Array");
+  });
+
+  test("readAt can fetch file's partial content", async ({ page }) => {
+    const [length, type, content] = await page.evaluate(async () => {
+      const {
+        wnfs: { PrivateFile, PrivateForest },
+        mock: { MemoryBlockStore, Rng },
+      } = await window.setup();
+
+      const rng = new Rng();
+      const initialForest = new PrivateForest(rng);
+      const store = new MemoryBlockStore();
+      var [file, forest] = await PrivateFile.withContent(
+        initialForest.emptyName(),
+        new Date(),
+        new Uint8Array([1, 2, 3, 4, 5]),
+        initialForest,
+        store,
+        rng,
+      );
+
+      let content = await file.readAt(1, 3, forest, store);
+
+      return [content.length, content.constructor.name, content];
+    });
+
+    expect(length).toEqual(3);
+    expect(type).toEqual("Uint8Array");
+    expect(new Uint8Array(Object.values(content))).toEqual(new Uint8Array([2, 3, 4]));
   });
 
   test("A PrivateDirectory has the correct metadata", async ({ page }) => {
@@ -544,7 +530,15 @@ test.describe("PrivateNode", () => {
       const [accessKey, forest1] = await rootDir0.store(forest0, store, rng);
 
       // Write something to the directory and store it
-      const { rootDir: rootDir1, forest: forest2 } = await rootDir0.write(["some", "file.txt"], true, new Uint8Array([0]), time, forest1, store, rng);
+      const { rootDir: rootDir1, forest: forest2 } = await rootDir0.write(
+        ["some", "file.txt"],
+        true,
+        new Uint8Array([0]),
+        time,
+        forest1,
+        store,
+        rng,
+      );
       const [_, forest3] = await rootDir1.asNode().store(forest2, store, rng);
 
       // loading back the *old* directory using its access key should give an empty directory:
@@ -563,8 +557,8 @@ test.describe("PrivateNode", () => {
     expect(lsResultBefore).toEqual([]);
     expect(lsResultAfter.length).toEqual(1);
     expect(lsResultAfter[0].name).toEqual("some");
-  })
-})
+  });
+});
 
 test.describe("PrivateForest", () => {
   test("store returns a PrivateRef", async ({ page }) => {
@@ -627,12 +621,7 @@ test.describe("PrivateForest", () => {
   test("merge combines changes in forests", async ({ page }) => {
     const result = await page.evaluate(async () => {
       const {
-        wnfs: {
-          PrivateFile,
-          PrivateDirectory,
-          PrivateForest,
-          PrivateNode,
-        },
+        wnfs: { PrivateFile, PrivateDirectory, PrivateForest, PrivateNode },
         mock: { MemoryBlockStore, Rng },
       } = await window.setup();
 
@@ -665,7 +654,6 @@ test.describe("AccessKey", () => {
         wnfs: { AccessKey, PrivateFile, PrivateNode, PrivateForest },
         mock: { MemoryBlockStore, Rng },
       } = await window.setup();
-
 
       const rng = new Rng();
       const store = new MemoryBlockStore();
