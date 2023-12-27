@@ -168,6 +168,7 @@ impl PublicDirectory {
         path_segments: &[String],
         store: &impl BlockStore,
     ) -> Result<SearchResult<&'a mut Self>> {
+        // TODO(matheus23) actually set the modification time of all these nodes
         let mut working_dir = self.prepare_next_revision();
         for (depth, segment) in path_segments.iter().enumerate() {
             match working_dir.lookup_node(segment, store).await? {
@@ -635,6 +636,7 @@ impl PublicDirectory {
         path_segments: &[String],
         store: &impl BlockStore,
     ) -> Result<PublicNode> {
+        // TODO(matheus23) set modification time
         let (path, node_name) = utils::split_last(path_segments)?;
 
         let SearchResult::Found(dir) = self.get_leaf_dir_mut(path, store).await? else {
