@@ -28,7 +28,7 @@ use wnfs_common::{
 // Types
 //--------------------------------------------------------------------------------------------------
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct RootTree<B: BlockStore> {
     pub store: B,
     pub forest: Arc<HamtForest>,
