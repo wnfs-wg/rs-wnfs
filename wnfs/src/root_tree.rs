@@ -2,7 +2,7 @@ use crate::{
     error::FsError,
     private::{
         forest::{hamt::HamtForest, traits::PrivateForest},
-        PrivateDirectory,
+        AccessKey, PrivateDirectory, PrivateNode,
     },
     public::PublicDirectory,
     WNFS_VERSION,
@@ -29,8 +29,8 @@ use wnfs_common::{
 //--------------------------------------------------------------------------------------------------
 
 #[derive(Debug)]
-pub struct RootTree<'a, B: BlockStore> {
-    pub store: &'a B,
+pub struct RootTree<B: BlockStore> {
+    pub store: B,
     pub forest: Arc<HamtForest>,
     pub public_root: Arc<PublicDirectory>,
     pub exchange_root: Arc<PublicDirectory>,
@@ -57,12 +57,8 @@ pub enum Partition {
 // Implementations
 //--------------------------------------------------------------------------------------------------
 
-impl<'a, B: BlockStore> RootTree<'a, B> {
-    pub fn empty_with(
-        store: &'a B,
-        rng: &mut impl CryptoRngCore,
-        time: DateTime<Utc>,
-    ) -> RootTree<'a, B> {
+impl<B: BlockStore> RootTree<B> {
+    pub fn empty_with(store: B, rng: &mut impl CryptoRngCore, time: DateTime<Utc>) -> RootTree<B> {
         Self {
             store,
             forest: Arc::new(HamtForest::new_rsa_2048(rng)),
@@ -72,16 +68,16 @@ impl<'a, B: BlockStore> RootTree<'a, B> {
         }
     }
 
-    pub fn empty(store: &'a B) -> RootTree<'a, B> {
+    pub fn empty(store: B) -> RootTree<B> {
         Self::empty_with(store, &mut ChaCha12Rng::from_entropy(), Utc::now())
     }
 
     pub async fn new(
         forest: Arc<HamtForest>,
-        store: &'a B,
+        store: B,
         time: DateTime<Utc>,
         private_map: BTreeMap<Vec<String>, Arc<PrivateDirectory>>,
-    ) -> RootTree<'a, B> {
+    ) -> RootTree<B> {
         Self {
             store,
             forest,
@@ -91,7 +87,7 @@ impl<'a, B: BlockStore> RootTree<'a, B> {
         }
     }
 
-    pub async fn create_private_root(&mut self, path: &[String]) -> Result<()> {
+    pub async fn create_private_root(&mut self, path: &[String]) -> Result<AccessKey> {
         self.create_private_root_with(path, Utc::now(), &mut ChaCha12Rng::from_entropy())
             .await
     }
@@ -101,7 +97,7 @@ impl<'a, B: BlockStore> RootTree<'a, B> {
         path: &[String],
         time: DateTime<Utc>,
         rng: &mut (impl CryptoRngCore + CondSend),
-    ) -> Result<()> {
+    ) -> Result<AccessKey> {
         match path.first().map(|p| p.as_str()) {
             Some("private") => {}
             Some("public") | Some("exchange") => bail!(FsError::DirectoryAlreadyExists),
@@ -117,14 +113,58 @@ impl<'a, B: BlockStore> RootTree<'a, B> {
             &self.forest.empty_name(),
             time,
             &mut self.forest,
-            self.store,
+            &self.store,
             rng,
         )
         .await?;
 
+        let access_key = root
+            .as_node()
+            .store(&mut self.forest, &self.store, rng)
+            .await?;
+
         self.private_map.insert(path.to_vec(), root);
 
+        Ok(access_key)
+    }
+
+    pub async fn load_private_root(
+        &mut self,
+        path: &[String],
+        access_key: &AccessKey,
+    ) -> Result<()> {
+        let dir = PrivateNode::load(access_key, &self.forest, &self.store, None)
+            .await?
+            .as_dir()?;
+
+        self.private_map.insert(path.to_vec(), dir);
+
         Ok(())
+    }
+
+    pub async fn store_private_root(&mut self, path: &[String]) -> Result<AccessKey> {
+        self.store_private_root_with(path, &mut ChaCha12Rng::from_entropy())
+            .await
+    }
+
+    pub async fn store_private_root_with(
+        &mut self,
+        path: &[String],
+        rng: &mut (impl CryptoRngCore + CondSend),
+    ) -> Result<AccessKey> {
+        let mut forest = Arc::clone(&self.forest);
+
+        let (path, Partition::Private(_, dir)) = self.get_partition(path)? else {
+            bail!("Path is not in the private partition");
+        };
+
+        let node = dir
+            .get_node(path, true, &forest, &self.store)
+            .await?
+            .ok_or(FsError::NotFound)?;
+        let access_key = node.store(&mut forest, &self.store, rng).await?;
+
+        Ok(access_key)
     }
 
     pub fn get_partition<'p>(&self, path: &'p [String]) -> Result<(&'p [String], Partition)> {
@@ -181,10 +221,10 @@ impl<'a, B: BlockStore> RootTree<'a, B> {
         None
     }
 
-    pub fn lookup_private_root_mut<'m>(
-        &'m mut self,
+    pub fn lookup_private_root_mut(
+        &mut self,
         path: &[String],
-    ) -> Option<(Vec<String>, &'m mut Arc<PrivateDirectory>)> {
+    ) -> Option<(Vec<String>, &mut Arc<PrivateDirectory>)> {
         if let Some(prefix) = self.find_private_root(path) {
             if let Some(item) = self.private_map.get_mut(&prefix) {
                 return Some((prefix, item));
@@ -195,23 +235,23 @@ impl<'a, B: BlockStore> RootTree<'a, B> {
 
     pub async fn ls(&self, path: &[String]) -> Result<Vec<(String, Metadata)>> {
         match self.get_partition(path)? {
-            (path, Partition::Public(public_root)) => public_root.ls(path, self.store).await,
-            (path, Partition::Exchange(exchange_root)) => exchange_root.ls(path, self.store).await,
+            (path, Partition::Public(public_root)) => public_root.ls(path, &self.store).await,
+            (path, Partition::Exchange(exchange_root)) => exchange_root.ls(path, &self.store).await,
             (path, Partition::Private(_, private_root)) => {
-                private_root.ls(path, true, &self.forest, self.store).await
+                private_root.ls(path, true, &self.forest, &self.store).await
             }
         }
     }
 
     pub async fn read(&self, path: &[String]) -> Result<Vec<u8>> {
         match self.get_partition(path)? {
-            (path, Partition::Public(public_root)) => public_root.read(path, self.store).await,
+            (path, Partition::Public(public_root)) => public_root.read(path, &self.store).await,
             (path, Partition::Exchange(exchange_root)) => {
-                exchange_root.read(path, self.store).await
+                exchange_root.read(path, &self.store).await
             }
             (path, Partition::Private(_, private_root)) => {
                 private_root
-                    .read(path, true, &self.forest, self.store)
+                    .read(path, true, &self.forest, &self.store)
                     .await
             }
         }
@@ -232,16 +272,18 @@ impl<'a, B: BlockStore> RootTree<'a, B> {
         let forest = &mut Arc::clone(&self.forest);
         let partition = match self.get_partition(path)? {
             (path, Partition::Public(mut public_root)) => {
-                public_root.write(path, content, time, self.store).await?;
+                public_root.write(path, content, time, &self.store).await?;
                 Partition::Public(public_root)
             }
             (path, Partition::Exchange(mut exchange_root)) => {
-                exchange_root.write(path, content, time, self.store).await?;
+                exchange_root
+                    .write(path, content, time, &self.store)
+                    .await?;
                 Partition::Exchange(exchange_root)
             }
             (path, Partition::Private(prefix, mut private_root)) => {
                 private_root
-                    .write(path, true, time, content, forest, self.store, rng)
+                    .write(path, true, time, content, forest, &self.store, rng)
                     .await?;
                 Partition::Private(prefix, private_root)
             }
@@ -267,16 +309,16 @@ impl<'a, B: BlockStore> RootTree<'a, B> {
         let forest = &mut Arc::clone(&self.forest);
         let partition = match self.get_partition(path)? {
             (path, Partition::Public(mut public_root)) => {
-                public_root.mkdir(path, time, self.store).await?;
+                public_root.mkdir(path, time, &self.store).await?;
                 Partition::Public(public_root)
             }
             (path, Partition::Exchange(mut exchange_root)) => {
-                exchange_root.mkdir(path, time, self.store).await?;
+                exchange_root.mkdir(path, time, &self.store).await?;
                 Partition::Exchange(exchange_root)
             }
             (path, Partition::Private(prefix, mut private_root)) => {
                 private_root
-                    .mkdir(path, true, time, forest, self.store, rng)
+                    .mkdir(path, true, time, forest, &self.store, rng)
                     .await?;
                 Partition::Private(prefix, private_root)
             }
@@ -292,15 +334,15 @@ impl<'a, B: BlockStore> RootTree<'a, B> {
         let forest = &mut Arc::clone(&self.forest);
         let partition = match self.get_partition(path)? {
             (path, Partition::Public(mut public_root)) => {
-                public_root.rm(path, self.store).await?;
+                public_root.rm(path, &self.store).await?;
                 Partition::Public(public_root)
             }
             (path, Partition::Exchange(mut exchange_root)) => {
-                exchange_root.rm(path, self.store).await?;
+                exchange_root.rm(path, &self.store).await?;
                 Partition::Exchange(exchange_root)
             }
             (path, Partition::Private(prefix, mut private_root)) => {
-                private_root.rm(path, true, forest, self.store).await?;
+                private_root.rm(path, true, forest, &self.store).await?;
                 Partition::Private(prefix, private_root)
             }
         };
@@ -332,7 +374,7 @@ impl<'a, B: BlockStore> RootTree<'a, B> {
         let partition = match (self.get_partition(path_from)?, self.get_partition(path_to)?) {
             ((path_from, Partition::Public(mut public_root)), (path_to, Partition::Public(_))) => {
                 public_root
-                    .basic_mv(path_from, path_to, time, self.store)
+                    .basic_mv(path_from, path_to, time, &self.store)
                     .await?;
                 Partition::Public(public_root)
             }
@@ -341,7 +383,7 @@ impl<'a, B: BlockStore> RootTree<'a, B> {
                 (path_to, Partition::Exchange(_)),
             ) => {
                 exchange_root
-                    .basic_mv(path_from, path_to, time, self.store)
+                    .basic_mv(path_from, path_to, time, &self.store)
                     .await?;
                 Partition::Public(exchange_root)
             }
@@ -350,7 +392,7 @@ impl<'a, B: BlockStore> RootTree<'a, B> {
                 (path_to, Partition::Private(prefix_to, _)),
             ) if prefix_from == prefix_to => {
                 private_root
-                    .basic_mv(path_from, path_to, true, time, forest, self.store, rng)
+                    .basic_mv(path_from, path_to, true, time, forest, &self.store, rng)
                     .await?;
                 Partition::Private(prefix_from, private_root)
             }
@@ -369,24 +411,24 @@ impl<'a, B: BlockStore> RootTree<'a, B> {
 
     pub async fn store_with(&mut self, rng: &mut (impl CryptoRngCore + CondSend)) -> Result<Cid> {
         for (_, root) in self.private_map.iter() {
-            root.store(&mut self.forest, self.store, rng).await?;
+            root.store(&mut self.forest, &self.store, rng).await?;
         }
 
         let serializable = RootTreeSerializable {
-            public: self.public_root.store(self.store).await?,
-            exchange: self.exchange_root.store(self.store).await?,
-            forest: self.forest.store(self.store).await?,
+            public: self.public_root.store(&self.store).await?,
+            exchange: self.exchange_root.store(&self.store).await?,
+            forest: self.forest.store(&self.store).await?,
             version: WNFS_VERSION,
         };
 
         self.store.put_serializable(&serializable).await
     }
 
-    pub async fn load(cid: &Cid, store: &'a B) -> Result<RootTree<'a, B>> {
+    pub async fn load(cid: &Cid, store: B) -> Result<RootTree<B>> {
         let deserialized: RootTreeSerializable = store.get_deserializable(cid).await?;
-        let forest = Arc::new(HamtForest::load(&deserialized.forest, store).await?);
-        let public_root = Arc::new(PublicDirectory::load(&deserialized.public, store).await?);
-        let exchange_root = Arc::new(PublicDirectory::load(&deserialized.exchange, store).await?);
+        let forest = Arc::new(HamtForest::load(&deserialized.forest, &store).await?);
+        let public_root = Arc::new(PublicDirectory::load(&deserialized.public, &store).await?);
+        let exchange_root = Arc::new(PublicDirectory::load(&deserialized.exchange, &store).await?);
 
         Ok(Self {
             store,
@@ -409,7 +451,7 @@ mod tests {
     #[async_std::test]
     async fn test_roots_read_write() {
         let store = MemoryBlockStore::default();
-        let mut root_tree = RootTree::empty(&store);
+        let mut root_tree = RootTree::empty(store);
         root_tree
             .create_private_root(&["private".into()])
             .await
@@ -479,7 +521,7 @@ mod snapshot_tests {
     #[async_std::test]
     async fn test_root_filesystems() {
         let rng = &mut ChaCha12Rng::seed_from_u64(0);
-        let store = &mut SnapshotBlockStore::default();
+        let store = SnapshotBlockStore::default();
         let time = Utc.with_ymd_and_hms(1970, 1, 1, 0, 0, 0).unwrap();
         let paths = [
             // (["public".into()], vec!["text.txt".into()]),
@@ -506,11 +548,11 @@ mod snapshot_tests {
         let forest = &mut Arc::clone(&root_tree.forest);
         let (_, root_dir) = root_tree.lookup_private_root(&["private".into()]).unwrap();
 
-        utils::walk_dir(store, forest, &root_dir, rng)
+        utils::walk_dir(&mut root_tree.store, forest, &root_dir, rng)
             .await
             .unwrap();
 
-        let values = store.get_dag_snapshot(root_cid).await.unwrap();
+        let values = root_tree.store.get_dag_snapshot(root_cid).await.unwrap();
 
         insta::assert_json_snapshot!(values);
     }

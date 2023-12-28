@@ -1,6 +1,5 @@
 #[cfg(feature = "num-bigint-dig")]
 use num_bigint_dig::{prime::probably_prime, BigUint, ModInverse, RandBigInt, RandPrime};
-#[cfg(feature = "num-bigint-dig")]
 use num_traits::{One, Zero};
 use rand_core::CryptoRngCore;
 #[cfg(feature = "rug")]

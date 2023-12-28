@@ -42,6 +42,14 @@ pub struct SnapshotAccessKey {
 //--------------------------------------------------------------------------------------------------
 
 impl AccessKey {
+    pub fn parse(bytes: impl AsRef<[u8]>) -> Result<Self> {
+        Ok(serde_ipld_dagcbor::from_slice(bytes.as_ref())?)
+    }
+
+    pub fn to_bytes(&self) -> Result<Vec<u8>> {
+        Ok(serde_ipld_dagcbor::to_vec(self)?)
+    }
+
     pub fn get_label(&self) -> &HashOutput {
         match self {
             Self::Temporal(key) => &key.label,
@@ -102,18 +110,6 @@ impl From<&PrivateRef> for SnapshotAccessKey {
             content_cid: private_ref.content_cid,
             snapshot_key: private_ref.temporal_key.derive_snapshot_key(),
         }
-    }
-}
-
-impl From<&[u8]> for AccessKey {
-    fn from(bytes: &[u8]) -> Self {
-        serde_ipld_dagcbor::from_slice(bytes).unwrap()
-    }
-}
-
-impl From<&AccessKey> for Vec<u8> {
-    fn from(key: &AccessKey) -> Self {
-        serde_ipld_dagcbor::to_vec(key).unwrap()
     }
 }
 

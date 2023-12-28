@@ -1,3 +1,4 @@
+use crate::fs::utils::error;
 use wasm_bindgen::prelude::wasm_bindgen;
 use wnfs::private::AccessKey as WnfsAccessKey;
 
@@ -53,13 +54,18 @@ impl AccessKey {
     /// Make sure to keep safe or encrypt
     /// (e.g. using the WebCrypto and asymmetrically encrypting these bytes).
     #[wasm_bindgen(js_name = "toBytes")]
-    pub fn into_bytes(&self) -> Vec<u8> {
-        Vec::<u8>::from(&self.0)
+    pub fn into_bytes(&self) -> JsResult<Vec<u8>> {
+        let bytes = self
+            .0
+            .to_bytes()
+            .map_err(error("Couldn't serialize access key"))?;
+        Ok(bytes)
     }
 
     /// Deserialize an AccessKey previously generated from `into_bytes`.
     #[wasm_bindgen(js_name = "fromBytes")]
-    pub fn from_bytes(bytes: &[u8]) -> Self {
-        Self(WnfsAccessKey::from(bytes).into())
+    pub fn from_bytes(bytes: &[u8]) -> JsResult<Self> {
+        let access_key = WnfsAccessKey::parse(bytes).map_err(error("Couldn't parse access key"))?;
+        Ok(Self(access_key))
     }
 }
