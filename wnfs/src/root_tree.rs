@@ -544,7 +544,7 @@ mod snapshot_tests {
                 .unwrap();
         }
 
-        let root_cid = root_tree.store().await.unwrap();
+        let root_cid = root_tree.store_with(rng).await.unwrap();
         let forest = &mut Arc::clone(&root_tree.forest);
         let (_, root_dir) = root_tree.lookup_private_root(&["private".into()]).unwrap();
 
