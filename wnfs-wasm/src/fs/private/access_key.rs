@@ -1,4 +1,4 @@
-use crate::fs::utils::error;
+use crate::fs::{utils::error, JsResult};
 use wasm_bindgen::prelude::wasm_bindgen;
 use wnfs::private::AccessKey as WnfsAccessKey;
 
@@ -64,7 +64,7 @@ impl AccessKey {
 
     /// Deserialize an AccessKey previously generated from `into_bytes`.
     #[wasm_bindgen(js_name = "fromBytes")]
-    pub fn from_bytes(bytes: &[u8]) -> JsResult<Self> {
+    pub fn from_bytes(bytes: &[u8]) -> JsResult<AccessKey> {
         let access_key = WnfsAccessKey::parse(bytes).map_err(error("Couldn't parse access key"))?;
         Ok(Self(access_key))
     }
