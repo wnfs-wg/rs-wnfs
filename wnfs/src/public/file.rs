@@ -2,7 +2,7 @@
 
 use super::{PublicFileSerializable, PublicNodeSerializable};
 use crate::{error::FsError, is_readable_wnfs_version, traits::Id, WNFS_VERSION};
-use anyhow::{bail, Result};
+use anyhow::{anyhow, bail, Result};
 use async_once_cell::OnceCell;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
@@ -419,6 +419,15 @@ impl PublicFile {
     /// Returns a mutable reference to this file's metadata and ratchets forward the history, if necessary.
     pub fn get_metadata_mut_rc<'a>(self: &'a mut Arc<Self>) -> &'a mut Metadata {
         self.prepare_next_revision().get_metadata_mut()
+    }
+
+    /// Returns the file size in bytes
+    pub async fn size(&self, store: &impl BlockStore) -> Result<usize> {
+        self.userland
+            .resolve_value(store)
+            .await?
+            .size()
+            .ok_or_else(|| anyhow!("Missing size on dag-pb node"))
     }
 }
 
