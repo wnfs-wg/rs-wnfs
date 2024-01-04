@@ -301,7 +301,7 @@ impl PublicFile {
         let size = self.size(store).await?;
         let mut reader = self.stream_content(byte_offset, store).await?;
         if let Some(len) = len_limit {
-            let len = std::cmp::min(len as u64, size as u64 - byte_offset) as usize;
+            let len = std::cmp::min(len as u64, size - byte_offset) as usize;
             let mut buffer = vec![0; len];
             reader.read_exact(&mut buffer).await?;
             Ok(buffer)
@@ -424,11 +424,11 @@ impl PublicFile {
     }
 
     /// Returns the file size in bytes
-    pub async fn size(&self, store: &impl BlockStore) -> Result<usize> {
+    pub async fn size(&self, store: &impl BlockStore) -> Result<u64> {
         self.userland
             .resolve_value(store)
             .await?
-            .size()
+            .filesize()
             .ok_or_else(|| anyhow!("Missing size on dag-pb node"))
     }
 }
