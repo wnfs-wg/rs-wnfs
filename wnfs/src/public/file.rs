@@ -2,7 +2,7 @@
 
 use super::{PublicFileSerializable, PublicNodeSerializable};
 use crate::{error::FsError, is_readable_wnfs_version, traits::Id, WNFS_VERSION};
-use anyhow::{bail, Result};
+use anyhow::{anyhow, bail, Result};
 use async_once_cell::OnceCell;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
@@ -298,8 +298,10 @@ impl PublicFile {
         len_limit: Option<usize>,
         store: &'a impl BlockStore,
     ) -> Result<Vec<u8>> {
+        let size = self.size(store).await?;
         let mut reader = self.stream_content(byte_offset, store).await?;
         if let Some(len) = len_limit {
+            let len = std::cmp::min(len as u64, size - byte_offset) as usize;
             let mut buffer = vec![0; len];
             reader.read_exact(&mut buffer).await?;
             Ok(buffer)
@@ -419,6 +421,15 @@ impl PublicFile {
     /// Returns a mutable reference to this file's metadata and ratchets forward the history, if necessary.
     pub fn get_metadata_mut_rc<'a>(self: &'a mut Arc<Self>) -> &'a mut Metadata {
         self.prepare_next_revision().get_metadata_mut()
+    }
+
+    /// Returns the file size in bytes
+    pub async fn size(&self, store: &impl BlockStore) -> Result<u64> {
+        self.userland
+            .resolve_value(store)
+            .await?
+            .filesize()
+            .ok_or_else(|| anyhow!("Missing size on dag-pb node"))
     }
 }
 

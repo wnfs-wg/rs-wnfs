@@ -54,8 +54,8 @@ pub enum FsError {
     #[error("Mismatch between PrivateNode name {0} and its mountpoint {0}")]
     MountPointAndDeserializedNameMismatch(String, String),
 
-    #[error("Cannot find private ref with specified root path")]
-    PrivateRefNotFound,
+    #[error("Cannot find the partition with this name")]
+    PartitionNotFound,
 }
 
 /// Data sharing related errors

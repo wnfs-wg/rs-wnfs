@@ -126,7 +126,7 @@
 pub mod error;
 pub mod private;
 pub mod public;
-pub(crate) mod root_tree;
+pub mod root_tree;
 pub mod traits;
 mod utils;
 
