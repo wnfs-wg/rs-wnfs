@@ -103,7 +103,7 @@ impl PublicFile {
     /// Gets the content cid of the file.
     #[wasm_bindgen(js_name = "getRawContentCid")]
     pub fn get_raw_content_cid(&self, store: BlockStore) -> JsResult<Promise> {
-        let mut file = Rc::clone(&self.0);
+        let file = Rc::clone(&self.0);
         let store = ForeignBlockStore(store);
 
         Ok(future_to_promise(async move {

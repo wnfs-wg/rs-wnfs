@@ -1,6 +1,5 @@
 use crate::fs::utils::anyhow_error;
 use anyhow::Result;
-use async_trait::async_trait;
 use js_sys::{Promise, Uint8Array};
 use wasm_bindgen::prelude::wasm_bindgen;
 use wasm_bindgen_futures::JsFuture;
@@ -45,7 +44,6 @@ pub struct ForeignPrivateKey(pub(crate) PrivateKey);
 // Implementations
 //--------------------------------------------------------------------------------------------------
 
-#[async_trait(?Send)]
 impl WnfsExchangeKey for ForeignExchangeKey {
     async fn from_modulus(modulus: &[u8]) -> Result<Self>
     where
@@ -67,7 +65,6 @@ impl WnfsExchangeKey for ForeignExchangeKey {
     }
 }
 
-#[async_trait(?Send)]
 impl WnfsPrivateKey for ForeignPrivateKey {
     async fn decrypt(&self, ciphertext: &[u8]) -> Result<Vec<u8>> {
         let v = JsFuture::from(self.0.decrypt(ciphertext))

@@ -2,7 +2,6 @@
 
 use super::utils::anyhow_error;
 use anyhow::Result;
-use async_trait::async_trait;
 use bytes::Bytes;
 use js_sys::{Promise, Uint8Array};
 use libipld_core::cid::Cid;
