@@ -12,6 +12,7 @@ categories = [
 license = "Apache-2.0"
 readme = "README.md"
 edition = "2021"
+rust-version = "1.75"
 repository = "https://github.com/wnfs-wg/rs-wnfs/tree/main/wnfs-common"
 homepage = "https://fission.codes"
 authors = ["The Fission Authors"]

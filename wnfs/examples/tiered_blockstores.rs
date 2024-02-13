@@ -4,7 +4,6 @@
 //! work with high latency.
 
 use anyhow::Result;
-use async_trait::async_trait;
 use bytes::Bytes;
 use chrono::Utc;
 use libipld_core::cid::Cid;
@@ -96,8 +95,6 @@ struct TieredBlockStore<H: BlockStore, C: BlockStore> {
     cold: C,
 }
 
-#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
-#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl<H: BlockStore, C: BlockStore> BlockStore for TieredBlockStore<H, C> {
     async fn get_block(&self, cid: &Cid) -> Result<Bytes> {
         match self.hot.get_block(cid).await {

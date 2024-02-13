@@ -1,7 +1,6 @@
 use super::{Arc, CondSend, CondSync};
 use crate::{BlockStore, MemoryBlockStore, CODEC_DAG_CBOR, CODEC_RAW};
 use anyhow::Result;
-use async_trait::async_trait;
 use base64_serde::base64_serde_type;
 use bytes::Bytes;
 use libipld::{
@@ -112,8 +111,6 @@ impl SnapshotBlockStore {
     }
 }
 
-#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
-#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl BlockStore for SnapshotBlockStore {
     #[inline]
     async fn get_block(&self, cid: &Cid) -> Result<Bytes> {

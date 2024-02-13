@@ -4,8 +4,8 @@ use crate::{
     BlockStoreError, MAX_BLOCK_SIZE,
 };
 use anyhow::{bail, Result};
-use async_trait::async_trait;
 use bytes::Bytes;
+use futures::Future;
 use libipld::{
     cbor::DagCborCodec,
     cid::Version,
@@ -49,27 +49,34 @@ pub const CODEC_RAW: u64 = 0x55;
 //--------------------------------------------------------------------------------------------------
 
 /// For types that implement block store operations like adding, getting content from the store.
-#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
-#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 pub trait BlockStore: CondSync {
-    async fn get_block(&self, cid: &Cid) -> Result<Bytes>;
-    async fn put_block(&self, bytes: impl Into<Bytes> + CondSend, codec: u64) -> Result<Cid>;
+    fn get_block(&self, cid: &Cid) -> impl Future<Output = Result<Bytes>> + CondSend;
 
-    async fn get_deserializable<V>(&self, cid: &Cid) -> Result<V>
-    where
-        V: DeserializeOwned,
-    {
-        let bytes = self.get_block(cid).await?;
-        let ipld = decode(bytes.as_ref(), DagCborCodec)?;
-        Ok(ipld_serde::from_ipld::<V>(ipld)?)
+    fn put_block(
+        &self,
+        bytes: impl Into<Bytes> + CondSend,
+        codec: u64,
+    ) -> impl Future<Output = Result<Cid>> + CondSend;
+
+    fn get_deserializable<V: DeserializeOwned>(
+        &self,
+        cid: &Cid,
+    ) -> impl Future<Output = Result<V>> + CondSend {
+        async {
+            let bytes = self.get_block(cid).await?;
+            let ipld = decode(bytes.as_ref(), DagCborCodec)?;
+            Ok(ipld_serde::from_ipld::<V>(ipld)?)
+        }
     }
 
-    async fn put_serializable<V>(&self, value: &V) -> Result<Cid>
-    where
-        V: Serialize + CondSync,
-    {
-        let bytes = encode(&ipld_serde::to_ipld(value)?, DagCborCodec)?;
-        self.put_block(bytes, CODEC_DAG_CBOR).await
+    fn put_serializable<V: Serialize + CondSync>(
+        &self,
+        value: &V,
+    ) -> impl Future<Output = Result<Cid>> + CondSend {
+        async move {
+            let bytes = encode(&ipld_serde::to_ipld(value)?, DagCborCodec)?;
+            self.put_block(bytes, CODEC_DAG_CBOR).await
+        }
     }
 
     // This should be the same in all implementations of BlockStore
@@ -89,8 +96,6 @@ pub trait BlockStore: CondSync {
     }
 }
 
-#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
-#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl<B: BlockStore, T: Deref<Target = B> + CondSync> BlockStore for T {
     async fn get_block(&self, cid: &Cid) -> Result<Bytes> {
         self.deref().get_block(cid).await
@@ -135,8 +140,6 @@ impl MemoryBlockStore {
     }
 }
 
-#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
-#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl BlockStore for MemoryBlockStore {
     /// Retrieves an array of bytes from the block store with given CID.
     async fn get_block(&self, cid: &Cid) -> Result<Bytes> {
