@@ -4,7 +4,7 @@ use crate::{
 };
 use anyhow::Result;
 use async_stream::stream;
-use async_trait::async_trait;
+use futures::Future;
 use libipld_core::cid::Cid;
 use std::collections::BTreeSet;
 use wnfs_common::{
@@ -20,8 +20,6 @@ use wnfs_nameaccumulator::{AccumulatorSetup, ElementsProof, Name, NameAccumulato
 /// It also stores the accumulator setup information for running
 /// name accumulator operations. Upon put or remove, it'll run
 /// these operations for the caller.
-#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
-#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 pub trait PrivateForest: CondSync {
     /// Construct what represents the empty name in this forest.
     ///
@@ -86,42 +84,50 @@ pub trait PrivateForest: CondSync {
     ///     assert!(forest.has_by_hash(access_key.get_label(), store).await.unwrap());
     /// }
     /// ```
-    async fn has_by_hash(&self, name_hash: &HashOutput, store: &impl BlockStore) -> Result<bool>;
+    fn has_by_hash(
+        &self,
+        name_hash: &HashOutput,
+        store: &impl BlockStore,
+    ) -> impl Future<Output = Result<bool>> + CondSend;
 
     /// Check whether a certain name has any values.
-    async fn has(&self, name: &Name, store: &impl BlockStore) -> Result<bool>;
+    fn has(
+        &self,
+        name: &Name,
+        store: &impl BlockStore,
+    ) -> impl Future<Output = Result<bool>> + CondSend;
 
     /// Adds new encrypted values at the given key.
-    async fn put_encrypted<I>(
+    fn put_encrypted<I>(
         &mut self,
         name: &Name,
         values: I,
         store: &impl BlockStore,
-    ) -> Result<NameAccumulator>
+    ) -> impl Future<Output = Result<NameAccumulator>> + CondSend
     where
         I: IntoIterator<Item = Cid> + CondSend,
         I::IntoIter: CondSend;
 
     /// Gets the CIDs to blocks of ciphertext by hash of name.
-    async fn get_encrypted_by_hash<'b>(
+    fn get_encrypted_by_hash<'b>(
         &'b self,
         name_hash: &HashOutput,
         store: &impl BlockStore,
-    ) -> Result<Option<&'b BTreeSet<Cid>>>;
+    ) -> impl Future<Output = Result<Option<&'b BTreeSet<Cid>>>> + CondSend;
 
     /// Gets the CIDs to blocks of ciphertext by name.
-    async fn get_encrypted(
+    fn get_encrypted(
         &self,
         name: &Name,
         store: &impl BlockStore,
-    ) -> Result<Option<&BTreeSet<Cid>>>;
+    ) -> impl Future<Output = Result<Option<&BTreeSet<Cid>>>> + CondSend;
 
     /// Removes the CIDs to blocks of ciphertext by name.
-    async fn remove_encrypted(
+    fn remove_encrypted(
         &mut self,
         name: &Name,
         store: &impl BlockStore,
-    ) -> Result<Option<Pair<NameAccumulator, BTreeSet<Cid>>>>;
+    ) -> impl Future<Output = Result<Option<Pair<NameAccumulator, BTreeSet<Cid>>>>> + CondSend;
 
     /// Returns a stream of all private nodes that could be decrypted at given revision.
     ///

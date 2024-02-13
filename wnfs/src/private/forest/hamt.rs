@@ -231,8 +231,6 @@ impl HamtForest {
     }
 }
 
-#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
-#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl PrivateForest for HamtForest {
     fn empty_name(&self) -> Name {
         Name::empty(&self.accumulator)
@@ -336,8 +334,6 @@ impl PrivateForest for HamtForest {
     }
 }
 
-#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
-#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl PrivateForest for Arc<HamtForest> {
     fn empty_name(&self) -> Name {
         (**self).empty_name()

@@ -1,7 +1,6 @@
 use super::{hamt::HamtForest, traits::PrivateForest};
 use crate::error::{FsError, VerificationError};
 use anyhow::{bail, Result};
-use async_trait::async_trait;
 use libipld_core::cid::Cid;
 use std::collections::{BTreeSet, HashMap};
 use wnfs_common::{
@@ -150,8 +149,6 @@ impl Default for ForestProofs {
     }
 }
 
-#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
-#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl PrivateForest for ProvingHamtForest {
     fn empty_name(&self) -> Name {
         self.forest.empty_name()
