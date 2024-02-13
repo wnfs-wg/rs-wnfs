@@ -14,7 +14,7 @@ use libipld::{
 };
 use parking_lot::Mutex;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
-use std::collections::HashMap;
+use std::{collections::HashMap, ops::Deref};
 
 //--------------------------------------------------------------------------------------------------
 // Constants
@@ -51,7 +51,7 @@ pub const CODEC_RAW: u64 = 0x55;
 /// For types that implement block store operations like adding, getting content from the store.
 #[cfg_attr(not(target_arch = "wasm32"), async_trait)]
 #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
-pub trait BlockStore: Sized + CondSync {
+pub trait BlockStore: CondSync {
     async fn get_block(&self, cid: &Cid) -> Result<Bytes>;
     async fn put_block(&self, bytes: impl Into<Bytes> + CondSend, codec: u64) -> Result<Cid>;
 
@@ -86,6 +86,30 @@ pub trait BlockStore: Sized + CondSync {
         let cid = Cid::new(Version::V1, codec, hash)?;
 
         Ok(cid)
+    }
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
+impl<B: BlockStore, T: Deref<Target = B> + CondSync> BlockStore for T {
+    async fn get_block(&self, cid: &Cid) -> Result<Bytes> {
+        self.deref().get_block(cid).await
+    }
+
+    async fn put_block(&self, bytes: impl Into<Bytes> + CondSend, codec: u64) -> Result<Cid> {
+        self.deref().put_block(bytes, codec).await
+    }
+
+    async fn get_deserializable<V: DeserializeOwned>(&self, cid: &Cid) -> Result<V> {
+        self.deref().get_deserializable(cid).await
+    }
+
+    async fn put_serializable<V: Serialize + CondSync>(&self, value: &V) -> Result<Cid> {
+        self.deref().put_serializable(value).await
+    }
+
+    fn create_cid(&self, bytes: &[u8], codec: u64) -> Result<Cid> {
+        self.deref().create_cid(bytes, codec)
     }
 }
 
