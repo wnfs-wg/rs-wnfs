@@ -7,7 +7,7 @@ use serde::{
     de::{DeserializeOwned, Error as DeError},
     Deserialize, Deserializer, Serialize, Serializer,
 };
-use std::{collections::BTreeMap, convert::TryInto};
+use std::{collections::BTreeMap, convert::TryInto, fmt::Display};
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
@@ -24,17 +24,16 @@ pub enum NodeType {
     SnapshotSharePointer,
 }
 
-impl ToString for NodeType {
-    fn to_string(&self) -> String {
-        match self {
+impl Display for NodeType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
             NodeType::PublicFile => "wnfs/pub/file",
             NodeType::PublicDirectory => "wnfs/pub/dir",
             NodeType::PrivateFile => "wnfs/priv/file",
             NodeType::PrivateDirectory => "wnfs/priv/dir",
             NodeType::TemporalSharePointer => "wnfs/share/temporal",
             NodeType::SnapshotSharePointer => "wnfs/share/snapshot",
-        }
-        .to_string()
+        })
     }
 }
 
