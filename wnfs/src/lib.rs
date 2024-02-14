@@ -161,7 +161,7 @@ pub const WNFS_VERSION: semver::Version = semver::Version::new(1, 0, 0);
 /// The result of an basic get operation.
 pub(crate) enum SearchResult<T> {
     Missing(T, usize),
-    NotADir(T, usize),
+    NotADir(T, #[allow(unused)] usize),
     Found(T),
 }
 

@@ -6,7 +6,6 @@ mod link;
 mod metadata;
 mod pathnodes;
 mod storable;
-mod traits;
 pub mod utils;
 
 pub use blockstore::*;

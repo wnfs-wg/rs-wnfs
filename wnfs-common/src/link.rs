@@ -1,4 +1,4 @@
-use crate::{traits::IpldEq, utils::CondSync, BlockStore, Storable};
+use crate::{utils::CondSync, BlockStore, Storable};
 use anyhow::Result;
 use async_once_cell::OnceCell;
 use libipld::Cid;
@@ -128,16 +128,6 @@ impl<T: Storable + CondSync> Link<T> {
     where
         T: PartialEq + Storable,
     {
-        if self == other {
-            return Ok(true);
-        }
-
-        Ok(self.resolve_cid(store).await? == other.resolve_cid(store).await?)
-    }
-}
-
-impl<T: PartialEq + Storable + CondSync> IpldEq for Link<T> {
-    async fn eq(&self, other: &Link<T>, store: &impl BlockStore) -> Result<bool> {
         if self == other {
             return Ok(true);
         }
