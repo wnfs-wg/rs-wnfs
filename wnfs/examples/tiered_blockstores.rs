@@ -108,4 +108,12 @@ impl<H: BlockStore, C: BlockStore> BlockStore for TieredBlockStore<H, C> {
     async fn put_block(&self, bytes: impl Into<Bytes> + CondSend, codec: u64) -> Result<Cid> {
         self.hot.put_block(bytes.into(), codec).await
     }
+
+    async fn has_block(&self, cid: &Cid) -> Result<bool> {
+        if self.hot.has_block(cid).await? {
+            return Ok(true);
+        }
+
+        self.cold.has_block(cid).await
+    }
 }

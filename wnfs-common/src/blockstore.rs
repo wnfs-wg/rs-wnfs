@@ -50,13 +50,33 @@ pub const CODEC_RAW: u64 = 0x55;
 
 /// For types that implement block store operations like adding, getting content from the store.
 pub trait BlockStore: CondSync {
+    /// Retrieve a block from this store via its hash (`Cid`).
+    ///
+    /// If this store can't find the block, it may raise an error like `BlockNotFound`.
     fn get_block(&self, cid: &Cid) -> impl Future<Output = Result<Bytes>> + CondSend;
 
+    /// Put some bytes into the blockstore. These bytes should be encoded with the given codec.
+    ///
+    /// E.g. `CODEC_RAW` for raw bytes blocks, `CODEC_DAG_CBOR` for dag-cbor, etc.
+    ///
+    /// This codec will determine the codec encoded in the final `Cid` that's returned.
+    ///
+    /// If the codec is incorrect, this function won't fail, but any tools that depend on the
+    /// correctness of the codec may fail. (E.g. tools that follow the links of blocks).
+    ///
+    /// This funciton allows the blockstore to choose the hashing function itself.
+    /// The hashing function that was chosen will be readable from the `Cid` metadata.
     fn put_block(
         &self,
         bytes: impl Into<Bytes> + CondSend,
         codec: u64,
     ) -> impl Future<Output = Result<Cid>> + CondSend;
+
+    /// Find out whether a call to `get_block` would return with a result or not.
+    ///
+    /// This is useful for data exchange protocols to find out what needs to be fetched
+    /// externally and what doesn't.
+    fn has_block(&self, cid: &Cid) -> impl Future<Output = Result<bool>> + CondSend;
 
     // This should be the same in all implementations of BlockStore
     fn create_cid(&self, bytes: &[u8], codec: u64) -> Result<Cid> {
@@ -88,6 +108,10 @@ impl<B: BlockStore> BlockStore for &B {
         (**self).put_block(bytes, codec).await
     }
 
+    async fn has_block(&self, cid: &Cid) -> Result<bool> {
+        (**self).has_block(cid).await
+    }
+
     fn create_cid(&self, bytes: &[u8], codec: u64) -> Result<Cid> {
         (**self).create_cid(bytes, codec)
     }
@@ -100,6 +124,10 @@ impl<B: BlockStore> BlockStore for Box<B> {
 
     async fn put_block(&self, bytes: impl Into<Bytes> + CondSend, codec: u64) -> Result<Cid> {
         (**self).put_block(bytes, codec).await
+    }
+
+    async fn has_block(&self, cid: &Cid) -> Result<bool> {
+        (**self).has_block(cid).await
     }
 
     fn create_cid(&self, bytes: &[u8], codec: u64) -> Result<Cid> {
@@ -126,7 +154,6 @@ impl MemoryBlockStore {
 }
 
 impl BlockStore for MemoryBlockStore {
-    /// Retrieves an array of bytes from the block store with given CID.
     async fn get_block(&self, cid: &Cid) -> Result<Bytes> {
         let bytes = self
             .0
@@ -138,7 +165,6 @@ impl BlockStore for MemoryBlockStore {
         Ok(bytes)
     }
 
-    /// Stores an array of bytes in the block store.
     async fn put_block(&self, bytes: impl Into<Bytes> + CondSend, codec: u64) -> Result<Cid> {
         // Convert the bytes into a Bytes object
         let bytes: Bytes = bytes.into();
@@ -150,6 +176,10 @@ impl BlockStore for MemoryBlockStore {
         self.0.lock().insert(cid, bytes);
 
         Ok(cid)
+    }
+
+    async fn has_block(&self, cid: &Cid) -> Result<bool> {
+        Ok(self.0.lock().contains_key(cid))
     }
 }
 

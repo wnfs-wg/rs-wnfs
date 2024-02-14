@@ -121,6 +121,11 @@ impl BlockStore for SnapshotBlockStore {
     async fn put_block(&self, bytes: impl Into<Bytes> + CondSend, codec: u64) -> Result<Cid> {
         self.inner.put_block(bytes, codec).await
     }
+
+    #[inline]
+    async fn has_block(&self, cid: &Cid) -> Result<bool> {
+        self.inner.has_block(cid).await
+    }
 }
 
 impl<V, S> Sampleable for S
