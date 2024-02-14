@@ -25,6 +25,8 @@ use std::collections::HashMap;
 #[cfg(test)]
 use wnfs_common::MemoryBlockStore;
 use wnfs_common::{
+    decode, encode,
+    libipld::cbor::DagCborCodec,
     utils::{Arc, CondSend},
     BlockStore, Metadata, Storable,
 };
@@ -309,7 +311,9 @@ where
             version: WNFS_VERSION,
         };
 
-        store.put_serializable(&serializable).await
+        store
+            .put_block(encode(&serializable, DagCborCodec)?, DagCborCodec.into())
+            .await
     }
 
     pub async fn load(
@@ -318,7 +322,8 @@ where
         rng: R,
         private_map: HashMap<Vec<String>, Arc<PrivateDirectory>>,
     ) -> Result<RootTree<'a, B, R>> {
-        let deserialized: RootTreeSerializable = store.get_deserializable(cid).await?;
+        let deserialized: RootTreeSerializable =
+            decode(&store.get_block(cid).await?, DagCborCodec)?;
         let forest = Arc::new(HamtForest::load(&deserialized.forest, store).await?);
         let public_root = Arc::new(PublicDirectory::load(&deserialized.public, store).await?);
         let exchange_root = Arc::new(PublicDirectory::load(&deserialized.exchange, store).await?);

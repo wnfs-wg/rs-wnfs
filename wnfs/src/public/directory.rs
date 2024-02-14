@@ -891,7 +891,7 @@ mod tests {
     use chrono::Utc;
     use libipld_core::ipld::Ipld;
     use testresult::TestResult;
-    use wnfs_common::MemoryBlockStore;
+    use wnfs_common::{decode, libipld::cbor::DagCborCodec, MemoryBlockStore};
 
     #[async_std::test]
     async fn look_up_can_fetch_file_added_to_directory() -> TestResult {
@@ -1242,10 +1242,14 @@ mod tests {
 
         root_dir.mkdir(&["test".into()], time, store).await.unwrap();
 
-        let ipld = store
-            .get_deserializable::<Ipld>(&root_dir.store(store).await.unwrap())
-            .await
-            .unwrap();
+        let ipld: Ipld = decode(
+            &store
+                .get_block(&root_dir.store(store).await.unwrap())
+                .await
+                .unwrap(),
+            DagCborCodec,
+        )
+        .unwrap();
         match ipld {
             Ipld::Map(map) => match map.get("wnfs/pub/dir") {
                 Some(Ipld::Map(content)) => match content.get("previous") {

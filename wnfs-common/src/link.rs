@@ -277,7 +277,7 @@ mod tests {
     async fn link_value_can_be_resolved() {
         let store = &MemoryBlockStore::default();
         let example = Example::new(256);
-        let cid = store.put_serializable(&example).await.unwrap();
+        let cid = example.store(store).await.unwrap();
         let link = Link::<Example>::from_cid(cid);
 
         let value = link.resolve_value(store).await.unwrap();
