@@ -5,7 +5,6 @@ use crate::{
     types::{Block, Link, LinkRef, Links, PbLinks},
 };
 use anyhow::{anyhow, bail, ensure, Result};
-use async_trait::async_trait;
 use bytes::Bytes;
 use futures::FutureExt;
 use libipld::Cid;
@@ -223,8 +222,6 @@ impl UnixFsFile {
     }
 }
 
-#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
-#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl Storable for UnixFsFile {
     type Serializable = UnixFsFile;
 

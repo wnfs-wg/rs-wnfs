@@ -21,7 +21,6 @@ authors = ["The Fission Authors"]
 anyhow = "1.0"
 async-once-cell = "0.5"
 async-recursion = "1.0"
-async-trait = "0.1"
 bitvec = { version = "1.0", features = ["serde"] }
 blake3 = { version = "1.4", features = ["traits-preview"] }
 chrono = { version = "0.4.23", default-features = false, features = ["clock", "std"] }

@@ -1,7 +1,6 @@
 use super::{KeyValueChange, Node, HAMT_VERSION};
 use crate::{serializable::HamtSerializable, Hasher};
 use anyhow::Result;
-use async_trait::async_trait;
 use libipld::Cid;
 use semver::Version;
 use serde::{de::DeserializeOwned, Serialize};
@@ -129,8 +128,6 @@ impl<K: CondSync, V: CondSync, H: Hasher + CondSync> Hamt<K, V, H> {
     }
 }
 
-#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
-#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl<K, V, H> Storable for Hamt<K, V, H>
 where
     K: Storable + CondSync,

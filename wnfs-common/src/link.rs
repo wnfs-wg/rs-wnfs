@@ -1,7 +1,6 @@
 use crate::{traits::IpldEq, utils::CondSync, BlockStore, Storable};
 use anyhow::Result;
 use async_once_cell::OnceCell;
-use async_trait::async_trait;
 use libipld::Cid;
 use std::fmt::{self, Debug, Formatter};
 
@@ -137,8 +136,6 @@ impl<T: Storable + CondSync> Link<T> {
     }
 }
 
-#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
-#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl<T: PartialEq + Storable + CondSync> IpldEq for Link<T> {
     async fn eq(&self, other: &Link<T>, store: &impl BlockStore) -> Result<bool> {
         if self == other {
@@ -227,7 +224,6 @@ mod tests {
     use crate::{BlockStore, Link, MemoryBlockStore, Storable};
     use anyhow::Result;
     use async_once_cell::OnceCell;
-    use async_trait::async_trait;
     use libipld::Cid;
     use serde::{Deserialize, Serialize};
 
@@ -238,7 +234,6 @@ mod tests {
         persisted_as: OnceCell<Cid>,
     }
 
-    #[async_trait]
     impl Storable for Example {
         type Serializable = Example;
 

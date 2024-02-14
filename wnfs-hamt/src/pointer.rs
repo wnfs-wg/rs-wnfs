@@ -1,7 +1,6 @@
 use super::{error::HamtError, hash::Hasher, Node, HAMT_VALUES_BUCKET_SIZE};
 use crate::serializable::PointerSerializable;
 use anyhow::Result;
-use async_trait::async_trait;
 use libipld::Cid;
 use serde::{de::DeserializeOwned, Serialize};
 use std::fmt::Debug;
@@ -110,8 +109,6 @@ impl<K: CondSync, V: CondSync, H: Hasher + CondSync> Pointer<K, V, H> {
     }
 }
 
-#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
-#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl<K, V, H> Storable for Pointer<K, V, H>
 where
     K: Storable + CondSync,
@@ -155,8 +152,6 @@ where
     }
 }
 
-#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
-#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl<K, V> Storable for Pair<K, V>
 where
     K: Storable + CondSync,

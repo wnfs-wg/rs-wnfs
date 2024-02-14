@@ -18,7 +18,6 @@ authors = ["The Fission Authors"]
 
 [dependencies]
 anyhow = "1.0"
-async-trait = "0.1"
 blake3 = { version = "1.4", features = ["traits-preview"] }
 libipld = { version = "0.16", features = ["dag-cbor", "derive", "serde-codec"] }
 num-bigint-dig = { version = "0.8.2", features = ["prime", "zeroize"], optional = true }

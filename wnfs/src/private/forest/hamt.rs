@@ -1,7 +1,6 @@
 use super::traits::PrivateForest;
 use crate::error::FsError;
 use anyhow::Result;
-use async_trait::async_trait;
 use libipld_core::cid::Cid;
 use quick_cache::sync::Cache;
 use rand_core::CryptoRngCore;
@@ -393,8 +392,6 @@ impl PrivateForest for Arc<HamtForest> {
     }
 }
 
-#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
-#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl Storable for HamtForest {
     type Serializable = HamtForestSerializable;
 

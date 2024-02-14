@@ -23,7 +23,6 @@ anyhow = "1.0"
 async-once-cell = "0.5"
 async-recursion = "1.0"
 async-stream = "0.3"
-async-trait = "0.1"
 blake3 = { version = "1.4", features = ["traits-preview"] }
 bytes = "1.4.0"
 chacha20poly1305 = "0.10"
