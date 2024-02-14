@@ -14,7 +14,7 @@ use libipld::{
 };
 use parking_lot::Mutex;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
-use std::{collections::HashMap, ops::Deref};
+use std::collections::HashMap;
 
 //--------------------------------------------------------------------------------------------------
 // Constants
@@ -96,25 +96,47 @@ pub trait BlockStore: CondSync {
     }
 }
 
-impl<B: BlockStore, T: Deref<Target = B> + CondSync> BlockStore for T {
+impl<B: BlockStore> BlockStore for &B {
     async fn get_block(&self, cid: &Cid) -> Result<Bytes> {
-        self.deref().get_block(cid).await
+        (**self).get_block(cid).await
     }
 
     async fn put_block(&self, bytes: impl Into<Bytes> + CondSend, codec: u64) -> Result<Cid> {
-        self.deref().put_block(bytes, codec).await
+        (**self).put_block(bytes, codec).await
     }
 
     async fn get_deserializable<V: DeserializeOwned>(&self, cid: &Cid) -> Result<V> {
-        self.deref().get_deserializable(cid).await
+        (**self).get_deserializable(cid).await
     }
 
     async fn put_serializable<V: Serialize + CondSync>(&self, value: &V) -> Result<Cid> {
-        self.deref().put_serializable(value).await
+        (**self).put_serializable(value).await
     }
 
     fn create_cid(&self, bytes: &[u8], codec: u64) -> Result<Cid> {
-        self.deref().create_cid(bytes, codec)
+        (**self).create_cid(bytes, codec)
+    }
+}
+
+impl<B: BlockStore> BlockStore for Box<B> {
+    async fn get_block(&self, cid: &Cid) -> Result<Bytes> {
+        (**self).get_block(cid).await
+    }
+
+    async fn put_block(&self, bytes: impl Into<Bytes> + CondSend, codec: u64) -> Result<Cid> {
+        (**self).put_block(bytes, codec).await
+    }
+
+    async fn get_deserializable<V: DeserializeOwned>(&self, cid: &Cid) -> Result<V> {
+        (**self).get_deserializable(cid).await
+    }
+
+    async fn put_serializable<V: Serialize + CondSync>(&self, value: &V) -> Result<Cid> {
+        (**self).put_serializable(value).await
+    }
+
+    fn create_cid(&self, bytes: &[u8], codec: u64) -> Result<Cid> {
+        (**self).create_cid(bytes, codec)
     }
 }
 
