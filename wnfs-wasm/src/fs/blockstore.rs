@@ -69,6 +69,10 @@ impl WnfsBlockStore for ForeignBlockStore {
             .await
             .map_err(anyhow_error("Cannot get block: {:?}"))?;
 
+        if value.is_undefined() {
+            return Err(BlockStoreError::CIDNotFound(*cid));
+        }
+
         // Convert the value to a vector of bytes.
         let bytes = Uint8Array::new(&value).to_vec();
         Ok(Bytes::from(bytes))
