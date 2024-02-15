@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1708019556889,
+  "lastUpdate": 1708024022742,
   "repoUrl": "https://github.com/wnfs-wg/rs-wnfs",
   "entries": {
     "Rust Benchmark": [
@@ -21925,6 +21925,126 @@ window.BENCHMARK_DATA = {
             "name": "NameAccumulator::<BigNumRug> serialization",
             "value": 637,
             "range": "± 285",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "philipp.krueger1@gmail.com",
+            "name": "Philipp Krüger",
+            "username": "matheus23"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "4914e8f142305dfe740787c249c934f8f6a8d4c3",
+          "message": "chore: Release version 0.2.0 (#403)\n\n* chore: Run CI with our MSRV\r\n\r\n* chore: Write CHANGELOGs and bump to 0.2.0",
+          "timestamp": "2024-02-15T20:03:09+01:00",
+          "tree_id": "d3d61d48a912bf5bbd95c6c500e80793860e89b7",
+          "url": "https://github.com/wnfs-wg/rs-wnfs/commit/4914e8f142305dfe740787c249c934f8f6a8d4c3"
+        },
+        "date": 1708024022106,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "node set",
+            "value": 16165,
+            "range": "± 234",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node set 1000 consecutive",
+            "value": 2245098,
+            "range": "± 36368",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and get",
+            "value": 49398,
+            "range": "± 429",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and remove",
+            "value": 55057,
+            "range": "± 589",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt load and decode/0",
+            "value": 3223,
+            "range": "± 12",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt set and encode",
+            "value": 64500,
+            "range": "± 1897",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt diff",
+            "value": 38177,
+            "range": "± 2115",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt merge",
+            "value": 114483,
+            "range": "± 6660",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameSegment::<BigNumDig>::new_hashed",
+            "value": 1821905,
+            "range": "± 189477",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameSegment::<BigNumRug>::new_hashed",
+            "value": 317595,
+            "range": "± 27221",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameSegment::<BigNumDig>::new(rng)",
+            "value": 1830395,
+            "range": "± 153804",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameSegment::<BigNumRug>::new(rng)",
+            "value": 596854,
+            "range": "± 18595",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameAccumulator::<BigNumDig>::add",
+            "value": 1761379,
+            "range": "± 59460",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameAccumulator::<BigNumRug>::add",
+            "value": 1001967,
+            "range": "± 24473",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameAccumulator::<BigNumDig> serialization",
+            "value": 498,
+            "range": "± 57",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameAccumulator::<BigNumRug> serialization",
+            "value": 654,
+            "range": "± 30",
             "unit": "ns/iter"
           }
         ]
