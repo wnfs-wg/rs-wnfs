@@ -311,9 +311,11 @@ where
             version: WNFS_VERSION,
         };
 
-        store
+        let cid = store
             .put_block(encode(&serializable, DagCborCodec)?, DagCborCodec.into())
-            .await
+            .await?;
+
+        Ok(cid)
     }
 
     pub async fn load(

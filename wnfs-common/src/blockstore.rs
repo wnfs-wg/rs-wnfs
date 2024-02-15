@@ -3,7 +3,6 @@ use crate::{
     utils::{Arc, CondSend, CondSync},
     BlockStoreError, MAX_BLOCK_SIZE,
 };
-use anyhow::{bail, Result};
 use bytes::Bytes;
 use futures::Future;
 use libipld::{
@@ -53,7 +52,10 @@ pub trait BlockStore: CondSync {
     /// Retrieve a block from this store via its hash (`Cid`).
     ///
     /// If this store can't find the block, it may raise an error like `BlockNotFound`.
-    fn get_block(&self, cid: &Cid) -> impl Future<Output = Result<Bytes>> + CondSend;
+    fn get_block(
+        &self,
+        cid: &Cid,
+    ) -> impl Future<Output = Result<Bytes, BlockStoreError>> + CondSend;
 
     /// Put some bytes into the blockstore. These bytes should be encoded with the given codec.
     ///
@@ -72,7 +74,7 @@ pub trait BlockStore: CondSync {
         &self,
         bytes: impl Into<Bytes> + CondSend,
         codec: u64,
-    ) -> impl Future<Output = Result<Cid>> + CondSend {
+    ) -> impl Future<Output = Result<Cid, BlockStoreError>> + CondSend {
         let bytes = bytes.into();
         async move {
             let cid = self.create_cid(&bytes, codec)?;
@@ -94,19 +96,22 @@ pub trait BlockStore: CondSync {
         &self,
         cid: Cid,
         bytes: impl Into<Bytes> + CondSend,
-    ) -> impl Future<Output = Result<()>> + CondSend;
+    ) -> impl Future<Output = Result<(), BlockStoreError>> + CondSend;
 
     /// Find out whether a call to `get_block` would return with a result or not.
     ///
     /// This is useful for data exchange protocols to find out what needs to be fetched
     /// externally and what doesn't.
-    fn has_block(&self, cid: &Cid) -> impl Future<Output = Result<bool>> + CondSend;
+    fn has_block(
+        &self,
+        cid: &Cid,
+    ) -> impl Future<Output = Result<bool, BlockStoreError>> + CondSend;
 
     // This should be the same in all implementations of BlockStore
-    fn create_cid(&self, bytes: &[u8], codec: u64) -> Result<Cid> {
+    fn create_cid(&self, bytes: &[u8], codec: u64) -> Result<Cid, BlockStoreError> {
         // If there are too many bytes, abandon this task
         if bytes.len() > MAX_BLOCK_SIZE {
-            bail!(BlockStoreError::MaximumBlockSizeExceeded(bytes.len()))
+            return Err(BlockStoreError::MaximumBlockSizeExceeded(bytes.len()));
         }
 
         // Compute the Blake3 hash of the bytes
@@ -124,45 +129,61 @@ pub trait BlockStore: CondSync {
 //--------------------------------------------------------------------------------------------------
 
 impl<B: BlockStore> BlockStore for &B {
-    async fn get_block(&self, cid: &Cid) -> Result<Bytes> {
+    async fn get_block(&self, cid: &Cid) -> Result<Bytes, BlockStoreError> {
         (**self).get_block(cid).await
     }
 
-    async fn put_block(&self, bytes: impl Into<Bytes> + CondSend, codec: u64) -> Result<Cid> {
+    async fn put_block(
+        &self,
+        bytes: impl Into<Bytes> + CondSend,
+        codec: u64,
+    ) -> Result<Cid, BlockStoreError> {
         (**self).put_block(bytes, codec).await
     }
 
-    async fn put_block_keyed(&self, cid: Cid, bytes: impl Into<Bytes> + CondSend) -> Result<()> {
+    async fn put_block_keyed(
+        &self,
+        cid: Cid,
+        bytes: impl Into<Bytes> + CondSend,
+    ) -> Result<(), BlockStoreError> {
         (**self).put_block_keyed(cid, bytes).await
     }
 
-    async fn has_block(&self, cid: &Cid) -> Result<bool> {
+    async fn has_block(&self, cid: &Cid) -> Result<bool, BlockStoreError> {
         (**self).has_block(cid).await
     }
 
-    fn create_cid(&self, bytes: &[u8], codec: u64) -> Result<Cid> {
+    fn create_cid(&self, bytes: &[u8], codec: u64) -> Result<Cid, BlockStoreError> {
         (**self).create_cid(bytes, codec)
     }
 }
 
 impl<B: BlockStore> BlockStore for Box<B> {
-    async fn get_block(&self, cid: &Cid) -> Result<Bytes> {
+    async fn get_block(&self, cid: &Cid) -> Result<Bytes, BlockStoreError> {
         (**self).get_block(cid).await
     }
 
-    async fn put_block(&self, bytes: impl Into<Bytes> + CondSend, codec: u64) -> Result<Cid> {
+    async fn put_block(
+        &self,
+        bytes: impl Into<Bytes> + CondSend,
+        codec: u64,
+    ) -> Result<Cid, BlockStoreError> {
         (**self).put_block(bytes, codec).await
     }
 
-    async fn put_block_keyed(&self, cid: Cid, bytes: impl Into<Bytes> + CondSend) -> Result<()> {
+    async fn put_block_keyed(
+        &self,
+        cid: Cid,
+        bytes: impl Into<Bytes> + CondSend,
+    ) -> Result<(), BlockStoreError> {
         (**self).put_block_keyed(cid, bytes).await
     }
 
-    async fn has_block(&self, cid: &Cid) -> Result<bool> {
+    async fn has_block(&self, cid: &Cid) -> Result<bool, BlockStoreError> {
         (**self).has_block(cid).await
     }
 
-    fn create_cid(&self, bytes: &[u8], codec: u64) -> Result<Cid> {
+    fn create_cid(&self, bytes: &[u8], codec: u64) -> Result<Cid, BlockStoreError> {
         (**self).create_cid(bytes, codec)
     }
 }
@@ -186,7 +207,7 @@ impl MemoryBlockStore {
 }
 
 impl BlockStore for MemoryBlockStore {
-    async fn get_block(&self, cid: &Cid) -> Result<Bytes> {
+    async fn get_block(&self, cid: &Cid) -> Result<Bytes, BlockStoreError> {
         let bytes = self
             .0
             .lock()
@@ -197,13 +218,17 @@ impl BlockStore for MemoryBlockStore {
         Ok(bytes)
     }
 
-    async fn put_block_keyed(&self, cid: Cid, bytes: impl Into<Bytes> + CondSend) -> Result<()> {
+    async fn put_block_keyed(
+        &self,
+        cid: Cid,
+        bytes: impl Into<Bytes> + CondSend,
+    ) -> Result<(), BlockStoreError> {
         self.0.lock().insert(cid, bytes.into());
 
         Ok(())
     }
 
-    async fn has_block(&self, cid: &Cid) -> Result<bool> {
+    async fn has_block(&self, cid: &Cid) -> Result<bool, BlockStoreError> {
         Ok(self.0.lock().contains_key(cid))
     }
 }
@@ -213,7 +238,7 @@ impl BlockStore for MemoryBlockStore {
 //--------------------------------------------------------------------------------------------------
 
 /// Tests the retrieval property of a BlockStore-conforming type.
-pub async fn bs_retrieval_test<T>(store: impl BlockStore) -> Result<()> {
+pub async fn bs_retrieval_test<T>(store: impl BlockStore) -> Result<(), BlockStoreError> {
     // Example objects to insert and remove from the blockstore
     let first_bytes = vec![1, 2, 3, 4, 5];
     let second_bytes = b"hello world".to_vec();
@@ -234,7 +259,7 @@ pub async fn bs_retrieval_test<T>(store: impl BlockStore) -> Result<()> {
 }
 
 /// Tests the duplication of a BlockStore-conforming type.
-pub async fn bs_duplication_test<T>(store: impl BlockStore) -> Result<()> {
+pub async fn bs_duplication_test<T>(store: impl BlockStore) -> Result<(), BlockStoreError> {
     // Example objects to insert and remove from the blockstore
     let first_bytes = vec![1, 2, 3, 4, 5];
     let second_bytes = first_bytes.clone();
@@ -261,7 +286,7 @@ pub async fn bs_duplication_test<T>(store: impl BlockStore) -> Result<()> {
 }
 
 /// Tests the serialization of a BlockStore-conforming type.
-pub async fn bs_serialization_test<T>(store: &T) -> Result<()>
+pub async fn bs_serialization_test<T>(store: &T) -> Result<(), BlockStoreError>
 where
     T: BlockStore + Serialize + for<'de> Deserialize<'de>,
 {

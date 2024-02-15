@@ -16,7 +16,7 @@ use wnfs::{
         PrivateDirectory, PrivateNode,
     },
 };
-use wnfs_common::{utils::CondSend, Storable};
+use wnfs_common::{utils::CondSend, BlockStoreError, Storable};
 
 #[async_std::main]
 async fn main() -> Result<()> {
@@ -96,7 +96,7 @@ struct TieredBlockStore<H: BlockStore, C: BlockStore> {
 }
 
 impl<H: BlockStore, C: BlockStore> BlockStore for TieredBlockStore<H, C> {
-    async fn get_block(&self, cid: &Cid) -> Result<Bytes> {
+    async fn get_block(&self, cid: &Cid) -> Result<Bytes, BlockStoreError> {
         if self.hot.has_block(cid).await? {
             self.hot.get_block(cid).await
         } else {
@@ -104,15 +104,23 @@ impl<H: BlockStore, C: BlockStore> BlockStore for TieredBlockStore<H, C> {
         }
     }
 
-    async fn put_block(&self, bytes: impl Into<Bytes> + CondSend, codec: u64) -> Result<Cid> {
+    async fn put_block(
+        &self,
+        bytes: impl Into<Bytes> + CondSend,
+        codec: u64,
+    ) -> Result<Cid, BlockStoreError> {
         self.hot.put_block(bytes, codec).await
     }
 
-    async fn put_block_keyed(&self, cid: Cid, bytes: impl Into<Bytes> + CondSend) -> Result<()> {
+    async fn put_block_keyed(
+        &self,
+        cid: Cid,
+        bytes: impl Into<Bytes> + CondSend,
+    ) -> Result<(), BlockStoreError> {
         self.hot.put_block_keyed(cid, bytes).await
     }
 
-    async fn has_block(&self, cid: &Cid) -> Result<bool> {
+    async fn has_block(&self, cid: &Cid) -> Result<bool, BlockStoreError> {
         if self.hot.has_block(cid).await? {
             return Ok(true);
         }

@@ -16,9 +16,9 @@ pub enum BlockStoreError {
     #[error("Cannot find specified CID in block store: {0}")]
     CIDNotFound(Cid),
 
-    #[error("Cannot find handler for block with CID: {0}")]
-    BlockHandlerNotFound(Cid),
+    #[error("CID error during blockstore operation: {0}")]
+    CIDError(#[from] cid::Error),
 
-    #[error("Lock poisoned")]
-    LockPoisoned,
+    #[error(transparent)]
+    Custom(#[from] anyhow::Error),
 }

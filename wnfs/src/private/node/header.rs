@@ -165,7 +165,7 @@ impl PrivateNodeHeader {
         let temporal_key = self.derive_temporal_key();
         let cbor_bytes = serde_ipld_dagcbor::to_vec(&self.to_serializable(forest))?;
         let ciphertext = temporal_key.key_wrap_encrypt(&cbor_bytes)?;
-        store.put_block(ciphertext, CODEC_RAW).await
+        Ok(store.put_block(ciphertext, CODEC_RAW).await?)
     }
 
     pub(crate) fn to_serializable(

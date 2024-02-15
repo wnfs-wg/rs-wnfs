@@ -92,7 +92,7 @@ pub trait Storable: Sized {
     {
         let store_future = async {
             let (bytes, codec) = self.to_serializable(store).await?.encode_ipld()?;
-            store.put_block(bytes, codec).await
+            Ok(store.put_block(bytes, codec).await?)
         };
 
         async {

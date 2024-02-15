@@ -7,7 +7,7 @@ use js_sys::{Promise, Uint8Array};
 use libipld_core::cid::Cid;
 use wasm_bindgen::prelude::wasm_bindgen;
 use wasm_bindgen_futures::JsFuture;
-use wnfs::common::BlockStore as WnfsBlockStore;
+use wnfs::common::{BlockStore as WnfsBlockStore, BlockStoreError};
 
 //--------------------------------------------------------------------------------------------------
 // Externs
@@ -50,7 +50,11 @@ pub struct ForeignBlockStore(pub(crate) BlockStore);
 //--------------------------------------------------------------------------------------------------
 
 impl WnfsBlockStore for ForeignBlockStore {
-    async fn put_block_keyed(&self, cid: Cid, bytes: impl Into<Bytes>) -> Result<()> {
+    async fn put_block_keyed(
+        &self,
+        cid: Cid,
+        bytes: impl Into<Bytes>,
+    ) -> Result<(), BlockStoreError> {
         let bytes: Bytes = bytes.into();
 
         JsFuture::from(self.0.put_block_keyed(cid.to_bytes(), bytes.into()))
@@ -60,7 +64,7 @@ impl WnfsBlockStore for ForeignBlockStore {
         Ok(())
     }
 
-    async fn get_block(&self, cid: &Cid) -> Result<Bytes> {
+    async fn get_block(&self, cid: &Cid) -> Result<Bytes, BlockStoreError> {
         let value = JsFuture::from(self.0.get_block(cid.to_bytes()))
             .await
             .map_err(anyhow_error("Cannot get block: {:?}"))?;
@@ -70,7 +74,7 @@ impl WnfsBlockStore for ForeignBlockStore {
         Ok(Bytes::from(bytes))
     }
 
-    async fn has_block(&self, cid: &Cid) -> Result<bool> {
+    async fn has_block(&self, cid: &Cid) -> Result<bool, BlockStoreError> {
         let value = JsFuture::from(self.0.has_block(cid.to_bytes()))
             .await
             .map_err(anyhow_error("Cannot run has_block: {:?}"))?;
