@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1704189205391,
+  "lastUpdate": 1708019556889,
   "repoUrl": "https://github.com/wnfs-wg/rs-wnfs",
   "entries": {
     "Rust Benchmark": [
@@ -21805,6 +21805,126 @@ window.BENCHMARK_DATA = {
             "name": "NameAccumulator::<BigNumRug> serialization",
             "value": 680,
             "range": "± 32",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "philipp.krueger1@gmail.com",
+            "name": "Philipp Krüger",
+            "username": "matheus23"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "3eaee3cab4915474f29fcd0b499ae70d396dbbcc",
+          "message": "refactor: Evolve `BlockStore` trait (#402)\n\n- Use new RPITIT instead of `async_trait` macro for all traits\r\n- Expose blanket implementation `impl<B: BlockStore> BlockStore for &B` and `Box<B>`\r\n- Add two functions to `trait BlockStore`:\r\n  - `async fn has_block(&self, cid: &Cid) -> Result<bool>;` to find out whether a block is available locally\r\n  - `async fn put_block_keyed(&self, cid: &Cid, bytes: impl Into<Bytes> + CondSend) -> Result<()>;` to add a block with given CID to the blockstore. This allows us to support adding blocks using different hashing functions to the same blockstore.\r\n- Use explicit `BlockStoreError` type in `trait Blockstore` instead of `anyhow::Error`\r\n- Update `rug` dependency to `1.24`\r\n\r\n---\r\n\r\n* feat: Implement `BlockStore` for derefs, too\r\n\r\n* refactor: Use new RPITIT feature for `trait BlockStore`\r\n\r\n* refactor: Move `trait PrivateForest` to RPITIT\r\n\r\n* refactor: Use RPITIT in `trait PrivateKey` & `trait ExchangeKey`\r\n\r\n* refactor: Completely remove `async_trait`\r\n\r\n* chore: Fix warnings, remove unused `IpldEq` trait\r\n\r\n* fix: Update rug & enable std feature\r\n\r\n* feat: don't require `std` for `rug`, more efficient `to_bytes_be`\r\n\r\n* chore: Fix nightly warning\r\n\r\n* refactor: Blanket-impl for `&B` and `Box<B>` instead of `Deref`\r\n\r\nThis way is recommended by dtolnay (https://github.com/rust-lang/api-guidelines/discussions/158)\r\nand the \"Rust for Rustaceans\" book (paragraph \"Ergonomic Trait Implementations\").\r\nThis leads to better compiler error messages when you pass something that doesn't `impl BlockStore` the right way.\r\n`rand_core` explicitly decided against a `DerefMut` blanket implementation for `trait RngCore`.\r\n\r\n* refactor: Remove serializable things from `BlockStore`\r\n\r\nUse the `Storable` trait and its `store` and `load` functions instead.\r\n\r\n* feat: Add `has_block` to `trait BlockStore`\r\n\r\n* fix: Update accesskey snapshot\r\n\r\n* fix: Implement `has_block` for `ForeignBlockStore`\r\n\r\n* feat: Add `get_block_keyed` to `trait BlockStore`, fix wasm\r\n\r\n* refactor: Move blockstore interface close to extern\r\n\r\n* refactor: Use precise error type in `trait BlockStore`\r\n\r\n* feat: Return correct error in `ForeignBlockStore::get_block`\r\n\r\n* refactor: Use `libipld_core::serde::to_ipld` instead of dag-cbor\r\n\r\n* docs: Add comments explaining use of `boxed_fut`",
+          "timestamp": "2024-02-15T18:46:40+01:00",
+          "tree_id": "8a1390eb3d15efa76085d2897f85061f3a4c0e6b",
+          "url": "https://github.com/wnfs-wg/rs-wnfs/commit/3eaee3cab4915474f29fcd0b499ae70d396dbbcc"
+        },
+        "date": 1708019556021,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "node set",
+            "value": 16509,
+            "range": "± 657",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node set 1000 consecutive",
+            "value": 2269748,
+            "range": "± 62579",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and get",
+            "value": 46176,
+            "range": "± 268",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and remove",
+            "value": 54296,
+            "range": "± 192",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt load and decode/0",
+            "value": 3201,
+            "range": "± 69",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt set and encode",
+            "value": 62923,
+            "range": "± 1571",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt diff",
+            "value": 38468,
+            "range": "± 2061",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt merge",
+            "value": 114971,
+            "range": "± 7352",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameSegment::<BigNumDig>::new_hashed",
+            "value": 1831337,
+            "range": "± 158382",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameSegment::<BigNumRug>::new_hashed",
+            "value": 311555,
+            "range": "± 26163",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameSegment::<BigNumDig>::new(rng)",
+            "value": 1875653,
+            "range": "± 162858",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameSegment::<BigNumRug>::new(rng)",
+            "value": 596000,
+            "range": "± 17238",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameAccumulator::<BigNumDig>::add",
+            "value": 1759519,
+            "range": "± 56523",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameAccumulator::<BigNumRug>::add",
+            "value": 1003163,
+            "range": "± 21490",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameAccumulator::<BigNumDig> serialization",
+            "value": 472,
+            "range": "± 344",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameAccumulator::<BigNumRug> serialization",
+            "value": 637,
+            "range": "± 285",
             "unit": "ns/iter"
           }
         ]
