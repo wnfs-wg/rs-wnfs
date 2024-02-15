@@ -124,15 +124,11 @@ impl From<&AccessKey> for Vec<u8> {
 #[cfg(test)]
 mod snapshot_tests {
     use super::*;
-    use libipld_core::ipld::Ipld;
     use rand::Rng;
     use rand_chacha::ChaCha12Rng;
     use rand_core::SeedableRng;
     use testresult::TestResult;
-    use wnfs_common::{
-        decode, encode,
-        libipld::{cbor::DagCborCodec, json::DagJsonCodec},
-    };
+    use wnfs_common::{encode, libipld::json::DagJsonCodec};
 
     #[async_std::test]
     async fn test_access_key() -> TestResult {
@@ -154,9 +150,7 @@ mod snapshot_tests {
     }
 
     fn as_dag_json_value(s: impl Serialize) -> Result<serde_json::Value> {
-        let dag_cbor = encode(&s, DagCborCodec)?;
-        let ipld: Ipld = decode(&dag_cbor, DagCborCodec)?;
-        let dag_json = encode(&ipld, DagJsonCodec)?;
+        let dag_json = encode(&libipld_core::serde::to_ipld(s)?, DagJsonCodec)?;
         let value = serde_json::from_slice(&dag_json)?;
         Ok(value)
     }
