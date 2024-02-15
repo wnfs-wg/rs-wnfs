@@ -21,6 +21,9 @@ extern "C" {
     #[wasm_bindgen(method, js_name = "putBlock")]
     pub(crate) fn put_block(store: &BlockStore, bytes: Vec<u8>, codec: u32) -> Promise;
 
+    #[wasm_bindgen(method, js_name = "hasBlock")]
+    pub(crate) fn has_block(store: &BlockStore, cid: Vec<u8>) -> Promise;
+
     #[wasm_bindgen(method, js_name = "getBlock")]
     pub(crate) fn get_block(store: &BlockStore, cid: Vec<u8>) -> Promise;
 }
@@ -38,13 +41,12 @@ pub struct ForeignBlockStore(pub(crate) BlockStore);
 //--------------------------------------------------------------------------------------------------
 
 impl WnfsBlockStore for ForeignBlockStore {
-    /// Stores an array of bytes in the block store.
     async fn put_block(&self, bytes: impl Into<Bytes>, codec: u64) -> Result<Cid> {
         let bytes: Bytes = bytes.into();
 
         let value = JsFuture::from(self.0.put_block(bytes.into(), codec.try_into()?))
             .await
-            .map_err(anyhow_error("Cannot get block: {:?}"))?;
+            .map_err(anyhow_error("Cannot put block: {:?}"))?;
 
         // Convert the value to a vector of bytes.
         let bytes = Uint8Array::new(&value).to_vec();
@@ -53,8 +55,7 @@ impl WnfsBlockStore for ForeignBlockStore {
         Ok(Cid::try_from(&bytes[..])?)
     }
 
-    /// Retrieves an array of bytes from the block store with given CID.
-    async fn get_block<'a>(&'a self, cid: &Cid) -> Result<Bytes> {
+    async fn get_block(&self, cid: &Cid) -> Result<Bytes> {
         let value = JsFuture::from(self.0.get_block(cid.to_bytes()))
             .await
             .map_err(anyhow_error("Cannot get block: {:?}"))?;
@@ -62,5 +63,13 @@ impl WnfsBlockStore for ForeignBlockStore {
         // Convert the value to a vector of bytes.
         let bytes = Uint8Array::new(&value).to_vec();
         Ok(Bytes::from(bytes))
+    }
+
+    async fn has_block(&self, cid: &Cid) -> Result<bool> {
+        let value = JsFuture::from(self.0.has_block(cid.to_bytes()))
+            .await
+            .map_err(anyhow_error("Cannot run has_block: {:?}"))?;
+
+        Ok(js_sys::Boolean::from(value).value_of())
     }
 }
