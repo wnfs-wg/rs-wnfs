@@ -123,6 +123,11 @@ impl BlockStore for SnapshotBlockStore {
     }
 
     #[inline]
+    async fn put_block_keyed(&self, cid: Cid, bytes: impl Into<Bytes> + CondSend) -> Result<()> {
+        self.inner.put_block_keyed(cid, bytes).await
+    }
+
+    #[inline]
     async fn has_block(&self, cid: &Cid) -> Result<bool> {
         self.inner.has_block(cid).await
     }

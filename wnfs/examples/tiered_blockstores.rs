@@ -97,16 +97,19 @@ struct TieredBlockStore<H: BlockStore, C: BlockStore> {
 
 impl<H: BlockStore, C: BlockStore> BlockStore for TieredBlockStore<H, C> {
     async fn get_block(&self, cid: &Cid) -> Result<Bytes> {
-        match self.hot.get_block(cid).await {
-            Ok(block) => Ok(block),
-            // We could technically get better about this
-            // and only match "NotFound" errors.
-            Err(_) => self.cold.get_block(cid).await,
+        if self.hot.has_block(cid).await? {
+            self.hot.get_block(cid).await
+        } else {
+            self.cold.get_block(cid).await
         }
     }
 
     async fn put_block(&self, bytes: impl Into<Bytes> + CondSend, codec: u64) -> Result<Cid> {
-        self.hot.put_block(bytes.into(), codec).await
+        self.hot.put_block(bytes, codec).await
+    }
+
+    async fn put_block_keyed(&self, cid: Cid, bytes: impl Into<Bytes> + CondSend) -> Result<()> {
+        self.hot.put_block_keyed(cid, bytes).await
     }
 
     async fn has_block(&self, cid: &Cid) -> Result<bool> {

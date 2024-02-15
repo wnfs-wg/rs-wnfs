@@ -35,11 +35,9 @@ class MemoryBlockStore {
   }
 
   /** Retrieves an array of bytes from the block store with given CID. */
-  async putBlock(bytes: Uint8Array, codec: number): Promise<Uint8Array> {
-    const hash = await sha256.digest(bytes);
-    const cid = CID.create(1, codec, hash);
-    this.store.set(cid.toString(), bytes);
-    return cid.bytes;
+  async putBlockKeyed(cid: Uint8Array, bytes: Uint8Array): Promise<void> {
+    const decodedCid = CID.decode(cid);
+    this.store.set(decodedCid.toString(), bytes);
   }
 
   /** Finds out whether a block is retrievable from this blockstore */

@@ -66,11 +66,35 @@ pub trait BlockStore: CondSync {
     ///
     /// This funciton allows the blockstore to choose the hashing function itself.
     /// The hashing function that was chosen will be readable from the `Cid` metadata.
+    ///
+    /// If you need control over the concrete hashing function that's used, see `put_block_keyed`.
     fn put_block(
         &self,
         bytes: impl Into<Bytes> + CondSend,
         codec: u64,
-    ) -> impl Future<Output = Result<Cid>> + CondSend;
+    ) -> impl Future<Output = Result<Cid>> + CondSend {
+        let bytes = bytes.into();
+        async move {
+            let cid = self.create_cid(&bytes, codec)?;
+            self.put_block_keyed(cid, bytes).await?;
+            Ok(cid)
+        }
+    }
+
+    /// Put a block of data into this blockstore. The block's CID needs to match the CID given.
+    ///
+    /// It's up to the blockstore whether to check this fact or assume it when this function is called.
+    ///
+    /// The default implementation of `put_block` will use this function under the hood and use
+    /// the correct CID provided by the `create_cid` function.
+    ///
+    /// This is useful to be able to add blocks that were generated from other
+    /// clients with differently configured hashing functions to this blockstore.
+    fn put_block_keyed(
+        &self,
+        cid: Cid,
+        bytes: impl Into<Bytes> + CondSend,
+    ) -> impl Future<Output = Result<()>> + CondSend;
 
     /// Find out whether a call to `get_block` would return with a result or not.
     ///
@@ -108,6 +132,10 @@ impl<B: BlockStore> BlockStore for &B {
         (**self).put_block(bytes, codec).await
     }
 
+    async fn put_block_keyed(&self, cid: Cid, bytes: impl Into<Bytes> + CondSend) -> Result<()> {
+        (**self).put_block_keyed(cid, bytes).await
+    }
+
     async fn has_block(&self, cid: &Cid) -> Result<bool> {
         (**self).has_block(cid).await
     }
@@ -124,6 +152,10 @@ impl<B: BlockStore> BlockStore for Box<B> {
 
     async fn put_block(&self, bytes: impl Into<Bytes> + CondSend, codec: u64) -> Result<Cid> {
         (**self).put_block(bytes, codec).await
+    }
+
+    async fn put_block_keyed(&self, cid: Cid, bytes: impl Into<Bytes> + CondSend) -> Result<()> {
+        (**self).put_block_keyed(cid, bytes).await
     }
 
     async fn has_block(&self, cid: &Cid) -> Result<bool> {
@@ -165,17 +197,10 @@ impl BlockStore for MemoryBlockStore {
         Ok(bytes)
     }
 
-    async fn put_block(&self, bytes: impl Into<Bytes> + CondSend, codec: u64) -> Result<Cid> {
-        // Convert the bytes into a Bytes object
-        let bytes: Bytes = bytes.into();
+    async fn put_block_keyed(&self, cid: Cid, bytes: impl Into<Bytes> + CondSend) -> Result<()> {
+        self.0.lock().insert(cid, bytes.into());
 
-        // Try to build the CID from the bytes and codec
-        let cid = self.create_cid(&bytes, codec)?;
-
-        // Insert the bytes into the HashMap using the CID as the key
-        self.0.lock().insert(cid, bytes);
-
-        Ok(cid)
+        Ok(())
     }
 
     async fn has_block(&self, cid: &Cid) -> Result<bool> {

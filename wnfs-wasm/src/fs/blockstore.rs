@@ -18,14 +18,14 @@ extern "C" {
     #[wasm_bindgen(typescript_type = "BlockStore")]
     pub type BlockStore;
 
-    #[wasm_bindgen(method, js_name = "putBlock")]
-    pub(crate) fn put_block(store: &BlockStore, bytes: Vec<u8>, codec: u32) -> Promise;
-
-    #[wasm_bindgen(method, js_name = "hasBlock")]
-    pub(crate) fn has_block(store: &BlockStore, cid: Vec<u8>) -> Promise;
+    #[wasm_bindgen(method, js_name = "putBlockKeyed")]
+    pub(crate) fn put_block_keyed(store: &BlockStore, cid: Vec<u8>, bytes: Vec<u8>) -> Promise;
 
     #[wasm_bindgen(method, js_name = "getBlock")]
     pub(crate) fn get_block(store: &BlockStore, cid: Vec<u8>) -> Promise;
+
+    #[wasm_bindgen(method, js_name = "hasBlock")]
+    pub(crate) fn has_block(store: &BlockStore, cid: Vec<u8>) -> Promise;
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -41,18 +41,14 @@ pub struct ForeignBlockStore(pub(crate) BlockStore);
 //--------------------------------------------------------------------------------------------------
 
 impl WnfsBlockStore for ForeignBlockStore {
-    async fn put_block(&self, bytes: impl Into<Bytes>, codec: u64) -> Result<Cid> {
+    async fn put_block_keyed(&self, cid: Cid, bytes: impl Into<Bytes>) -> Result<()> {
         let bytes: Bytes = bytes.into();
 
-        let value = JsFuture::from(self.0.put_block(bytes.into(), codec.try_into()?))
+        JsFuture::from(self.0.put_block_keyed(cid.to_bytes(), bytes.into()))
             .await
             .map_err(anyhow_error("Cannot put block: {:?}"))?;
 
-        // Convert the value to a vector of bytes.
-        let bytes = Uint8Array::new(&value).to_vec();
-
-        // Construct CID from the bytes.
-        Ok(Cid::try_from(&bytes[..])?)
+        Ok(())
     }
 
     async fn get_block(&self, cid: &Cid) -> Result<Bytes> {
