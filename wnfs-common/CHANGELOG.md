@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.2.0 (2024-02-15)
+
+* Bumped minimal supported rust version to 1.75
+* Moved all traits to use the new ["return position impl trait in trait" feature](https://blog.rust-lang.org/2023/12/21/async-fn-rpit-in-traits.html)
+* Added two functions to `BlockStore` trait:
+  - `has_block` for finding out if a blockstore has a block available locally
+  - `put_block_keyed` for adding a block to the blockstore with a pre-computed CID
+* Added a default implementation for `BlockStore::put_block` utilizing `put_block_keyed` and `create_cid`
+* Removed `put_serializable` and `get_serializable` functions from `BlockStore`. Use `Storable::store` and `Storable::load` instead.
+* Made all `Result`s in `BlockStore` use `BlockStoreError` as error type instead of `anyhow::Error`
+* Expose a blanket implementation of `BlockStore` for any `&impl BlockStore` or `Box<impl BlockStore>`
+* Evolve `BlockStore` trait ([#402](https://github.com/wnfs-wg/rs-wnfs/pull/402))
+
 ## 0.1.26 (2023-12-06)
 
 * Removed `AsyncSerialize` and `RemembersCid` traits.
