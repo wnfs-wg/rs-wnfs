@@ -852,6 +852,7 @@ where
 
         let mut pointers = Vec::with_capacity(self.pointers.len());
         for pointer in self.pointers.iter() {
+            // Boxing the future due to recursion
             pointers.push(boxed_fut(pointer.to_serializable(store)).await?);
         }
 

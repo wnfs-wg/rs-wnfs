@@ -833,6 +833,7 @@ impl Storable for PublicDirectory {
         let userland = {
             let mut map = BTreeMap::new();
             for (name, link) in self.userland.iter() {
+                // Boxing the future due to recursion
                 map.insert(name.clone(), boxed_fut(link.resolve_cid(store)).await?);
             }
             map
