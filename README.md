@@ -73,7 +73,7 @@ flowchart TD
     wnfs --> wnfs-nameaccumulator
     wnfs-unixfs-file --> wnfs-common
     wnfs-hamt --> wnfs-common
-    wnfs-nameaccumulator -> wnfs-common
+    wnfs-nameaccumulator --> wnfs-common
 ```
 
 ## Building the Project
