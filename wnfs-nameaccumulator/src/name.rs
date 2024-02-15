@@ -443,8 +443,6 @@ impl<'a, B: Big> BatchedProofVerification<'a, B> {
 
 macro_rules! impl_storable {
     ( $ty:ty ) => {
-        #[cfg_attr(not(target_arch = "wasm32"), ::async_trait::async_trait)]
-        #[cfg_attr(target_arch = "wasm32", ::async_trait::async_trait(?Send))]
         impl<B: Big> Storable for $ty {
             type Serializable = $ty;
 
@@ -823,7 +821,7 @@ mod snapshot_tests {
     use crate::{BigNumDig, NameSegment};
     use rand_chacha::ChaCha12Rng;
     use rand_core::SeedableRng;
-    use wnfs_common::{utils::SnapshotBlockStore, BlockStore};
+    use wnfs_common::utils::SnapshotBlockStore;
 
     #[async_std::test]
     async fn test_name_accumulator() {
@@ -841,7 +839,7 @@ mod snapshot_tests {
             setup,
         );
 
-        let cid = store.put_serializable(&acc).await.unwrap();
+        let cid = acc.store(store).await.unwrap();
         let name = store.get_block_snapshot(&cid).await.unwrap();
 
         insta::assert_json_snapshot!(name);

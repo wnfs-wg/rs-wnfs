@@ -1,5 +1,4 @@
 use anyhow::{anyhow, Result};
-use async_trait::async_trait;
 use bip39::{Language, Mnemonic, MnemonicType, Seed};
 use chrono::Utc;
 use rand_chacha::ChaCha12Rng;
@@ -187,8 +186,6 @@ impl SeededExchangeKey {
     }
 }
 
-#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
-#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl PrivateKey for SeededExchangeKey {
     async fn decrypt(&self, ciphertext: &[u8]) -> Result<Vec<u8>> {
         let padding = Oaep::new::<Sha256>();
@@ -196,8 +193,6 @@ impl PrivateKey for SeededExchangeKey {
     }
 }
 
-#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
-#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl ExchangeKey for PublicExchangeKey {
     async fn encrypt(&self, data: &[u8]) -> Result<Vec<u8>> {
         let padding = Oaep::new::<Sha256>();

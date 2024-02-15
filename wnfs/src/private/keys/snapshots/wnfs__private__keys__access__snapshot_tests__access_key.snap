@@ -3,23 +3,19 @@ source: wnfs/src/private/keys/access.rs
 expression: temp_key
 ---
 {
-  "cid": "bafyr4ih2hblsecub5jvxxlbkhjgmabg2mnaxzq7jtzkchd4s4sacqxwbge",
-  "value": {
-    "wnfs/share/temporal": {
-      "contentCid": {
-        "/": "baeaaaaa"
-      },
-      "label": {
-        "/": {
-          "bytes": "f7J7lBYC0B0RVCIRE0/HGqyuVON+fQB7u3tV7/BiooQ"
-        }
-      },
-      "temporalKey": {
-        "/": {
-          "bytes": "mmMoPLrw/bzrH2R5sZfzqI3Q2Akv5yp8VigVOHOLB+I"
-        }
+  "wnfs/share/temporal": {
+    "contentCid": {
+      "/": "baeaaaaa"
+    },
+    "label": {
+      "/": {
+        "bytes": "f7J7lBYC0B0RVCIRE0/HGqyuVON+fQB7u3tV7/BiooQ"
+      }
+    },
+    "temporalKey": {
+      "/": {
+        "bytes": "mmMoPLrw/bzrH2R5sZfzqI3Q2Akv5yp8VigVOHOLB+I"
       }
     }
-  },
-  "bytes": "oXN3bmZzL3NoYXJlL3RlbXBvcmFso2VsYWJlbFggf7J7lBYC0B0RVCIRE0/HGqyuVON+fQB7u3tV7/BiooRqY29udGVudENpZNgqRQABAAAAa3RlbXBvcmFsS2V5WCCaYyg8uvD9vOsfZHmxl/OojdDYCS/nKnxWKBU4c4sH4g=="
+  }
 }

@@ -4,7 +4,6 @@
 //! work with high latency.
 
 use anyhow::Result;
-use async_trait::async_trait;
 use bytes::Bytes;
 use chrono::Utc;
 use libipld_core::cid::Cid;
@@ -17,7 +16,7 @@ use wnfs::{
         PrivateDirectory, PrivateNode,
     },
 };
-use wnfs_common::{utils::CondSend, Storable};
+use wnfs_common::{utils::CondSend, BlockStoreError, Storable};
 
 #[async_std::main]
 async fn main() -> Result<()> {
@@ -96,19 +95,36 @@ struct TieredBlockStore<H: BlockStore, C: BlockStore> {
     cold: C,
 }
 
-#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
-#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl<H: BlockStore, C: BlockStore> BlockStore for TieredBlockStore<H, C> {
-    async fn get_block(&self, cid: &Cid) -> Result<Bytes> {
-        match self.hot.get_block(cid).await {
-            Ok(block) => Ok(block),
-            // We could technically get better about this
-            // and only match "NotFound" errors.
-            Err(_) => self.cold.get_block(cid).await,
+    async fn get_block(&self, cid: &Cid) -> Result<Bytes, BlockStoreError> {
+        if self.hot.has_block(cid).await? {
+            self.hot.get_block(cid).await
+        } else {
+            self.cold.get_block(cid).await
         }
     }
 
-    async fn put_block(&self, bytes: impl Into<Bytes> + CondSend, codec: u64) -> Result<Cid> {
-        self.hot.put_block(bytes.into(), codec).await
+    async fn put_block(
+        &self,
+        bytes: impl Into<Bytes> + CondSend,
+        codec: u64,
+    ) -> Result<Cid, BlockStoreError> {
+        self.hot.put_block(bytes, codec).await
+    }
+
+    async fn put_block_keyed(
+        &self,
+        cid: Cid,
+        bytes: impl Into<Bytes> + CondSend,
+    ) -> Result<(), BlockStoreError> {
+        self.hot.put_block_keyed(cid, bytes).await
+    }
+
+    async fn has_block(&self, cid: &Cid) -> Result<bool, BlockStoreError> {
+        if self.hot.has_block(cid).await? {
+            return Ok(true);
+        }
+
+        self.cold.has_block(cid).await
     }
 }

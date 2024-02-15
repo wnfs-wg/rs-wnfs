@@ -4,7 +4,6 @@ use super::{PublicFileSerializable, PublicNodeSerializable};
 use crate::{error::FsError, is_readable_wnfs_version, traits::Id, WNFS_VERSION};
 use anyhow::{bail, Result};
 use async_once_cell::OnceCell;
-use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use futures::{AsyncRead, AsyncReadExt};
 use libipld_core::cid::Cid;
@@ -422,8 +421,6 @@ impl PublicFile {
     }
 }
 
-#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
-#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl Storable for PublicFile {
     type Serializable = PublicNodeSerializable;
 

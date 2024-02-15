@@ -12,6 +12,7 @@ categories = [
 license = "Apache-2.0"
 readme = "README.md"
 edition = "2021"
+rust-version = "1.75"
 repository = "https://github.com/wnfs-wg/rs-wnfs/tree/main/wnfs-unixfs-file"
 homepage = "https://fission.codes"
 authors = ["The Fission Authors"]
@@ -19,7 +20,6 @@ authors = ["The Fission Authors"]
 [dependencies]
 anyhow = "1.0"
 async-stream = "0.3"
-async-trait = "0.1"
 bytes = "1.5"
 futures = "0.3"
 libipld = { version = "0.16", features = [] }

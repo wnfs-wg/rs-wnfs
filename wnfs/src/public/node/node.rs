@@ -8,7 +8,6 @@ use crate::{
 };
 use anyhow::{bail, Result};
 use async_once_cell::OnceCell;
-use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use libipld_core::cid::Cid;
 use std::collections::BTreeSet;
@@ -267,8 +266,6 @@ impl From<PublicDirectory> for PublicNode {
     }
 }
 
-#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
-#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl Storable for PublicNode {
     type Serializable = PublicNodeSerializable;
 

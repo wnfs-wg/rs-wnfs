@@ -1374,7 +1374,7 @@ impl PrivateDirectoryContent {
                 let block = snapshot_key.encrypt(&bytes, rng)?;
 
                 // Store content section in blockstore and get Cid.
-                store.put_block(block, CODEC_RAW).await
+                Ok(store.put_block(block, CODEC_RAW).await?)
             })
             .await?)
     }

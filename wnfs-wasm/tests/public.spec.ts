@@ -368,6 +368,6 @@ test.describe("PublicDirectory", () => {
     });
 
     expect(result).not.toBeUndefined();
-    expect(result).toEqual("bafkreibm6jg3ux5qumhcn2b3flc3tyu6dmlb4xa7u5bf44yegnrjhc4yeq");
+    expect(result).toEqual("bafkr4ihkr4ld3m4gqkjf4reryxsy2s5tkbxprqkow6fin2iiyvreuzzab4");
   });
 });
