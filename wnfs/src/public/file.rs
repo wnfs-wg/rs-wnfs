@@ -309,6 +309,44 @@ impl PublicFile {
         }
     }
 
+    /// Gets the exact content size without fetching all content blocks.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use anyhow::Result;
+    /// use rand_chacha::ChaCha12Rng;
+    /// use rand_core::SeedableRng;
+    /// use chrono::Utc;
+    /// use wnfs::{
+    ///     public::PublicFile,
+    ///     common::{MemoryBlockStore, utils::get_random_bytes},
+    /// };
+    ///
+    /// #[async_std::main]
+    /// async fn main() -> Result<()> {
+    ///     let store = &MemoryBlockStore::new();
+    ///     let rng = &mut ChaCha12Rng::from_entropy();
+    ///     let content = get_random_bytes::<324_568>(rng).to_vec();
+    ///     let file = PublicFile::with_content(
+    ///         Utc::now(),
+    ///         content.clone(),
+    ///         store,
+    ///     )
+    ///     .await?;
+    ///
+    ///     let mut size = file.size(store).await?;
+    ///
+    ///     assert_eq!(content.len() as u64, size);
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
+    pub async fn size(&self, store: &impl BlockStore) -> Result<u64> {
+        let value = self.userland.resolve_value(store).await?;
+        Ok(value.filesize().unwrap_or(0))
+    }
+
     /// Gets the entire content of a file.
     ///
     /// # Examples
