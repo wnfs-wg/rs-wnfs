@@ -7,7 +7,7 @@ use serde::{
     de::{DeserializeOwned, Error as DeError},
     Deserialize, Deserializer, Serialize, Serializer,
 };
-use std::{collections::BTreeMap, convert::TryInto, fmt::Display};
+use std::{collections::BTreeMap, fmt::Display};
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
