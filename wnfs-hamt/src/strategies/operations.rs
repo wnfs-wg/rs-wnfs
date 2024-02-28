@@ -183,13 +183,13 @@ where
 ///     println!("{:?}", node);
 /// }
 /// ```
-pub async fn node_from_operations<K: CondSync, V: CondSync>(
+pub async fn node_from_operations<K, V>(
     operations: &Operations<K, V>,
     store: &impl BlockStore,
 ) -> Result<Arc<Node<K, V>>>
 where
-    K: Storable + Clone + Debug + AsRef<[u8]>,
-    V: Storable + Clone + Debug,
+    K: Storable + Clone + Debug + CondSync + AsRef<[u8]>,
+    V: Storable + Clone + Debug + CondSync,
     K::Serializable: Serialize + DeserializeOwned,
     V::Serializable: Serialize + DeserializeOwned,
 {

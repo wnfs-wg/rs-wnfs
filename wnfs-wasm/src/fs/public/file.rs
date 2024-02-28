@@ -103,7 +103,7 @@ impl PublicFile {
 
         Ok(future_to_promise(async move {
             let size = file
-                .get_size(&store)
+                .size(&store)
                 .await
                 .map_err(error("Cannot determine file size"))?;
 

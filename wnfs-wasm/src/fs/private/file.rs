@@ -98,7 +98,7 @@ impl PrivateFile {
 
         Ok(future_to_promise(async move {
             let size = file
-                .get_size(&forest, &store)
+                .size(&forest, &store)
                 .await
                 .map_err(error("Cannot determine file size"))?;
 
