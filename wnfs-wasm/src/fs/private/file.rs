@@ -89,6 +89,23 @@ impl PrivateFile {
         self.read_at(value!(0).into(), None, forest, store)
     }
 
+    /// Gets the exact content size without fetching all content blocks.
+    #[wasm_bindgen(js_name = "getSize")]
+    pub fn get_size(&self, forest: &PrivateForest, store: BlockStore) -> JsResult<Promise> {
+        let file = Rc::clone(&self.0);
+        let store = ForeignBlockStore(store);
+        let forest = Rc::clone(&forest.0);
+
+        Ok(future_to_promise(async move {
+            let size = file
+                .get_size(&forest, &store)
+                .await
+                .map_err(error("Cannot determine file size"))?;
+
+            Ok(value!(size))
+        }))
+    }
+
     /// Gets the metadata of this file.
     pub fn metadata(&self) -> JsResult<JsValue> {
         JsMetadata(self.0.get_metadata()).try_into()

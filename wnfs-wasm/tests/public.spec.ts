@@ -29,9 +29,7 @@ test.describe("PublicDirectory", () => {
     expect(result).toBeDefined();
   });
 
-  test("lookupNode cannot fetch file not added to directory", async ({
-    page,
-  }) => {
+  test("lookupNode cannot fetch file not added to directory", async ({ page }) => {
     const result = await page.evaluate(async () => {
       const {
         wnfs: { PublicDirectory },
@@ -65,18 +63,12 @@ test.describe("PublicDirectory", () => {
         ["pictures", "cats", "tabby.png"],
         sampleCID,
         time,
-        store
+        store,
       );
 
-      let result0 = await rootDir.getNode(
-        ["pictures", "cats", "tabby.png"],
-        store
-      );
+      let result0 = await rootDir.getNode(["pictures", "cats", "tabby.png"], store);
 
-      let result1 = await rootDir.getNode(
-        ["pictures", "dogs", "bingo.png"],
-        store
-      );
+      let result1 = await rootDir.getNode(["pictures", "dogs", "bingo.png"], store);
 
       return [result0, result1];
     });
@@ -102,7 +94,7 @@ test.describe("PublicDirectory", () => {
         ["pictures", "cats", "tabby.png"],
         sampleCID,
         time,
-        store
+        store,
       );
 
       await rootDir.getNode(["pictures", "cats", "tabby.png"], store);
@@ -130,7 +122,7 @@ test.describe("PublicDirectory", () => {
         ["pictures", "cats", "tabby.png"],
         sampleCID,
         time,
-        store
+        store,
       );
 
       const result = await rootDir.ls(["pictures"], store);
@@ -158,14 +150,14 @@ test.describe("PublicDirectory", () => {
         ["pictures", "dogs", "billie.jpeg"],
         sampleCID,
         time,
-        store
+        store,
       );
 
       var { rootDir } = await rootDir.write(
         ["pictures", "cats", "tabby.png"],
         sampleCID,
         time,
-        store
+        store,
       );
 
       var { rootDir } = await rootDir.rm(["pictures", "cats"], store);
@@ -190,18 +182,13 @@ test.describe("PublicDirectory", () => {
       const store = new MemoryBlockStore();
       const root = new PublicDirectory(time);
 
-      var { rootDir } = await root.write(
-        ["pictures", "cats", "luna.jpeg"],
-        sampleCID,
-        time,
-        store
-      );
+      var { rootDir } = await root.write(["pictures", "cats", "luna.jpeg"], sampleCID, time, store);
 
       var { rootDir } = await rootDir.write(
         ["pictures", "cats", "tabby.png"],
         sampleCID,
         time,
-        store
+        store,
       );
 
       var { rootDir } = await rootDir.mkdir(["images"], time, store);
@@ -210,7 +197,7 @@ test.describe("PublicDirectory", () => {
         ["pictures", "cats"],
         ["images", "cats"],
         time,
-        store
+        store,
       );
 
       const imagesContent = await rootDir.ls(["images"], store);
@@ -236,28 +223,18 @@ test.describe("PublicDirectory", () => {
       const store = new MemoryBlockStore();
       const root = new PublicDirectory(time);
 
-      var { rootDir } = await root.write(
-        ["pictures", "cats", "luna.jpeg"],
-        sampleCID,
-        time,
-        store
-      );
+      var { rootDir } = await root.write(["pictures", "cats", "luna.jpeg"], sampleCID, time, store);
 
       var { rootDir } = await rootDir.write(
         ["pictures", "cats", "tabby.png"],
         sampleCID,
         time,
-        store
+        store,
       );
 
       var { rootDir } = await rootDir.mkdir(["images"], time, store);
 
-      var { rootDir } = await rootDir.cp(
-        ["pictures", "cats"],
-        ["images", "cats"],
-        time,
-        store
-      );
+      var { rootDir } = await rootDir.cp(["pictures", "cats"], ["images", "cats"], time, store);
 
       const imagesContent = await rootDir.ls(["images"], store);
 
@@ -314,10 +291,7 @@ test.describe("PublicDirectory", () => {
       const readBack = await file2.getContent(store);
       const partialRead = await file2.readAt(7, 5, store);
 
-      return [
-        new TextDecoder().decode(readBack),
-        new TextDecoder().decode(partialRead)
-      ];
+      return [new TextDecoder().decode(readBack), new TextDecoder().decode(partialRead)];
     });
 
     expect(result[0]).toEqual("Hello, World!");
@@ -369,5 +343,26 @@ test.describe("PublicDirectory", () => {
 
     expect(result).not.toBeUndefined();
     expect(result).toEqual("bafkr4ihkr4ld3m4gqkjf4reryxsy2s5tkbxprqkow6fin2iiyvreuzzab4");
+  });
+
+  test("A PublicFile has a content size", async ({ page }) => {
+    const result = await page.evaluate(async () => {
+      const {
+        wnfs: { PublicFile },
+        mock: { MemoryBlockStore },
+      } = await window.setup();
+
+      const store = new MemoryBlockStore();
+      const time = new Date();
+      const file = new PublicFile(time);
+
+      const longString = "x".repeat(5 * 1024 * 1024);
+      const content = new TextEncoder().encode(longString);
+      const file2 = await file.setContent(time, content, store);
+
+      return await file2.getSize(store);
+    });
+
+    expect(result).toEqual(5 * 1024 * 1024);
   });
 });

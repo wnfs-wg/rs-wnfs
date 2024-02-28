@@ -453,6 +453,31 @@ test.describe("PrivateFile", () => {
     expect(new Uint8Array(Object.values(content))).toEqual(new Uint8Array([2, 3, 4]));
   });
 
+  test("getSize returns the exact content size", async ({ page }) => {
+    const size = await page.evaluate(async () => {
+      const {
+        wnfs: { PrivateFile, PrivateForest },
+        mock: { MemoryBlockStore, Rng },
+      } = await window.setup();
+
+      const rng = new Rng();
+      const initialForest = new PrivateForest(rng);
+      const store = new MemoryBlockStore();
+      var [file, forest] = await PrivateFile.withContent(
+        initialForest.emptyName(),
+        new Date(),
+        new Uint8Array(2 * 1024 * 1024),
+        initialForest,
+        store,
+        rng,
+      );
+
+      return await file.getSize(forest, store);
+    });
+
+    expect(size).toEqual(2 * 1024 * 1024);
+  });
+
   test("A PrivateDirectory has the correct metadata", async ({ page }) => {
     const result = await page.evaluate(async () => {
       const {

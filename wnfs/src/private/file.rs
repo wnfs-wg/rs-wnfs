@@ -586,6 +586,55 @@ impl PrivateFile {
         Ok(self.prepare_next_revision()?.get_metadata_mut())
     }
 
+    /// Gets the exact content size without fetching all content blocks.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use anyhow::Result;
+    /// use chrono::Utc;
+    /// use rand_chacha::ChaCha12Rng;
+    /// use rand_core::SeedableRng;
+    /// use wnfs::{
+    ///     private::{PrivateFile, forest::{hamt::HamtForest, traits::PrivateForest}},
+    ///     common::{MemoryBlockStore, utils::get_random_bytes},
+    /// };
+    ///
+    /// #[async_std::main]
+    /// async fn main() -> Result<()> {
+    ///     let store = &MemoryBlockStore::new();
+    ///     let rng = &mut ChaCha12Rng::from_entropy();
+    ///     let forest = &mut HamtForest::new_rsa_2048_rc(rng);
+    ///
+    ///     let content = get_random_bytes::<324_568>(rng).to_vec();
+    ///     let file = PrivateFile::with_content(
+    ///         &forest.empty_name(),
+    ///         Utc::now(),
+    ///         content.clone(),
+    ///         forest,
+    ///         store,
+    ///         rng,
+    ///     )
+    ///     .await?;
+    ///
+    ///     let mut size = file.get_size(forest, store).await?;
+    ///
+    ///     assert_eq!(content.len(), size);
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
+    pub async fn get_size(
+        &self,
+        forest: &impl PrivateForest,
+        store: &impl BlockStore,
+    ) -> Result<usize> {
+        match &self.content.content {
+            FileContent::Inline { data } => Ok(data.len()),
+            FileContent::External(forest_content) => forest_content.get_size(forest, store).await,
+        }
+    }
+
     /// Gets the entire content of a file.
     ///
     /// # Examples
@@ -1037,6 +1086,23 @@ impl PrivateForestContent {
     /// Gets an upper bound estimate of the content size.
     pub fn get_size_upper_bound(&self) -> usize {
         self.block_count * self.block_content_size
+    }
+
+    /// Gets the exact size of the content.
+    pub async fn get_size(
+        &self,
+        forest: &impl PrivateForest,
+        store: &impl BlockStore,
+    ) -> Result<usize> {
+        let size_without_last_block =
+            std::cmp::max(0, self.block_count - 1) * self.block_content_size;
+
+        let size_last_block = self
+            .read_at(size_without_last_block as u64, None, forest, store)
+            .await?
+            .len();
+
+        Ok(size_without_last_block + size_last_block)
     }
 
     /// Generates the labels for all of the content shard blocks.
