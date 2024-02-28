@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1708024192152,
+  "lastUpdate": 1709126448921,
   "repoUrl": "https://github.com/wnfs-wg/rs-wnfs",
   "entries": {
     "Rust Benchmark": [
@@ -22285,6 +22285,126 @@ window.BENCHMARK_DATA = {
             "name": "NameAccumulator::<BigNumRug> serialization",
             "value": 644,
             "range": "± 29",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "steven.vandevelde@hey.com",
+            "name": "Steven Vandevelde",
+            "username": "icidasset"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "17c980c5e21b5fbe61840718a8eeec62f2b2a6e2",
+          "message": "feat: Add a function to get the exact size of a `PublicFile` and `PrivateFile` (#405)\n\nAdds a `size` function to `PublicFile` and `PrivateFile`, and their wasm equivalents, that returns the exact size of the contents without downloading all the content blocks.\r\n\r\nAdded doc tests for the core lib, and tests for the wasm lib.\r\n\r\n---\r\n\r\n* feat: Add a function to get the exact size of a PublicFile and PrivateFile\r\n\r\n* refactor: Change `get_size` return type to `u64`\r\n\r\n* chore: Fix nightly lints\r\n\r\n* refactor: Rename `get_size` -> `size` in `wnfs` crate\r\n\r\n* chore: Fix nightly lints & wasm\r\n\r\n---------\r\n\r\nCo-authored-by: Philipp Krüger <philipp.krueger1@gmail.com>",
+          "timestamp": "2024-02-28T14:14:38+01:00",
+          "tree_id": "c1fe38a2ae73dbeeb9bd301a96a3ca0c8d7a06fd",
+          "url": "https://github.com/wnfs-wg/rs-wnfs/commit/17c980c5e21b5fbe61840718a8eeec62f2b2a6e2"
+        },
+        "date": 1709126447673,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "node set",
+            "value": 16435,
+            "range": "± 520",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node set 1000 consecutive",
+            "value": 2232996,
+            "range": "± 18450",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and get",
+            "value": 45517,
+            "range": "± 146",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and remove",
+            "value": 53467,
+            "range": "± 187",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt load and decode/0",
+            "value": 3104,
+            "range": "± 54",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt set and encode",
+            "value": 62473,
+            "range": "± 550",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt diff",
+            "value": 37965,
+            "range": "± 2008",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt merge",
+            "value": 114360,
+            "range": "± 7223",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameSegment::<BigNumDig>::new_hashed",
+            "value": 1769264,
+            "range": "± 166317",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameSegment::<BigNumRug>::new_hashed",
+            "value": 314518,
+            "range": "± 25426",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameSegment::<BigNumDig>::new(rng)",
+            "value": 1807486,
+            "range": "± 216529",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameSegment::<BigNumRug>::new(rng)",
+            "value": 604969,
+            "range": "± 67487",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameAccumulator::<BigNumDig>::add",
+            "value": 1776498,
+            "range": "± 51016",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameAccumulator::<BigNumRug>::add",
+            "value": 1004081,
+            "range": "± 24180",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameAccumulator::<BigNumDig> serialization",
+            "value": 711,
+            "range": "± 38",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameAccumulator::<BigNumRug> serialization",
+            "value": 649,
+            "range": "± 22",
             "unit": "ns/iter"
           }
         ]
