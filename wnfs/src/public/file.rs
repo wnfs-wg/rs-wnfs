@@ -335,14 +335,14 @@ impl PublicFile {
     ///     )
     ///     .await?;
     ///
-    ///     let mut size = file.get_size(store).await?;
+    ///     let mut size = file.size(store).await?;
     ///
-    ///     assert_eq!(content.len(), size);
+    ///     assert_eq!(content.len() as u64, size);
     ///
     ///     Ok(())
     /// }
     /// ```
-    pub async fn get_size(&self, store: &impl BlockStore) -> Result<u64> {
+    pub async fn size(&self, store: &impl BlockStore) -> Result<u64> {
         let value = self.userland.resolve_value(store).await?;
         Ok(value.filesize().unwrap_or(0))
     }

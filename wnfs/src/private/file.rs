@@ -617,21 +617,17 @@ impl PrivateFile {
     ///     )
     ///     .await?;
     ///
-    ///     let mut size = file.get_size(forest, store).await?;
+    ///     let mut size = file.size(forest, store).await?;
     ///
-    ///     assert_eq!(content.len(), size);
+    ///     assert_eq!(content.len() as u64, size);
     ///
     ///     Ok(())
     /// }
     /// ```
-    pub async fn get_size(
-        &self,
-        forest: &impl PrivateForest,
-        store: &impl BlockStore,
-    ) -> Result<u64> {
+    pub async fn size(&self, forest: &impl PrivateForest, store: &impl BlockStore) -> Result<u64> {
         match &self.content.content {
             FileContent::Inline { data } => Ok(data.len() as u64),
-            FileContent::External(forest_content) => forest_content.get_size(forest, store).await,
+            FileContent::External(forest_content) => forest_content.size(forest, store).await,
         }
     }
 
@@ -1088,11 +1084,7 @@ impl PrivateForestContent {
     }
 
     /// Gets the exact size of the content.
-    pub async fn get_size(
-        &self,
-        forest: &impl PrivateForest,
-        store: &impl BlockStore,
-    ) -> Result<u64> {
+    pub async fn size(&self, forest: &impl PrivateForest, store: &impl BlockStore) -> Result<u64> {
         let size_without_last_block =
             std::cmp::max(0, self.block_count - 1) * self.block_content_size;
 
