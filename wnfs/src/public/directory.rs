@@ -851,10 +851,6 @@ impl Storable for PublicDirectory {
         cid: Option<&Cid>,
         serializable: Self::Serializable,
     ) -> Result<Self> {
-        println!(
-            "Public Directory from serializable cid: {}",
-            cid.map(Cid::to_string).unwrap_or("None".to_string())
-        );
         let PublicNodeSerializable::Dir(serializable) = serializable else {
             bail!(FsError::UnexpectedNodeType(NodeType::PublicFile));
         };
