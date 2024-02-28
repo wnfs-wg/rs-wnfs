@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.1 (2023-02-28)
+
+* Added `PublicFile::size` and `PrivateFile::size` functions
+* Changed return type of `PrivateFile::get_size_upper_bound` to be `u64` instead of `usize`
+
 ## 0.2.0 (2024-02-15)
 
 * Bumped minimal supported rust version to 1.75

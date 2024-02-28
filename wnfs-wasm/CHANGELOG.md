@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.1 (2023-02-28)
+
+* Added `getSize` method to `PublicFile` and `PrivateFile`
+
 ## 0.2.0 (2024-02-15)
 
 * Bumped minimal supported rust version to 1.75
