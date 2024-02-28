@@ -102,7 +102,7 @@ impl PrivateFile {
                 .await
                 .map_err(error("Cannot determine file size"))?;
 
-            Ok(value!(size))
+            Ok(value!(size as usize))
         }))
     }
 

@@ -342,9 +342,9 @@ impl PublicFile {
     ///     Ok(())
     /// }
     /// ```
-    pub async fn get_size(&self, store: &impl BlockStore) -> Result<usize> {
+    pub async fn get_size(&self, store: &impl BlockStore) -> Result<u64> {
         let value = self.userland.resolve_value(store).await?;
-        Ok(value.filesize().unwrap_or(0) as usize)
+        Ok(value.filesize().unwrap_or(0))
     }
 
     /// Gets the entire content of a file.

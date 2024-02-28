@@ -104,8 +104,8 @@ pub(crate) enum FileContent {
 pub struct PrivateForestContent {
     pub(crate) key: SnapshotKey,
     pub(crate) base_name: NameAccumulator,
-    pub(crate) block_count: usize,
-    pub(crate) block_content_size: usize,
+    pub(crate) block_count: u64,
+    pub(crate) block_content_size: u64,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -628,9 +628,9 @@ impl PrivateFile {
         &self,
         forest: &impl PrivateForest,
         store: &impl BlockStore,
-    ) -> Result<usize> {
+    ) -> Result<u64> {
         match &self.content.content {
-            FileContent::Inline { data } => Ok(data.len()),
+            FileContent::Inline { data } => Ok(data.len() as u64),
             FileContent::External(forest_content) => forest_content.get_size(forest, store).await,
         }
     }
@@ -900,10 +900,9 @@ impl PrivateForestContent {
         rng: &mut impl CryptoRngCore,
     ) -> Result<Self> {
         let (key, base_name) = Self::prepare_key_and_base_name(file_name, rng);
-        let block_count = (content.len() as f64 / MAX_BLOCK_CONTENT_SIZE as f64).ceil() as usize;
+        let block_count = (content.len() as f64 / MAX_BLOCK_CONTENT_SIZE as f64).ceil() as u64;
 
-        for (index, name) in
-            Self::generate_shard_labels(&key, 0, block_count, &base_name).enumerate()
+        for (name, index) in Self::generate_shard_labels(&key, 0, block_count, &base_name).zip(0..)
         {
             let start = index * MAX_BLOCK_CONTENT_SIZE;
             let end = content.len().min((index + 1) * MAX_BLOCK_CONTENT_SIZE);
@@ -921,7 +920,7 @@ impl PrivateForestContent {
             key,
             base_name: forest.get_accumulated_name(&base_name),
             block_count,
-            block_content_size: MAX_BLOCK_CONTENT_SIZE,
+            block_content_size: MAX_BLOCK_CONTENT_SIZE as u64,
         })
     }
 
@@ -974,8 +973,8 @@ impl PrivateForestContent {
         Ok(PrivateForestContent {
             key,
             base_name: forest.get_accumulated_name(&base_name),
-            block_count: block_index as usize,
-            block_content_size: MAX_BLOCK_CONTENT_SIZE,
+            block_count: block_index,
+            block_content_size: MAX_BLOCK_CONTENT_SIZE as u64,
         })
     }
 
@@ -1026,7 +1025,7 @@ impl PrivateForestContent {
         store: &'a impl BlockStore,
     ) -> Result<Vec<u8>> {
         let block_content_size = MAX_BLOCK_CONTENT_SIZE as u64;
-        let mut chunk_size_upper_bound = self.get_size_upper_bound() - byte_offset as usize;
+        let mut chunk_size_upper_bound = (self.get_size_upper_bound() - byte_offset) as usize;
 
         if let Some(len_limit) = len_limit {
             chunk_size_upper_bound = chunk_size_upper_bound.min(len_limit);
@@ -1073,7 +1072,7 @@ impl PrivateForestContent {
         forest: &impl PrivateForest,
         store: &impl BlockStore,
     ) -> Result<Vec<u8>> {
-        let mut content = Vec::with_capacity(Self::get_size_upper_bound(self));
+        let mut content = Vec::with_capacity(Self::get_size_upper_bound(self) as usize);
         self.stream(0, forest, store)
             .try_for_each(|chunk| {
                 content.extend_from_slice(&chunk);
@@ -1084,7 +1083,7 @@ impl PrivateForestContent {
     }
 
     /// Gets an upper bound estimate of the content size.
-    pub fn get_size_upper_bound(&self) -> usize {
+    pub fn get_size_upper_bound(&self) -> u64 {
         self.block_count * self.block_content_size
     }
 
@@ -1093,14 +1092,14 @@ impl PrivateForestContent {
         &self,
         forest: &impl PrivateForest,
         store: &impl BlockStore,
-    ) -> Result<usize> {
+    ) -> Result<u64> {
         let size_without_last_block =
             std::cmp::max(0, self.block_count - 1) * self.block_content_size;
 
         let size_last_block = self
-            .read_at(size_without_last_block as u64, None, forest, store)
+            .read_at(size_without_last_block, None, forest, store)
             .await?
-            .len();
+            .len() as u64;
 
         Ok(size_without_last_block + size_last_block)
     }
@@ -1109,11 +1108,11 @@ impl PrivateForestContent {
     pub(crate) fn generate_shard_labels<'a>(
         key: &'a SnapshotKey,
         mut block_index: u64,
-        block_count: usize,
+        block_count: u64,
         base_name: &'a Name,
     ) -> impl Iterator<Item = Name> + 'a {
         iter::from_fn(move || {
-            if block_index >= block_count as u64 {
+            if block_index >= block_count {
                 return None;
             }
 
