@@ -7,6 +7,7 @@ declare global {
         sampleCID: typeof import("../mock").sampleCID;
         CID: typeof import("../mock").CID,
         MemoryBlockStore: typeof import("../mock").MemoryBlockStore;
+        Sha256BlockStore: typeof import("../mock").Sha256BlockStore;
         Rng: typeof import("../mock").Rng;
         ExchangeKey: typeof import("../mock").ExchangeKey;
         PrivateKey: typeof import("../mock").PrivateKey;

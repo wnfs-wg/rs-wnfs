@@ -1,6 +1,8 @@
 ///<reference path="server/index.d.ts"/>
 
 import { expect, test } from "@playwright/test";
+import { CID } from "multiformats";
+import { sha256 } from "multiformats/hashes/sha2";
 
 const url = "http://localhost:8085";
 
@@ -366,3 +368,30 @@ test.describe("PublicDirectory", () => {
     expect(result).toEqual(5 * 1024 * 1024);
   });
 });
+
+test.describe("BlockStore", () => {
+  test("a BlockStore implementation can overwrite the putBlock method", async ({ page }) => {
+    const result = await page.evaluate(async () => {
+      const {
+        wnfs: { PublicFile },
+        mock: { CID, Sha256BlockStore },
+      } = await window.setup();
+
+      const store = new Sha256BlockStore();
+      const time = new Date();
+      const file = new PublicFile(time);
+
+      const longString = "x".repeat(5 * 1024 * 1024);
+      const content = new TextEncoder().encode(longString);
+      const file2 = await file.setContent(time, content, store);
+
+      const cid = await file2.store(store);
+
+      return CID.decode(cid).toString();
+    });
+
+    const cid = CID.parse(result);
+
+    expect(cid.multihash.code).toEqual(sha256.code);
+  })
+})
