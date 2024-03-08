@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1709128672141,
+  "lastUpdate": 1709891028208,
   "repoUrl": "https://github.com/wnfs-wg/rs-wnfs",
   "entries": {
     "Rust Benchmark": [
@@ -22645,6 +22645,126 @@ window.BENCHMARK_DATA = {
             "name": "NameAccumulator::<BigNumRug> serialization",
             "value": 668,
             "range": "± 20",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "philipp.krueger1@gmail.com",
+            "name": "Philipp Krüger",
+            "username": "matheus23"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "b4bc5e2b2f2a571db0e33e2c4e432c326344f90f",
+          "message": "feat: Allow (but don't require) overwriting `putBlock` in JS (#409)\n\n* feat: Allow (but don't require) overwriting `putBlock` in JS\r\n\r\n* chore: Write a test for overwriting the `putBlock` method",
+          "timestamp": "2024-03-08T10:39:16+01:00",
+          "tree_id": "ae1903e44d947d564b4018e1be93f6360a83873f",
+          "url": "https://github.com/wnfs-wg/rs-wnfs/commit/b4bc5e2b2f2a571db0e33e2c4e432c326344f90f"
+        },
+        "date": 1709891027571,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "node set",
+            "value": 16209,
+            "range": "± 187",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node set 1000 consecutive",
+            "value": 2258952,
+            "range": "± 75693",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and get",
+            "value": 46660,
+            "range": "± 747",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and remove",
+            "value": 52642,
+            "range": "± 610",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt load and decode/0",
+            "value": 3099,
+            "range": "± 18",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt set and encode",
+            "value": 62312,
+            "range": "± 1284",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt diff",
+            "value": 38266,
+            "range": "± 1977",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt merge",
+            "value": 115840,
+            "range": "± 6626",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameSegment::<BigNumDig>::new_hashed",
+            "value": 1780585,
+            "range": "± 173674",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameSegment::<BigNumRug>::new_hashed",
+            "value": 317749,
+            "range": "± 26434",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameSegment::<BigNumDig>::new(rng)",
+            "value": 1810004,
+            "range": "± 145130",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameSegment::<BigNumRug>::new(rng)",
+            "value": 602544,
+            "range": "± 14870",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameAccumulator::<BigNumDig>::add",
+            "value": 1786264,
+            "range": "± 57620",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameAccumulator::<BigNumRug>::add",
+            "value": 1003064,
+            "range": "± 22022",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameAccumulator::<BigNumDig> serialization",
+            "value": 486,
+            "range": "± 10",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameAccumulator::<BigNumRug> serialization",
+            "value": 648,
+            "range": "± 22",
             "unit": "ns/iter"
           }
         ]
