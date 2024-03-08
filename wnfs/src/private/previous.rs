@@ -130,7 +130,7 @@ impl<F: PrivateForest> PrivateNodeHistory<F> {
         )
         .await?;
 
-        self.previous = previous_node.get_previous().clone();
+        self.previous.clone_from(previous_node.get_previous());
         Ok(Some(previous_node))
     }
 

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.2 (2023-03-08)
+
+* Allow overwriting `putBlock` in the `BlockStore` interface ([#409](https://github.com/wnfs-wg/rs-wnfs/pull/409))
+
 ## 0.2.1 (2023-02-28)
 
 * Added `getSize` method to `PublicFile` and `PrivateFile`
