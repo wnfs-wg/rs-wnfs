@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.2 (2023-03-08)
+
+* Remove leftover println debugging ([#406](https://github.com/wnfs-wg/rs-wnfs/pull/406))
+
 ## 0.2.1 (2023-02-28)
 
 * Added `PublicFile::size` and `PrivateFile::size` functions
