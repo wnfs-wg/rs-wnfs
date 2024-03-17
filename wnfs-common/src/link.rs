@@ -96,6 +96,18 @@ impl<T: Storable + CondSync> Link<T> {
         }
     }
 
+    /// Gets the value stored in type.
+    ///
+    /// NOTE: This does not attempt to get it from the store if it does not exist.
+    pub fn into_value(self) -> Result<T, Self> {
+        match self {
+            Self::Encoded { value_cache, cid } => {
+                value_cache.into_inner().ok_or(Self::from_cid(cid))
+            }
+            Self::Decoded { value } => Ok(value),
+        }
+    }
+
     /// Gets an owned value from type. It attempts to it get from the store if it is not present in type.
     pub async fn resolve_owned_value(self, store: &impl BlockStore) -> Result<T>
     where
