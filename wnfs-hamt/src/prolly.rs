@@ -9,26 +9,6 @@ pub struct Node<K, V> {
     links: Vec<Arc<Node<K, V>>>,
 }
 
-impl<K: Debug, V: Debug> Debug for Node<K, V> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Node")
-            .field("dirty", &self.dirty)
-            .field("level", &self.level)
-            .field("keys", &DebugString(&self.keys))
-            .field("values", &DebugString(&self.values))
-            .field("links", &self.links)
-            .finish()
-    }
-}
-
-struct DebugString<T: Debug>(T);
-
-impl<T: Debug> Debug for DebugString<T> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(&format!("{:?}", self.0))
-    }
-}
-
 // Implementations
 
 impl<K, V> Node<K, V>
@@ -341,6 +321,26 @@ impl<K: Clone, V: Clone> Clone for Node<K, V> {
             values: self.values.clone(),
             links: self.links.clone(),
         }
+    }
+}
+
+impl<K: Debug, V: Debug> Debug for Node<K, V> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Node")
+            .field("dirty", &self.dirty)
+            .field("level", &self.level)
+            .field("keys", &DebugString(&self.keys))
+            .field("values", &DebugString(&self.values))
+            .field("links", &self.links)
+            .finish()
+    }
+}
+
+struct DebugString<T: Debug>(T);
+
+impl<T: Debug> Debug for DebugString<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&format!("{:?}", self.0))
     }
 }
 
