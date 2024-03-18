@@ -53,7 +53,7 @@ wnfs-unixfs-file = { path = "../wnfs-unixfs-file", version = "=0.2.0" }
 [dev-dependencies]
 async-std = { version = "1.11", features = ["attributes"] }
 bytes = "1.4.0"
-env_logger = "0.10"
+env_logger = "0.11"
 fake = { version = "2.6.1", features = ["chrono"] }
 insta = "1.30"
 proptest = "1.1"
