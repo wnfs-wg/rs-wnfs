@@ -3019,9 +3019,9 @@ typescript@^5.1.6:
   integrity sha512-pXWcraxM0uxAS+tN0AG/BF2TyqmHO014Z070UsJ+pFvYuRSq8KH8DmWpnbXe0pEPDHXZV3FcAbJkijJ5oNEnWw==
 
 uint8arrays@^5.0.0:
-  version "5.0.1"
-  resolved "https://registry.yarnpkg.com/uint8arrays/-/uint8arrays-5.0.1.tgz#6016ef944379eabb6de605934ead4d7a698c9f07"
-  integrity sha512-ND5RpJAnPgHmZT7hWD/2T4BwRp04j8NLKvMKC/7bhiEwEjUMkQ4kvBKiH6hOqbljd6qJ2xS8reL3vl1e33grOQ==
+  version "5.0.3"
+  resolved "https://registry.yarnpkg.com/uint8arrays/-/uint8arrays-5.0.3.tgz#92b894d9c4269ba97c51544d6e1f279fe6f80d1f"
+  integrity sha512-6LBuKji28kHjgPJMkQ6GDaBb1lRwIhyOYq6pDGwYMoDPfImE9SkuYENVmR0yu9yGgs2clHUSY9fKDukR+AXfqQ==
   dependencies:
     multiformats "^13.0.0"
 
