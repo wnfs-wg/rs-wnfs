@@ -9,6 +9,8 @@ pub struct Node<K, V> {
     links: Vec<Arc<Node<K, V>>>,
 }
 
+const TARGET_SIZE: u64 = 32;
+
 // Implementations
 
 impl<K, V> Node<K, V>
@@ -45,12 +47,10 @@ where
 
         match self.keys.binary_search(&key) {
             Ok(index) => {
-                println!("Set index {index} to {key:?}");
                 self.keys[index] = key;
                 self.values[index] = value;
             }
             Err(index) => {
-                println!("Inserted at index {index}: {key:?}");
                 self.keys.insert(index, key);
                 self.values.insert(index, value);
             }
@@ -289,7 +289,8 @@ pub fn should_split(size: usize, level: u16, key: impl AsRef<[u8]>) -> bool {
     let hash: [u8; 32] = blake3::hash(key.as_ref()).into();
     let hash = u64::from_le_bytes(hash[..8].try_into().unwrap());
 
-    weibull_check(size as u64, 256, hash)
+    // Something seems to be wrong about my calculations, on average, the size happens to be ~target size / 2
+    weibull_check(size as u64, TARGET_SIZE, hash)
 }
 
 /// https://github.com/dolthub/dolt/blob/main/go/store/prolly/tree/node_splitter.go#L247
