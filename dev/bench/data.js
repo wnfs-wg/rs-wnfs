@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1713095360199,
+  "lastUpdate": 1713095470697,
   "repoUrl": "https://github.com/wnfs-wg/rs-wnfs",
   "entries": {
     "Rust Benchmark": [
@@ -24325,6 +24325,126 @@ window.BENCHMARK_DATA = {
             "name": "NameAccumulator::<BigNumRug> serialization",
             "value": 642,
             "range": "± 32",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "49699333+dependabot[bot]@users.noreply.github.com",
+            "name": "dependabot[bot]",
+            "username": "dependabot[bot]"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "7931ad6d7127aeeb15a3325f4aac94e353efd524",
+          "message": "chore(npm)(deps-dev): bump @playwright/test in /wnfs-wasm (#422)\n\nBumps [@playwright/test](https://github.com/microsoft/playwright) from 1.42.1 to 1.43.0.\r\n- [Release notes](https://github.com/microsoft/playwright/releases)\r\n- [Commits](https://github.com/microsoft/playwright/compare/v1.42.1...v1.43.0)\r\n\r\n---\r\nupdated-dependencies:\r\n- dependency-name: \"@playwright/test\"\r\n  dependency-type: direct:development\r\n  update-type: version-update:semver-minor\r\n...\r\n\r\nSigned-off-by: dependabot[bot] <support@github.com>\r\nCo-authored-by: dependabot[bot] <49699333+dependabot[bot]@users.noreply.github.com>",
+          "timestamp": "2024-04-14T13:41:40+02:00",
+          "tree_id": "553964351f408e04ea22dcb7f9531559aeddf43d",
+          "url": "https://github.com/wnfs-wg/rs-wnfs/commit/7931ad6d7127aeeb15a3325f4aac94e353efd524"
+        },
+        "date": 1713095470081,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "node set",
+            "value": 17473,
+            "range": "± 767",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node set 1000 consecutive",
+            "value": 2306190,
+            "range": "± 28151",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and get",
+            "value": 46953,
+            "range": "± 1202",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and remove",
+            "value": 53443,
+            "range": "± 2400",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt load and decode/0",
+            "value": 3100,
+            "range": "± 34",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt set and encode",
+            "value": 63139,
+            "range": "± 1365",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt diff",
+            "value": 37970,
+            "range": "± 1943",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt merge",
+            "value": 113856,
+            "range": "± 6416",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameSegment::<BigNumDig>::new_hashed",
+            "value": 1834445,
+            "range": "± 182572",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameSegment::<BigNumRug>::new_hashed",
+            "value": 312883,
+            "range": "± 22373",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameSegment::<BigNumDig>::new(rng)",
+            "value": 1892682,
+            "range": "± 173638",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameSegment::<BigNumRug>::new(rng)",
+            "value": 600862,
+            "range": "± 22326",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameAccumulator::<BigNumDig>::add",
+            "value": 1767465,
+            "range": "± 55445",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameAccumulator::<BigNumRug>::add",
+            "value": 1003101,
+            "range": "± 25148",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameAccumulator::<BigNumDig> serialization",
+            "value": 507,
+            "range": "± 25",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameAccumulator::<BigNumRug> serialization",
+            "value": 642,
+            "range": "± 37",
             "unit": "ns/iter"
           }
         ]
