@@ -126,6 +126,7 @@
 pub mod error;
 pub mod private;
 pub mod public;
+#[doc(hidden)] // The API is in "prerelease" for now
 pub mod root_tree;
 pub mod traits;
 mod utils;
