@@ -497,7 +497,7 @@ impl<F: PrivateForest + Clone> PrivateNodeOnPathHistory<F> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::private::{forest::hamt::HamtForest, PrivateDirectory};
+    use crate::private::forest::hamt::HamtForest;
     use chrono::Utc;
     use rand_chacha::ChaCha12Rng;
     use rand_core::SeedableRng;

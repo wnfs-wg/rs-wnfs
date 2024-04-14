@@ -2,7 +2,7 @@
 
 use super::{PublicFileSerializable, PublicNodeSerializable};
 use crate::{error::FsError, is_readable_wnfs_version, traits::Id, WNFS_VERSION};
-use anyhow::{bail, Result};
+use anyhow::{anyhow, bail, Result};
 use async_once_cell::OnceCell;
 use chrono::{DateTime, Utc};
 use futures::{AsyncRead, AsyncReadExt};
@@ -297,8 +297,10 @@ impl PublicFile {
         len_limit: Option<usize>,
         store: &'a impl BlockStore,
     ) -> Result<Vec<u8>> {
+        let size = self.size(store).await?;
         let mut reader = self.stream_content(byte_offset, store).await?;
         if let Some(len) = len_limit {
+            let len = std::cmp::min(len as u64, size - byte_offset) as usize;
             let mut buffer = vec![0; len];
             reader.read_exact(&mut buffer).await?;
             Ok(buffer)
@@ -343,8 +345,11 @@ impl PublicFile {
     /// }
     /// ```
     pub async fn size(&self, store: &impl BlockStore) -> Result<u64> {
-        let value = self.userland.resolve_value(store).await?;
-        Ok(value.filesize().unwrap_or(0))
+        self.userland
+            .resolve_value(store)
+            .await?
+            .filesize()
+            .ok_or_else(|| anyhow!("Missing size on dag-pb node"))
     }
 
     /// Gets the entire content of a file.
@@ -533,7 +538,6 @@ impl Clone for PublicFile {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use chrono::Utc;
     use wnfs_common::MemoryBlockStore;
 
     #[async_std::test]
