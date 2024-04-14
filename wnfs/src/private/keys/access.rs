@@ -123,12 +123,12 @@ mod snapshot_tests {
     use rand::Rng;
     use rand_chacha::ChaCha12Rng;
     use rand_core::SeedableRng;
-    use wnfs_common::{utils::SnapshotBlockStore, BlockStore};
+    use testresult::TestResult;
+    use wnfs_common::{encode, libipld::json::DagJsonCodec};
 
     #[async_std::test]
-    async fn test_access_key() {
+    async fn test_access_key() -> TestResult {
         let rng = &mut ChaCha12Rng::seed_from_u64(0);
-        let store = &SnapshotBlockStore::default();
 
         let private_ref =
             PrivateRef::with_temporal_key(rng.gen(), TemporalKey(rng.gen()), Cid::default());
@@ -136,13 +136,18 @@ mod snapshot_tests {
         let temporal_access_key = AccessKey::Temporal(TemporalAccessKey::from(&private_ref));
         let snapshot_access_key = AccessKey::Snapshot(SnapshotAccessKey::from(&private_ref));
 
-        let temp_cid = store.put_serializable(&temporal_access_key).await.unwrap();
-        let snap_cid = store.put_serializable(&snapshot_access_key).await.unwrap();
-
-        let temp_key = store.get_block_snapshot(&temp_cid).await.unwrap();
-        let snap_key = store.get_block_snapshot(&snap_cid).await.unwrap();
+        let temp_key = as_dag_json_value(&temporal_access_key)?;
+        let snap_key = as_dag_json_value(&snapshot_access_key)?;
 
         insta::assert_json_snapshot!(temp_key);
         insta::assert_json_snapshot!(snap_key);
+
+        Ok(())
+    }
+
+    fn as_dag_json_value(s: impl Serialize) -> Result<serde_json::Value> {
+        let dag_json = encode(&libipld_core::serde::to_ipld(s)?, DagJsonCodec)?;
+        let value = serde_json::from_slice(&dag_json)?;
+        Ok(value)
     }
 }

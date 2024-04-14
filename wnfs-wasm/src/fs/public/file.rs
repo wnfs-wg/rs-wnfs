@@ -95,6 +95,22 @@ impl PublicFile {
         self.read_at(value!(0).into(), None, store)
     }
 
+    /// Gets the exact content size without fetching all content blocks.
+    #[wasm_bindgen(js_name = "getSize")]
+    pub fn get_size(&self, store: BlockStore) -> JsResult<Promise> {
+        let file = Rc::clone(&self.0);
+        let store = ForeignBlockStore(store);
+
+        Ok(future_to_promise(async move {
+            let size = file
+                .size(&store)
+                .await
+                .map_err(error("Cannot determine file size"))?;
+
+            Ok(value!(size as usize))
+        }))
+    }
+
     /// Gets the metadata of this file.
     pub fn metadata(&self) -> JsResult<JsValue> {
         JsMetadata(self.0.get_metadata()).try_into()
@@ -103,7 +119,7 @@ impl PublicFile {
     /// Gets the content cid of the file.
     #[wasm_bindgen(js_name = "getRawContentCid")]
     pub fn get_raw_content_cid(&self, store: BlockStore) -> JsResult<Promise> {
-        let mut file = Rc::clone(&self.0);
+        let file = Rc::clone(&self.0);
         let store = ForeignBlockStore(store);
 
         Ok(future_to_promise(async move {

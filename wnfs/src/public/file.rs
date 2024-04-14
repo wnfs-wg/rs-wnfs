@@ -4,7 +4,6 @@ use super::{PublicFileSerializable, PublicNodeSerializable};
 use crate::{error::FsError, is_readable_wnfs_version, traits::Id, WNFS_VERSION};
 use anyhow::{anyhow, bail, Result};
 use async_once_cell::OnceCell;
-use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use futures::{AsyncRead, AsyncReadExt};
 use libipld_core::cid::Cid;
@@ -312,6 +311,47 @@ impl PublicFile {
         }
     }
 
+    /// Gets the exact content size without fetching all content blocks.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use anyhow::Result;
+    /// use rand_chacha::ChaCha12Rng;
+    /// use rand_core::SeedableRng;
+    /// use chrono::Utc;
+    /// use wnfs::{
+    ///     public::PublicFile,
+    ///     common::{MemoryBlockStore, utils::get_random_bytes},
+    /// };
+    ///
+    /// #[async_std::main]
+    /// async fn main() -> Result<()> {
+    ///     let store = &MemoryBlockStore::new();
+    ///     let rng = &mut ChaCha12Rng::from_entropy();
+    ///     let content = get_random_bytes::<324_568>(rng).to_vec();
+    ///     let file = PublicFile::with_content(
+    ///         Utc::now(),
+    ///         content.clone(),
+    ///         store,
+    ///     )
+    ///     .await?;
+    ///
+    ///     let mut size = file.size(store).await?;
+    ///
+    ///     assert_eq!(content.len() as u64, size);
+    ///
+    ///     Ok(())
+    /// }
+    /// ```
+    pub async fn size(&self, store: &impl BlockStore) -> Result<u64> {
+        self.userland
+            .resolve_value(store)
+            .await?
+            .filesize()
+            .ok_or_else(|| anyhow!("Missing size on dag-pb node"))
+    }
+
     /// Gets the entire content of a file.
     ///
     /// # Examples
@@ -422,19 +462,8 @@ impl PublicFile {
     pub fn get_metadata_mut_rc<'a>(self: &'a mut Arc<Self>) -> &'a mut Metadata {
         self.prepare_next_revision().get_metadata_mut()
     }
-
-    /// Returns the file size in bytes
-    pub async fn size(&self, store: &impl BlockStore) -> Result<u64> {
-        self.userland
-            .resolve_value(store)
-            .await?
-            .filesize()
-            .ok_or_else(|| anyhow!("Missing size on dag-pb node"))
-    }
 }
 
-#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
-#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl Storable for PublicFile {
     type Serializable = PublicNodeSerializable;
 
@@ -509,7 +538,6 @@ impl Clone for PublicFile {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use chrono::Utc;
     use wnfs_common::MemoryBlockStore;
 
     #[async_std::test]

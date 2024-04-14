@@ -8,12 +8,11 @@ use crate::{
 };
 use anyhow::{bail, ensure, Result};
 use async_once_cell::OnceCell;
-use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use libipld_core::cid::Cid;
 use std::collections::{BTreeMap, BTreeSet};
 use wnfs_common::{
-    utils::{error, Arc},
+    utils::{boxed_fut, error, Arc},
     BlockStore, Metadata, NodeType, Storable,
 };
 
@@ -829,8 +828,6 @@ impl Clone for PublicDirectory {
     }
 }
 
-#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
-#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl Storable for PublicDirectory {
     type Serializable = PublicNodeSerializable;
 
@@ -838,7 +835,8 @@ impl Storable for PublicDirectory {
         let userland = {
             let mut map = BTreeMap::new();
             for (name, link) in self.userland.iter() {
-                map.insert(name.clone(), link.resolve_cid(store).await?);
+                // Boxing the future due to recursion
+                map.insert(name.clone(), boxed_fut(link.resolve_cid(store)).await?);
             }
             map
         };
@@ -889,10 +887,9 @@ impl Storable for PublicDirectory {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use chrono::Utc;
     use libipld_core::ipld::Ipld;
     use testresult::TestResult;
-    use wnfs_common::MemoryBlockStore;
+    use wnfs_common::{decode, libipld::cbor::DagCborCodec, MemoryBlockStore};
 
     #[async_std::test]
     async fn look_up_can_fetch_file_added_to_directory() -> TestResult {
@@ -1243,10 +1240,14 @@ mod tests {
 
         root_dir.mkdir(&["test".into()], time, store).await.unwrap();
 
-        let ipld = store
-            .get_deserializable::<Ipld>(&root_dir.store(store).await.unwrap())
-            .await
-            .unwrap();
+        let ipld: Ipld = decode(
+            &store
+                .get_block(&root_dir.store(store).await.unwrap())
+                .await
+                .unwrap(),
+            DagCborCodec,
+        )
+        .unwrap();
         match ipld {
             Ipld::Map(map) => match map.get("wnfs/pub/dir") {
                 Some(Ipld::Map(content)) => match content.get("previous") {

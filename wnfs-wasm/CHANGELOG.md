@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.2.2 (2023-03-08)
+
+* Allow overwriting `putBlock` in the `BlockStore` interface ([#409](https://github.com/wnfs-wg/rs-wnfs/pull/409))
+
+## 0.2.1 (2023-02-28)
+
+* Added `getSize` method to `PublicFile` and `PrivateFile`
+
+## 0.2.0 (2024-02-15)
+
+* Bumped minimal supported rust version to 1.75
+* Updated the typescript type for the `BlockStore` interface to match the new wnfs-common trait
+* Evolve `BlockStore` trait ([#402](https://github.com/wnfs-wg/rs-wnfs/pull/402))
+* Expose wasm bindings for `Name` ser/de ([#383](https://github.com/wnfs-wg/rs-wnfs/pull/383))
+* Match the public and private APIs for content reading ([#386](https://github.com/wnfs-wg/rs-wnfs/pull/386))
+* add `get_raw_content_cid` ([#385](https://github.com/wnfs-wg/rs-wnfs/pull/385))
+
 ## 0.1.28 (2023-12-06)
 
 * `PublicDirectory` and `PublicFile` now support writing byte-arrays as file contents instead of just CIDs. ([#375](https://github.com/wnfs-wg/rs-wnfs/pull/375) and [#376](https://github.com/wnfs-wg/rs-wnfs/pull/376))

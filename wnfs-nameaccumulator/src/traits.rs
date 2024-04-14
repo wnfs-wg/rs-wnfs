@@ -237,10 +237,8 @@ impl Big for BigNumRug {
     }
 
     fn to_bytes_be<const N: usize>(n: &Self::Num) -> [u8; N] {
-        let vec = n.to_digits(Order::MsfLe);
         let mut bytes = [0u8; N];
-        let zero_bytes = N - vec.len();
-        bytes[zero_bytes..].copy_from_slice(&vec);
+        n.write_digits(&mut bytes, Order::MsfLe);
         bytes
     }
 
@@ -292,6 +290,8 @@ mod rug_tests {
     use crate::{Big, BigNumRug};
     use rand_chacha::ChaCha12Rng;
     use rand_core::SeedableRng;
+    use rug::Integer;
+    use std::str::FromStr;
 
     /// We need this property for snapshot testing
     #[test]
@@ -312,5 +312,19 @@ mod rug_tests {
         assert_eq!(run_one, run_two);
         let run_three = BigNumRug::rand_below(&ceiling, &mut ChaCha12Rng::seed_from_u64(1));
         assert_ne!(run_one, run_three);
+    }
+
+    #[test]
+    fn test_to_bytes_be_snapshot() {
+        let modulus = Integer::from_str(
+            "25195908475657893494027183240048398571429282126204032027777137836043662020707595556264018525880784406918290641249515082189298559149176184502808489120072844992687392807287776735971418347270261896375014971824691165077613379859095700097330459748808428401797429100642458691817195118746121515172654632282216869987549182422433637259085141865462043576798423387184774447920739934236584823824281198163815010674810451660377306056201619676256133844143603833904414952634432190114657544454178424020924616515723350778707749817125772467962926386356373289912154831438167899885040445364023527381951378636564391212010397122822120720357",
+        ).expect("Can parse integer");
+
+        let modulus_hex = "c7970ceedcc3b0754490201a7aa613cd73911081c790f5f1a8726f463550bb5b7ff0db8e1ea1189ec72f93d1650011bd721aeeacc2acde32a04107f0648c2813a31f5b0b7765ff8b44b4b6ffc93384b646eb09c7cf5e8592d40ea33c80039f35b4f14a04b51f7bfd781be4d1673164ba8eb991c2c4d730bbbe35f592bdef524af7e8daefd26c66fc02c479af89d64d373f442709439de66ceb955f3ea37d5159f6135809f85334b5cb1813addc80cd05609f10ac6a95ad65872c909525bdad32bc729592642920f24c61dc5b3c3b7923e56b16a4d9d373d8721f24a3fc0f1b3131f55615172866bccc30f95054c824e733a5eb6817f7bc16399d48c6361cc7e5";
+
+        let bytes = BigNumRug::to_bytes_be::<256>(&modulus);
+        let hex_encoded = hex::encode(bytes);
+
+        assert_eq!(hex_encoded, modulus_hex);
     }
 }

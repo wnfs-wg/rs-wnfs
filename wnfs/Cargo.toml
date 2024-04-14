@@ -1,6 +1,6 @@
 [package]
 name = "wnfs"
-version = "0.1.27"
+version = "0.2.2"
 description = "WebNative filesystem core implementation"
 keywords = ["wnfs", "webnative", "ipfs", "decentralisation"]
 categories = [
@@ -12,6 +12,7 @@ categories = [
 license = "Apache-2.0"
 readme = "README.md"
 edition = "2021"
+rust-version = "1.75"
 repository = "https://github.com/wnfs-wg/rs-wnfs/tree/main/wnfs"
 homepage = "https://fission.codes"
 authors = ["The Fission Authors"]
@@ -22,7 +23,6 @@ anyhow = "1.0"
 async-once-cell = "0.5"
 async-recursion = "1.0"
 async-stream = "0.3"
-async-trait = "0.1"
 blake3 = { version = "1.4", features = ["traits-preview"] }
 bytes = "1.4.0"
 chacha20poly1305 = "0.10"
@@ -40,21 +40,21 @@ semver = { version = "1.0", features = ["serde"] }
 serde = { version = "1.0", features = ["rc"] }
 serde-byte-array = "0.1"
 serde_bytes = "0.11"
-serde_ipld_dagcbor = "0.4"
+serde_ipld_dagcbor = "0.6"
 sha3 = "0.10"
 skip_ratchet = { version = "0.3", features = ["serde"] }
 thiserror = "1.0"
 tokio = { version = "1.34", features = ["io-util"] }
 tokio-util = { version = "0.7.10", features = ["compat"] }
-wnfs-common = { path = "../wnfs-common", version = "=0.1.26" }
-wnfs-hamt = { path = "../wnfs-hamt", version = "=0.1.26" }
-wnfs-nameaccumulator = { path = "../wnfs-nameaccumulator", version = "=0.1.26" }
-wnfs-unixfs-file = { path = "../wnfs-unixfs-file", version = "=0.1.1" }
+wnfs-common = { path = "../wnfs-common", version = "=0.2.0" }
+wnfs-hamt = { path = "../wnfs-hamt", version = "=0.2.0" }
+wnfs-nameaccumulator = { path = "../wnfs-nameaccumulator", version = "=0.2.0" }
+wnfs-unixfs-file = { path = "../wnfs-unixfs-file", version = "=0.2.0" }
 
 [dev-dependencies]
 async-std = { version = "1.11", features = ["attributes"] }
 bytes = "1.4.0"
-env_logger = "0.10"
+env_logger = "0.11"
 fake = { version = "2.6.1", features = ["chrono"] }
 insta = "1.30"
 proptest = "1.1"
@@ -64,10 +64,10 @@ serde_json = "1.0.103"
 sha2 = "0.10"
 test-log = "0.2"
 test-strategy = "0.3"
-testresult = "0.3.0"
+testresult = "0.4.0"
 tiny-bip39 = "1.0"
 wnfs-common = { path = "../wnfs-common", features = ["test_utils"] }
-wnfs-nameaccumulator = { path = "../wnfs-nameaccumulator", version = "=0.1.26", default-features = false, features = ["rug"] }
+wnfs-nameaccumulator = { path = "../wnfs-nameaccumulator", default-features = false, features = ["rug"] }
 
 [lib]
 name = "wnfs"

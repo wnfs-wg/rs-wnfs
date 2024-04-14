@@ -1,7 +1,6 @@
 use super::{Arc, CondSend, CondSync};
-use crate::{BlockStore, MemoryBlockStore, CODEC_DAG_CBOR, CODEC_RAW};
+use crate::{BlockStore, BlockStoreError, MemoryBlockStore, CODEC_DAG_CBOR, CODEC_RAW};
 use anyhow::Result;
-use async_trait::async_trait;
 use base64_serde::base64_serde_type;
 use bytes::Bytes;
 use libipld::{
@@ -112,17 +111,33 @@ impl SnapshotBlockStore {
     }
 }
 
-#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
-#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl BlockStore for SnapshotBlockStore {
     #[inline]
-    async fn get_block(&self, cid: &Cid) -> Result<Bytes> {
+    async fn get_block(&self, cid: &Cid) -> Result<Bytes, BlockStoreError> {
         self.inner.get_block(cid).await
     }
 
     #[inline]
-    async fn put_block(&self, bytes: impl Into<Bytes> + CondSend, codec: u64) -> Result<Cid> {
+    async fn put_block(
+        &self,
+        bytes: impl Into<Bytes> + CondSend,
+        codec: u64,
+    ) -> Result<Cid, BlockStoreError> {
         self.inner.put_block(bytes, codec).await
+    }
+
+    #[inline]
+    async fn put_block_keyed(
+        &self,
+        cid: Cid,
+        bytes: impl Into<Bytes> + CondSend,
+    ) -> Result<(), BlockStoreError> {
+        self.inner.put_block_keyed(cid, bytes).await
+    }
+
+    #[inline]
+    async fn has_block(&self, cid: &Cid) -> Result<bool, BlockStoreError> {
+        self.inner.has_block(cid).await
     }
 }
 

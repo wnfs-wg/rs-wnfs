@@ -20,6 +20,8 @@ use std::collections::BTreeMap;
 #[cfg(test)]
 use wnfs_common::MemoryBlockStore;
 use wnfs_common::{
+    decode, encode,
+    libipld::cbor::DagCborCodec,
     utils::{Arc, CondSend},
     BlockStore, Metadata, Storable,
 };
@@ -421,11 +423,17 @@ impl<B: BlockStore> RootTree<B> {
             version: WNFS_VERSION,
         };
 
-        self.store.put_serializable(&serializable).await
+        let cid = self
+            .store
+            .put_block(encode(&serializable, DagCborCodec)?, DagCborCodec.into())
+            .await?;
+
+        Ok(cid)
     }
 
     pub async fn load(cid: &Cid, store: B) -> Result<RootTree<B>> {
-        let deserialized: RootTreeSerializable = store.get_deserializable(cid).await?;
+        let deserialized: RootTreeSerializable =
+            decode(&store.get_block(cid).await?, DagCborCodec)?;
         let forest = Arc::new(HamtForest::load(&deserialized.forest, &store).await?);
         let public_root = Arc::new(PublicDirectory::load(&deserialized.public, &store).await?);
         let exchange_root = Arc::new(PublicDirectory::load(&deserialized.exchange, &store).await?);
@@ -514,8 +522,6 @@ mod tests {
 mod snapshot_tests {
     use super::*;
     use crate::utils;
-    use rand_chacha::ChaCha12Rng;
-    use rand_core::SeedableRng;
     use wnfs_common::utils::SnapshotBlockStore;
 
     #[async_std::test]

@@ -1,7 +1,6 @@
-use crate::{traits::IpldEq, utils::CondSync, BlockStore, Storable};
+use crate::{utils::CondSync, BlockStore, Storable};
 use anyhow::Result;
 use async_once_cell::OnceCell;
-use async_trait::async_trait;
 use libipld::Cid;
 use std::fmt::{self, Debug, Formatter};
 
@@ -137,18 +136,6 @@ impl<T: Storable + CondSync> Link<T> {
     }
 }
 
-#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
-#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
-impl<T: PartialEq + Storable + CondSync> IpldEq for Link<T> {
-    async fn eq(&self, other: &Link<T>, store: &impl BlockStore) -> Result<bool> {
-        if self == other {
-            return Ok(true);
-        }
-
-        Ok(self.resolve_cid(store).await? == other.resolve_cid(store).await?)
-    }
-}
-
 impl<T: Storable> From<T> for Link<T> {
     fn from(value: T) -> Self {
         Self::Decoded { value }
@@ -227,7 +214,6 @@ mod tests {
     use crate::{BlockStore, Link, MemoryBlockStore, Storable};
     use anyhow::Result;
     use async_once_cell::OnceCell;
-    use async_trait::async_trait;
     use libipld::Cid;
     use serde::{Deserialize, Serialize};
 
@@ -238,7 +224,6 @@ mod tests {
         persisted_as: OnceCell<Cid>,
     }
 
-    #[async_trait]
     impl Storable for Example {
         type Serializable = Example;
 
@@ -292,7 +277,7 @@ mod tests {
     async fn link_value_can_be_resolved() {
         let store = &MemoryBlockStore::default();
         let example = Example::new(256);
-        let cid = store.put_serializable(&example).await.unwrap();
+        let cid = example.store(store).await.unwrap();
         let link = Link::<Example>::from_cid(cid);
 
         let value = link.resolve_value(store).await.unwrap();

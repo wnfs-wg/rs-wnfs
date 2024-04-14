@@ -12,13 +12,14 @@ use wnfs_common::{
 // Functions
 //--------------------------------------------------------------------------------------------------
 
-pub fn generate_kvs<K: Debug + Clone, V: Debug + Clone>(
+pub fn generate_kvs<K, V>(
     key: impl Strategy<Value = K>,
     value: impl Strategy<Value = V>,
     size: impl Into<SizeRange>,
 ) -> impl Strategy<Value = Vec<(K, V)>>
 where
-    K: Eq + Hash,
+    K: Debug + Clone + Eq + Hash,
+    V: Debug + Clone,
 {
     vec((key, value), size).prop_map(|vec| {
         vec.into_iter()

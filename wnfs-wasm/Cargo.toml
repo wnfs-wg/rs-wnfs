@@ -1,6 +1,6 @@
 [package]
 name = "wnfs-wasm"
-version = "0.1.28"
+version = "0.2.2"
 description = "WebNative Filesystem API (WebAssembly)"
 keywords = ["wnfs", "wasm", "webnative", "ipfs", "decentralisation"]
 categories = [
@@ -12,13 +12,13 @@ categories = [
 license = "Apache-2.0"
 readme = "README.md"
 edition = "2021"
+rust-version = "1.75"
 repository = "https://github.com/wnfs-wg/rs-wnfs/tree/main/wnfs-wasm"
 homepage = "https://fission.codes"
 authors = ["The Fission Authors"]
 
 [dependencies]
 anyhow = "1.0"
-async-trait = "0.1"
 bytes = "1.4.0"
 cfg-if = "1.0"
 chrono = { version = "0.4", default-features = false, features = ["clock", "std", "wasmbind"] }
@@ -30,8 +30,8 @@ rand_core = "0.6"
 wasm-bindgen = { version = "0.2.87", optional = true, features = ["serde-serialize"] }
 wasm-bindgen-futures = { version = "0.4", optional = true }
 web-sys = { version = "0.3", optional = true }
-wnfs = { path = "../wnfs", version = "=0.1.27" }
-wnfs-nameaccumulator = { path = "../wnfs-nameaccumulator", version = "=0.1.26" }
+wnfs = { path = "../wnfs", version = "=0.2.2" }
+wnfs-nameaccumulator = { path = "../wnfs-nameaccumulator", version = "=0.2.0" }
 
 [dev-dependencies]
 wasm-bindgen-test = "0.3"

@@ -7,7 +7,6 @@ use crate::{serializable::NodeSerializable, HAMT_VALUES_BUCKET_SIZE};
 use anyhow::{bail, Result};
 use async_once_cell::OnceCell;
 use async_recursion::async_recursion;
-use async_trait::async_trait;
 use bitvec::array::BitArray;
 use either::{Either, Either::*};
 use libipld::Cid;
@@ -22,7 +21,7 @@ use std::{
     marker::PhantomData,
 };
 use wnfs_common::{
-    utils::{Arc, BoxFuture, CondSend, CondSync},
+    utils::{boxed_fut, Arc, BoxFuture, CondSend, CondSync},
     BlockStore, HashOutput, Link, Storable,
 };
 
@@ -838,8 +837,6 @@ where
     }
 }
 
-#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
-#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl<K, V, H> Storable for Node<K, V, H>
 where
     K: Storable + CondSync,
@@ -855,7 +852,8 @@ where
 
         let mut pointers = Vec::with_capacity(self.pointers.len());
         for pointer in self.pointers.iter() {
-            pointers.push(pointer.to_serializable(store).await?);
+            // Boxing the future due to recursion
+            pointers.push(boxed_fut(pointer.to_serializable(store)).await?);
         }
 
         Ok(NodeSerializable(bitmask, pointers))

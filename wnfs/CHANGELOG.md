@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.2.2 (2023-03-08)
+
+* Remove leftover println debugging ([#406](https://github.com/wnfs-wg/rs-wnfs/pull/406))
+
+## 0.2.1 (2023-02-28)
+
+* Added `PublicFile::size` and `PrivateFile::size` functions
+* Changed return type of `PrivateFile::get_size_upper_bound` to be `u64` instead of `usize`
+
+## 0.2.0 (2024-02-15)
+
+* Bumped minimal supported rust version to 1.75
+* Moved all traits to use the new ["return position impl trait in trait" feature](https://blog.rust-lang.org/2023/12/21/async-fn-rpit-in-traits.html)
+* Evolve `BlockStore` trait ([#402](https://github.com/wnfs-wg/rs-wnfs/pull/402))
+* Match the public and private APIs for content reading ([#386](https://github.com/wnfs-wg/rs-wnfs/pull/386))
+
 ## 0.1.27 (2023-12-06)
 
 * Switched from `Rc` to `Arc` and generally enabled rs-wnfs APIs to work in multithreaded contexts ([#366](https://github.com/wnfs-wg/rs-wnfs/pull/366) and #[#372](https://github.com/wnfs-wg/rs-wnfs/pull/372))

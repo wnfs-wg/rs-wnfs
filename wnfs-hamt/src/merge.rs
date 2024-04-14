@@ -13,16 +13,15 @@ use wnfs_common::{
 //--------------------------------------------------------------------------------------------------
 
 /// Merges a node with another with the help of a resolver function.
-pub async fn merge<K: CondSync, V: CondSync, H, F, B: BlockStore>(
+pub async fn merge<K, V, H>(
     main_link: Link<Arc<Node<K, V, H>>>,
     other_link: Link<Arc<Node<K, V, H>>>,
-    f: F,
-    store: &B,
+    f: impl Fn(&V, &V) -> Result<V>,
+    store: &impl BlockStore,
 ) -> Result<Arc<Node<K, V, H>>>
 where
-    F: Fn(&V, &V) -> Result<V>,
-    K: Storable + Eq + Clone + Hash + AsRef<[u8]>,
-    V: Storable + Eq + Clone,
+    K: Storable + Eq + Clone + CondSync + Hash + AsRef<[u8]>,
+    V: Storable + Eq + Clone + CondSync,
     K::Serializable: Serialize + DeserializeOwned,
     V::Serializable: Serialize + DeserializeOwned,
     H: Hasher + CondSync,

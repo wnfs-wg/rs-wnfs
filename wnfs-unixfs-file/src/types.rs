@@ -38,7 +38,9 @@ impl Block {
     }
 
     pub async fn store(&self, store: &impl BlockStore) -> Result<Cid> {
-        store.put_block(self.data.clone(), self.codec.into()).await
+        Ok(store
+            .put_block(self.data.clone(), self.codec.into())
+            .await?)
     }
 
     /// Validate the block. Will return an error if the links are wrong.

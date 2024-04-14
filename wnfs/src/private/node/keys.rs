@@ -222,7 +222,6 @@ impl SnapshotKey {
 #[cfg(test)]
 mod proptests {
     use super::*;
-    use crate::private::KEY_BYTE_SIZE;
     use proptest::{prelude::any, prop_assert_eq, prop_assert_ne};
     use rand_chacha::ChaCha12Rng;
     use rand_core::SeedableRng;

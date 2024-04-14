@@ -2,13 +2,13 @@
 //! that are implemented for most WNFS structures, such as `PublicFile`, `PublicDirectory`,
 //! `PublicNode`, `HamtForest` etc.
 use crate::{
-    utils::{Arc, CondSync},
+    utils::{Arc, CondSend, CondSync},
     BlockStore,
 };
 use anyhow::{bail, Result};
 use async_once_cell::OnceCell;
-use async_trait::async_trait;
 use bytes::Bytes;
+use futures::Future;
 use libipld::{cbor::DagCborCodec, Cid};
 use serde::{de::DeserializeOwned, Serialize};
 
@@ -20,8 +20,6 @@ use serde::{de::DeserializeOwned, Serialize};
 macro_rules! impl_storable_from_serde {
     ( $( $ty:ty $( : < $( $generics:ident ),+ > )? ),+ ) => {
         $(
-            #[cfg_attr(not(target_arch = "wasm32"), ::async_trait::async_trait)]
-            #[cfg_attr(target_arch = "wasm32", ::async_trait::async_trait(?Send))]
             impl $( < $( $generics ),+ > )? $crate::Storable for $ty $( where $( $generics: ::serde::Serialize + ::serde::de::DeserializeOwned + Clone + $crate::utils::CondSync ),+  )?{
                 type Serializable = $ty;
 
@@ -36,8 +34,6 @@ macro_rules! impl_storable_from_serde {
         )+
     };
 }
-
-pub use impl_storable_from_serde;
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
@@ -62,19 +58,22 @@ pub use impl_storable_from_serde;
 /// If you do so, remember to initialize the `OnceCell` if a `Cid` is passed in the
 /// `from_serializable` call, such that a `store` call right after a `load` call is practically
 /// free.
-#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
-#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 pub trait Storable: Sized {
     /// The at-rest representation of this storable type.
     type Serializable: StoreIpld + LoadIpld + CondSync;
 
     /// Turn the current type into the at-rest representation of this type.
-    async fn to_serializable(&self, store: &impl BlockStore) -> Result<Self::Serializable>;
+    fn to_serializable(
+        &self,
+        store: &impl BlockStore,
+    ) -> impl Future<Output = Result<Self::Serializable>> + CondSend;
 
     /// Take an at-rest representation of this type and turn it into the in-memory representation.
     /// You can use the `cid` parameter to populate a cache.
-    async fn from_serializable(cid: Option<&Cid>, serializable: Self::Serializable)
-        -> Result<Self>;
+    fn from_serializable(
+        cid: Option<&Cid>,
+        serializable: Self::Serializable,
+    ) -> impl Future<Output = Result<Self>> + CondSend;
 
     /// Return a serialization cache, if it exists.
     /// By default, this always returns `None`.
@@ -85,16 +84,21 @@ pub trait Storable: Sized {
     /// Store this data type in a given `BlockStore`.
     ///
     /// This will short-circuit by using the `persisted_as` once-cell, if available.
-    async fn store(&self, store: &impl BlockStore) -> Result<Cid> {
+    fn store(&self, store: &impl BlockStore) -> impl Future<Output = Result<Cid>> + CondSend
+    where
+        Self: CondSync,
+    {
         let store_future = async {
             let (bytes, codec) = self.to_serializable(store).await?.encode_ipld()?;
-            store.put_block(bytes, codec).await
+            Ok(store.put_block(bytes, codec).await?)
         };
 
-        if let Some(persisted_as) = self.persisted_as() {
-            persisted_as.get_or_try_init(store_future).await.cloned()
-        } else {
-            store_future.await
+        async {
+            if let Some(persisted_as) = self.persisted_as() {
+                persisted_as.get_or_try_init(store_future).await.cloned()
+            } else {
+                store_future.await
+            }
         }
     }
 
@@ -102,10 +106,12 @@ pub trait Storable: Sized {
     ///
     /// This will pass on the CID to the `from_serializable` function so it can
     /// populate a cache in some cases.
-    async fn load(cid: &Cid, store: &impl BlockStore) -> Result<Self> {
-        let bytes = store.get_block(cid).await?;
-        let serializable = Self::Serializable::decode_ipld(cid, bytes)?;
-        Self::from_serializable(Some(cid), serializable).await
+    fn load(cid: &Cid, store: &impl BlockStore) -> impl Future<Output = Result<Self>> + CondSend {
+        async {
+            let bytes = store.get_block(cid).await?;
+            let serializable = Self::Serializable::decode_ipld(cid, bytes)?;
+            Self::from_serializable(Some(cid), serializable).await
+        }
     }
 }
 
@@ -158,8 +164,6 @@ impl<T: DeserializeOwned + Sized> LoadIpld for T {
 //     }
 // }
 
-#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
-#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 impl<T: Storable + CondSync> Storable for Arc<T> {
     type Serializable = T::Serializable;
 

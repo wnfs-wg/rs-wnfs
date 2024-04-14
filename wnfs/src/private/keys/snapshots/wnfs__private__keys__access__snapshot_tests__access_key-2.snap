@@ -3,23 +3,19 @@ source: wnfs/src/private/keys/access.rs
 expression: snap_key
 ---
 {
-  "cid": "bafyr4ics27f5xqe7ryshkpoln5w7nkvvsdnoaw55r5gfb5earluczlil4a",
-  "value": {
-    "wnfs/share/snapshot": {
-      "contentCid": {
-        "/": "baeaaaaa"
-      },
-      "label": {
-        "/": {
-          "bytes": "f7J7lBYC0B0RVCIRE0/HGqyuVON+fQB7u3tV7/BiooQ"
-        }
-      },
-      "snapshotKey": {
-        "/": {
-          "bytes": "7SoxAmhQW3XHxn5UpettI89xokpcEjFXapTSkFRQleU"
-        }
+  "wnfs/share/snapshot": {
+    "contentCid": {
+      "/": "baeaaaaa"
+    },
+    "label": {
+      "/": {
+        "bytes": "f7J7lBYC0B0RVCIRE0/HGqyuVON+fQB7u3tV7/BiooQ"
+      }
+    },
+    "snapshotKey": {
+      "/": {
+        "bytes": "7SoxAmhQW3XHxn5UpettI89xokpcEjFXapTSkFRQleU"
       }
     }
-  },
-  "bytes": "oXN3bmZzL3NoYXJlL3NuYXBzaG90o2VsYWJlbFggf7J7lBYC0B0RVCIRE0/HGqyuVON+fQB7u3tV7/BiooRqY29udGVudENpZNgqRQABAAAAa3NuYXBzaG90S2V5WCDtKjECaFBbdcfGflSl620jz3GiSlwSMVdqlNKQVFCV5Q=="
+  }
 }

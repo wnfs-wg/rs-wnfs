@@ -1,6 +1,6 @@
 [package]
 name = "wnfs-nameaccumulator"
-version = "0.1.26"
+version = "0.2.0"
 description = "Cryptographic accumulators for the Webnative Filesystem"
 keywords = ["wnfs", "webnative", "ipfs", "decentralisation"]
 categories = [
@@ -18,7 +18,6 @@ authors = ["The Fission Authors"]
 
 [dependencies]
 anyhow = "1.0"
-async-trait = "0.1"
 blake3 = { version = "1.4", features = ["traits-preview"] }
 libipld = { version = "0.16", features = ["dag-cbor", "derive", "serde-codec"] }
 num-bigint-dig = { version = "0.8.2", features = ["prime", "zeroize"], optional = true }
@@ -26,11 +25,11 @@ num-integer = "0.1.45"
 num-traits = "0.2.15"
 once_cell = "1.0"
 rand_core = "0.6"
-rug = { version = "1.22", optional = true, default-features = false, features = ["rand", "integer", "num-traits"] }
+rug = { version = "1.24", optional = true, default-features = false, features = ["rand", "integer", "num-traits"] }
 serde = { version = "1.0", features = ["rc"] }
 serde_bytes = "0.11.9"
 thiserror = "1.0"
-wnfs-common = { path = "../wnfs-common", version = "=0.1.26" }
+wnfs-common = { path = "../wnfs-common", version = "=0.2.0" }
 zeroize = "1.6"
 
 [dev-dependencies]

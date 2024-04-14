@@ -2,7 +2,6 @@ mod blockstore;
 mod metadata;
 mod private;
 mod public;
-mod types;
 mod utils;
 
 pub use blockstore::*;
