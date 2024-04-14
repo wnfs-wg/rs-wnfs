@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1712050792996,
+  "lastUpdate": 1713095088377,
   "repoUrl": "https://github.com/wnfs-wg/rs-wnfs",
   "entries": {
     "Rust Benchmark": [
@@ -23965,6 +23965,126 @@ window.BENCHMARK_DATA = {
             "name": "NameAccumulator::<BigNumRug> serialization",
             "value": 646,
             "range": "± 43",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "philipp.krueger1@gmail.com",
+            "name": "Philipp Krüger",
+            "username": "matheus23"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "1554bb3cfb85ee5ee42fd9d2a2fc5320826cce03",
+          "message": "feat: Preliminary `RootTree` APIs (#390)\n\n* feat: Expose & work on root tree module\r\n\r\n* feat: Add private root storing & loading in `RootTree`\r\n\r\nAlso:\r\n- Fix nameaccumulator lib not working when the \"rug\" features is on, but \"num-bigint-dig\" is off.\r\n- Avoid `.unwrap()` in `AccessKey`.\r\n\r\n* feat: `#[derive(Clone)] RootTree`\r\n\r\n* chore: Remove left-over debugging `println!`\r\n\r\n* fix: Make `RootTree` snapshot test deterministic\r\n\r\n* fix: Wasm compilation\r\n\r\n* feat: Add `PublicFile::size` function\r\n\r\n* fix: Handle greater than file size read limits\r\n\r\n* fix: Filesize computation\r\n\r\n* chore: Hide `root_tree` module from documentation\r\n\r\nIt's not yet documented/finished.",
+          "timestamp": "2024-04-14T13:38:49+02:00",
+          "tree_id": "b6aabea6c1f8cc1a5a1758280ed46adecd733b19",
+          "url": "https://github.com/wnfs-wg/rs-wnfs/commit/1554bb3cfb85ee5ee42fd9d2a2fc5320826cce03"
+        },
+        "date": 1713095087172,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "node set",
+            "value": 16343,
+            "range": "± 703",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node set 1000 consecutive",
+            "value": 2242944,
+            "range": "± 50411",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and get",
+            "value": 48362,
+            "range": "± 111",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and remove",
+            "value": 54746,
+            "range": "± 386",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt load and decode/0",
+            "value": 3221,
+            "range": "± 111",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt set and encode",
+            "value": 62819,
+            "range": "± 1657",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt diff",
+            "value": 38078,
+            "range": "± 1979",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt merge",
+            "value": 115933,
+            "range": "± 7113",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameSegment::<BigNumDig>::new_hashed",
+            "value": 1823181,
+            "range": "± 135178",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameSegment::<BigNumRug>::new_hashed",
+            "value": 317121,
+            "range": "± 25365",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameSegment::<BigNumDig>::new(rng)",
+            "value": 1889283,
+            "range": "± 453650",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameSegment::<BigNumRug>::new(rng)",
+            "value": 599530,
+            "range": "± 42379",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameAccumulator::<BigNumDig>::add",
+            "value": 1757867,
+            "range": "± 61008",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameAccumulator::<BigNumRug>::add",
+            "value": 1001916,
+            "range": "± 19593",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameAccumulator::<BigNumDig> serialization",
+            "value": 492,
+            "range": "± 14",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameAccumulator::<BigNumRug> serialization",
+            "value": 639,
+            "range": "± 20",
             "unit": "ns/iter"
           }
         ]
