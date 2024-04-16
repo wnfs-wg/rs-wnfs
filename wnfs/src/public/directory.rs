@@ -10,7 +10,10 @@ use anyhow::{bail, ensure, Result};
 use async_once_cell::OnceCell;
 use chrono::{DateTime, Utc};
 use libipld_core::cid::Cid;
-use std::collections::{BTreeMap, BTreeSet};
+use std::{
+    cmp::Ordering,
+    collections::{btree_map::Entry, BTreeMap, BTreeSet},
+};
 use wnfs_common::{
     utils::{boxed_fut, error, Arc},
     BlockStore, Metadata, NodeType, Storable,
@@ -141,6 +144,16 @@ impl PublicDirectory {
         cloned.persisted_as = OnceCell::new();
         cloned.previous = [previous_cid].into_iter().collect();
         cloned
+    }
+
+    /// TODO(matheus23): DOCS
+    pub(crate) fn prepare_next_merge<'a>(self: &'a mut Arc<Self>) -> &'a mut Self {
+        if self.previous.len() > 1 {
+            // This is a merge node
+            return Arc::make_mut(self);
+        }
+
+        self.prepare_next_revision()
     }
 
     async fn get_leaf_dir<'a>(
@@ -793,6 +806,93 @@ impl PublicDirectory {
         node.upsert_mtime(time);
 
         dir.userland.insert(filename.clone(), PublicLink::new(node));
+
+        Ok(())
+    }
+
+    /// Comparing the merkle clocks of this directory to the other directory
+    pub async fn causal_compare(
+        self: Arc<Self>,
+        other: Arc<Self>,
+        store: &impl BlockStore,
+    ) -> Result<Option<Ordering>> {
+        let causal_order = PublicNode::Dir(self)
+            .causal_compare(&PublicNode::Dir(other), store)
+            .await?;
+        Ok(causal_order)
+    }
+
+    // TODO: Return what type of merge it was: Conflict, Seamless merge, fast-forward or ahead
+    pub async fn reconcile(
+        self: &mut Arc<Self>,
+        other: Arc<Self>,
+        time: DateTime<Utc>,
+        store: &impl BlockStore,
+    ) -> Result<()> {
+        let causal_order = self.clone().causal_compare(other.clone(), store).await?;
+
+        match causal_order {
+            Some(Ordering::Equal) => {}
+            Some(Ordering::Greater) => {}
+            Some(Ordering::Less) => {
+                *self = other;
+            }
+            None => {
+                self.merge(&other, time, store).await?;
+            }
+        }
+
+        Ok(())
+    }
+
+    pub async fn merge(
+        self: &mut Arc<Self>,
+        other: &Arc<Self>,
+        time: DateTime<Utc>,
+        store: &impl BlockStore,
+    ) -> Result<()> {
+        let dir = self.prepare_next_merge();
+        dir.metadata.upsert_mtime(time);
+
+        for (name, link) in other.userland.iter() {
+            let other_node = link.resolve_value(store).await?;
+            match dir.userland.entry(name.clone()) {
+                Entry::Vacant(vacant) => {
+                    vacant.insert(PublicLink::new(other_node.clone()));
+                }
+                Entry::Occupied(mut occupied) => {
+                    match (
+                        occupied.get_mut().resolve_value_mut(store).await?,
+                        other_node,
+                    ) {
+                        (PublicNode::File(our_file), PublicNode::File(other_file)) => {
+                            let file = our_file.perpare_next_merge();
+                            file.metadata.upsert_mtime(time);
+
+                            let our_cid = file.store(store).await?;
+                            let other_cid = other_file.store(store).await?;
+
+                            file.previous.insert(other_cid);
+
+                            if our_cid.hash().digest() > other_cid.hash().digest() {
+                                file.userland = other_file.userland.clone();
+                            }
+                        }
+                        (node @ PublicNode::File(_), PublicNode::Dir(other_dir)) => {
+                            // directories have priority
+                            // we don't add previous links
+                            *node = PublicNode::Dir(other_dir.clone());
+                        }
+                        (PublicNode::Dir(_), PublicNode::File(_)) => {
+                            // directories have priority, no changes necessary
+                        }
+                        (PublicNode::Dir(dir), PublicNode::Dir(other_dir)) => {
+                            dir.merge(other_dir, time, store).await?;
+                        }
+                    }
+                }
+            }
+        }
 
         Ok(())
     }

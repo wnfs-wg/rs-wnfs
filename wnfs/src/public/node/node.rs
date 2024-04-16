@@ -10,7 +10,7 @@ use anyhow::{bail, Result};
 use async_once_cell::OnceCell;
 use chrono::{DateTime, Utc};
 use libipld_core::cid::Cid;
-use std::collections::BTreeSet;
+use std::{cmp::Ordering, collections::BTreeSet};
 use wnfs_common::{utils::Arc, BlockStore, Storable};
 
 //--------------------------------------------------------------------------------------------------
@@ -228,6 +228,73 @@ impl PublicNode {
     /// ```
     pub fn is_file(&self) -> bool {
         matches!(self, Self::File(_))
+    }
+
+    /// Comparing the merkle clocks of this node to the other node
+    pub async fn causal_compare(
+        &self,
+        other: &Self,
+        store: &impl BlockStore,
+    ) -> Result<Option<Ordering>> {
+        async fn next_previous_set(
+            previous_set: BTreeSet<Cid>,
+            visited_cids: &mut BTreeSet<Cid>,
+            store: &impl BlockStore,
+        ) -> Result<BTreeSet<Cid>> {
+            let mut previous = BTreeSet::new();
+
+            for cid in previous_set {
+                let node = PublicNode::load(&cid, store).await?;
+                previous.extend(
+                    node.get_previous()
+                        .iter()
+                        .filter(|cid| visited_cids.insert(**cid))
+                        .cloned(),
+                );
+            }
+
+            Ok(previous)
+        }
+
+        let our_root = self.store(store).await?;
+        let other_root = other.store(store).await?;
+
+        if our_root == other_root {
+            return Ok(Some(Ordering::Equal));
+        }
+
+        let mut our_previous_set = self.get_previous().clone();
+        let mut other_previous_set = other.get_previous().clone();
+
+        let mut our_visited = BTreeSet::new();
+        let mut other_visited = BTreeSet::new();
+
+        loop {
+            if other_previous_set.contains(&our_root) {
+                return Ok(Some(Ordering::Less));
+            }
+
+            if our_previous_set.contains(&other_root) {
+                return Ok(Some(Ordering::Greater));
+            }
+
+            // early return optimization:
+            // If one "previous CIDs frontier" is entirely within the other's visited set,
+            // then it for sure can't hit the other root, so we know they diverged.
+            let our_is_subset = our_previous_set.is_subset(&other_visited);
+            let other_is_subset = other_previous_set.is_subset(&our_visited);
+            if our_is_subset || other_is_subset {
+                return Ok(None);
+            }
+
+            our_previous_set = next_previous_set(our_previous_set, &mut our_visited, store).await?;
+            other_previous_set =
+                next_previous_set(other_previous_set, &mut other_visited, store).await?;
+
+            if our_previous_set.is_empty() && other_previous_set.is_empty() {
+                return Ok(None); // No common causal history
+            }
+        }
     }
 }
 

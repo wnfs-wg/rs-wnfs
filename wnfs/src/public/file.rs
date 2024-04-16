@@ -405,6 +405,16 @@ impl PublicFile {
         cloned
     }
 
+    /// TODO(matheus23) DOCS
+    pub(crate) fn perpare_next_merge<'a>(self: &'a mut Arc<Self>) -> &'a mut Self {
+        if self.previous.len() > 1 {
+            // This is a merge node. Keep using it
+            return Arc::make_mut(self);
+        }
+
+        self.prepare_next_revision()
+    }
+
     /// Writes a new content cid to the file.
     /// This will create a new revision of the file.
     pub async fn set_content(
