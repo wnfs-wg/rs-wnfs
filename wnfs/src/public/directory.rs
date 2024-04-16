@@ -8,6 +8,7 @@ use crate::{
 };
 use anyhow::{bail, ensure, Result};
 use async_once_cell::OnceCell;
+use async_recursion::async_recursion;
 use chrono::{DateTime, Utc};
 use libipld_core::cid::Cid;
 use std::{
@@ -845,11 +846,13 @@ impl PublicDirectory {
         Ok(())
     }
 
-    pub async fn merge(
-        self: &mut Arc<Self>,
-        other: &Arc<Self>,
+    #[cfg_attr(not(target_arch = "wasm32"), async_recursion)]
+    #[cfg_attr(target_arch = "wasm32", async_recursion(?Send))]
+    pub async fn merge<'a>(
+        self: &'a mut Arc<Self>,
+        other: &'a Arc<Self>,
         time: DateTime<Utc>,
-        store: &impl BlockStore,
+        store: &'a impl BlockStore,
     ) -> Result<()> {
         let dir = self.prepare_next_merge();
         dir.metadata.upsert_mtime(time);
