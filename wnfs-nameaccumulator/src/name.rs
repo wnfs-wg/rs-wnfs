@@ -818,7 +818,7 @@ mod tests {
 #[cfg(test)]
 mod snapshot_tests {
     use super::*;
-    use crate::{BigNumDig, NameSegment};
+    use crate::BigNumDig;
     use rand_chacha::ChaCha12Rng;
     use rand_core::SeedableRng;
     use wnfs_common::utils::SnapshotBlockStore;
