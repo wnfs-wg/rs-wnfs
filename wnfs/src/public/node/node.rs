@@ -281,9 +281,11 @@ impl PublicNode {
             // early return optimization:
             // If one "previous CIDs frontier" is entirely within the other's visited set,
             // then it for sure can't hit the other root, so we know they diverged.
-            let our_is_subset = our_previous_set.is_subset(&other_visited);
-            let other_is_subset = other_previous_set.is_subset(&our_visited);
-            if our_is_subset || other_is_subset {
+            let our_is_true_subset =
+                !our_previous_set.is_empty() && our_previous_set.is_subset(&other_visited);
+            let other_is_true_subset =
+                !other_previous_set.is_empty() && other_previous_set.is_subset(&our_visited);
+            if our_is_true_subset || other_is_true_subset {
                 return Ok(None);
             }
 
@@ -396,6 +398,261 @@ mod tests {
         assert_eq!(loaded_dir_node, dir_node);
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod proptests {
+    use super::*;
+    use chrono::NaiveDateTime;
+    use futures::{stream, StreamExt, TryStreamExt};
+    use proptest::{collection::vec, prelude::*};
+    use test_strategy::proptest;
+    use wnfs_common::MemoryBlockStore;
+
+    #[derive(Debug, Clone, Copy)]
+    enum Operation {
+        Write(usize), // write to nth head
+        Merge,        // merge all heads
+        Fork(usize),  // fork the nth head
+    }
+
+    #[derive(Debug, Clone)]
+    struct State {
+        heads: Vec<Arc<PublicDirectory>>, // always nonempty
+        fork_num: i64,
+    }
+
+    impl State {
+        pub fn new(init_time: i64) -> Self {
+            Self {
+                heads: vec![Arc::new(PublicDirectory::new(Self::time(init_time)))],
+                fork_num: 0,
+            }
+        }
+
+        fn time(n: i64) -> DateTime<Utc> {
+            DateTime::from_naive_utc_and_offset(
+                // convert into seconds, otherwise 0 and 1 would both be mapped to "0 seconds"
+                NaiveDateTime::from_timestamp_millis(n * 1000).unwrap(),
+                Utc,
+            )
+        }
+
+        pub fn get_head(&self, n: usize) -> &Arc<PublicDirectory> {
+            let len = self.heads.len();
+            debug_assert!(len > 0);
+            &self.heads[n % len] // so we don't need to account for the current state (number of heads) when generating n
+        }
+
+        pub fn get_head_mut(&mut self, n: usize) -> &mut Arc<PublicDirectory> {
+            let len = self.heads.len();
+            debug_assert!(len > 0);
+            &mut self.heads[n % len] // so we don't need to account for the current state (number of heads) when generating n
+        }
+
+        pub async fn run(&mut self, op: &Operation, store: &impl BlockStore) -> Result<()> {
+            match op {
+                Operation::Write(n) => {
+                    let head = self.get_head_mut(*n);
+                    head.store(store).await?;
+                    head.prepare_next_revision();
+                }
+                Operation::Merge => {
+                    let head_cids = stream::iter(self.heads.iter())
+                        .then(|head| head.store(store))
+                        .try_collect::<BTreeSet<_>>()
+                        .await?;
+                    let mut dir = PublicDirectory::new(Self::time(0));
+                    dir.previous = head_cids;
+                    self.heads = vec![Arc::new(dir)];
+                }
+                Operation::Fork(n) => {
+                    let mut head = (**self.get_head(*n)).clone();
+                    self.fork_num += 1;
+                    // To make sure we don't accidentally recreate the same CIDs
+                    head.metadata.upsert_mtime(Self::time(self.fork_num));
+                    self.heads.push(Arc::new(head));
+                }
+            }
+            Ok(())
+        }
+
+        pub async fn run_all(
+            &mut self,
+            ops: impl IntoIterator<Item = Operation>,
+            store: &impl BlockStore,
+        ) -> Result<()> {
+            for op in ops {
+                self.run(&op, store).await?;
+            }
+            Ok(())
+        }
+
+        pub fn head_node(&self) -> PublicNode {
+            debug_assert!(!self.heads.is_empty());
+            PublicNode::Dir(Arc::clone(&self.heads[0]))
+        }
+    }
+
+    fn op() -> impl Strategy<Value = Operation> {
+        (0..=2, 0..16).prop_map(|(op, idx)| match op {
+            0 => Operation::Write(idx as usize),
+            1 => Operation::Merge,
+            2 => Operation::Fork(idx as usize),
+            _ => unreachable!(
+                "This case should be impossible. Values generated are only 0, 1, and 2"
+            ),
+        })
+    }
+
+    async fn run_ops(
+        init_time: i64,
+        operations: impl IntoIterator<Item = Operation>,
+        store: &impl BlockStore,
+    ) -> Result<PublicNode> {
+        let mut state = State::new(init_time);
+        state.run_all(operations, store).await?;
+        Ok(state.head_node())
+    }
+
+    #[proptest]
+    fn test_reflexivity(#[strategy(vec(op(), 0..100))] operations: Vec<Operation>) {
+        async_std::task::block_on(async move {
+            let mut state = State::new(0);
+            let store = &MemoryBlockStore::new();
+
+            state.run_all(operations, store).await.unwrap();
+            let head_one = state.head_node();
+            let head_two = state.head_node();
+
+            prop_assert_eq!(
+                head_one.causal_compare(&head_two, store).await.unwrap(),
+                Some(Ordering::Equal)
+            );
+
+            Ok(())
+        })?;
+    }
+
+    #[proptest(cases = 256, max_global_rejects = 10_000)]
+    fn test_asymmetry(
+        #[strategy(vec(op(), 0..30))] operations_one: Vec<Operation>,
+        #[strategy(vec(op(), 0..30))] operations_two: Vec<Operation>,
+    ) {
+        async_std::task::block_on(async move {
+            let store = &MemoryBlockStore::new();
+            let node_one = run_ops(0, operations_one, store).await.unwrap();
+            let node_two = run_ops(0, operations_two, store).await.unwrap();
+
+            let Some(cmp) = node_one.causal_compare(&node_two, store).await.unwrap() else {
+                return Err(TestCaseError::reject("not testing causally incomparable"));
+            };
+
+            let Some(cmp_rev) = node_two.causal_compare(&node_one, store).await.unwrap() else {
+                return Err(TestCaseError::fail(
+                    "causally comparable one way, but not the other",
+                ));
+            };
+
+            prop_assert_eq!(cmp.reverse(), cmp_rev);
+
+            Ok(())
+        })?;
+    }
+
+    #[proptest(cases = 100, max_global_rejects = 10_000)]
+    fn test_transitivity(
+        #[strategy(vec(op(), 0..20))] operations0: Vec<Operation>,
+        #[strategy(vec(op(), 0..20))] operations1: Vec<Operation>,
+        #[strategy(vec(op(), 0..20))] operations2: Vec<Operation>,
+    ) {
+        async_std::task::block_on(async move {
+            let store = &MemoryBlockStore::new();
+            let node0 = run_ops(0, operations0, store).await.unwrap();
+            let node1 = run_ops(0, operations1, store).await.unwrap();
+            let node2 = run_ops(0, operations2, store).await.unwrap();
+
+            let Some(cmp_0_1) = node0.causal_compare(&node1, store).await.unwrap() else {
+                return Err(TestCaseError::reject("not testing causally incomparable"));
+            };
+
+            let Some(cmp_1_2) = node1.causal_compare(&node2, store).await.unwrap() else {
+                return Err(TestCaseError::reject("not testing causally incomparable"));
+            };
+
+            let Some(cmp_0_2) = node0.causal_compare(&node2, store).await.unwrap() else {
+                return Err(TestCaseError::reject("not testing causally incomparable"));
+            };
+
+            match (cmp_0_1, cmp_1_2) {
+                (Ordering::Equal, Ordering::Equal) => prop_assert_eq!(cmp_0_2, Ordering::Equal),
+                (Ordering::Less, Ordering::Less) => prop_assert_eq!(cmp_0_2, Ordering::Less),
+                (Ordering::Less, Ordering::Equal) => prop_assert_eq!(cmp_0_2, Ordering::Less),
+                (Ordering::Equal, Ordering::Less) => prop_assert_eq!(cmp_0_2, Ordering::Less),
+                (Ordering::Equal, Ordering::Greater) => prop_assert_eq!(cmp_0_2, Ordering::Greater),
+                (Ordering::Greater, Ordering::Equal) => prop_assert_eq!(cmp_0_2, Ordering::Greater),
+                (Ordering::Greater, Ordering::Greater) => {
+                    prop_assert_eq!(cmp_0_2, Ordering::Greater)
+                }
+                (Ordering::Less, Ordering::Greater) => {
+                    return Err(TestCaseError::reject(
+                        "a < b and b > c, there's no transitivity to test here",
+                    ))
+                }
+                (Ordering::Greater, Ordering::Less) => {
+                    return Err(TestCaseError::reject(
+                        "a > b and b < c, there's no transitivity to test here",
+                    ))
+                }
+            }
+
+            Ok(())
+        })?;
+    }
+
+    #[proptest]
+    fn test_different_roots_incomparable(
+        #[strategy(vec(op(), 0..100))] operations0: Vec<Operation>,
+        #[strategy(vec(op(), 0..100))] operations1: Vec<Operation>,
+    ) {
+        async_std::task::block_on(async move {
+            let store = &MemoryBlockStore::new();
+            let node0 = run_ops(0, operations0, store).await.unwrap();
+            let node1 = run_ops(1, operations1, store).await.unwrap();
+
+            prop_assert_eq!(node0.causal_compare(&node1, store).await.unwrap(), None);
+            prop_assert_eq!(node1.causal_compare(&node0, store).await.unwrap(), None);
+            Ok(())
+        })?;
+    }
+
+    #[proptest]
+    fn test_ops_after_merge_makes_greater(
+        #[strategy(vec(op(), 0..100))] operations: Vec<Operation>,
+        #[strategy(vec(op(), 0..100))] more_ops: Vec<Operation>,
+    ) {
+        async_std::task::block_on(async move {
+            let mut state = State::new(0);
+            let store = &MemoryBlockStore::new();
+
+            state.run_all(operations, store).await.unwrap();
+            let head_one = state.head_node();
+            state.run(&Operation::Merge, store).await.unwrap();
+            state.run_all(more_ops, store).await.unwrap();
+            let head_two = state.head_node();
+
+            prop_assert_eq!(
+                head_one.causal_compare(&head_two, store).await.unwrap(),
+                Some(Ordering::Less)
+            );
+            prop_assert_eq!(
+                head_two.causal_compare(&head_one, store).await.unwrap(),
+                Some(Ordering::Greater)
+            );
+
+            Ok(())
+        })?;
     }
 }
 

@@ -1,0 +1,8 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 964d01e6f0fa5c2e45a8d245bb705007a50c24fb53348cb96a528ec52e27a49a # shrinks to input = _TestTransitivityArgs { operations0: [Write(0), Write(0), Write(0), Write(0), Write(0)], operations1: [Write(0), Write(0), Write(0), Write(0)], operations2: [Write(0), Write(0), Write(15671), Fork(2303347135), Write(593116438)] }
+cc 60cd267331f207e164af9c65aaf9c1232633c97d9e258dcd01d1630292820569 # shrinks to input = _TestTransitivityArgs { operations0: [], operations1: [Write(0)], operations2: [Write(0)] }
