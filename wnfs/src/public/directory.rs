@@ -852,7 +852,6 @@ impl PublicDirectory {
     pub async fn reconcile(
         self: &mut Arc<Self>,
         other: Arc<Self>,
-        time: DateTime<Utc>,
         store: &impl BlockStore,
     ) -> Result<Reconciliation> {
         let causal_order = self.clone().causal_compare(other.clone(), store).await?;
@@ -865,7 +864,7 @@ impl PublicDirectory {
                 Reconciliation::FastForward
             }
             None => {
-                let file_tie_breaks = self.merge(&other, time, store).await?;
+                let file_tie_breaks = self.merge(&other, store).await?;
                 Reconciliation::Merged { file_tie_breaks }
             }
         })
@@ -886,11 +885,10 @@ impl PublicDirectory {
     pub async fn merge<'a>(
         self: &'a mut Arc<Self>,
         other: &'a Arc<Self>,
-        time: DateTime<Utc>,
         store: &'a impl BlockStore,
     ) -> Result<BTreeSet<Vec<String>>> {
         let mut file_tie_breaks = BTreeSet::new();
-        self.merge_helper(other, time, store, &[], &mut file_tie_breaks)
+        self.merge_helper(other, store, &[], &mut file_tie_breaks)
             .await?;
         Ok(file_tie_breaks)
     }
@@ -900,13 +898,19 @@ impl PublicDirectory {
     async fn merge_helper<'a>(
         self: &'a mut Arc<Self>,
         other: &'a Arc<Self>,
-        time: DateTime<Utc>,
         store: &'a impl BlockStore,
         current_path: &[String],
         file_tie_breaks: &mut BTreeSet<Vec<String>>,
     ) -> Result<()> {
         let dir = self.prepare_next_merge();
-        dir.metadata.upsert_mtime(time);
+        if other.previous.len() > 1 {
+            // The other node is a merge node, we should merge the merge nodes directly:
+            dir.previous.extend(other.previous.iter().cloned());
+        } else {
+            // The other node is a 'normal' node - we need to merge it normally
+            dir.previous.insert(other.store(store).await?);
+        }
+        dir.metadata.tie_break_with(&other.metadata)?;
 
         for (name, link) in other.userland.iter() {
             let other_node = link.resolve_value(store).await?;
@@ -915,25 +919,28 @@ impl PublicDirectory {
                     vacant.insert(PublicLink::new(other_node.clone()));
                 }
                 Entry::Occupied(mut occupied) => {
-                    match (
-                        occupied.get_mut().resolve_value_mut(store).await?,
-                        other_node,
-                    ) {
+                    let our_node = occupied.get_mut().resolve_value_mut(store).await?;
+                    match (our_node, other_node) {
                         (PublicNode::File(our_file), PublicNode::File(other_file)) => {
                             let mut path = current_path.to_vec();
                             path.push(name.clone());
                             file_tie_breaks.insert(path);
 
+                            let our_cid = our_file.userland.resolve_cid(store).await?;
+                            let other_cid = other_file.userland.resolve_cid(store).await?;
+
                             let file = our_file.perpare_next_merge();
-                            file.metadata.upsert_mtime(time);
-
-                            let our_cid = file.store(store).await?;
-                            let other_cid = other_file.store(store).await?;
-
-                            file.previous.insert(other_cid);
+                            if other_file.previous.len() > 1 {
+                                // The other node is a merge node, we should merge the merge nodes directly:
+                                file.previous.extend(other_file.previous.iter().cloned());
+                            } else {
+                                // The other node is a 'normal' node - we need to merge it normally
+                                file.previous.insert(other_file.store(store).await?);
+                            }
 
                             if our_cid.hash().digest() > other_cid.hash().digest() {
                                 file.userland = other_file.userland.clone();
+                                file.metadata = other_file.metadata.clone();
                             }
                         }
                         (node @ PublicNode::File(_), PublicNode::Dir(other_dir)) => {
@@ -947,7 +954,7 @@ impl PublicDirectory {
                         (PublicNode::Dir(dir), PublicNode::Dir(other_dir)) => {
                             let mut path = current_path.to_vec();
                             path.push(name.clone());
-                            dir.merge_helper(other_dir, time, store, &path, file_tie_breaks)
+                            dir.merge_helper(other_dir, store, &path, file_tie_breaks)
                                 .await?;
                         }
                     }
