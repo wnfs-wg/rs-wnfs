@@ -44,6 +44,21 @@ pub struct PublicDirectory {
     pub(crate) previous: BTreeSet<Cid>,
 }
 
+/// Different types of reconciliation results we can detect
+#[derive(Debug, Clone)]
+pub enum Reconciliation {
+    /// A merge was necessary, there was a conflict and we had to tie-break on given list of file paths.
+    /// If the list of file paths is empty, then we were able to simply merge directories together and
+    /// there were no destructive conflicts.
+    Merged {
+        file_tie_breaks: BTreeSet<Vec<String>>,
+    },
+    /// A merge wasn't necessary: We could update to the other node's state.
+    FastForward,
+    /// A merge wasn't necessary: The other node is already part of our history.
+    AlreadyAhead,
+}
+
 //--------------------------------------------------------------------------------------------------
 // Implementations
 //--------------------------------------------------------------------------------------------------
@@ -147,7 +162,10 @@ impl PublicDirectory {
         cloned
     }
 
-    /// TODO(matheus23): DOCS
+    /// Call this function to prepare this directory for conflict reconciliation merge changes.
+    /// Advances this node to the next revision, unless it's already a merge node.
+    /// Merge nodes preferably just grow in size. This allows them to combine more nicely
+    /// without causing further conflicts.
     pub(crate) fn prepare_next_merge<'a>(self: &'a mut Arc<Self>) -> &'a mut Self {
         if self.previous.len() > 1 {
             // This is a merge node
@@ -823,36 +841,69 @@ impl PublicDirectory {
         Ok(causal_order)
     }
 
-    // TODO: Return what type of merge it was: Conflict, Seamless merge, fast-forward or ahead
+    /// Reconcile this node with another node.
+    ///
+    /// Use this function when you're informed about another version of this
+    /// public WNFS directory and want to merge any possibly new changes into
+    /// this directory.
+    ///
+    /// The return value can give information about what exactly happened.
+    /// See the documentation for the `Reconciliation` enum for more information.
     pub async fn reconcile(
         self: &mut Arc<Self>,
         other: Arc<Self>,
         time: DateTime<Utc>,
         store: &impl BlockStore,
-    ) -> Result<()> {
+    ) -> Result<Reconciliation> {
         let causal_order = self.clone().causal_compare(other.clone(), store).await?;
 
-        match causal_order {
-            Some(Ordering::Equal) => {}
-            Some(Ordering::Greater) => {}
+        Ok(match causal_order {
+            Some(Ordering::Equal) => Reconciliation::AlreadyAhead,
+            Some(Ordering::Greater) => Reconciliation::AlreadyAhead,
             Some(Ordering::Less) => {
                 *self = other;
+                Reconciliation::FastForward
             }
             None => {
-                self.merge(&other, time, store).await?;
+                let file_tie_breaks = self.merge(&other, time, store).await?;
+                Reconciliation::Merged { file_tie_breaks }
             }
-        }
-
-        Ok(())
+        })
     }
 
-    #[cfg_attr(not(target_arch = "wasm32"), async_recursion)]
-    #[cfg_attr(target_arch = "wasm32", async_recursion(?Send))]
+    /// Merge this node with given other node, ignoring whether the
+    /// other node is actually ahead in history or not.
+    ///
+    /// Prefer using `reconcile`, if you don't know what the difference is!
+    ///
+    /// Returns the set of file paths where tie breaks were used to resolve
+    /// conflicts. This means that for each path there exists a file that has been
+    /// overwritten with another version.
+    ///
+    /// It's possible to walk the history backwards to find which version of each
+    /// file has been overwritten & merge the two file versions of each file together
+    /// in an application-specific way and create another history entry.
     pub async fn merge<'a>(
         self: &'a mut Arc<Self>,
         other: &'a Arc<Self>,
         time: DateTime<Utc>,
         store: &'a impl BlockStore,
+    ) -> Result<BTreeSet<Vec<String>>> {
+        let mut file_tie_breaks = BTreeSet::new();
+        self.merge_helper(other, time, store, &[], &mut file_tie_breaks)
+            .await?;
+        Ok(file_tie_breaks)
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), async_recursion)]
+    #[cfg_attr(target_arch = "wasm32", async_recursion(?Send))]
+    async fn merge_helper<'a>(
+        self: &'a mut Arc<Self>,
+        other: &'a Arc<Self>,
+        time: DateTime<Utc>,
+        store: &'a impl BlockStore,
+        current_path: &[String],
+        file_tie_breaks: &mut BTreeSet<Vec<String>>,
     ) -> Result<()> {
         let dir = self.prepare_next_merge();
         dir.metadata.upsert_mtime(time);
@@ -869,6 +920,10 @@ impl PublicDirectory {
                         other_node,
                     ) {
                         (PublicNode::File(our_file), PublicNode::File(other_file)) => {
+                            let mut path = current_path.to_vec();
+                            path.push(name.clone());
+                            file_tie_breaks.insert(path);
+
                             let file = our_file.perpare_next_merge();
                             file.metadata.upsert_mtime(time);
 
@@ -890,7 +945,10 @@ impl PublicDirectory {
                             // directories have priority, no changes necessary
                         }
                         (PublicNode::Dir(dir), PublicNode::Dir(other_dir)) => {
-                            dir.merge(other_dir, time, store).await?;
+                            let mut path = current_path.to_vec();
+                            path.push(name.clone());
+                            dir.merge_helper(other_dir, time, store, &path, file_tie_breaks)
+                                .await?;
                         }
                     }
                 }

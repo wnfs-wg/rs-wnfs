@@ -230,7 +230,16 @@ impl PublicNode {
         matches!(self, Self::File(_))
     }
 
-    /// Comparing the merkle clocks of this node to the other node
+    /// Comparing the merkle clocks of this node to the other node.
+    ///
+    /// This gives you information about which node is "ahead" of which other node
+    /// (think similar to git).
+    /// This is what the return types indicate:
+    /// - `Ok(None)`: These two nodes don't share any history.
+    /// - `Ok(Some(Ordering::Equal))`: These nodes represent the same point in history/are the same exact node.
+    /// - `Ok(Some(Ordering::Less))`: The other node is "further ahead" in history than this node.
+    /// - `Ok(Some(Ordering::Greater))`: This node is "further ahead".
+    /// - `Err(_)`: Something went wrong during deserialization/in the blockstore.
     pub async fn causal_compare(
         &self,
         other: &Self,
