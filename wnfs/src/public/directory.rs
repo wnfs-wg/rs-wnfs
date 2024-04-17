@@ -1384,6 +1384,193 @@ mod tests {
 }
 
 #[cfg(test)]
+mod proptests {
+    use super::*;
+    use proptest::{
+        collection::{btree_map, btree_set, vec},
+        prelude::*,
+    };
+    use test_strategy::proptest;
+    use wnfs_common::MemoryBlockStore;
+
+    #[derive(Debug, Clone)]
+    struct FileSystem {
+        files: BTreeMap<Vec<String>, String>,
+        dirs: BTreeSet<Vec<String>>,
+    }
+
+    fn file_system() -> impl Strategy<Value = FileSystem> {
+        (
+            btree_map(vec(simple_string(), 1..10), simple_string(), 0..40),
+            btree_set(vec(simple_string(), 1..10), 0..40),
+        )
+            .prop_map(|(mut files, dirs)| {
+                files = files
+                    .into_iter()
+                    .filter(|(file_path, _)| {
+                        !dirs
+                            .iter()
+                            .any(|dir_path| !dir_path.starts_with(&file_path))
+                    })
+                    .collect();
+                FileSystem { files, dirs }
+            })
+            .prop_filter("file overwritten by directory", valid_fs)
+    }
+
+    fn simple_string() -> impl Strategy<Value = String> {
+        (0..6u32).prop_map(|c| char::from_u32('a' as u32 + c).unwrap().to_string())
+    }
+
+    fn valid_fs(fs: &FileSystem) -> bool {
+        fs.files.iter().all(|(file_path, _)| {
+            !fs.dirs
+                .iter()
+                .any(|dir_path| dir_path.starts_with(&file_path))
+                && !fs
+                    .files
+                    .iter()
+                    .any(|(other_path, _)| other_path.starts_with(&file_path))
+        })
+    }
+
+    async fn convert_fs(
+        fs: FileSystem,
+        time: DateTime<Utc>,
+        store: &impl BlockStore,
+    ) -> Result<Arc<PublicDirectory>> {
+        let mut dir = PublicDirectory::new_rc(time);
+        let FileSystem { files, dirs } = fs;
+        for (path, content) in files.iter() {
+            dir.write(&path, content.clone().into_bytes(), time, store)
+                .await?;
+        }
+
+        for path in dirs.iter() {
+            dir.mkdir(&path, time, store).await?;
+        }
+
+        Ok(dir)
+    }
+
+    #[proptest]
+    fn test_merge_directory_preferred(#[strategy(vec(simple_string(), 1..10))] path: Vec<String>) {
+        async_std::task::block_on(async move {
+            let store = &MemoryBlockStore::new();
+            let time = Utc::now();
+
+            let root0 = &mut PublicDirectory::new_rc(time);
+            let root1 = &mut PublicDirectory::new_rc(time);
+
+            root0
+                .write(&path, b"Should be overwritten".into(), time, store)
+                .await
+                .unwrap();
+
+            root1.mkdir(&path, time, store).await.unwrap();
+
+            root0.merge(root1, time, store).await.unwrap();
+
+            let node = root0
+                .get_node(&path, store)
+                .await
+                .unwrap()
+                .expect("merged fs contains the node");
+
+            prop_assert!(node.is_dir());
+
+            Ok(())
+        })?;
+    }
+
+    #[proptest]
+    fn test_merge_commutativity(
+        #[strategy(file_system())] fs0: FileSystem,
+        #[strategy(file_system())] fs1: FileSystem,
+    ) {
+        async_std::task::block_on(async move {
+            let store = &MemoryBlockStore::new();
+            let time = Utc::now();
+
+            let root0 = convert_fs(fs0, time, store).await.unwrap();
+            let root1 = convert_fs(fs1, time, store).await.unwrap();
+
+            let mut merge_one_way = Arc::clone(&root0);
+            merge_one_way.merge(&root1, time, store).await.unwrap();
+            let mut merge_other_way = Arc::clone(&root1);
+            merge_other_way.merge(&root0, time, store).await.unwrap();
+
+            let cid_one_way = merge_one_way.store(store).await.unwrap();
+            let cid_other_way = merge_other_way.store(store).await.unwrap();
+
+            prop_assert_eq!(cid_one_way, cid_other_way);
+
+            Ok(())
+        })?;
+    }
+
+    #[proptest]
+    fn test_merge_associativity(
+        #[strategy(file_system())] fs0: FileSystem,
+        #[strategy(file_system())] fs1: FileSystem,
+        #[strategy(file_system())] fs2: FileSystem,
+    ) {
+        async_std::task::block_on(async move {
+            let store = &MemoryBlockStore::new();
+            let time = Utc::now();
+            let root0 = convert_fs(fs0, time, store).await.unwrap();
+            let root1 = convert_fs(fs1, time, store).await.unwrap();
+            let root2 = convert_fs(fs2, time, store).await.unwrap();
+
+            let mut merge_0_1_then_2 = Arc::clone(&root0);
+            merge_0_1_then_2.merge(&root1, time, store).await.unwrap();
+            merge_0_1_then_2.merge(&root2, time, store).await.unwrap();
+
+            let mut merge_1_2 = Arc::clone(&root1);
+            merge_1_2.merge(&root2, time, store).await.unwrap();
+            let mut merge_0_with_1_2 = Arc::clone(&root0);
+            merge_0_with_1_2
+                .merge(&merge_1_2, time, store)
+                .await
+                .unwrap();
+
+            let cid_one_way = merge_0_1_then_2.store(store).await.unwrap();
+            let cid_other_way = merge_0_with_1_2.store(store).await.unwrap();
+
+            prop_assert_eq!(cid_one_way, cid_other_way);
+
+            Ok(())
+        })?;
+    }
+
+    #[proptest]
+    fn test_merge_directories_preserved(
+        #[strategy(file_system())] fs0: FileSystem,
+        #[strategy(file_system())] fs1: FileSystem,
+    ) {
+        async_std::task::block_on(async move {
+            let store = &MemoryBlockStore::new();
+            let time = Utc::now();
+
+            let mut all_dirs = fs0.dirs.clone();
+            all_dirs.extend(fs1.dirs.iter().cloned());
+
+            let mut root = convert_fs(fs0, time, store).await.unwrap();
+            let root1 = convert_fs(fs1, time, store).await.unwrap();
+
+            root.merge(&root1, time, store).await.unwrap();
+
+            for dir in all_dirs {
+                let exists = root.get_node(&dir, store).await.unwrap().is_some();
+                prop_assert!(exists);
+            }
+
+            Ok(())
+        })?;
+    }
+}
+
+#[cfg(test)]
 mod snapshot_tests {
     use super::*;
     use chrono::TimeZone;
