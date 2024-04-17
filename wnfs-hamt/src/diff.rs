@@ -605,6 +605,7 @@ mod proptests {
         ChangeType,
     };
     use async_std::task;
+    use proptest::{prop_assert, prop_assert_eq};
     use std::collections::HashSet;
     use test_strategy::proptest;
     use wnfs_common::{utils::Arc, Link, MemoryBlockStore};
@@ -638,19 +639,17 @@ mod proptests {
             .await
             .unwrap();
 
-            assert_eq!(strategy_changes.len(), changes.len());
+            prop_assert_eq!(strategy_changes.len(), changes.len());
             for strategy_change in strategy_changes {
-                assert!(changes.iter().any(|c| match &strategy_change {
+                let found_matching_change = changes.iter().any(|c| match &strategy_change {
                     Change::Add(k, _) => c.r#type == ChangeType::Add && &c.key == k,
-                    Change::Modify(k, _) => {
-                        c.r#type == ChangeType::Modify && &c.key == k
-                    }
-                    Change::Remove(k) => {
-                        c.r#type == ChangeType::Remove && &c.key == k
-                    }
-                }));
+                    Change::Modify(k, _) => c.r#type == ChangeType::Modify && &c.key == k,
+                    Change::Remove(k) => c.r#type == ChangeType::Remove && &c.key == k,
+                });
+                prop_assert!(found_matching_change);
             }
-        });
+            Ok(())
+        })?;
     }
 
     #[proptest(cases = 1000, max_shrink_iters = 40000)]
@@ -673,8 +672,9 @@ mod proptests {
                 .map(|c| c.key.clone())
                 .collect::<HashSet<_>>();
 
-            assert_eq!(change_set.len(), changes.len());
-        });
+            prop_assert_eq!(change_set.len(), changes.len());
+            Ok(())
+        })?;
     }
 
     #[proptest(cases = 100)]
@@ -700,14 +700,16 @@ mod proptests {
                 .await
                 .unwrap();
 
-            assert_eq!(changes.len(), flipped_changes.len());
+            prop_assert_eq!(changes.len(), flipped_changes.len());
             for change in changes {
-                assert!(flipped_changes.iter().any(|c| match change.r#type {
+                let found_matching_change = flipped_changes.iter().any(|c| match change.r#type {
                     ChangeType::Add => c.r#type == ChangeType::Remove && c.key == change.key,
                     ChangeType::Remove => c.r#type == ChangeType::Add && c.key == change.key,
                     ChangeType::Modify => c.r#type == ChangeType::Modify && c.key == change.key,
-                }));
+                });
+                prop_assert!(found_matching_change);
             }
-        });
+            Ok(())
+        })?;
     }
 }

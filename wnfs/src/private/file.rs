@@ -1288,6 +1288,7 @@ mod proptests {
     use async_std::io::Cursor;
     use chrono::Utc;
     use futures::{future, StreamExt};
+    use proptest::{prop_assert, prop_assert_eq};
     use rand_chacha::ChaCha12Rng;
     use rand_core::SeedableRng;
     use test_strategy::proptest;
@@ -1319,8 +1320,9 @@ mod proptests {
 
             let collected_content = file.get_content(forest, store).await.unwrap();
 
-            assert_eq!(collected_content, content);
-        })
+            prop_assert_eq!(collected_content, content);
+            Ok(())
+        })?;
     }
 
     #[proptest(cases = 10)]
@@ -1352,8 +1354,9 @@ mod proptests {
                 })
                 .await;
 
-            assert_eq!(collected_content, content);
-        })
+            prop_assert_eq!(collected_content, content);
+            Ok(())
+        })?;
     }
 
     #[proptest(cases = 100)]
@@ -1384,8 +1387,9 @@ mod proptests {
 
             let error = error.downcast_ref::<BlockStoreError>().unwrap();
 
-            assert!(matches!(error, BlockStoreError::CIDNotFound(_)));
-        })
+            prop_assert!(matches!(error, BlockStoreError::CIDNotFound(_)));
+            Ok(())
+        })?;
     }
 
     #[proptest(cases = 10)]
@@ -1425,7 +1429,8 @@ mod proptests {
                 .await
                 .unwrap();
 
-            assert_eq!(source_content, wnfs_content);
-        })
+            prop_assert_eq!(source_content, wnfs_content);
+            Ok(())
+        })?;
     }
 }
