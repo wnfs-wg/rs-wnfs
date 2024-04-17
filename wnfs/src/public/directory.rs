@@ -1534,7 +1534,7 @@ mod proptests {
 
             root1.mkdir(&path, time, store).await.unwrap();
 
-            root0.merge(root1, time, store).await.unwrap();
+            root0.merge(root1, store).await.unwrap();
 
             let node = root0
                 .get_node(&path, store)
@@ -1561,9 +1561,9 @@ mod proptests {
             let root1 = convert_fs(fs1, time, store).await.unwrap();
 
             let mut merge_one_way = Arc::clone(&root0);
-            merge_one_way.merge(&root1, time, store).await.unwrap();
+            merge_one_way.merge(&root1, store).await.unwrap();
             let mut merge_other_way = Arc::clone(&root1);
-            merge_other_way.merge(&root0, time, store).await.unwrap();
+            merge_other_way.merge(&root0, store).await.unwrap();
 
             let cid_one_way = merge_one_way.store(store).await.unwrap();
             let cid_other_way = merge_other_way.store(store).await.unwrap();
@@ -1588,16 +1588,13 @@ mod proptests {
             let root2 = convert_fs(fs2, time, store).await.unwrap();
 
             let mut merge_0_1_then_2 = Arc::clone(&root0);
-            merge_0_1_then_2.merge(&root1, time, store).await.unwrap();
-            merge_0_1_then_2.merge(&root2, time, store).await.unwrap();
+            merge_0_1_then_2.merge(&root1, store).await.unwrap();
+            merge_0_1_then_2.merge(&root2, store).await.unwrap();
 
             let mut merge_1_2 = Arc::clone(&root1);
-            merge_1_2.merge(&root2, time, store).await.unwrap();
+            merge_1_2.merge(&root2, store).await.unwrap();
             let mut merge_0_with_1_2 = Arc::clone(&root0);
-            merge_0_with_1_2
-                .merge(&merge_1_2, time, store)
-                .await
-                .unwrap();
+            merge_0_with_1_2.merge(&merge_1_2, store).await.unwrap();
 
             let cid_one_way = merge_0_1_then_2.store(store).await.unwrap();
             let cid_other_way = merge_0_with_1_2.store(store).await.unwrap();
@@ -1623,7 +1620,7 @@ mod proptests {
             let mut root = convert_fs(fs0, time, store).await.unwrap();
             let root1 = convert_fs(fs1, time, store).await.unwrap();
 
-            root.merge(&root1, time, store).await.unwrap();
+            root.merge(&root1, store).await.unwrap();
 
             for dir in all_dirs {
                 let exists = root.get_node(&dir, store).await.unwrap().is_some();
