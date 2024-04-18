@@ -409,13 +409,26 @@ impl PublicFile {
     /// Advances this node to the next revision, unless it's already a merge node.
     /// Merge nodes preferably just grow in size. This allows them to combine more nicely
     /// without causing further conflicts.
-    pub(crate) fn perpare_next_merge<'a>(self: &'a mut Arc<Self>) -> &'a mut Self {
+    pub(crate) async fn prepare_next_merge<'a>(
+        self: &'a mut Arc<Self>,
+        store: &impl BlockStore,
+    ) -> Result<&'a mut Self> {
         if self.previous.len() > 1 {
-            // This is a merge node. Keep using it
-            return Arc::make_mut(self);
+            // This is a merge node
+            let cloned = Arc::make_mut(self);
+            cloned.persisted_as = OnceCell::new();
+            return Ok(cloned);
         }
 
-        self.prepare_next_revision()
+        // This is not a merge node. We need to force a new revision.
+        // Otherwise we would turn a node that is possibly storing uncommitted
+        // new changes into a merge node, but merge nodes should have no changes
+        // besides the merge itself.
+        let previous_cid = self.store(store).await?;
+        let cloned = Arc::make_mut(self);
+        cloned.persisted_as = OnceCell::new();
+        cloned.previous = BTreeSet::from([previous_cid]);
+        Ok(cloned)
     }
 
     /// Writes a new content cid to the file.
