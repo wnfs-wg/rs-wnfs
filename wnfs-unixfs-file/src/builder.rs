@@ -173,7 +173,6 @@ pub struct Config {
 mod tests {
     use super::*;
     use crate::chunker::DEFAULT_CHUNKS_SIZE;
-    use futures::TryStreamExt;
     use wnfs_common::MemoryBlockStore;
 
     #[tokio::test]

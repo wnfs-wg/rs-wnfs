@@ -91,7 +91,6 @@ pub struct Metadata {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use prost::Message;
     use testresult::TestResult;
 
     #[test]

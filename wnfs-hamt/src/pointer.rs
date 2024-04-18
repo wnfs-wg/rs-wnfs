@@ -227,7 +227,7 @@ where
 mod tests {
     use super::*;
     use testresult::TestResult;
-    use wnfs_common::{MemoryBlockStore, Storable};
+    use wnfs_common::MemoryBlockStore;
 
     #[async_std::test]
     async fn pointer_can_encode_decode_as_cbor() -> TestResult {

@@ -1236,8 +1236,9 @@ mod proptests {
             node.set(key, value, store).await.unwrap();
             let cid2 = node.store(store).await.unwrap();
 
-            assert_eq!(cid1, cid2);
-        })
+            prop_assert_eq!(cid1, cid2);
+            Ok(())
+        })?;
     }
 
     #[proptest(cases = 50)]
@@ -1258,8 +1259,9 @@ mod proptests {
             node.remove(&key, store).await.unwrap();
             let cid2 = node.store(store).await.unwrap();
 
-            assert_eq!(cid1, cid2);
-        })
+            prop_assert_eq!(cid1, cid2);
+            Ok(())
+        })?;
     }
 
     #[proptest(cases = 100)]
@@ -1276,8 +1278,9 @@ mod proptests {
             let node_cid = node.store(store).await.unwrap();
             let decoded_node = Node::<String, u64>::load(&node_cid, store).await.unwrap();
 
-            assert_eq!(*node, decoded_node);
-        })
+            prop_assert_eq!(node.as_ref(), &decoded_node);
+            Ok(())
+        })?;
     }
 
     #[proptest(cases = 1000, max_shrink_iters = 10_000)]
@@ -1298,8 +1301,9 @@ mod proptests {
             let cid1 = node1.store(store).await.unwrap();
             let cid2 = node2.store(store).await.unwrap();
 
-            assert_eq!(cid1, cid2);
-        })
+            prop_assert_eq!(cid1, cid2);
+            Ok(())
+        })?;
     }
 
     // This is sort of a "control group" for making sure that operations_and_shuffled is correct.
@@ -1332,8 +1336,9 @@ mod proptests {
             let map = HashMap::from(&operations);
             let map_result = node.to_hashmap(store).await.unwrap();
 
-            assert_eq!(map, map_result);
-        })
+            prop_assert_eq!(map, map_result);
+            Ok(())
+        })?;
     }
 }
 

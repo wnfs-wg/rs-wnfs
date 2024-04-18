@@ -2,7 +2,8 @@
 
 use anyhow::{bail, Result};
 use chrono::{DateTime, TimeZone, Utc};
-use libipld::Ipld;
+use libipld::{Ipld, Multihash};
+use multihash::{Code, MultihashDigest};
 use serde::{
     de::{DeserializeOwned, Error as DeError},
     Deserialize, Deserializer, Serialize, Serializer,
@@ -222,6 +223,24 @@ impl Metadata {
         for (key, value) in other.0.iter() {
             self.0.insert(key.clone(), value.clone());
         }
+    }
+
+    pub(crate) fn hash(&self) -> Result<Multihash> {
+        let vec = serde_ipld_dagcbor::to_vec(self)?;
+        let hash = Code::Blake3_256.digest(&vec);
+        Ok(hash)
+    }
+
+    /// Tie break this node with another one.
+    /// Used for conflict reconciliation. We don't merge the two metadata maps
+    /// together (yet), instead we compare their hashes. The one with the lower hash
+    /// survives.
+    pub fn tie_break_with(&mut self, other: &Self) -> Result<()> {
+        if self.hash()?.digest() > other.hash()?.digest() {
+            self.0 = other.0.clone();
+        }
+
+        Ok(())
     }
 }
 

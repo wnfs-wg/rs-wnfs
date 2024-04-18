@@ -69,6 +69,7 @@ where
 mod proptests {
     use crate::strategies::{self, generate_kvs};
     use async_std::task;
+    use proptest::prop_assert_eq;
     use std::cmp;
     use test_strategy::proptest;
     use wnfs_common::{utils::Arc, Link, MemoryBlockStore};
@@ -126,8 +127,9 @@ mod proptests {
                 .unwrap()
             };
 
-            assert_eq!(merge_node_left_assoc, merge_node_right_assoc);
-        });
+            prop_assert_eq!(merge_node_left_assoc, merge_node_right_assoc);
+            Ok(())
+        })?;
     }
 
     #[proptest(cases = 100)]
@@ -159,8 +161,9 @@ mod proptests {
             .await
             .unwrap();
 
-            assert_eq!(merge_node_1, merge_node_2);
-        })
+            prop_assert_eq!(merge_node_1, merge_node_2);
+            Ok(())
+        })?;
     }
 
     #[proptest(cases = 100)]
@@ -192,7 +195,8 @@ mod proptests {
             .await
             .unwrap();
 
-            assert_eq!(merge_node_1, merge_node_2);
-        })
+            prop_assert_eq!(merge_node_1, merge_node_2);
+            Ok(())
+        })?;
     }
 }

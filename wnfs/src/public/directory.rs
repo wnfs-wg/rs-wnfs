@@ -8,9 +8,13 @@ use crate::{
 };
 use anyhow::{bail, ensure, Result};
 use async_once_cell::OnceCell;
+use async_recursion::async_recursion;
 use chrono::{DateTime, Utc};
 use libipld_core::cid::Cid;
-use std::collections::{BTreeMap, BTreeSet};
+use std::{
+    cmp::Ordering,
+    collections::{btree_map::Entry, BTreeMap, BTreeSet},
+};
 use wnfs_common::{
     utils::{boxed_fut, error, Arc},
     BlockStore, Metadata, NodeType, Storable,
@@ -38,6 +42,21 @@ pub struct PublicDirectory {
     pub(crate) metadata: Metadata,
     pub(crate) userland: BTreeMap<String, PublicLink>,
     pub(crate) previous: BTreeSet<Cid>,
+}
+
+/// Different types of reconciliation results we can detect
+#[derive(Debug, Clone)]
+pub enum Reconciliation {
+    /// A merge was necessary, there was a conflict and we had to tie-break on given list of file paths.
+    /// If the list of file paths is empty, then we were able to simply merge directories together and
+    /// there were no destructive conflicts.
+    Merged {
+        file_tie_breaks: BTreeSet<Vec<String>>,
+    },
+    /// A merge wasn't necessary: We could update to the other node's state.
+    FastForward,
+    /// A merge wasn't necessary: The other node is already part of our history.
+    AlreadyAhead,
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -141,6 +160,32 @@ impl PublicDirectory {
         cloned.persisted_as = OnceCell::new();
         cloned.previous = [previous_cid].into_iter().collect();
         cloned
+    }
+
+    /// Call this function to prepare this directory for conflict reconciliation merge changes.
+    /// Advances this node to the next revision, unless it's already a merge node.
+    /// Merge nodes preferably just grow in size. This allows them to combine more nicely
+    /// without causing further conflicts.
+    pub(crate) async fn prepare_next_merge<'a>(
+        self: &'a mut Arc<Self>,
+        store: &impl BlockStore,
+    ) -> Result<&'a mut Self> {
+        if self.previous.len() > 1 {
+            // This is a merge node
+            let cloned = Arc::make_mut(self);
+            cloned.persisted_as = OnceCell::new();
+            return Ok(cloned);
+        }
+
+        // This is not a merge node. We need to force a new revision.
+        // Otherwise we would turn a node that is possibly storing uncommitted
+        // new changes into a merge node, but merge nodes should have no changes
+        // besides the merge itself.
+        let previous_cid = self.store(store).await?;
+        let cloned = Arc::make_mut(self);
+        cloned.persisted_as = OnceCell::new();
+        cloned.previous = BTreeSet::from([previous_cid]);
+        Ok(cloned)
     }
 
     async fn get_leaf_dir<'a>(
@@ -796,6 +841,155 @@ impl PublicDirectory {
 
         Ok(())
     }
+
+    /// Comparing the merkle clocks of this directory to the other directory
+    pub async fn causal_compare(
+        self: Arc<Self>,
+        other: Arc<Self>,
+        store: &impl BlockStore,
+    ) -> Result<Option<Ordering>> {
+        let causal_order = PublicNode::Dir(self)
+            .causal_compare(&PublicNode::Dir(other), store)
+            .await?;
+        Ok(causal_order)
+    }
+
+    /// Reconcile this node with another node.
+    ///
+    /// Use this function when you're informed about another version of this
+    /// public WNFS directory and want to merge any possibly new changes into
+    /// this directory.
+    ///
+    /// The return value can give information about what exactly happened.
+    /// See the documentation for the `Reconciliation` enum for more information.
+    pub async fn reconcile(
+        self: &mut Arc<Self>,
+        other: Arc<Self>,
+        store: &impl BlockStore,
+    ) -> Result<Reconciliation> {
+        let causal_order = self.clone().causal_compare(other.clone(), store).await?;
+
+        Ok(match causal_order {
+            Some(Ordering::Equal) => Reconciliation::AlreadyAhead,
+            Some(Ordering::Greater) => Reconciliation::AlreadyAhead,
+            Some(Ordering::Less) => {
+                *self = other;
+                Reconciliation::FastForward
+            }
+            None => {
+                let file_tie_breaks = self.merge(&other, store).await?;
+                Reconciliation::Merged { file_tie_breaks }
+            }
+        })
+    }
+
+    /// Merge this node with given other node, ignoring whether the
+    /// other node is actually ahead in history or not.
+    ///
+    /// Prefer using `reconcile`, if you don't know what the difference is!
+    ///
+    /// Returns the set of file paths where tie breaks were used to resolve
+    /// conflicts. This means that for each path there exists a file that has been
+    /// overwritten with another version.
+    ///
+    /// It's possible to walk the history backwards to find which version of each
+    /// file has been overwritten & merge the two file versions of each file together
+    /// in an application-specific way and create another history entry.
+    pub async fn merge<'a>(
+        self: &'a mut Arc<Self>,
+        other: &'a Arc<Self>,
+        store: &'a impl BlockStore,
+    ) -> Result<BTreeSet<Vec<String>>> {
+        let mut file_tie_breaks = BTreeSet::new();
+        self.merge_helper(other, store, &[], &mut file_tie_breaks)
+            .await?;
+        Ok(file_tie_breaks)
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), async_recursion)]
+    #[cfg_attr(target_arch = "wasm32", async_recursion(?Send))]
+    async fn merge_helper<'a>(
+        self: &'a mut Arc<Self>,
+        other: &'a Arc<Self>,
+        store: &'a impl BlockStore,
+        current_path: &[String],
+        file_tie_breaks: &mut BTreeSet<Vec<String>>,
+    ) -> Result<()> {
+        let our_cid = self.store(store).await?;
+        let other_cid = other.store(store).await?;
+        if our_cid == other_cid {
+            // We don't have to merge
+            return Ok(());
+        }
+
+        let dir = self.prepare_next_merge(store).await?;
+        if other.previous.len() > 1 {
+            // The other node is a merge node, we should merge the merge nodes directly:
+            dir.previous.extend(other.previous.iter().cloned());
+        } else {
+            // The other node is a 'normal' node - we need to merge it normally
+            dir.previous.insert(other.store(store).await?);
+        }
+        dir.metadata.tie_break_with(&other.metadata)?;
+
+        for (name, link) in other.userland.iter() {
+            let other_node = link.resolve_value(store).await?;
+            match dir.userland.entry(name.clone()) {
+                Entry::Vacant(vacant) => {
+                    vacant.insert(PublicLink::new(other_node.clone()));
+                }
+                Entry::Occupied(mut occupied) => {
+                    let our_node = occupied.get_mut().resolve_value_mut(store).await?;
+                    match (our_node, other_node) {
+                        (PublicNode::File(our_file), PublicNode::File(other_file)) => {
+                            let our_cid = our_file.store(store).await?;
+                            let other_cid = other_file.store(store).await?;
+                            if our_cid == other_cid {
+                                continue; // No need to merge, the files are equal
+                            }
+
+                            let mut path = current_path.to_vec();
+                            path.push(name.clone());
+                            file_tie_breaks.insert(path);
+
+                            let our_content_cid = our_file.userland.resolve_cid(store).await?;
+                            let other_content_cid = other_file.userland.resolve_cid(store).await?;
+
+                            let file = our_file.prepare_next_merge(store).await?;
+                            if other_file.previous.len() > 1 {
+                                // The other node is a merge node, we should merge the merge nodes directly:
+                                file.previous.extend(other_file.previous.iter().cloned());
+                            } else {
+                                // The other node is a 'normal' node - we need to merge it normally
+                                file.previous.insert(other_file.store(store).await?);
+                            }
+
+                            if our_content_cid.hash().digest() > other_content_cid.hash().digest() {
+                                file.userland = other_file.userland.clone();
+                                file.metadata = other_file.metadata.clone();
+                            }
+                        }
+                        (node @ PublicNode::File(_), PublicNode::Dir(other_dir)) => {
+                            // directories have priority
+                            // we don't add previous links
+                            *node = PublicNode::Dir(other_dir.clone());
+                        }
+                        (PublicNode::Dir(_), PublicNode::File(_)) => {
+                            // directories have priority, no changes necessary
+                        }
+                        (PublicNode::Dir(dir), PublicNode::Dir(other_dir)) => {
+                            let mut path = current_path.to_vec();
+                            path.push(name.clone());
+                            dir.merge_helper(other_dir, store, &path, file_tie_breaks)
+                                .await?;
+                        }
+                    }
+                }
+            }
+        }
+
+        Ok(())
+    }
 }
 
 impl Id for PublicDirectory {
@@ -1277,6 +1471,190 @@ mod tests {
             yet_another_dir.previous.iter().collect::<Vec<_>>(),
             vec![previous_cid]
         );
+    }
+}
+
+#[cfg(test)]
+mod proptests {
+    use super::*;
+    use proptest::{
+        collection::{btree_map, btree_set, vec},
+        prelude::*,
+    };
+    use test_strategy::proptest;
+    use wnfs_common::MemoryBlockStore;
+
+    #[derive(Debug, Clone)]
+    struct FileSystem {
+        files: BTreeMap<Vec<String>, String>,
+        dirs: BTreeSet<Vec<String>>,
+    }
+
+    fn file_system() -> impl Strategy<Value = FileSystem> {
+        (
+            btree_map(vec(simple_string(), 1..10), simple_string(), 0..40),
+            btree_set(vec(simple_string(), 1..10), 0..40),
+        )
+            .prop_map(|(mut files, dirs)| {
+                files = files
+                    .into_iter()
+                    .filter(|(file_path, _)| {
+                        !dirs
+                            .iter()
+                            .any(|dir_path| !dir_path.starts_with(&file_path))
+                    })
+                    .collect();
+                FileSystem { files, dirs }
+            })
+            .prop_filter("file overwritten by directory", valid_fs)
+    }
+
+    fn simple_string() -> impl Strategy<Value = String> {
+        (0..6u32).prop_map(|c| char::from_u32('a' as u32 + c).unwrap().to_string())
+    }
+
+    fn valid_fs(fs: &FileSystem) -> bool {
+        fs.files.iter().all(|(file_path, _)| {
+            !fs.dirs
+                .iter()
+                .any(|dir_path| dir_path.starts_with(&file_path))
+                && !fs
+                    .files
+                    .iter()
+                    .any(|(other_path, _)| other_path.starts_with(&file_path))
+        })
+    }
+
+    async fn convert_fs(
+        fs: FileSystem,
+        time: DateTime<Utc>,
+        store: &impl BlockStore,
+    ) -> Result<Arc<PublicDirectory>> {
+        let mut dir = PublicDirectory::new_rc(time);
+        let FileSystem { files, dirs } = fs;
+        for (path, content) in files.iter() {
+            dir.write(&path, content.clone().into_bytes(), time, store)
+                .await?;
+        }
+
+        for path in dirs.iter() {
+            dir.mkdir(&path, time, store).await?;
+        }
+
+        Ok(dir)
+    }
+
+    #[proptest]
+    fn test_merge_directory_preferred(#[strategy(vec(simple_string(), 1..10))] path: Vec<String>) {
+        async_std::task::block_on(async move {
+            let store = &MemoryBlockStore::new();
+            let time = Utc::now();
+
+            let root0 = &mut PublicDirectory::new_rc(time);
+            let root1 = &mut PublicDirectory::new_rc(time);
+
+            root0
+                .write(&path, b"Should be overwritten".into(), time, store)
+                .await
+                .unwrap();
+
+            root1.mkdir(&path, time, store).await.unwrap();
+
+            root0.merge(root1, store).await.unwrap();
+
+            let node = root0
+                .get_node(&path, store)
+                .await
+                .unwrap()
+                .expect("merged fs contains the node");
+
+            prop_assert!(node.is_dir());
+
+            Ok(())
+        })?;
+    }
+
+    #[proptest]
+    fn test_merge_commutativity(
+        #[strategy(file_system())] fs0: FileSystem,
+        #[strategy(file_system())] fs1: FileSystem,
+    ) {
+        async_std::task::block_on(async move {
+            let store = &MemoryBlockStore::new();
+            let time = Utc::now();
+
+            let root0 = convert_fs(fs0, time, store).await.unwrap();
+            let root1 = convert_fs(fs1, time, store).await.unwrap();
+
+            let mut merge_one_way = Arc::clone(&root0);
+            merge_one_way.merge(&root1, store).await.unwrap();
+            let mut merge_other_way = Arc::clone(&root1);
+            merge_other_way.merge(&root0, store).await.unwrap();
+
+            let cid_one_way = merge_one_way.store(store).await.unwrap();
+            let cid_other_way = merge_other_way.store(store).await.unwrap();
+
+            prop_assert_eq!(cid_one_way, cid_other_way);
+
+            Ok(())
+        })?;
+    }
+
+    #[proptest]
+    fn test_merge_associativity(
+        #[strategy(file_system())] fs0: FileSystem,
+        #[strategy(file_system())] fs1: FileSystem,
+        #[strategy(file_system())] fs2: FileSystem,
+    ) {
+        async_std::task::block_on(async move {
+            let store = &MemoryBlockStore::new();
+            let time = Utc::now();
+            let root0 = convert_fs(fs0, time, store).await.unwrap();
+            let root1 = convert_fs(fs1, time, store).await.unwrap();
+            let root2 = convert_fs(fs2, time, store).await.unwrap();
+
+            let mut merge_0_1_then_2 = Arc::clone(&root0);
+            merge_0_1_then_2.merge(&root1, store).await.unwrap();
+            merge_0_1_then_2.merge(&root2, store).await.unwrap();
+
+            let mut merge_1_2 = Arc::clone(&root1);
+            merge_1_2.merge(&root2, store).await.unwrap();
+            let mut merge_0_with_1_2 = Arc::clone(&root0);
+            merge_0_with_1_2.merge(&merge_1_2, store).await.unwrap();
+
+            let cid_one_way = merge_0_1_then_2.store(store).await.unwrap();
+            let cid_other_way = merge_0_with_1_2.store(store).await.unwrap();
+
+            prop_assert_eq!(cid_one_way, cid_other_way);
+
+            Ok(())
+        })?;
+    }
+
+    #[proptest]
+    fn test_merge_directories_preserved(
+        #[strategy(file_system())] fs0: FileSystem,
+        #[strategy(file_system())] fs1: FileSystem,
+    ) {
+        async_std::task::block_on(async move {
+            let store = &MemoryBlockStore::new();
+            let time = Utc::now();
+
+            let mut all_dirs = fs0.dirs.clone();
+            all_dirs.extend(fs1.dirs.iter().cloned());
+
+            let mut root = convert_fs(fs0, time, store).await.unwrap();
+            let root1 = convert_fs(fs1, time, store).await.unwrap();
+
+            root.merge(&root1, store).await.unwrap();
+
+            for dir in all_dirs {
+                let exists = root.get_node(&dir, store).await.unwrap().is_some();
+                prop_assert!(exists);
+            }
+
+            Ok(())
+        })?;
     }
 }
 

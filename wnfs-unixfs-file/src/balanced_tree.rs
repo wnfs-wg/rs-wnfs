@@ -234,7 +234,6 @@ impl TreeNode {
 mod tests {
     use super::*;
     use bytes::BytesMut;
-    use futures::StreamExt;
     use wnfs_common::MemoryBlockStore;
 
     // chunks are just a single usize integer
