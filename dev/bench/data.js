@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1713095470697,
+  "lastUpdate": 1713446132836,
   "repoUrl": "https://github.com/wnfs-wg/rs-wnfs",
   "entries": {
     "Rust Benchmark": [
@@ -24445,6 +24445,126 @@ window.BENCHMARK_DATA = {
             "name": "NameAccumulator::<BigNumRug> serialization",
             "value": 642,
             "range": "± 37",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "philipp.krueger1@gmail.com",
+            "name": "Philipp Krüger",
+            "username": "matheus23"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "dc0785a907b2c2fe80e3e3130fe660c1f5ab4c01",
+          "message": "feat: implement `PublicDirectory` conflict reconciliation (#426)\n\nThis implements three functions:\r\n- `PublicDirectory::reconcile` which takes two directories & reconciles all changes between them. Think of this as similar to `get pull`, but where conflicts in files are merged automatically via a simple tie-breaking mechanism on the file hash. The return value indicates whether and which files were affected by the automatic merge, if at all.\r\n- `PublicDirectory::merge`, the underlying function for `reconcile`, but which doesn't take into account if one of the directories may have been \"ahead\" in history. Use only if you know what you're doing, otherwise opt for `reconcile`.\r\n- `PublicNode::causal_compare`, the underlying function in `reconcile` that figures out whether one version of a node is \"ahead\" of another or behind, or if they're two conflicting versions and need to be merged.\r\n\r\n---\r\n\r\n* feat: Conflict reconciliation for PublicDirectory (first draft)\r\n\r\n* fix: Use `async_recursion`\r\n\r\n* refactor: Use more `prop_assert`\r\n\r\n* chore: Write proptests for `causal_compare`\r\n\r\n* chore: Write tests for `PublicDirectory::merge`\r\n\r\n* chore: Write documentation\r\n\r\n* fix: Consistently merge metadata between nodes\r\n\r\n* fix: Test types\r\n\r\n* chore: Remove unused imports\r\n\r\n* fix: Bugs in merge implementation\r\n\r\nSpecifically:\r\n- trivially merge exactly equal nodes without creating a history entry\r\n- correctly reset `persisted_as` when creating a merge node\r\n- always advance the history entry when creating a merge node\r\n\r\n* fix: Don't merge equal files",
+          "timestamp": "2024-04-18T15:11:04+02:00",
+          "tree_id": "fc1370b2619bb0bcd4dd608ae3ee4736d20de3e4",
+          "url": "https://github.com/wnfs-wg/rs-wnfs/commit/dc0785a907b2c2fe80e3e3130fe660c1f5ab4c01"
+        },
+        "date": 1713446132229,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "node set",
+            "value": 16263,
+            "range": "± 296",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node set 1000 consecutive",
+            "value": 2244809,
+            "range": "± 22276",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and get",
+            "value": 47606,
+            "range": "± 172",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and remove",
+            "value": 54228,
+            "range": "± 1261",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt load and decode/0",
+            "value": 3126,
+            "range": "± 78",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt set and encode",
+            "value": 62896,
+            "range": "± 3014",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt diff",
+            "value": 38250,
+            "range": "± 1941",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt merge",
+            "value": 115156,
+            "range": "± 6517",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameSegment::<BigNumDig>::new_hashed",
+            "value": 1771527,
+            "range": "± 236873",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameSegment::<BigNumRug>::new_hashed",
+            "value": 312891,
+            "range": "± 32210",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameSegment::<BigNumDig>::new(rng)",
+            "value": 1806129,
+            "range": "± 158589",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameSegment::<BigNumRug>::new(rng)",
+            "value": 596779,
+            "range": "± 37863",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameAccumulator::<BigNumDig>::add",
+            "value": 1754967,
+            "range": "± 62274",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameAccumulator::<BigNumRug>::add",
+            "value": 1000895,
+            "range": "± 46375",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameAccumulator::<BigNumDig> serialization",
+            "value": 496,
+            "range": "± 23",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameAccumulator::<BigNumRug> serialization",
+            "value": 641,
+            "range": "± 23",
             "unit": "ns/iter"
           }
         ]
