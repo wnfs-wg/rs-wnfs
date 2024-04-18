@@ -942,12 +942,18 @@ impl PublicDirectory {
                     let our_node = occupied.get_mut().resolve_value_mut(store).await?;
                     match (our_node, other_node) {
                         (PublicNode::File(our_file), PublicNode::File(other_file)) => {
+                            let our_cid = our_file.store(store).await?;
+                            let other_cid = other_file.store(store).await?;
+                            if our_cid == other_cid {
+                                continue; // No need to merge, the files are equal
+                            }
+
                             let mut path = current_path.to_vec();
                             path.push(name.clone());
                             file_tie_breaks.insert(path);
 
-                            let our_cid = our_file.userland.resolve_cid(store).await?;
-                            let other_cid = other_file.userland.resolve_cid(store).await?;
+                            let our_content_cid = our_file.userland.resolve_cid(store).await?;
+                            let other_content_cid = other_file.userland.resolve_cid(store).await?;
 
                             let file = our_file.prepare_next_merge(store).await?;
                             if other_file.previous.len() > 1 {
@@ -958,7 +964,7 @@ impl PublicDirectory {
                                 file.previous.insert(other_file.store(store).await?);
                             }
 
-                            if our_cid.hash().digest() > other_cid.hash().digest() {
+                            if our_content_cid.hash().digest() > other_content_cid.hash().digest() {
                                 file.userland = other_file.userland.clone();
                                 file.metadata = other_file.metadata.clone();
                             }
