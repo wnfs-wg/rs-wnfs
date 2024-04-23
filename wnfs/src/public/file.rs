@@ -434,9 +434,9 @@ impl PublicFile {
     /// Writes a new content cid to the file.
     /// This will create a new revision of the file.
     pub async fn set_content(
-        self: &mut Arc<Self>,
-        time: DateTime<Utc>,
+        &mut self,
         content: Vec<u8>,
+        time: DateTime<Utc>,
         store: &impl BlockStore,
     ) -> Result<()> {
         let content_cid = FileBuilder::new()
@@ -445,9 +445,8 @@ impl PublicFile {
             .store(store)
             .await?;
 
-        let file = self.prepare_next_revision();
-        file.metadata.upsert_mtime(time);
-        file.userland = Link::from_cid(content_cid);
+        self.metadata.upsert_mtime(time);
+        self.userland = Link::from_cid(content_cid);
 
         Ok(())
     }
@@ -629,7 +628,8 @@ mod snapshot_tests {
         let file = &mut PublicFile::new_rc(time);
         let _ = file.store(store).await?;
 
-        file.set_content(time, b"Hello, World!".to_vec(), store)
+        let file = file.prepare_next_revision();
+        file.set_content(b"Hello, World!".to_vec(), time, store)
             .await?;
         let cid = file.store(store).await?;
 
