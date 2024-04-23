@@ -616,7 +616,7 @@ impl PrivateDirectory {
     ///     // Define the content that will replace what is already in the file
     ///     let new_file_content = b"print('hello world 2')";
     ///     // Set the contents of the file, waiting for result and expecting no errors
-    ///     file.set_content(Utc::now(), &new_file_content[..], forest, store, rng)
+    ///     file.set_content(&new_file_content[..], Utc::now(), forest, store, rng)
     ///         .await?;
     ///     // Read the file again
     ///     let result = root_dir.read(hello_py, true, forest, store).await?;

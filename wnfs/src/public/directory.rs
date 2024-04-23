@@ -510,7 +510,11 @@ impl PublicDirectory {
         let dir = self.get_or_create_leaf_dir_mut(path, time, store).await?;
 
         match dir.lookup_node_mut(filename, store).await? {
-            Some(PublicNode::File(file)) => file.set_content(time, content, store).await?,
+            Some(PublicNode::File(file)) => {
+                file.prepare_next_revision()
+                    .set_content(content, time, store)
+                    .await?
+            }
             Some(PublicNode::Dir(_)) => bail!(FsError::DirectoryAlreadyExists),
             None => {
                 dir.userland.insert(
@@ -932,41 +936,20 @@ impl PublicDirectory {
         }
         dir.metadata.tie_break_with(&other.metadata)?;
 
-        for (name, link) in other.userland.iter() {
-            let other_node = link.resolve_value(store).await?;
+        for (name, other_link) in other.userland.iter() {
+            let other_node = other_link.resolve_value(store).await?;
             match dir.userland.entry(name.clone()) {
                 Entry::Vacant(vacant) => {
-                    vacant.insert(PublicLink::new(other_node.clone()));
+                    vacant.insert(other_link.clone());
                 }
                 Entry::Occupied(mut occupied) => {
                     let our_node = occupied.get_mut().resolve_value_mut(store).await?;
                     match (our_node, other_node) {
                         (PublicNode::File(our_file), PublicNode::File(other_file)) => {
-                            let our_cid = our_file.store(store).await?;
-                            let other_cid = other_file.store(store).await?;
-                            if our_cid == other_cid {
-                                continue; // No need to merge, the files are equal
-                            }
-
-                            let mut path = current_path.to_vec();
-                            path.push(name.clone());
-                            file_tie_breaks.insert(path);
-
-                            let our_content_cid = our_file.userland.resolve_cid(store).await?;
-                            let other_content_cid = other_file.userland.resolve_cid(store).await?;
-
-                            let file = our_file.prepare_next_merge(store).await?;
-                            if other_file.previous.len() > 1 {
-                                // The other node is a merge node, we should merge the merge nodes directly:
-                                file.previous.extend(other_file.previous.iter().cloned());
-                            } else {
-                                // The other node is a 'normal' node - we need to merge it normally
-                                file.previous.insert(other_file.store(store).await?);
-                            }
-
-                            if our_content_cid.hash().digest() > other_content_cid.hash().digest() {
-                                file.userland = other_file.userland.clone();
-                                file.metadata = other_file.metadata.clone();
+                            if our_file.merge(other_file, store).await? {
+                                let mut path = current_path.to_vec();
+                                path.push(name.clone());
+                                file_tie_breaks.insert(path);
                             }
                         }
                         (node @ PublicNode::File(_), PublicNode::Dir(other_dir)) => {
@@ -1477,31 +1460,41 @@ mod tests {
 #[cfg(test)]
 mod proptests {
     use super::*;
+    use libipld_core::ipld::Ipld;
     use proptest::{
-        collection::{btree_map, btree_set, vec},
+        collection::{btree_map, vec},
         prelude::*,
     };
     use test_strategy::proptest;
     use wnfs_common::MemoryBlockStore;
 
+    type MockMetadata = String;
+
     #[derive(Debug, Clone)]
     struct FileSystem {
-        files: BTreeMap<Vec<String>, String>,
-        dirs: BTreeSet<Vec<String>>,
+        files: BTreeMap<Vec<String>, (MockMetadata, String)>,
+        dirs: BTreeMap<Vec<String>, MockMetadata>,
     }
 
     fn file_system() -> impl Strategy<Value = FileSystem> {
         (
+            btree_map(
+                vec(simple_string(), 1..10),
+                (simple_string(), simple_string()),
+                // we generate a lot more file paths than directory paths
+                // since file paths get filtered out and lose over directory paths
+                0..100,
+            ),
             btree_map(vec(simple_string(), 1..10), simple_string(), 0..40),
-            btree_set(vec(simple_string(), 1..10), 0..40),
         )
             .prop_map(|(mut files, dirs)| {
                 files = files
                     .into_iter()
                     .filter(|(file_path, _)| {
+                        // We filter out file paths that are prefixes of directory paths in advance
                         !dirs
                             .iter()
-                            .any(|dir_path| !dir_path.starts_with(&file_path))
+                            .any(|(dir_path, _)| dir_path.starts_with(&file_path))
                     })
                     .collect();
                 FileSystem { files, dirs }
@@ -1515,13 +1508,15 @@ mod proptests {
 
     fn valid_fs(fs: &FileSystem) -> bool {
         fs.files.iter().all(|(file_path, _)| {
+            // File paths must not be prefixes of directory paths
             !fs.dirs
                 .iter()
-                .any(|dir_path| dir_path.starts_with(&file_path))
+                .any(|(dir_path, _)| dir_path.starts_with(&file_path))
+                // file paths must not be prefixes of other file paths
                 && !fs
                     .files
                     .iter()
-                    .any(|(other_path, _)| other_path.starts_with(&file_path))
+                    .any(|(other_path, _)| file_path != other_path && other_path.starts_with(&file_path))
         })
     }
 
@@ -1532,13 +1527,29 @@ mod proptests {
     ) -> Result<Arc<PublicDirectory>> {
         let mut dir = PublicDirectory::new_rc(time);
         let FileSystem { files, dirs } = fs;
-        for (path, content) in files.iter() {
-            dir.write(&path, content.clone().into_bytes(), time, store)
-                .await?;
+        for (path, (metadata, content)) in files.into_iter() {
+            let file = dir.open_file_mut(&path, time, store).await?;
+            file.set_content(content.into_bytes(), time, store).await?;
+            file.get_metadata_mut()
+                .put("test-meta", Ipld::String(metadata));
         }
 
-        for path in dirs.iter() {
-            dir.mkdir(&path, time, store).await?;
+        for (path, metadata) in dirs.into_iter() {
+            let (path, filename) = utils::split_last(&path)?;
+            // There's currently no API for setting metadata on a directory :S
+            dir.get_or_create_leaf_dir_mut(path, time, store)
+                .await?
+                .userland
+                .entry(filename.clone())
+                // Create a file, if it doesn't exist yet
+                .or_insert_with(|| PublicLink::with_dir(PublicDirectory::new(time)))
+                // Get a mutable ref out of the directory entry
+                .resolve_value_mut(store)
+                .await?
+                .as_dir_mut()?
+                .prepare_next_revision()
+                .get_metadata_mut()
+                .put("test-meta", Ipld::String(metadata));
         }
 
         Ok(dir)
@@ -1640,8 +1651,8 @@ mod proptests {
             let store = &MemoryBlockStore::new();
             let time = Utc::now();
 
-            let mut all_dirs = fs0.dirs.clone();
-            all_dirs.extend(fs1.dirs.iter().cloned());
+            let mut all_dirs = fs0.dirs.keys().cloned().collect::<BTreeSet<_>>();
+            all_dirs.extend(fs1.dirs.keys().cloned());
 
             let mut root = convert_fs(fs0, time, store).await.unwrap();
             let root1 = convert_fs(fs1, time, store).await.unwrap();

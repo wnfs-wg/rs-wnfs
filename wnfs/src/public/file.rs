@@ -7,7 +7,7 @@ use async_once_cell::OnceCell;
 use chrono::{DateTime, Utc};
 use futures::{AsyncRead, AsyncReadExt};
 use libipld_core::cid::Cid;
-use std::{collections::BTreeSet, io::SeekFrom};
+use std::{cmp::Ordering, collections::BTreeSet, io::SeekFrom};
 use tokio::io::AsyncSeekExt;
 use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
 use wnfs_common::{
@@ -390,10 +390,10 @@ impl PublicFile {
     }
 
     /// Takes care of creating previous links, in case the current
-    /// directory was previously `.store()`ed.
-    /// In any case it'll try to give you ownership of the directory if possible,
+    /// file was previously `.store()`ed.
+    /// In any case it'll try to give you ownership of the file if possible,
     /// otherwise it clones.
-    pub(crate) fn prepare_next_revision<'a>(self: &'a mut Arc<Self>) -> &'a mut Self {
+    pub fn prepare_next_revision<'a>(self: &'a mut Arc<Self>) -> &'a mut Self {
         let Some(previous_cid) = self.persisted_as.get().cloned() else {
             return Arc::make_mut(self);
         };
@@ -434,9 +434,9 @@ impl PublicFile {
     /// Writes a new content cid to the file.
     /// This will create a new revision of the file.
     pub async fn set_content(
-        self: &mut Arc<Self>,
-        time: DateTime<Utc>,
+        &mut self,
         content: Vec<u8>,
+        time: DateTime<Utc>,
         store: &impl BlockStore,
     ) -> Result<()> {
         let content_cid = FileBuilder::new()
@@ -445,9 +445,8 @@ impl PublicFile {
             .store(store)
             .await?;
 
-        let file = self.prepare_next_revision();
-        file.metadata.upsert_mtime(time);
-        file.userland = Link::from_cid(content_cid);
+        self.metadata.upsert_mtime(time);
+        self.userland = Link::from_cid(content_cid);
 
         Ok(())
     }
@@ -487,6 +486,62 @@ impl PublicFile {
     /// Returns a mutable reference to this file's metadata and ratchets forward the history, if necessary.
     pub fn get_metadata_mut_rc<'a>(self: &'a mut Arc<Self>) -> &'a mut Metadata {
         self.prepare_next_revision().get_metadata_mut()
+    }
+
+    /// Runs the merge part of the conflict reconciliation algorithm on this
+    /// file together with the other file.
+    ///
+    /// Don't call this function, unless you know what you're doing. Prefer
+    /// calling `PrivateDirectory::reconcile` instead.
+    ///
+    /// This function is commutative and associative.
+    ///
+    /// Both `self` and `other` will be serialized to given blockstore when calling
+    /// this function.
+    ///
+    /// The return value indicates whether tie-breaking was necessary or not.
+    pub async fn merge(
+        self: &mut Arc<Self>,
+        other: &Arc<Self>,
+        store: &impl BlockStore,
+    ) -> Result<bool> {
+        let our_cid = self.store(store).await?;
+        let other_cid = other.store(store).await?;
+        if our_cid == other_cid {
+            return Ok(false); // No need to merge, the files are equal
+        }
+
+        let our_content_cid = self.userland.resolve_cid(store).await?;
+        let other_content_cid = other.userland.resolve_cid(store).await?;
+
+        let file = self.prepare_next_merge(store).await?;
+        if other.previous.len() > 1 {
+            // The other node is a merge node, we should merge the merge nodes directly:
+            file.previous.extend(other.previous.iter().cloned());
+        } else {
+            // The other node is a 'normal' node - we need to merge it normally
+            file.previous.insert(other.store(store).await?);
+        }
+
+        match our_content_cid
+            .hash()
+            .digest()
+            .cmp(other_content_cid.hash().digest())
+        {
+            Ordering::Greater => {
+                file.userland.clone_from(&other.userland);
+                file.metadata.clone_from(&other.metadata);
+            }
+            Ordering::Equal => {
+                file.metadata.tie_break_with(&other.metadata)?;
+            }
+            Ordering::Less => {
+                // We take ours
+            }
+        }
+
+        // Returning true to indicate that we needed to tie-break
+        Ok(true)
     }
 }
 
@@ -629,7 +684,8 @@ mod snapshot_tests {
         let file = &mut PublicFile::new_rc(time);
         let _ = file.store(store).await?;
 
-        file.set_content(time, b"Hello, World!".to_vec(), store)
+        let file = file.prepare_next_revision();
+        file.set_content(b"Hello, World!".to_vec(), time, store)
             .await?;
         let cid = file.store(store).await?;
 

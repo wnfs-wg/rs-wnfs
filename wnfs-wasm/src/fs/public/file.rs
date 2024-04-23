@@ -166,7 +166,8 @@ impl PublicFile {
         let time = DateTime::<Utc>::from(time);
 
         Ok(future_to_promise(async move {
-            file.set_content(time, content, &store)
+            file.prepare_next_revision()
+                .set_content(content, time, &store)
                 .await
                 .map_err(error("Cannot set file content"))?;
 
