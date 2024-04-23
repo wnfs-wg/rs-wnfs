@@ -1502,7 +1502,9 @@ mod proptests {
             btree_map(
                 vec(simple_string(), 1..10),
                 (simple_string(), simple_string()),
-                0..40,
+                // we generate a lot more file paths than directory paths
+                // since file paths get filtered out and lose over directory paths
+                0..100,
             ),
             btree_map(vec(simple_string(), 1..10), simple_string(), 0..40),
         )
@@ -1510,9 +1512,10 @@ mod proptests {
                 files = files
                     .into_iter()
                     .filter(|(file_path, _)| {
+                        // We filter out file paths that are prefixes of directory paths in advance
                         !dirs
                             .iter()
-                            .any(|(dir_path, _)| !dir_path.starts_with(&file_path))
+                            .any(|(dir_path, _)| dir_path.starts_with(&file_path))
                     })
                     .collect();
                 FileSystem { files, dirs }
@@ -1526,13 +1529,15 @@ mod proptests {
 
     fn valid_fs(fs: &FileSystem) -> bool {
         fs.files.iter().all(|(file_path, _)| {
+            // File paths must not be prefixes of directory paths
             !fs.dirs
                 .iter()
                 .any(|(dir_path, _)| dir_path.starts_with(&file_path))
+                // file paths must not be prefixes of other file paths
                 && !fs
                     .files
                     .iter()
-                    .any(|(other_path, _)| other_path.starts_with(&file_path))
+                    .any(|(other_path, _)| file_path != other_path && other_path.starts_with(&file_path))
         })
     }
 
@@ -1552,6 +1557,7 @@ mod proptests {
 
         for (path, metadata) in dirs.into_iter() {
             let (path, filename) = utils::split_last(&path)?;
+            // There's currently no API for setting metadata on a directory :S
             dir.get_or_create_leaf_dir_mut(path, time, store)
                 .await?
                 .userland
