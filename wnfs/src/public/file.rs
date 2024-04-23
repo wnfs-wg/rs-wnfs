@@ -390,10 +390,10 @@ impl PublicFile {
     }
 
     /// Takes care of creating previous links, in case the current
-    /// directory was previously `.store()`ed.
-    /// In any case it'll try to give you ownership of the directory if possible,
+    /// file was previously `.store()`ed.
+    /// In any case it'll try to give you ownership of the file if possible,
     /// otherwise it clones.
-    pub(crate) fn prepare_next_revision<'a>(self: &'a mut Arc<Self>) -> &'a mut Self {
+    pub fn prepare_next_revision<'a>(self: &'a mut Arc<Self>) -> &'a mut Self {
         let Some(previous_cid) = self.persisted_as.get().cloned() else {
             return Arc::make_mut(self);
         };

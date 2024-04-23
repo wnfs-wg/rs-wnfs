@@ -680,8 +680,8 @@ impl PrivateFile {
     /// Sets the content of a file.
     pub async fn set_content(
         &mut self,
-        time: DateTime<Utc>,
         content: impl AsyncRead + Unpin,
+        time: DateTime<Utc>,
         forest: &mut impl PrivateForest,
         store: &impl BlockStore,
         rng: &mut impl CryptoRngCore,
@@ -1371,8 +1371,8 @@ mod proptests {
             let mut file = PrivateFile::new(&forest.empty_name(), Utc::now(), rng);
 
             file.set_content(
-                Utc::now(),
                 &mut Cursor::new(vec![5u8; length]),
+                Utc::now(),
                 forest,
                 &MemoryBlockStore::default(),
                 rng,

@@ -49,7 +49,7 @@ async fn main() -> Result<()> {
 
     // `set_content` actually writes the data blocks to the blockstore in chunks,
     // so for this we provide the `cold_store`.
-    file.set_content(Utc::now(), &video[..], forest, &cold_store, rng)
+    file.set_content(&video[..], Utc::now(), forest, &cold_store, rng)
         .await?;
 
     // When storing the hierarchy data blocks, we use the `hot_store`:
