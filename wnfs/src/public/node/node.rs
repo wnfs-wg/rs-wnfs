@@ -413,7 +413,6 @@ mod tests {
 #[cfg(test)]
 mod proptests {
     use super::*;
-    use chrono::NaiveDateTime;
     use futures::{stream, StreamExt, TryStreamExt};
     use proptest::{collection::vec, prelude::*};
     use test_strategy::proptest;
@@ -441,11 +440,7 @@ mod proptests {
         }
 
         fn time(n: i64) -> DateTime<Utc> {
-            DateTime::from_naive_utc_and_offset(
-                // convert into seconds, otherwise 0 and 1 would both be mapped to "0 seconds"
-                NaiveDateTime::from_timestamp_millis(n * 1000).unwrap(),
-                Utc,
-            )
+            DateTime::<Utc>::from_timestamp(n, 0).unwrap()
         }
 
         pub fn get_head(&self, n: usize) -> &Arc<PublicDirectory> {
