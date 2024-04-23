@@ -946,43 +946,10 @@ impl PublicDirectory {
                     let our_node = occupied.get_mut().resolve_value_mut(store).await?;
                     match (our_node, other_node) {
                         (PublicNode::File(our_file), PublicNode::File(other_file)) => {
-                            let our_cid = our_file.store(store).await?;
-                            let other_cid = other_file.store(store).await?;
-                            if our_cid == other_cid {
-                                continue; // No need to merge, the files are equal
-                            }
-
-                            let mut path = current_path.to_vec();
-                            path.push(name.clone());
-                            file_tie_breaks.insert(path);
-
-                            let our_content_cid = our_file.userland.resolve_cid(store).await?;
-                            let other_content_cid = other_file.userland.resolve_cid(store).await?;
-
-                            let file = our_file.prepare_next_merge(store).await?;
-                            if other_file.previous.len() > 1 {
-                                // The other node is a merge node, we should merge the merge nodes directly:
-                                file.previous.extend(other_file.previous.iter().cloned());
-                            } else {
-                                // The other node is a 'normal' node - we need to merge it normally
-                                file.previous.insert(other_file.store(store).await?);
-                            }
-
-                            match our_content_cid
-                                .hash()
-                                .digest()
-                                .cmp(other_content_cid.hash().digest())
-                            {
-                                Ordering::Greater => {
-                                    file.userland.clone_from(&other_file.userland);
-                                    file.metadata.clone_from(&other_file.metadata);
-                                }
-                                Ordering::Equal => {
-                                    file.metadata.tie_break_with(&other_file.metadata)?;
-                                }
-                                Ordering::Less => {
-                                    // We take ours
-                                }
+                            if our_file.merge(other_file, store).await? {
+                                let mut path = current_path.to_vec();
+                                path.push(name.clone());
+                                file_tie_breaks.insert(path);
                             }
                         }
                         (node @ PublicNode::File(_), PublicNode::Dir(other_dir)) => {

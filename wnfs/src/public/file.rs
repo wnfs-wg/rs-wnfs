@@ -7,7 +7,7 @@ use async_once_cell::OnceCell;
 use chrono::{DateTime, Utc};
 use futures::{AsyncRead, AsyncReadExt};
 use libipld_core::cid::Cid;
-use std::{collections::BTreeSet, io::SeekFrom};
+use std::{cmp::Ordering, collections::BTreeSet, io::SeekFrom};
 use tokio::io::AsyncSeekExt;
 use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
 use wnfs_common::{
@@ -486,6 +486,62 @@ impl PublicFile {
     /// Returns a mutable reference to this file's metadata and ratchets forward the history, if necessary.
     pub fn get_metadata_mut_rc<'a>(self: &'a mut Arc<Self>) -> &'a mut Metadata {
         self.prepare_next_revision().get_metadata_mut()
+    }
+
+    /// Runs the merge part of the conflict reconciliation algorithm on this
+    /// file together with the other file.
+    ///
+    /// Don't call this function, unless you know what you're doing. Prefer
+    /// calling `PrivateDirectory::reconcile` instead.
+    ///
+    /// This function is commutative and associative.
+    ///
+    /// Both `self` and `other` will be serialized to given blockstore when calling
+    /// this function.
+    ///
+    /// The return value indicates whether tie-breaking was necessary or not.
+    pub async fn merge(
+        self: &mut Arc<Self>,
+        other: &Arc<Self>,
+        store: &impl BlockStore,
+    ) -> Result<bool> {
+        let our_cid = self.store(store).await?;
+        let other_cid = other.store(store).await?;
+        if our_cid == other_cid {
+            return Ok(false); // No need to merge, the files are equal
+        }
+
+        let our_content_cid = self.userland.resolve_cid(store).await?;
+        let other_content_cid = other.userland.resolve_cid(store).await?;
+
+        let file = self.prepare_next_merge(store).await?;
+        if other.previous.len() > 1 {
+            // The other node is a merge node, we should merge the merge nodes directly:
+            file.previous.extend(other.previous.iter().cloned());
+        } else {
+            // The other node is a 'normal' node - we need to merge it normally
+            file.previous.insert(other.store(store).await?);
+        }
+
+        match our_content_cid
+            .hash()
+            .digest()
+            .cmp(other_content_cid.hash().digest())
+        {
+            Ordering::Greater => {
+                file.userland.clone_from(&other.userland);
+                file.metadata.clone_from(&other.metadata);
+            }
+            Ordering::Equal => {
+                file.metadata.tie_break_with(&other.metadata)?;
+            }
+            Ordering::Less => {
+                // We take ours
+            }
+        }
+
+        // Returning true to indicate that we needed to tie-break
+        Ok(true)
     }
 }
 
