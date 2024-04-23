@@ -44,7 +44,7 @@ pub type PrivatePathNodesResult = PathNodesResult<PrivateDirectory>;
 /// ```
 #[derive(Debug, Clone, PartialEq)]
 pub struct PrivateDirectory {
-    pub(crate) header: PrivateNodeHeader,
+    pub header: PrivateNodeHeader,
     pub(crate) content: PrivateDirectoryContent,
 }
 
