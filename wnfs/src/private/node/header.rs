@@ -1,13 +1,14 @@
-use super::{PrivateNodeHeaderSerializable, TemporalKey, REVISION_SEGMENT_DSI};
+use super::{PrivateNode, PrivateNodeHeaderSerializable, TemporalKey, REVISION_SEGMENT_DSI};
 use crate::{
     error::FsError,
     private::{forest::traits::PrivateForest, RevisionRef},
 };
-use anyhow::{bail, Result};
+use anyhow::{anyhow, bail, Result};
+use futures::TryStreamExt;
 use libipld_core::cid::Cid;
 use rand_core::CryptoRngCore;
 use skip_ratchet::Ratchet;
-use std::fmt::Debug;
+use std::{collections::BTreeMap, fmt::Debug};
 use wnfs_common::{BlockStore, CODEC_RAW};
 use wnfs_hamt::Hasher;
 use wnfs_nameaccumulator::{Name, NameSegment};
@@ -213,6 +214,77 @@ impl PrivateNodeHeader {
             header.name = name;
         }
         Ok(header)
+    }
+
+    /// TODO(matheus23): DOCS
+    pub(crate) async fn get_multivalue(
+        &self,
+        forest: &impl PrivateForest,
+        store: &impl BlockStore,
+    ) -> Result<Vec<(Cid, PrivateNode)>> {
+        let mountpoint = self.name.parent();
+
+        let name_hash =
+            blake3::Hasher::hash(&forest.get_accumulated_name(&self.get_revision_name()));
+
+        forest
+            .get_multivalue_by_hash(&name_hash, &self.derive_temporal_key(), store, mountpoint)
+            .try_collect::<Vec<_>>()
+            .await
+    }
+
+    /// Seeks this header to the next free private forest slot
+    /// as well as the set of private nodes that were written to
+    pub(crate) async fn seek_unmerged_heads(
+        &mut self,
+        forest: &impl PrivateForest,
+        store: &impl BlockStore,
+    ) -> Result<BTreeMap<Cid, PrivateNode>> {
+        let mut previous_keys = Vec::with_capacity(1);
+        let mut heads = BTreeMap::new();
+
+        loop {
+            let nodes = self.get_multivalue(forest, store).await?;
+
+            if nodes.is_empty() {
+                break;
+            }
+
+            for (cid, node) in nodes {
+                // decrypt all previous links & remove any heads that they refer to
+                for (reach_back, encrypted_cid) in node.get_previous().iter() {
+                    // This requires linear memory in the amount of revisions we seek, but that's *probably* fine?
+                    // I'm pretty sure we're allocating and holding on to more memory linearly in the implementation
+                    // of `PrivateForest` per-revision anyways, so if we wanted to optimize that, we'd look there
+                    // instead.
+                    // None if reach_back > previous_keys.len(), then it's older than from where we started
+                    if *reach_back <= previous_keys.len() {
+                        let key = &previous_keys[previous_keys.len() - reach_back];
+                        let previous_cid = encrypted_cid.resolve_value(key)?;
+                        // We don't need to merge the older head, as we found a newer
+                        // version of this node.
+                        heads.remove(previous_cid);
+                    }
+                }
+                // Add the newly found node to our heads
+                heads.insert(cid, node);
+            }
+
+            previous_keys.push(TemporalKey::new(&self.ratchet));
+            self.advance_ratchet();
+        }
+
+        Ok(heads)
+    }
+
+    pub(crate) fn ratchet_diff_for_merge(&self, other: &Self) -> Result<usize> {
+        self.ratchet
+            .compare(&other.ratchet, 10_000_000)
+            .map_err(|e| {
+                anyhow!("merge node set on different ratchet track (or history too far away): {e}")
+            })?
+            .try_into()
+            .map_err(|_| anyhow!("merge node set to past revision"))
     }
 }
 

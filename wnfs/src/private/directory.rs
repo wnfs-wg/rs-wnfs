@@ -10,7 +10,7 @@ use chrono::{DateTime, Utc};
 use libipld_core::cid::Cid;
 use rand_core::CryptoRngCore;
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::{btree_map::Entry, BTreeMap, BTreeSet},
     fmt::Debug,
 };
 use wnfs_common::{
@@ -44,7 +44,7 @@ pub type PrivatePathNodesResult = PathNodesResult<PrivateDirectory>;
 /// ```
 #[derive(Debug, Clone, PartialEq)]
 pub struct PrivateDirectory {
-    pub header: PrivateNodeHeader,
+    pub(crate) header: PrivateNodeHeader,
     pub(crate) content: PrivateDirectoryContent,
 }
 
@@ -260,7 +260,7 @@ impl PrivateDirectory {
                     .resolve_node(forest, store, Some(self.header.name.clone()))
                     .await?;
                 if search_latest {
-                    Some(private_node.search_latest(forest, store).await?)
+                    Some(private_node.search_latest_reconciled(forest, store).await?)
                 } else {
                     Some(private_node.clone())
                 }
@@ -283,7 +283,7 @@ impl PrivateDirectory {
                     .resolve_node_mut(forest, store, Some(self.header.name.clone()))
                     .await?;
                 if search_latest {
-                    *private_node = private_node.search_latest(forest, store).await?;
+                    *private_node = private_node.search_latest_reconciled(forest, store).await?;
                 }
 
                 Some(private_node)
@@ -302,7 +302,7 @@ impl PrivateDirectory {
         let mut working_dir = Arc::clone(self);
 
         if search_latest {
-            working_dir = working_dir.search_latest(forest, store).await?;
+            working_dir = working_dir.search_latest_reconciled(forest, store).await?;
         }
 
         for (depth, segment) in path_segments.iter().enumerate() {
@@ -329,7 +329,7 @@ impl PrivateDirectory {
         store: &impl BlockStore,
     ) -> Result<SearchResult<&'a mut Self>> {
         if search_latest {
-            *self = self.clone().search_latest(forest, store).await?;
+            *self = self.clone().search_latest_reconciled(forest, store).await?;
         }
 
         let mut working_dir = self.prepare_next_revision()?;
@@ -418,6 +418,44 @@ impl PrivateDirectory {
         cloned.content.persisted_as = OnceCell::new();
         cloned.content.previous = [previous_link].into_iter().collect();
         cloned.header.advance_ratchet();
+
+        Ok(cloned)
+    }
+
+    /// TODO(matheus23): DOCS
+    pub(crate) fn prepare_next_merge<'a>(
+        self: &'a mut Arc<Self>,
+        current_cid: Cid,
+        target_header: PrivateNodeHeader,
+    ) -> Result<&'a mut Self> {
+        let ratchet_diff = target_header.ratchet_diff_for_merge(&self.header)?;
+
+        if self.content.previous.len() > 1 {
+            // This is a merge node
+            let cloned = Arc::make_mut(self);
+            cloned.content.persisted_as = OnceCell::new();
+            cloned.header = target_header;
+            cloned.content.previous = std::mem::take(&mut cloned.content.previous)
+                .into_iter()
+                .map(|(ratchet_steps, link)| (ratchet_steps + ratchet_diff, link))
+                .collect();
+
+            return Ok(cloned);
+        }
+
+        // It's not a merge node, we need to advance the revision
+
+        let temporal_key = self.header.derive_temporal_key();
+        let previous_link = (
+            ratchet_diff,
+            Encrypted::from_value(current_cid, &temporal_key)?,
+        );
+        let cloned = Arc::make_mut(self);
+
+        // We make sure to clear any cached states.
+        cloned.content.persisted_as = OnceCell::new();
+        cloned.header = target_header;
+        cloned.content.previous = [previous_link].into_iter().collect();
 
         Ok(cloned)
     }
@@ -798,6 +836,18 @@ impl PrivateDirectory {
     ) -> Result<Arc<Self>> {
         PrivateNode::Dir(self)
             .search_latest(forest, store)
+            .await?
+            .as_dir()
+    }
+
+    /// TODO(matheus23): DOCS
+    pub async fn search_latest_reconciled(
+        self: Arc<Self>,
+        forest: &impl PrivateForest,
+        store: &impl BlockStore,
+    ) -> Result<Arc<Self>> {
+        PrivateNode::Dir(self)
+            .search_latest_reconciled(forest, store)
             .await?
             .as_dir()
     }
@@ -1306,6 +1356,66 @@ impl PrivateDirectory {
     /// Wraps the directory in a [`PrivateNode`].
     pub fn as_node(self: &Arc<Self>) -> PrivateNode {
         PrivateNode::Dir(Arc::clone(self))
+    }
+
+    /// TODO(matheus23): DOCS
+    pub(crate) fn merge(
+        self: &mut Arc<Self>,
+        target_header: PrivateNodeHeader,
+        our_cid: Cid,
+        other: &Arc<Self>,
+        other_cid: Cid,
+    ) -> Result<()> {
+        if our_cid == other_cid {
+            return Ok(());
+        }
+
+        let other_ratchet_diff = target_header.ratchet_diff_for_merge(&other.header)?;
+
+        let our = self.prepare_next_merge(our_cid, target_header)?;
+
+        if our.content.previous.len() > 1 {
+            // This is a merge node. We'll just add its previous links.
+            our.content.previous.extend(
+                other
+                    .content
+                    .previous
+                    .iter()
+                    .cloned()
+                    .map(|(rev_back, link)| (rev_back + other_ratchet_diff, link)),
+            );
+        } else {
+            // The other node represents a write - we need to store a link to its CID
+            let temporal_key = &other.header.derive_temporal_key();
+            our.content.previous.insert((
+                other_ratchet_diff,
+                Encrypted::from_value(other_cid, temporal_key)?,
+            ));
+        }
+
+        our.content
+            .metadata
+            .tie_break_with(&other.content.metadata)?;
+
+        for (name, other_link) in other.content.entries.iter() {
+            match our.content.entries.entry(name.clone()) {
+                Entry::Vacant(vacant) => {
+                    vacant.insert(other_link.clone());
+                }
+                Entry::Occupied(mut occupied) => {
+                    let our_link = occupied.get_mut();
+                    // We just tie-break on the content cid.
+                    // It's assumed both links have been resolved to their
+                    // PrivateRef before, and we can tie-break on their content_cid.
+                    // Otherwise, how would we have gotten `our_cid` and `other_cid`
+                    // in this context? Both of these were gotten from `.store()`ing the
+                    // nodes, which includes resolving the children to `PrivateRef`s.
+                    our_link.tie_break_with(other_link)?;
+                }
+            }
+        }
+
+        Ok(())
     }
 }
 

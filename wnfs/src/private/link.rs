@@ -1,9 +1,10 @@
 use super::{
     forest::traits::PrivateForest, PrivateDirectory, PrivateFile, PrivateNode, PrivateRef,
 };
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use async_once_cell::OnceCell;
 use async_recursion::async_recursion;
+use libipld_core::{cid::Cid, multihash::MultihashGeneric};
 use rand_core::CryptoRngCore;
 use wnfs_common::{
     utils::{Arc, CondSend},
@@ -126,6 +127,13 @@ impl PrivateLink {
         }
     }
 
+    pub fn get_content_cid(&self) -> Option<&Cid> {
+        match self {
+            Self::Encrypted { private_ref, .. } => Some(&private_ref.content_cid),
+            Self::Decrypted { node } => node.get_persisted_as().get(),
+        }
+    }
+
     /// Creates a link to a directory node.
     #[inline]
     pub(crate) fn with_dir(dir: PrivateDirectory) -> Self {
@@ -136,6 +144,21 @@ impl PrivateLink {
     #[inline]
     pub(crate) fn with_file(file: PrivateFile) -> Self {
         Self::from(PrivateNode::File(Arc::new(file)))
+    }
+
+    pub(crate) fn crdt_tiebreaker(&self) -> Result<MultihashGeneric<64>> {
+        Ok(*self.get_content_cid().ok_or_else(|| anyhow!("Impossible case: CRDT tiebreaker needed on node wasn't persisted before tie breaking"))?.hash())
+    }
+
+    pub(crate) fn tie_break_with(&mut self, other_link: &PrivateLink) -> Result<()> {
+        let our_hash = self.crdt_tiebreaker()?;
+        let other_hash = other_link.crdt_tiebreaker()?;
+
+        if other_hash.digest() < our_hash.digest() {
+            *self = other_link.clone();
+        }
+
+        Ok(())
     }
 }
 
