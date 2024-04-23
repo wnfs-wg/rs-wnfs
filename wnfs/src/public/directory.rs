@@ -936,11 +936,11 @@ impl PublicDirectory {
         }
         dir.metadata.tie_break_with(&other.metadata)?;
 
-        for (name, link) in other.userland.iter() {
-            let other_node = link.resolve_value(store).await?;
+        for (name, other_link) in other.userland.iter() {
+            let other_node = other_link.resolve_value(store).await?;
             match dir.userland.entry(name.clone()) {
                 Entry::Vacant(vacant) => {
-                    vacant.insert(PublicLink::new(other_node.clone()));
+                    vacant.insert(other_link.clone());
                 }
                 Entry::Occupied(mut occupied) => {
                     let our_node = occupied.get_mut().resolve_value_mut(store).await?;
@@ -968,9 +968,21 @@ impl PublicDirectory {
                                 file.previous.insert(other_file.store(store).await?);
                             }
 
-                            if our_content_cid.hash().digest() > other_content_cid.hash().digest() {
-                                file.userland = other_file.userland.clone();
-                                file.metadata = other_file.metadata.clone();
+                            match our_content_cid
+                                .hash()
+                                .digest()
+                                .cmp(other_content_cid.hash().digest())
+                            {
+                                Ordering::Greater => {
+                                    file.userland.clone_from(&other_file.userland);
+                                    file.metadata.clone_from(&other_file.metadata);
+                                }
+                                Ordering::Equal => {
+                                    file.metadata.tie_break_with(&other_file.metadata)?;
+                                }
+                                Ordering::Less => {
+                                    // We take ours
+                                }
                             }
                         }
                         (node @ PublicNode::File(_), PublicNode::Dir(other_dir)) => {
