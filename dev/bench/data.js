@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1713446132836,
+  "lastUpdate": 1713883343309,
   "repoUrl": "https://github.com/wnfs-wg/rs-wnfs",
   "entries": {
     "Rust Benchmark": [
@@ -24565,6 +24565,126 @@ window.BENCHMARK_DATA = {
             "name": "NameAccumulator::<BigNumRug> serialization",
             "value": 641,
             "range": "± 23",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "philipp.krueger1@gmail.com",
+            "name": "Philipp Krüger",
+            "username": "matheus23"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "a0bf23c0b5ac3956ec4120e008d920f9f109e4b7",
+          "message": "fix: Public conflict reconciliation edge case on files with equal content but different metadata (#430)\n\n* chore: Improve public dir proptests to cover metadata\r\n\r\n* fix: generate better file system cases in public dire proptests\r\n\r\n* fix: public directory merge commutativity test case\r\n\r\nThe failing case was having two files with identical content, but\r\ndifferent metadata were merging non-commutativiely.\r\n\r\n* refactor: Extract out `PublicFile::merge` from `PublicDirectory::merge_helper`\r\n\r\n* chore: Avoid deprecated chrono functions\r\n\r\n* fix: `File::set_content` parameter order",
+          "timestamp": "2024-04-23T16:38:06+02:00",
+          "tree_id": "1dc33439b12696de41128cb7155d316269d85dcc",
+          "url": "https://github.com/wnfs-wg/rs-wnfs/commit/a0bf23c0b5ac3956ec4120e008d920f9f109e4b7"
+        },
+        "date": 1713883342382,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "node set",
+            "value": 16209,
+            "range": "± 329",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node set 1000 consecutive",
+            "value": 2251456,
+            "range": "± 34505",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and get",
+            "value": 46130,
+            "range": "± 710",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and remove",
+            "value": 54749,
+            "range": "± 716",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt load and decode/0",
+            "value": 3177,
+            "range": "± 110",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt set and encode",
+            "value": 63212,
+            "range": "± 2719",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt diff",
+            "value": 38090,
+            "range": "± 2581",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt merge",
+            "value": 116922,
+            "range": "± 6249",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameSegment::<BigNumDig>::new_hashed",
+            "value": 1766016,
+            "range": "± 155902",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameSegment::<BigNumRug>::new_hashed",
+            "value": 311950,
+            "range": "± 21832",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameSegment::<BigNumDig>::new(rng)",
+            "value": 1879406,
+            "range": "± 184498",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameSegment::<BigNumRug>::new(rng)",
+            "value": 597933,
+            "range": "± 18638",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameAccumulator::<BigNumDig>::add",
+            "value": 1760707,
+            "range": "± 61725",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameAccumulator::<BigNumRug>::add",
+            "value": 1002945,
+            "range": "± 17053",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameAccumulator::<BigNumDig> serialization",
+            "value": 496,
+            "range": "± 8",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameAccumulator::<BigNumRug> serialization",
+            "value": 642,
+            "range": "± 34",
             "unit": "ns/iter"
           }
         ]
