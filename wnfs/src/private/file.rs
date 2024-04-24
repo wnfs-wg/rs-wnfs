@@ -686,7 +686,7 @@ impl PrivateFile {
         store: &impl BlockStore,
         rng: &mut impl CryptoRngCore,
     ) -> Result<()> {
-        self.content.metadata = Metadata::new(time);
+        self.content.metadata.upsert_mtime(time);
         // TODO(matheus23): Use heuristic to figure out whether to store data inline
         self.content.content =
             Self::prepare_content_streaming(self.header.get_name(), content, forest, store, rng)

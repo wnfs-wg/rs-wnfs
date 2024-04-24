@@ -2477,6 +2477,217 @@ mod tests {
 }
 
 #[cfg(test)]
+mod proptests {
+    use super::PrivateDirectory;
+    use crate::{
+        private::forest::{hamt::HamtForest, traits::PrivateForest},
+        utils::proptest::{
+            FileSystemOp, FileSystemState, ReplicaOp, Replicas, ReplicasStateMachine,
+        },
+    };
+    use anyhow::Result;
+    use chrono::{DateTime, Utc};
+    use libipld_core::ipld::Ipld;
+    use proptest::test_runner;
+    use proptest_state_machine::{ReferenceStateMachine, StateMachineTest};
+    use rand::SeedableRng;
+    use rand_chacha::ChaCha12Rng;
+    use rand_core::CryptoRngCore;
+    use std::sync::{atomic::AtomicUsize, Arc};
+    use test_strategy::proptest;
+    use wnfs_common::{utils::CondSend, BlockStore, MemoryBlockStore};
+
+    #[derive(Debug, Clone)]
+    struct SimulatedReplicas {
+        store: MemoryBlockStore,
+        rng: ChaCha12Rng,
+        replicas: Vec<Replica>,
+    }
+
+    #[derive(Debug, Clone)]
+    struct Replica {
+        root_dir: Arc<PrivateDirectory>,
+        forest: Arc<HamtForest>,
+    }
+
+    impl Replica {
+        async fn apply(
+            &mut self,
+            op: FileSystemOp,
+            store: &impl BlockStore,
+            rng: &mut (impl CryptoRngCore + CondSend),
+        ) -> Result<()> {
+            let time = DateTime::<Utc>::from_timestamp(0, 0).expect("hardcoded zero timestamp");
+
+            match op {
+                FileSystemOp::Write(path, (metadata, content)) => {
+                    let file = self
+                        .root_dir
+                        .open_file_mut(&path, true, time, &mut self.forest, store, rng)
+                        .await?;
+
+                    file.get_metadata_mut()
+                        .put("test-meta", Ipld::String(metadata));
+
+                    file.set_content(content.as_bytes(), time, &mut self.forest, store, rng)
+                        .await?;
+                }
+                FileSystemOp::Remove(path) => {
+                    self.root_dir.rm(&path, true, &self.forest, store).await?;
+                }
+            }
+
+            self.root_dir.store(&mut self.forest, store, rng).await?;
+
+            Ok(())
+        }
+    }
+
+    impl StateMachineTest for SimulatedReplicas {
+        type SystemUnderTest = Self;
+        type Reference = ReplicasStateMachine<FileSystemState>;
+
+        fn init_test(
+            _ref_state: &<Self::Reference as ReferenceStateMachine>::State,
+        ) -> Self::SystemUnderTest {
+            // ref_state is always empty, we can ignore it
+            let store = MemoryBlockStore::new();
+            let mut rng = ChaCha12Rng::seed_from_u64(0);
+            let time = DateTime::<Utc>::from_timestamp(0, 0).expect("hardcoded zero timestamp");
+            let forest = Arc::new(HamtForest::new_rsa_2048(&mut rng));
+            let root_dir = PrivateDirectory::new_rc(&forest.empty_name(), time, &mut rng);
+            let replicas = vec![Replica { forest, root_dir }];
+            SimulatedReplicas {
+                store,
+                replicas,
+                rng,
+            }
+        }
+
+        fn apply(
+            state: Self::SystemUnderTest,
+            _ref_state: &<Self::Reference as ReferenceStateMachine>::State,
+            transition: <Self::Reference as ReferenceStateMachine>::Transition,
+        ) -> Self::SystemUnderTest {
+            let SimulatedReplicas {
+                store,
+                mut replicas,
+                mut rng,
+            } = state;
+
+            match transition {
+                ReplicaOp::InnerOp(replica_idx, op) => {
+                    async_std::task::block_on(replicas[replica_idx].apply(op, &store, &mut rng))
+                        .unwrap();
+                }
+                ReplicaOp::Fork(replica_idx) => {
+                    replicas.push(replicas[replica_idx].clone());
+                }
+                ReplicaOp::Merge => {
+                    async_std::task::block_on(async {
+                        let Replica {
+                            mut root_dir,
+                            mut forest,
+                        } = replicas.pop().expect("invariant: always > 0 replicas");
+
+                        while let Some(replica) = replicas.pop() {
+                            forest = Arc::new(forest.merge(&replica.forest, &store).await.unwrap());
+                        }
+
+                        root_dir = root_dir
+                            .search_latest_reconciled(&forest, &store)
+                            .await
+                            .unwrap();
+
+                        replicas.push(Replica { root_dir, forest });
+                    });
+                }
+            }
+
+            SimulatedReplicas {
+                store,
+                replicas,
+                rng,
+            }
+        }
+
+        fn check_invariants(
+            state: &Self::SystemUnderTest,
+            ref_state: &<Self::Reference as ReferenceStateMachine>::State,
+        ) {
+            async_std::task::block_on(async {
+                if state.replicas.len() != ref_state.replicas.len() {
+                    panic!(
+                        "Number of replicas got out of sync ({} vs. {})",
+                        state.replicas.len(),
+                        ref_state.replicas.len()
+                    );
+                }
+                for (idx, (replica, ref_replica)) in state
+                    .replicas
+                    .iter()
+                    .zip(ref_state.replicas.iter())
+                    .enumerate()
+                {
+                    for (file_path, concurrent_values) in ref_replica.files.iter() {
+                        let node = replica
+                            .root_dir
+                            .get_node(&file_path, true, &replica.forest, &state.store)
+                            .await
+                            .unwrap()
+                            .expect(&format!("missing node in replica {idx}: {file_path:?}"));
+
+                        let file = node.as_file().expect(&format!(
+                            "node in replica {idx} at {file_path:?} was expected to be a file"
+                        ));
+
+                        let Ipld::String(metadata) = file
+                            .get_metadata()
+                            .get("test-meta")
+                            .cloned()
+                            .expect(&format!(
+                                "file in replica {idx} at {file_path:?} is missing metadata"
+                            ))
+                        else {
+                            panic!(
+                                "file in replica {idx} at {file_path:?} has wrong metadata type"
+                            );
+                        };
+
+                        let content = String::from_utf8(
+                            file.get_content(&replica.forest, &state.store)
+                                .await
+                                .unwrap(),
+                        )
+                        .unwrap();
+
+                        let state = (metadata, content);
+
+                        if !concurrent_values.contains(&state) {
+                            panic!("expected file in replica {idx} at {file_path:?} to be in one of these states: {concurrent_values:?}, but got unrelated state {state:?}");
+                        }
+                    }
+                }
+            });
+        }
+    }
+
+    #[proptest]
+    fn test_reconciliation_from_state_machine(
+        #[strategy(ReplicasStateMachine::<FileSystemState>::sequential_strategy(1..100))]
+        generated: (Replicas<FileSystemState>, Vec<ReplicaOp<FileSystemOp>>, Option<Arc<AtomicUsize>>),
+    ) {
+        let (initial_state, transitions, seen_counter) = generated;
+        SimulatedReplicas::test_sequential(
+            test_runner::Config::default(),
+            initial_state,
+            transitions,
+            seen_counter,
+        )
+    }
+}
+
+#[cfg(test)]
 mod snapshot_tests {
     use super::*;
     use crate::{private::forest::hamt::HamtForest, utils};
