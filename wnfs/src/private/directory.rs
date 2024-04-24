@@ -1531,6 +1531,7 @@ mod tests {
     use rand_chacha::ChaCha12Rng;
     use rand_core::SeedableRng;
     use test_log::test;
+    use testresult::TestResult;
     use wnfs_common::MemoryBlockStore;
 
     #[test(async_std::test)]
@@ -2346,6 +2347,130 @@ mod tests {
         let content = loaded_file.get_content(forest, store).await?;
 
         assert_eq!(content, second);
+
+        Ok(())
+    }
+
+    #[async_std::test]
+    async fn test_conflict_reconciliation_merges_dirs() -> TestResult {
+        let rng = &mut ChaCha12Rng::from_entropy();
+        let store = &MemoryBlockStore::new();
+        let forest = &mut Arc::new(HamtForest::new_rsa_2048(rng));
+        let mut dir =
+            PrivateDirectory::new_and_store(&forest.empty_name(), Utc::now(), forest, store, rng)
+                .await?;
+
+        // Another client works on a fork
+        let mut fork = Arc::clone(&dir);
+        let forest_fork = &mut Arc::clone(forest);
+
+        dir.write(
+            &["first_client.txt".into()],
+            true,
+            Utc::now(),
+            b"first".to_vec(),
+            forest,
+            store,
+            rng,
+        )
+        .await?;
+
+        dir.store(forest, store, rng).await?;
+
+        // concurrent write
+        fork.write(
+            &["second_client.txt".into()],
+            true,
+            Utc::now(),
+            b"second".to_vec(),
+            forest_fork,
+            store,
+            rng,
+        )
+        .await?;
+
+        fork.store(forest, store, rng).await?;
+
+        // we merge the forests
+        *forest = Arc::new(forest.merge(forest_fork, store).await?);
+
+        // This should reconcile the changes
+        dir = dir.search_latest_reconciled(forest, store).await?;
+
+        let entries = dir.get_entries().cloned().collect::<Vec<_>>();
+
+        assert_eq!(
+            entries,
+            vec![
+                "first_client.txt".to_string(),
+                "second_client.txt".to_string()
+            ]
+        );
+
+        Ok(())
+    }
+
+    #[async_std::test]
+    async fn test_conflict_reconciliation_concurrently_created_files() -> TestResult {
+        let rng = &mut ChaCha12Rng::from_entropy();
+        let store = &MemoryBlockStore::new();
+        let forest = &mut Arc::new(HamtForest::new_rsa_2048(rng));
+        let mut dir =
+            PrivateDirectory::new_and_store(&forest.empty_name(), Utc::now(), forest, store, rng)
+                .await?;
+
+        dir.write(
+            &["file.txt".into()],
+            true,
+            Utc::now(),
+            b"init".to_vec(),
+            forest,
+            store,
+            rng,
+        )
+        .await?;
+
+        dir.store(forest, store, rng).await?;
+
+        // Another client works on a fork
+        let mut fork = Arc::clone(&dir);
+        let forest_fork = &mut Arc::clone(forest);
+
+        dir.write(
+            &["file.txt".into()],
+            true,
+            Utc::now(),
+            b"first".to_vec(),
+            forest,
+            store,
+            rng,
+        )
+        .await?;
+
+        dir.store(forest, store, rng).await?;
+
+        // concurrent write
+        fork.write(
+            &["file.txt".into()],
+            true,
+            Utc::now(),
+            b"second".to_vec(),
+            forest_fork,
+            store,
+            rng,
+        )
+        .await?;
+
+        fork.store(forest, store, rng).await?;
+
+        // we merge the forests
+        *forest = Arc::new(forest.merge(forest_fork, store).await?);
+
+        let content =
+            String::from_utf8(dir.read(&["file.txt".into()], true, forest, store).await?)?;
+
+        assert_ne!(content, "init");
+        assert!(content == "first" || content == "second");
 
         Ok(())
     }
