@@ -25,6 +25,20 @@ pub enum ReplicaOp<InnerOp> {
     Merge,
 }
 
+impl<I: Default> Default for Replicas<I> {
+    fn default() -> Self {
+        Self::new(I::default())
+    }
+}
+
+impl<I: Default> Replicas<I> {
+    pub fn new(inner: I) -> Self {
+        Self {
+            replicas: vec![inner],
+        }
+    }
+}
+
 impl<Inner> ReferenceStateMachine for ReplicasStateMachine<Inner>
 where
     Inner: ReferenceStateMachine,
@@ -35,11 +49,7 @@ where
     type Transition = ReplicaOp<Inner::Transition>;
 
     fn init_state() -> BoxedStrategy<Self::State> {
-        Inner::init_state()
-            .prop_map(|inner| Replicas {
-                replicas: vec![inner],
-            })
-            .boxed()
+        Inner::init_state().prop_map(Replicas::new).boxed()
     }
 
     fn transitions(state: &Self::State) -> BoxedStrategy<Self::Transition> {

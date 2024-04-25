@@ -2541,14 +2541,17 @@ mod proptests {
     use anyhow::Result;
     use chrono::{DateTime, Utc};
     use libipld_core::ipld::Ipld;
-    use proptest::test_runner;
+    use proptest::test_runner::{self, TestRunner};
     use proptest_state_machine::{ReferenceStateMachine, StateMachineTest};
     use rand::SeedableRng;
     use rand_chacha::ChaCha12Rng;
     use rand_core::CryptoRngCore;
     use std::sync::{atomic::AtomicUsize, Arc};
     use test_strategy::proptest;
-    use wnfs_common::{utils::CondSend, BlockStore, MemoryBlockStore};
+    use wnfs_common::{
+        utils::{CondSend, Sampleable},
+        BlockStore, MemoryBlockStore,
+    };
 
     #[derive(Debug, Clone)]
     struct SimulatedReplicas {
@@ -2596,39 +2599,29 @@ mod proptests {
         }
     }
 
-    impl StateMachineTest for SimulatedReplicas {
-        type SystemUnderTest = Self;
-        type Reference = ReplicasStateMachine<FileSystemState>;
-
-        fn init_test(
-            _ref_state: &<Self::Reference as ReferenceStateMachine>::State,
-        ) -> Self::SystemUnderTest {
-            // ref_state is always empty, we can ignore it
+    impl SimulatedReplicas {
+        pub fn new() -> Self {
             let store = MemoryBlockStore::new();
             let mut rng = ChaCha12Rng::seed_from_u64(0);
             let time = DateTime::<Utc>::from_timestamp(0, 0).expect("hardcoded zero timestamp");
             let forest = Arc::new(HamtForest::new_rsa_2048(&mut rng));
             let root_dir = PrivateDirectory::new_rc(&forest.empty_name(), time, &mut rng);
             let replicas = vec![Replica { forest, root_dir }];
-            SimulatedReplicas {
+            Self {
                 store,
                 replicas,
                 rng,
             }
         }
 
-        fn apply(
-            state: Self::SystemUnderTest,
-            _ref_state: &<Self::Reference as ReferenceStateMachine>::State,
-            transition: <Self::Reference as ReferenceStateMachine>::Transition,
-        ) -> Self::SystemUnderTest {
-            let SimulatedReplicas {
+        pub fn apply_op(self, op: ReplicaOp<FileSystemOp>) -> Self {
+            let Self {
                 store,
                 mut replicas,
                 mut rng,
-            } = state;
+            } = self;
 
-            match transition {
+            match op {
                 ReplicaOp::InnerOp(replica_idx, op) => {
                     async_std::task::block_on(replicas[replica_idx].apply(op, &store, &mut rng))
                         .unwrap();
@@ -2657,17 +2650,32 @@ mod proptests {
                 }
             }
 
-            SimulatedReplicas {
+            Self {
                 store,
                 replicas,
                 rng,
             }
         }
+    }
 
-        fn check_invariants(
-            state: &Self::SystemUnderTest,
-            ref_state: &<Self::Reference as ReferenceStateMachine>::State,
-        ) {
+    impl StateMachineTest for SimulatedReplicas {
+        type SystemUnderTest = Self;
+        type Reference = ReplicasStateMachine<FileSystemState>;
+
+        fn init_test(_ref_state: &Replicas<FileSystemState>) -> Self {
+            // ref_state is always empty, we can ignore it
+            SimulatedReplicas::new()
+        }
+
+        fn apply(
+            state: Self,
+            _ref_state: &Replicas<FileSystemState>,
+            transition: ReplicaOp<FileSystemOp>,
+        ) -> Self {
+            state.apply_op(transition)
+        }
+
+        fn check_invariants(state: &Self, ref_state: &Replicas<FileSystemState>) {
             async_std::task::block_on(async {
                 if state.replicas.len() != ref_state.replicas.len() {
                     panic!(
@@ -2717,6 +2725,8 @@ mod proptests {
                         let state = (metadata, content);
 
                         if !concurrent_values.contains(&state) {
+                            // println!("===== {ref_state:#?}");
+                            // println!("===== {:#?}", replica.root_dir);
                             panic!("expected file in replica {idx} at {file_path:?} to be in one of these states: {concurrent_values:?}, but got unrelated state {state:?}");
                         }
                     }
@@ -2737,6 +2747,38 @@ mod proptests {
             transitions,
             seen_counter,
         )
+    }
+
+    #[test]
+    fn test_regression() {
+        let operations = vec![
+            ReplicaOp::Merge,
+            ReplicaOp::InnerOp(
+                0,
+                FileSystemOp::Write(vec!["e".into()], ("a".into(), "a".into())),
+            ),
+            ReplicaOp::Fork(0),
+            ReplicaOp::InnerOp(
+                0,
+                FileSystemOp::Write(vec!["a".into(), "e".into()], ("b".into(), "a".into())),
+            ),
+            ReplicaOp::Merge,
+        ];
+
+        let mut runner = TestRunner::deterministic();
+        let mut ref_state =
+            ReplicasStateMachine::<FileSystemState>::init_state().sample(&mut runner);
+        let mut state = SimulatedReplicas::init_test(&ref_state);
+
+        SimulatedReplicas::check_invariants(&state, &ref_state);
+        for op in operations {
+            ref_state = ReplicasStateMachine::<FileSystemState>::apply(ref_state, &op);
+            state = SimulatedReplicas::apply(state, &ref_state, op);
+            SimulatedReplicas::check_invariants(&state, &ref_state);
+        }
+
+        println!("{ref_state:#?}");
+        println!("{:#?}", state.replicas[0].root_dir);
     }
 }
 

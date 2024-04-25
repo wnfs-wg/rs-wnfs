@@ -91,10 +91,7 @@ impl ReferenceStateMachine for FileSystemState {
     type Transition = FileSystemOp;
 
     fn init_state() -> BoxedStrategy<Self::State> {
-        Just(FileSystemState {
-            files: BTreeMap::new(),
-        })
-        .boxed()
+        Just(FileSystemState::default()).boxed()
     }
 
     fn transitions(state: &Self::State) -> BoxedStrategy<Self::Transition> {
