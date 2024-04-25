@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1713883343309,
+  "lastUpdate": 1714053914396,
   "repoUrl": "https://github.com/wnfs-wg/rs-wnfs",
   "entries": {
     "Rust Benchmark": [
@@ -24685,6 +24685,126 @@ window.BENCHMARK_DATA = {
             "name": "NameAccumulator::<BigNumRug> serialization",
             "value": 642,
             "range": "± 34",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "philipp.krueger1@gmail.com",
+            "name": "Philipp Krüger",
+            "username": "matheus23"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "abfefefbb63aec99633811c45fe33343c976ff73",
+          "message": "feat: Implement conflict reconciliation for private directories (#431)\n\n* feat: Implement conflict reconciliation for private directories\r\n\r\n* fix: Make `header` public again\r\n\r\n* chore: write basic reconciliation unit tests\r\n\r\n* chore: Write proptest state machine utilities & proptest private reconciliation\r\n\r\n* chore: Write better `Debug` impls\r\n\r\n* feat: Prioritize directories over files during private directory merge\r\n\r\n* chore: Try extracting out a failing testcase\r\n\r\n* fix: Regression test & mock file system merge\r\n\r\n* chore: Found failing test case\r\n\r\n* chore: Try associating replicas with a vector clock\r\n\r\n* refactor: Don't try to state machine proptest private reconciliation\r\n\r\n* refactor: Remove unused dependency\r\n\r\n* feat: Commit `Cargo.lock` and update lockfile\r\n\r\n* chore: docs",
+          "timestamp": "2024-04-25T16:00:52+02:00",
+          "tree_id": "6bb2b313f3cdabd221b103e591c668b5d0cfa039",
+          "url": "https://github.com/wnfs-wg/rs-wnfs/commit/abfefefbb63aec99633811c45fe33343c976ff73"
+        },
+        "date": 1714053913381,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "node set",
+            "value": 16912,
+            "range": "± 126",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node set 1000 consecutive",
+            "value": 2267680,
+            "range": "± 25285",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and get",
+            "value": 45417,
+            "range": "± 377",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and remove",
+            "value": 53716,
+            "range": "± 605",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt load and decode/0",
+            "value": 3156,
+            "range": "± 12",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt set and encode",
+            "value": 64613,
+            "range": "± 3568",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt diff",
+            "value": 38988,
+            "range": "± 2304",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt merge",
+            "value": 115774,
+            "range": "± 6618",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameSegment::<BigNumDig>::new_hashed",
+            "value": 1806954,
+            "range": "± 169105",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameSegment::<BigNumRug>::new_hashed",
+            "value": 311827,
+            "range": "± 24490",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameSegment::<BigNumDig>::new(rng)",
+            "value": 1803252,
+            "range": "± 172243",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameSegment::<BigNumRug>::new(rng)",
+            "value": 600638,
+            "range": "± 71462",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameAccumulator::<BigNumDig>::add",
+            "value": 1771986,
+            "range": "± 56324",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameAccumulator::<BigNumRug>::add",
+            "value": 1001885,
+            "range": "± 25704",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameAccumulator::<BigNumDig> serialization",
+            "value": 482,
+            "range": "± 19",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameAccumulator::<BigNumRug> serialization",
+            "value": 646,
+            "range": "± 40",
             "unit": "ns/iter"
           }
         ]
