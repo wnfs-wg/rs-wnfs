@@ -422,7 +422,12 @@ impl PrivateDirectory {
         Ok(cloned)
     }
 
-    /// TODO(matheus23): DOCS
+    /// Call this function to prepare this directory for conflict reconciliation merge changes.
+    /// Advances this node to the revision given in `target_header`.
+    /// Generates another previous link, unless this node is already a merge node, then this
+    /// simply updates all previous links to use the correct steps back.
+    /// Merge nodes preferably just grow in size. This allows them to combine more nicely
+    /// without causing further conflicts.
     pub(crate) fn prepare_next_merge<'a>(
         self: &'a mut Arc<Self>,
         current_cid: Cid,
@@ -840,7 +845,10 @@ impl PrivateDirectory {
             .as_dir()
     }
 
-    /// TODO(matheus23): DOCS
+    /// Like `search_latest`, but does a linear search and picks up any
+    /// writes that may need to be reconciled in the process.
+    /// If it finds that there's multiple concurrent writes to reconcile, then
+    /// it creates a merged directory and returns that.
     pub async fn search_latest_reconciled(
         self: Arc<Self>,
         forest: &impl PrivateForest,
@@ -1358,7 +1366,16 @@ impl PrivateDirectory {
         PrivateNode::Dir(Arc::clone(self))
     }
 
-    /// TODO(matheus23): DOCS
+    /// Merges two directories that have been stored before together
+    /// (their CIDs must be passed in).
+    /// This only merges the directories shallowly. It doesn't recursively merge
+    /// them. This is handled by directories calling `search_latest_reconciled`
+    /// on every level.
+    /// Every directory should have a corresponding "identity directory" which is the
+    /// empty directory, which when merged, results in no change.
+    /// This function is both commutative and associative.
+    /// If there's a conflict, it prefers keeping the directory, then tie-breaks on
+    /// the private ref.
     pub(crate) async fn merge(
         self: &mut Arc<Self>,
         target_header: PrivateNodeHeader,

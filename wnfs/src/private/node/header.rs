@@ -216,7 +216,8 @@ impl PrivateNodeHeader {
         Ok(header)
     }
 
-    /// TODO(matheus23): DOCS
+    /// Returns the multivalue of nodes (and their corresponding CIDs) from
+    /// the forest at this header's revision.
     pub(crate) async fn get_multivalue(
         &self,
         forest: &impl PrivateForest,

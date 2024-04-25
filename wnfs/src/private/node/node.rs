@@ -418,7 +418,8 @@ impl PrivateNode {
         }
     }
 
-    /// TODO(matheus23): DOCS
+    /// Merges a non-empty set of conflicting private nodes together
+    /// by merging them pair-wise.
     pub(crate) async fn merge(
         header: PrivateNodeHeader,
         (cid, node): (Cid, PrivateNode),

@@ -753,7 +753,12 @@ impl PrivateFile {
         Ok(cloned)
     }
 
-    /// TODO(matheus23): DOCS
+    /// Call this function to prepare this file for conflict reconciliation merge changes.
+    /// Advances this node to the revision given in `target_header`.
+    /// Generates another previous link, unless this node is already a merge node, then this
+    /// simply updates all previous links to use the correct steps back.
+    /// Merge nodes preferably just grow in size. This allows them to combine more nicely
+    /// without causing further conflicts.
     pub(crate) fn prepare_next_merge<'a>(
         self: &'a mut Arc<Self>,
         current_cid: Cid,
@@ -875,7 +880,10 @@ impl PrivateFile {
         PrivateNode::File(Arc::clone(self))
     }
 
-    /// TODO(matheus23): DOCS
+    /// Merges two private files together.
+    /// The files must have been stored before (that's the CIDs that
+    /// are passed in).
+    /// This function is both commutative and associative.
     pub(crate) fn merge(
         self: &mut Arc<Self>,
         target_header: PrivateNodeHeader,
