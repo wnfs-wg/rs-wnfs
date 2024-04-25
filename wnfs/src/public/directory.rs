@@ -4,7 +4,11 @@ use super::{
     PublicDirectorySerializable, PublicFile, PublicLink, PublicNode, PublicNodeSerializable,
 };
 use crate::{
-    error::FsError, is_readable_wnfs_version, traits::Id, utils, SearchResult, WNFS_VERSION,
+    error::FsError,
+    is_readable_wnfs_version,
+    traits::Id,
+    utils::{self, OnceCellDebug},
+    SearchResult, WNFS_VERSION,
 };
 use anyhow::{bail, ensure, Result};
 use async_once_cell::OnceCell;
@@ -36,7 +40,6 @@ use wnfs_common::{
 ///
 /// println!("Directory: {:?}", dir);
 /// ```
-#[derive(Debug)]
 pub struct PublicDirectory {
     persisted_as: OnceCell<Cid>,
     pub(crate) metadata: Metadata,
@@ -868,7 +871,7 @@ impl PublicDirectory {
     /// See the documentation for the `Reconciliation` enum for more information.
     pub async fn reconcile(
         self: &mut Arc<Self>,
-        other: Arc<Self>,
+        other: &Arc<Self>,
         store: &impl BlockStore,
     ) -> Result<Reconciliation> {
         let causal_order = self.clone().causal_compare(other.clone(), store).await?;
@@ -877,11 +880,11 @@ impl PublicDirectory {
             Some(Ordering::Equal) => Reconciliation::AlreadyAhead,
             Some(Ordering::Greater) => Reconciliation::AlreadyAhead,
             Some(Ordering::Less) => {
-                *self = other;
+                self.clone_from(other);
                 Reconciliation::FastForward
             }
             None => {
-                let file_tie_breaks = self.merge(&other, store).await?;
+                let file_tie_breaks = self.merge(other, store).await?;
                 Reconciliation::Merged { file_tie_breaks }
             }
         })
@@ -972,6 +975,27 @@ impl PublicDirectory {
         }
 
         Ok(())
+    }
+}
+
+impl std::fmt::Debug for PublicDirectory {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PublicDirectory")
+            .field(
+                "persisted_as",
+                &OnceCellDebug(self.persisted_as.get().map(|cid| format!("{cid}"))),
+            )
+            .field("metadata", &self.metadata)
+            .field("userland", &self.userland)
+            .field(
+                "previous",
+                &self
+                    .previous
+                    .iter()
+                    .map(|cid| format!("{cid}"))
+                    .collect::<Vec<_>>(),
+            )
+            .finish()
     }
 }
 
@@ -1454,6 +1478,37 @@ mod tests {
             yet_another_dir.previous.iter().collect::<Vec<_>>(),
             vec![previous_cid]
         );
+    }
+
+    #[async_std::test]
+    async fn reconciliation_of_concurrent_write_and_remove() -> TestResult {
+        // This path we first write, then both replicas have it, then one replica removes it
+        let path1 = &["a".into(), "b.txt".into()];
+        // This path the second replica writes after forking
+        let path2 = &["file.txt".into()];
+        // we should be left with `b.txt` removed, while `file.txt` is there.
+
+        let time = Utc::now();
+        let store = &MemoryBlockStore::new();
+        let root_dir = &mut PublicDirectory::new_rc(time);
+        root_dir.store(store).await?;
+        root_dir.write(path1, vec![0], time, store).await?;
+        root_dir.store(store).await?;
+
+        let fork = &mut Arc::clone(root_dir);
+        fork.rm(path1, store).await?;
+        fork.store(store).await?;
+
+        root_dir.write(path2, vec![0], time, store).await?;
+        root_dir.store(store).await?;
+
+        root_dir.reconcile(fork, store).await?;
+
+        assert!(root_dir.get_node(path1, store).await?.is_none());
+
+        assert_eq!(root_dir.read(path2, store).await?, vec![0]);
+
+        Ok(())
     }
 }
 

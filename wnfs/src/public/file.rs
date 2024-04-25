@@ -1,7 +1,9 @@
 //! Public fs file node.
 
 use super::{PublicFileSerializable, PublicNodeSerializable};
-use crate::{error::FsError, is_readable_wnfs_version, traits::Id, WNFS_VERSION};
+use crate::{
+    error::FsError, is_readable_wnfs_version, traits::Id, utils::OnceCellDebug, WNFS_VERSION,
+};
 use anyhow::{anyhow, bail, Result};
 use async_once_cell::OnceCell;
 use chrono::{DateTime, Utc};
@@ -28,7 +30,6 @@ use wnfs_unixfs_file::{builder::FileBuilder, unixfs::UnixFsFile};
 ///
 /// println!("File: {:?}", file);
 /// ```
-#[derive(Debug)]
 pub struct PublicFile {
     persisted_as: OnceCell<Cid>,
     pub(crate) metadata: Metadata,
@@ -542,6 +543,27 @@ impl PublicFile {
 
         // Returning true to indicate that we needed to tie-break
         Ok(true)
+    }
+}
+
+impl std::fmt::Debug for PublicFile {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PublicFile")
+            .field(
+                "persisted_as",
+                &OnceCellDebug(self.persisted_as.get().map(|cid| format!("{cid}"))),
+            )
+            .field("metadata", &self.metadata)
+            .field("userland", &self.userland)
+            .field(
+                "previous",
+                &self
+                    .previous
+                    .iter()
+                    .map(|cid| format!("{cid}"))
+                    .collect::<Vec<_>>(),
+            )
+            .finish()
     }
 }
 
