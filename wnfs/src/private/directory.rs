@@ -2759,8 +2759,8 @@ mod proptests {
             ),
             ReplicaOp::Fork(0),
             ReplicaOp::InnerOp(
-                0,
-                FileSystemOp::Write(vec!["a".into(), "e".into()], ("b".into(), "a".into())),
+                1,
+                FileSystemOp::Write(vec!["e".into()], ("a".into(), "b".into())),
             ),
             ReplicaOp::Merge,
         ];
@@ -2776,9 +2776,6 @@ mod proptests {
             state = SimulatedReplicas::apply(state, &ref_state, op);
             SimulatedReplicas::check_invariants(&state, &ref_state);
         }
-
-        println!("{ref_state:#?}");
-        println!("{:#?}", state.replicas[0].root_dir);
     }
 }
 

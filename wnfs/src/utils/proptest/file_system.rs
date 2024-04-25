@@ -48,20 +48,19 @@ impl FileSystemState {
     }
 
     pub fn merge_with(&mut self, other: &Self) {
-        // Lots of opportunities for algorithmic improvement
-        self.files.retain(|file_path, _| {
-            !other
-                .files
-                .keys()
-                .any(|other_path| other_path.starts_with(&file_path))
-        });
+        // Lots of opportunities for algorithmic improvement (we re-calculate the same subset a bunch)
+        let other_dirs = other.all_directories(BTreeSet::new());
+        let our_dirs = self.all_directories(BTreeSet::new());
 
-        let our_paths = self.files.keys().cloned().collect::<Vec<_>>();
-        let paths_to_copy = other.files.iter().filter(|(file_path, _)| {
-            !our_paths
-                .iter()
-                .any(|our_path| our_path.starts_with(&file_path))
-        });
+        // retain only file paths that weren't overwritten by the other file system's directories
+        self.files
+            .retain(|file_path, _| !other_dirs.contains(file_path));
+
+        // only copy file paths that weren't overwritten by our file system's directories
+        let paths_to_copy = other
+            .files
+            .iter()
+            .filter(|(file_path, _)| !our_dirs.contains(*file_path));
 
         for (other_path, other_file) in paths_to_copy {
             match self.files.entry(other_path.clone()) {
@@ -131,7 +130,9 @@ impl ReferenceStateMachine for FileSystemState {
             FileSystemOp::Write(path, content) => {
                 state
                     .files
-                    .insert(path.clone(), BTreeSet::from([content.clone()]));
+                    .entry(path.clone())
+                    .or_default()
+                    .insert(content.clone());
             }
             FileSystemOp::Remove(path) => {
                 state.files = state
