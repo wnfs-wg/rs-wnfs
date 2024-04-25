@@ -11,16 +11,18 @@ use anyhow::{bail, Result};
 use async_once_cell::OnceCell;
 use async_recursion::async_recursion;
 use chrono::{DateTime, Utc};
-use futures::StreamExt;
 use libipld_core::cid::Cid;
 use rand_core::CryptoRngCore;
 use skip_ratchet::{JumpSize, RatchetSeeker};
-use std::{cmp::Ordering, collections::BTreeSet, fmt::Debug};
+use std::{
+    cmp::Ordering,
+    collections::{BTreeMap, BTreeSet},
+    fmt::Debug,
+};
 use wnfs_common::{
     utils::{Arc, CondSend},
     BlockStore,
 };
-use wnfs_hamt::Hasher;
 use wnfs_nameaccumulator::Name;
 
 //--------------------------------------------------------------------------------------------------
@@ -183,10 +185,6 @@ impl PrivateNode {
     /// If this node is a merge-node, it has two or more previous Cids.
     /// A single previous Cid must be from the previous revision, but all
     /// other Cids may appear in even older revisions.
-    ///
-    /// The previous links is `None`, it doesn't have previous Cids.
-    /// The node is malformed if the previous links are `Some`, but
-    /// the `BTreeSet` inside is empty.
     #[allow(clippy::mutable_key_type)]
     pub fn get_previous(&self) -> &BTreeSet<(usize, Encrypted<Cid>)> {
         match self {
@@ -382,6 +380,87 @@ impl PrivateNode {
             .ok_or(FsError::NotFound.into())
     }
 
+    /// Go to the latest known node and do conflict reconciliation, if multiple
+    /// concurrent writes are detected.
+    pub async fn reconcile_latest(
+        &mut self,
+        forest: &mut impl PrivateForest,
+        store: &impl BlockStore,
+        rng: &mut (impl CryptoRngCore + CondSend),
+    ) -> Result<()> {
+        self.store(forest, store, rng).await?;
+        self.search_latest_reconciled(forest, store).await?;
+        Ok(())
+    }
+
+    /// Will reconcile this node with any newer changes fetched from the
+    /// PrivateForest. But will overwrite any in-memory changes that haven't been
+    /// persisted yet.
+    pub async fn search_latest_reconciled(
+        &self,
+        forest: &impl PrivateForest,
+        store: &impl BlockStore,
+    ) -> Result<PrivateNode> {
+        let mut header = self.get_header().clone();
+        let mut unmerged_heads = header.seek_unmerged_heads(forest, store).await?;
+
+        if let Some((cid, head)) = unmerged_heads.pop_first() {
+            if unmerged_heads.is_empty() {
+                // There was only one unmerged head, we can fast forward
+                Ok(head)
+            } else {
+                // We need to create a merge node
+                Self::merge(header, (cid, head), unmerged_heads, forest, store).await
+            }
+        } else {
+            // If None, then there's nothing to merge in (and this node was never stored)
+            Ok(self.clone())
+        }
+    }
+
+    /// Merges a non-empty set of conflicting private nodes together
+    /// by merging them pair-wise.
+    pub(crate) async fn merge(
+        header: PrivateNodeHeader,
+        (cid, node): (Cid, PrivateNode),
+        nodes: BTreeMap<Cid, PrivateNode>,
+        forest: &impl PrivateForest,
+        store: &impl BlockStore,
+    ) -> Result<PrivateNode> {
+        match node {
+            PrivateNode::File(mut file) => {
+                // They *should* all be files, but we won't error out if they're not.
+                let files = nodes
+                    .into_iter()
+                    .filter_map(|(cid, node)| node.as_file().ok().map(|file| (cid, file)))
+                    .collect::<BTreeMap<_, _>>();
+
+                for (other_cid, other_file) in files {
+                    file.merge(header.clone(), cid, &other_file, other_cid)?;
+                }
+
+                Ok(PrivateNode::File(file))
+            }
+            PrivateNode::Dir(mut dir) => {
+                // They *should* all be directories, but we won't error out if one of them isn't.
+                let dirs = nodes
+                    .into_iter()
+                    .filter_map(|(cid, node)| node.as_dir().ok().map(|dir| (cid, dir)))
+                    .collect::<BTreeMap<_, _>>();
+
+                for (other_cid, other_dir) in dirs {
+                    // Need to pass in rng & mutable forest access
+                    // for the cases where we haven't yet written a node to
+                    // the forest, but need its hash for tie-breaking.
+                    dir.merge(header.clone(), cid, &other_dir, other_cid, forest, store)
+                        .await?;
+                }
+
+                Ok(PrivateNode::Dir(dir))
+            }
+        }
+    }
+
     /// Seek ahead to the latest revision in this node's history.
     ///
     /// The result are all nodes from the latest revision, each one
@@ -392,7 +471,6 @@ impl PrivateNode {
         store: &impl BlockStore,
     ) -> Result<Vec<PrivateNode>> {
         let header = self.get_header();
-        let mountpoint = header.name.parent();
 
         let current_name = &header.get_revision_name();
         if !forest.has(current_name, store).await? {
@@ -426,21 +504,12 @@ impl PrivateNode {
         }
 
         current_header.update_ratchet(search.current().clone());
-
-        let name_hash =
-            blake3::Hasher::hash(&forest.get_accumulated_name(&current_header.get_revision_name()));
-
-        forest
-            .get_multivalue_by_hash(
-                &name_hash,
-                &current_header.derive_temporal_key(),
-                store,
-                mountpoint,
-            )
-            .collect::<Vec<Result<PrivateNode>>>()
-            .await
+        Ok(current_header
+            .get_multivalue(forest, store)
+            .await?
             .into_iter()
-            .collect::<Result<Vec<_>>>()
+            .map(|(_, node)| node)
+            .collect())
     }
 
     /// Tries to deserialize and decrypt a PrivateNode at provided PrivateRef

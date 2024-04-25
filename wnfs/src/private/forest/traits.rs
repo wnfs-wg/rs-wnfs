@@ -140,7 +140,7 @@ pub trait PrivateForest: CondSync {
         temporal_key: &'a TemporalKey,
         store: &'a impl BlockStore,
         parent_name: Option<Name>,
-    ) -> BoxStream<'a, Result<PrivateNode>>
+    ) -> BoxStream<'a, Result<(Cid, PrivateNode)>>
     where
         Self: Sized,
     {
@@ -152,7 +152,7 @@ pub trait PrivateForest: CondSync {
                 Ok(Some(cids)) => {
                     for cid in cids {
                         match PrivateNode::from_cid(*cid, temporal_key, self, store, parent_name.clone()).await {
-                            Ok(node) => yield Ok(node),
+                            Ok(node) => yield Ok((*cid, node)),
                             Err(e) if e.downcast_ref::<CryptError>().is_some() => {
                                 // we likely matched a PrivateNodeHeader instead of a PrivateNode.
                                 // we skip it

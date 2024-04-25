@@ -10,7 +10,8 @@ use chrono::{DateTime, Utc};
 use libipld_core::cid::Cid;
 use rand_core::CryptoRngCore;
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    cmp::Ordering,
+    collections::{btree_map::Entry, BTreeMap, BTreeSet},
     fmt::Debug,
 };
 use wnfs_common::{
@@ -48,7 +49,6 @@ pub struct PrivateDirectory {
     pub(crate) content: PrivateDirectoryContent,
 }
 
-#[derive(Debug)]
 pub(crate) struct PrivateDirectoryContent {
     pub(crate) persisted_as: OnceCell<Cid>,
     pub(crate) previous: BTreeSet<(usize, Encrypted<Cid>)>,
@@ -260,7 +260,7 @@ impl PrivateDirectory {
                     .resolve_node(forest, store, Some(self.header.name.clone()))
                     .await?;
                 if search_latest {
-                    Some(private_node.search_latest(forest, store).await?)
+                    Some(private_node.search_latest_reconciled(forest, store).await?)
                 } else {
                     Some(private_node.clone())
                 }
@@ -283,7 +283,7 @@ impl PrivateDirectory {
                     .resolve_node_mut(forest, store, Some(self.header.name.clone()))
                     .await?;
                 if search_latest {
-                    *private_node = private_node.search_latest(forest, store).await?;
+                    *private_node = private_node.search_latest_reconciled(forest, store).await?;
                 }
 
                 Some(private_node)
@@ -302,7 +302,7 @@ impl PrivateDirectory {
         let mut working_dir = Arc::clone(self);
 
         if search_latest {
-            working_dir = working_dir.search_latest(forest, store).await?;
+            working_dir = working_dir.search_latest_reconciled(forest, store).await?;
         }
 
         for (depth, segment) in path_segments.iter().enumerate() {
@@ -329,7 +329,7 @@ impl PrivateDirectory {
         store: &impl BlockStore,
     ) -> Result<SearchResult<&'a mut Self>> {
         if search_latest {
-            *self = self.clone().search_latest(forest, store).await?;
+            *self = self.clone().search_latest_reconciled(forest, store).await?;
         }
 
         let mut working_dir = self.prepare_next_revision()?;
@@ -418,6 +418,49 @@ impl PrivateDirectory {
         cloned.content.persisted_as = OnceCell::new();
         cloned.content.previous = [previous_link].into_iter().collect();
         cloned.header.advance_ratchet();
+
+        Ok(cloned)
+    }
+
+    /// Call this function to prepare this directory for conflict reconciliation merge changes.
+    /// Advances this node to the revision given in `target_header`.
+    /// Generates another previous link, unless this node is already a merge node, then this
+    /// simply updates all previous links to use the correct steps back.
+    /// Merge nodes preferably just grow in size. This allows them to combine more nicely
+    /// without causing further conflicts.
+    pub(crate) fn prepare_next_merge<'a>(
+        self: &'a mut Arc<Self>,
+        current_cid: Cid,
+        target_header: PrivateNodeHeader,
+    ) -> Result<&'a mut Self> {
+        let ratchet_diff = target_header.ratchet_diff_for_merge(&self.header)?;
+
+        if self.content.previous.len() > 1 {
+            // This is a merge node
+            let cloned = Arc::make_mut(self);
+            cloned.content.persisted_as = OnceCell::new();
+            cloned.header = target_header;
+            cloned.content.previous = std::mem::take(&mut cloned.content.previous)
+                .into_iter()
+                .map(|(ratchet_steps, link)| (ratchet_steps + ratchet_diff, link))
+                .collect();
+
+            return Ok(cloned);
+        }
+
+        // It's not a merge node, we need to advance the revision
+
+        let temporal_key = self.header.derive_temporal_key();
+        let previous_link = (
+            ratchet_diff,
+            Encrypted::from_value(current_cid, &temporal_key)?,
+        );
+        let cloned = Arc::make_mut(self);
+
+        // We make sure to clear any cached states.
+        cloned.content.persisted_as = OnceCell::new();
+        cloned.header = target_header;
+        cloned.content.previous = [previous_link].into_iter().collect();
 
         Ok(cloned)
     }
@@ -798,6 +841,21 @@ impl PrivateDirectory {
     ) -> Result<Arc<Self>> {
         PrivateNode::Dir(self)
             .search_latest(forest, store)
+            .await?
+            .as_dir()
+    }
+
+    /// Like `search_latest`, but does a linear search and picks up any
+    /// writes that may need to be reconciled in the process.
+    /// If it finds that there's multiple concurrent writes to reconcile, then
+    /// it creates a merged directory and returns that.
+    pub async fn search_latest_reconciled(
+        self: Arc<Self>,
+        forest: &impl PrivateForest,
+        store: &impl BlockStore,
+    ) -> Result<Arc<Self>> {
+        PrivateNode::Dir(self)
+            .search_latest_reconciled(forest, store)
             .await?
             .as_dir()
     }
@@ -1307,6 +1365,128 @@ impl PrivateDirectory {
     pub fn as_node(self: &Arc<Self>) -> PrivateNode {
         PrivateNode::Dir(Arc::clone(self))
     }
+
+    /// Merges two directories that have been stored before together
+    /// (their CIDs must be passed in).
+    /// This only merges the directories shallowly. It doesn't recursively merge
+    /// them. This is handled by directories calling `search_latest_reconciled`
+    /// on every level.
+    /// Every directory should have a corresponding "identity directory" which is the
+    /// empty directory, which when merged, results in no change.
+    /// This function is both commutative and associative.
+    /// If there's a conflict, it prefers keeping the directory, then tie-breaks on
+    /// the private ref.
+    pub(crate) async fn merge(
+        self: &mut Arc<Self>,
+        target_header: PrivateNodeHeader,
+        our_cid: Cid,
+        other: &Arc<Self>,
+        other_cid: Cid,
+        forest: &impl PrivateForest,
+        store: &impl BlockStore,
+    ) -> Result<()> {
+        if our_cid == other_cid {
+            return Ok(());
+        }
+
+        let other_ratchet_diff = target_header.ratchet_diff_for_merge(&other.header)?;
+
+        let parent_name = Some(self.header.name.clone());
+
+        let our = self.prepare_next_merge(our_cid, target_header)?;
+
+        if our.content.previous.len() > 1 {
+            // This is a merge node. We'll just add its previous links.
+            our.content.previous.extend(
+                other
+                    .content
+                    .previous
+                    .iter()
+                    .cloned()
+                    .map(|(rev_back, link)| (rev_back + other_ratchet_diff, link)),
+            );
+        } else {
+            // The other node represents a write - we need to store a link to its CID
+            let temporal_key = &other.header.derive_temporal_key();
+            our.content.previous.insert((
+                other_ratchet_diff,
+                Encrypted::from_value(other_cid, temporal_key)?,
+            ));
+        }
+
+        our.content
+            .metadata
+            .tie_break_with(&other.content.metadata)?;
+
+        for (name, other_link) in other.content.entries.iter() {
+            match our.content.entries.entry(name.clone()) {
+                Entry::Vacant(vacant) => {
+                    vacant.insert(other_link.clone());
+                }
+                Entry::Occupied(mut occupied) => {
+                    let our_link = occupied.get_mut();
+
+                    // We just tie-break on the content cid.
+                    // It's assumed both links have been resolved to their
+                    // PrivateRef before, and we can tie-break on their content_cid.
+                    // Otherwise, how would we have gotten `our_cid` and `other_cid`
+                    // in this context? Both of these were gotten from `.store()`ing the
+                    // nodes, which includes resolving the children to `PrivateRef`s.
+                    let our_content_hash = our_link.crdt_tiebreaker()?;
+                    let other_content_hash = other_link.crdt_tiebreaker()?;
+
+                    let ord = our_content_hash.cmp(&other_content_hash);
+                    if ord == Ordering::Equal {
+                        // there's nothing for us to do, they're equal
+                    } else {
+                        let our_node = our_link
+                            .resolve_node_mut(forest, store, parent_name.clone())
+                            .await?;
+
+                        let other_node = other_link
+                            .resolve_node(forest, store, parent_name.clone())
+                            .await?;
+
+                        match (our_node, other_node) {
+                            (PrivateNode::Dir(_), PrivateNode::File(_)) => {
+                                // our node wins, we don't need to do anything.
+                            }
+                            (PrivateNode::File(_), PrivateNode::Dir(_)) => {
+                                // a directory wins over a file
+                                *our_link = other_link.clone();
+                            }
+                            // file vs. file and dir vs. dir cases
+                            _ => {
+                                // We tie-break as usual
+                                if ord == Ordering::Greater {
+                                    *our_link = other_link.clone();
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        Ok(())
+    }
+}
+
+impl Debug for PrivateDirectoryContent {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PrivateDirectoryContent")
+            .field(
+                "persisted_as",
+                &self
+                    .persisted_as
+                    .get()
+                    .map_or("None".to_string(), |cid| format!("Some({cid})")),
+            )
+            .field("previous", &self.previous)
+            .field("metadata", &self.metadata)
+            .field("entries", &self.entries)
+            .finish()
+    }
 }
 
 impl PrivateDirectoryContent {
@@ -1421,6 +1601,7 @@ mod tests {
     use rand_chacha::ChaCha12Rng;
     use rand_core::SeedableRng;
     use test_log::test;
+    use testresult::TestResult;
     use wnfs_common::MemoryBlockStore;
 
     #[test(async_std::test)]
@@ -2236,6 +2417,130 @@ mod tests {
         let content = loaded_file.get_content(forest, store).await?;
 
         assert_eq!(content, second);
+
+        Ok(())
+    }
+
+    #[async_std::test]
+    async fn test_conflict_reconciliation_merges_dirs() -> TestResult {
+        let rng = &mut ChaCha12Rng::from_entropy();
+        let store = &MemoryBlockStore::new();
+        let forest = &mut Arc::new(HamtForest::new_rsa_2048(rng));
+        let mut dir =
+            PrivateDirectory::new_and_store(&forest.empty_name(), Utc::now(), forest, store, rng)
+                .await?;
+
+        // Another client works on a fork
+        let mut fork = Arc::clone(&dir);
+        let forest_fork = &mut Arc::clone(forest);
+
+        dir.write(
+            &["first_client.txt".into()],
+            true,
+            Utc::now(),
+            b"first".to_vec(),
+            forest,
+            store,
+            rng,
+        )
+        .await?;
+
+        dir.store(forest, store, rng).await?;
+
+        // concurrent write
+        fork.write(
+            &["second_client.txt".into()],
+            true,
+            Utc::now(),
+            b"second".to_vec(),
+            forest_fork,
+            store,
+            rng,
+        )
+        .await?;
+
+        fork.store(forest, store, rng).await?;
+
+        // we merge the forests
+        *forest = Arc::new(forest.merge(forest_fork, store).await?);
+
+        // This should reconcile the changes
+        dir = dir.search_latest_reconciled(forest, store).await?;
+
+        let entries = dir.get_entries().cloned().collect::<Vec<_>>();
+
+        assert_eq!(
+            entries,
+            vec![
+                "first_client.txt".to_string(),
+                "second_client.txt".to_string()
+            ]
+        );
+
+        Ok(())
+    }
+
+    #[async_std::test]
+    async fn test_conflict_reconciliation_concurrently_created_files() -> TestResult {
+        let rng = &mut ChaCha12Rng::from_entropy();
+        let store = &MemoryBlockStore::new();
+        let forest = &mut Arc::new(HamtForest::new_rsa_2048(rng));
+        let mut dir =
+            PrivateDirectory::new_and_store(&forest.empty_name(), Utc::now(), forest, store, rng)
+                .await?;
+
+        dir.write(
+            &["file.txt".into()],
+            true,
+            Utc::now(),
+            b"init".to_vec(),
+            forest,
+            store,
+            rng,
+        )
+        .await?;
+
+        dir.store(forest, store, rng).await?;
+
+        // Another client works on a fork
+        let mut fork = Arc::clone(&dir);
+        let forest_fork = &mut Arc::clone(forest);
+
+        dir.write(
+            &["file.txt".into()],
+            true,
+            Utc::now(),
+            b"first".to_vec(),
+            forest,
+            store,
+            rng,
+        )
+        .await?;
+
+        dir.store(forest, store, rng).await?;
+
+        // concurrent write
+        fork.write(
+            &["file.txt".into()],
+            true,
+            Utc::now(),
+            b"second".to_vec(),
+            forest_fork,
+            store,
+            rng,
+        )
+        .await?;
+
+        fork.store(forest, store, rng).await?;
+
+        // we merge the forests
+        *forest = Arc::new(forest.merge(forest_fork, store).await?);
+
+        let content =
+            String::from_utf8(dir.read(&["file.txt".into()], true, forest, store).await?)?;
+
+        assert_ne!(content, "init");
+        assert!(content == "first" || content == "second");
 
         Ok(())
     }

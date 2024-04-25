@@ -3,7 +3,9 @@ use super::{
     PrivateNode, PrivateNodeContentSerializable, PrivateNodeHeader, PrivateRef, SnapshotKey,
     TemporalKey, AUTHENTICATION_TAG_SIZE, BLOCK_SEGMENT_DSI, HIDING_SEGMENT_DSI, NONCE_SIZE,
 };
-use crate::{error::FsError, is_readable_wnfs_version, traits::Id, WNFS_VERSION};
+use crate::{
+    error::FsError, is_readable_wnfs_version, traits::Id, utils::OnceCellDebug, WNFS_VERSION,
+};
 use anyhow::{bail, Result};
 use async_once_cell::OnceCell;
 use async_stream::try_stream;
@@ -16,7 +18,7 @@ use libipld_core::{
 };
 use rand_core::CryptoRngCore;
 use serde::{Deserialize, Serialize};
-use std::{collections::BTreeSet, iter};
+use std::{cmp::Ordering, collections::BTreeSet, iter};
 use wnfs_common::{
     utils::{self, Arc, BoxStream},
     BlockStore, Metadata, CODEC_RAW, MAX_BLOCK_SIZE,
@@ -81,7 +83,6 @@ pub struct PrivateFile {
     pub(crate) content: PrivateFileContent,
 }
 
-#[derive(Debug)]
 pub(crate) struct PrivateFileContent {
     pub(crate) persisted_as: OnceCell<Cid>,
     pub(crate) previous: BTreeSet<(usize, Encrypted<Cid>)>,
@@ -686,7 +687,7 @@ impl PrivateFile {
         store: &impl BlockStore,
         rng: &mut impl CryptoRngCore,
     ) -> Result<()> {
-        self.content.metadata = Metadata::new(time);
+        self.content.metadata.upsert_mtime(time);
         // TODO(matheus23): Use heuristic to figure out whether to store data inline
         self.content.content =
             Self::prepare_content_streaming(self.header.get_name(), content, forest, store, rng)
@@ -748,6 +749,49 @@ impl PrivateFile {
         cloned.content.persisted_as = OnceCell::new();
         cloned.content.previous = [previous_link].into_iter().collect();
         cloned.header.advance_ratchet();
+
+        Ok(cloned)
+    }
+
+    /// Call this function to prepare this file for conflict reconciliation merge changes.
+    /// Advances this node to the revision given in `target_header`.
+    /// Generates another previous link, unless this node is already a merge node, then this
+    /// simply updates all previous links to use the correct steps back.
+    /// Merge nodes preferably just grow in size. This allows them to combine more nicely
+    /// without causing further conflicts.
+    pub(crate) fn prepare_next_merge<'a>(
+        self: &'a mut Arc<Self>,
+        current_cid: Cid,
+        target_header: PrivateNodeHeader,
+    ) -> Result<&'a mut Self> {
+        let ratchet_diff = target_header.ratchet_diff_for_merge(&self.header)?;
+
+        if self.content.previous.len() > 1 {
+            // This is a merge node
+            let cloned = Arc::make_mut(self);
+            cloned.content.persisted_as = OnceCell::new();
+            cloned.header = target_header;
+            cloned.content.previous = std::mem::take(&mut cloned.content.previous)
+                .into_iter()
+                .map(|(ratchet_steps, link)| (ratchet_steps + ratchet_diff, link))
+                .collect();
+
+            return Ok(cloned);
+        }
+
+        // It's not a merge node, we need to advance the revision
+
+        let temporal_key = self.header.derive_temporal_key();
+        let previous_link = (
+            ratchet_diff,
+            Encrypted::from_value(current_cid, &temporal_key)?,
+        );
+        let cloned = Arc::make_mut(self);
+
+        // We make sure to clear any cached states.
+        cloned.content.persisted_as = OnceCell::new();
+        cloned.header = target_header;
+        cloned.content.previous = [previous_link].into_iter().collect();
 
         Ok(cloned)
     }
@@ -835,6 +879,65 @@ impl PrivateFile {
     pub fn as_node(self: &Arc<Self>) -> PrivateNode {
         PrivateNode::File(Arc::clone(self))
     }
+
+    /// Merges two private files together.
+    /// The files must have been stored before (that's the CIDs that
+    /// are passed in).
+    /// This function is both commutative and associative.
+    pub(crate) fn merge(
+        self: &mut Arc<Self>,
+        target_header: PrivateNodeHeader,
+        our_cid: Cid,
+        other: &Arc<Self>,
+        other_cid: Cid,
+    ) -> Result<()> {
+        if our_cid == other_cid {
+            return Ok(());
+        }
+
+        let other_ratchet_diff = target_header.ratchet_diff_for_merge(&other.header)?;
+
+        let our = self.prepare_next_merge(our_cid, target_header)?;
+
+        if our.content.previous.len() > 1 {
+            // This is a merge node. We'll just add its previous links.
+            our.content.previous.extend(
+                other
+                    .content
+                    .previous
+                    .iter()
+                    .cloned()
+                    .map(|(rev_back, link)| (rev_back + other_ratchet_diff, link)),
+            );
+        } else {
+            // The other node represents a write - we need to store a link to its CID
+            let temporal_key = &other.header.derive_temporal_key();
+            our.content.previous.insert((
+                other_ratchet_diff,
+                Encrypted::from_value(other_cid, temporal_key)?,
+            ));
+        }
+
+        let our_hash = our.content.content.crdt_tiebreaker()?;
+        let other_hash = other.content.content.crdt_tiebreaker()?;
+
+        match our_hash.cmp(&other_hash) {
+            Ordering::Greater => {
+                our.content.content.clone_from(&other.content.content);
+                our.content.metadata.clone_from(&other.content.metadata);
+            }
+            Ordering::Equal => {
+                our.content
+                    .metadata
+                    .tie_break_with(&other.content.metadata)?;
+            }
+            Ordering::Less => {
+                // we take ours
+            }
+        }
+
+        Ok(())
+    }
 }
 
 impl PrivateFileContent {
@@ -874,6 +977,13 @@ impl PrivateFileContent {
                 Ok(store.put_block(block, CODEC_RAW).await?)
             })
             .await?)
+    }
+}
+
+impl FileContent {
+    pub(crate) fn crdt_tiebreaker(&self) -> Result<[u8; 32]> {
+        let bytes = serde_ipld_dagcbor::to_vec(self)?;
+        Ok(blake3::hash(&bytes).into())
     }
 }
 
@@ -1182,6 +1292,20 @@ impl Clone for PrivateFileContent {
 impl Id for PrivateFile {
     fn get_id(&self) -> String {
         format!("{:p}", &self.header)
+    }
+}
+
+impl std::fmt::Debug for PrivateFileContent {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PrivateFileContent")
+            .field(
+                "persisted_as",
+                &OnceCellDebug(self.persisted_as.get().map(|cid| format!("{cid}"))),
+            )
+            .field("previous", &self.previous)
+            .field("metadata", &self.metadata)
+            .field("content", &self.content)
+            .finish()
     }
 }
 
