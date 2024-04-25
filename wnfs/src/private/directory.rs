@@ -2700,7 +2700,7 @@ mod proptests {
                         ref_state.replicas.len()
                     );
                 }
-                for (idx, (replica, ref_replica)) in state
+                for (idx, (replica, (_, ref_replica))) in state
                     .replicas
                     .iter()
                     .zip(ref_state.replicas.iter())
@@ -2741,8 +2741,6 @@ mod proptests {
                         let state = (metadata, content);
 
                         if !concurrent_values.contains(&state) {
-                            // println!("===== {ref_state:#?}");
-                            // println!("===== {:#?}", replica.root_dir);
                             panic!("expected file in replica {idx} at {file_path:?} to be in one of these states: {concurrent_values:?}, but got unrelated state {state:?}");
                         }
                     }
@@ -2765,15 +2763,22 @@ mod proptests {
         )
     }
 
-    #[test]
+    #[test_log::test]
     fn test_regression_forked_remove() {
         let operations = vec![
             ReplicaOp::InnerOp(
                 0,
-                FileSystemOp::Write(vec!["a".into()], ("a".into(), "f".into())),
+                FileSystemOp::Write(
+                    vec!["b".into(), "a".into(), "d".into()],
+                    ("a".into(), "f".into()),
+                ),
             ),
             ReplicaOp::Fork(0),
-            ReplicaOp::InnerOp(0, FileSystemOp::Remove(vec!["a".into()])),
+            ReplicaOp::InnerOp(
+                0,
+                FileSystemOp::Write(vec!["c".into()], ("a".into(), "a".into())),
+            ),
+            ReplicaOp::InnerOp(1, FileSystemOp::Remove(vec!["b".into(), "a".into()])),
             ReplicaOp::Merge,
         ];
 
@@ -2788,16 +2793,16 @@ mod proptests {
             ref_state = ReplicasStateMachine::<FileSystemState>::apply(ref_state, &op);
             println!("Ref state: {ref_state:#?}");
             state = SimulatedReplicas::apply(state, &ref_state, op);
-            if i == 2 || i == 3 {
-                println!(
-                    "===== {:#?}",
-                    state
-                        .replicas
-                        .iter()
-                        .map(|r| r.root_dir.clone())
-                        .collect::<Vec<_>>()
-                );
-            }
+            // if i == 3 || i == 4 {
+            //     println!(
+            //         "===== {:#?}",
+            //         state
+            //             .replicas
+            //             .iter()
+            //             .map(|r| r.root_dir.clone())
+            //             .collect::<Vec<_>>()
+            //     );
+            // }
             SimulatedReplicas::check_invariants(&state, &ref_state);
         }
     }
