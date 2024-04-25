@@ -3,7 +3,9 @@ use super::{
     PrivateNode, PrivateNodeContentSerializable, PrivateNodeHeader, PrivateRef, SnapshotKey,
     TemporalKey, AUTHENTICATION_TAG_SIZE, BLOCK_SEGMENT_DSI, HIDING_SEGMENT_DSI, NONCE_SIZE,
 };
-use crate::{error::FsError, is_readable_wnfs_version, traits::Id, WNFS_VERSION};
+use crate::{
+    error::FsError, is_readable_wnfs_version, traits::Id, utils::OnceCellDebug, WNFS_VERSION,
+};
 use anyhow::{bail, Result};
 use async_once_cell::OnceCell;
 use async_stream::try_stream;
@@ -86,23 +88,6 @@ pub(crate) struct PrivateFileContent {
     pub(crate) previous: BTreeSet<(usize, Encrypted<Cid>)>,
     pub(crate) metadata: Metadata,
     pub(crate) content: FileContent,
-}
-
-impl std::fmt::Debug for PrivateFileContent {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("PrivateFileContent")
-            .field(
-                "persisted_as",
-                &self
-                    .persisted_as
-                    .get()
-                    .map_or("None".to_string(), |cid| format!("Some({cid})")),
-            )
-            .field("previous", &self.previous)
-            .field("metadata", &self.metadata)
-            .field("content", &self.content)
-            .finish()
-    }
 }
 
 /// The content of a file.
@@ -1299,6 +1284,20 @@ impl Clone for PrivateFileContent {
 impl Id for PrivateFile {
     fn get_id(&self) -> String {
         format!("{:p}", &self.header)
+    }
+}
+
+impl std::fmt::Debug for PrivateFileContent {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PrivateFileContent")
+            .field(
+                "persisted_as",
+                &OnceCellDebug(self.persisted_as.get().map(|cid| format!("{cid}"))),
+            )
+            .field("previous", &self.previous)
+            .field("metadata", &self.metadata)
+            .field("content", &self.content)
+            .finish()
     }
 }
 

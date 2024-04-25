@@ -55,11 +55,11 @@ pub(crate) const SNAPSHOT_KEY_DSI: &str = "wnfs/1.0/snapshot key derivation from
 //--------------------------------------------------------------------------------------------------
 
 /// The key used to encrypt the content of a node.
-#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+#[derive(PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct SnapshotKey(#[serde(with = "serde_byte_array")] pub(crate) [u8; KEY_BYTE_SIZE]);
 
 /// The key used to encrypt the header section of a node.
-#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+#[derive(PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct TemporalKey(#[serde(with = "serde_byte_array")] pub(crate) [u8; KEY_BYTE_SIZE]);
 
 //--------------------------------------------------------------------------------------------------
@@ -212,6 +212,22 @@ impl SnapshotKey {
     /// Return the snapshot key's key material.
     pub fn as_bytes(&self) -> &[u8; KEY_BYTE_SIZE] {
         &self.0
+    }
+}
+
+impl Debug for SnapshotKey {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("SnapshotKey")
+            .field(&hex::encode(&self.0[..8]))
+            .finish()
+    }
+}
+
+impl Debug for TemporalKey {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("TemporalKey")
+            .field(&hex::encode(&self.0[..8]))
+            .finish()
     }
 }
 

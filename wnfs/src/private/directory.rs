@@ -2533,7 +2533,10 @@ mod tests {
 mod proptests {
     use super::PrivateDirectory;
     use crate::{
-        private::forest::{hamt::HamtForest, traits::PrivateForest},
+        private::{
+            forest::{hamt::HamtForest, traits::PrivateForest},
+            AccessKey, PrivateNode,
+        },
         utils::proptest::{
             FileSystemOp, FileSystemState, ReplicaOp, Replicas, ReplicasStateMachine,
         },
@@ -2557,6 +2560,7 @@ mod proptests {
     struct SimulatedReplicas {
         store: MemoryBlockStore,
         rng: ChaCha12Rng,
+        access_key: AccessKey,
         replicas: Vec<Replica>,
     }
 
@@ -2604,12 +2608,16 @@ mod proptests {
             let store = MemoryBlockStore::new();
             let mut rng = ChaCha12Rng::seed_from_u64(0);
             let time = DateTime::<Utc>::from_timestamp(0, 0).expect("hardcoded zero timestamp");
-            let forest = Arc::new(HamtForest::new_rsa_2048(&mut rng));
+            let mut forest = Arc::new(HamtForest::new_rsa_2048(&mut rng));
             let root_dir = PrivateDirectory::new_rc(&forest.empty_name(), time, &mut rng);
+            let access_key =
+                async_std::task::block_on(root_dir.as_node().store(&mut forest, &store, &mut rng))
+                    .expect("initial store works");
             let replicas = vec![Replica { forest, root_dir }];
             Self {
                 store,
                 replicas,
+                access_key,
                 rng,
             }
         }
@@ -2619,6 +2627,7 @@ mod proptests {
                 store,
                 mut replicas,
                 mut rng,
+                access_key,
             } = self;
 
             match op {
@@ -2631,14 +2640,20 @@ mod proptests {
                 }
                 ReplicaOp::Merge => {
                     async_std::task::block_on(async {
-                        let Replica {
-                            mut root_dir,
-                            mut forest,
-                        } = replicas.pop().expect("invariant: always > 0 replicas");
+                        // merge all forests
+                        let Replica { mut forest, .. } =
+                            replicas.pop().expect("invariant: always > 0 replicas");
 
                         while let Some(replica) = replicas.pop() {
                             forest = Arc::new(forest.merge(&replica.forest, &store).await.unwrap());
                         }
+
+                        // run reconciliation
+                        let mut root_dir = PrivateNode::load(&access_key, &forest, &store, None)
+                            .await
+                            .unwrap()
+                            .as_dir()
+                            .unwrap();
 
                         root_dir = root_dir
                             .search_latest_reconciled(&forest, &store)
@@ -2654,6 +2669,7 @@ mod proptests {
                 store,
                 replicas,
                 rng,
+                access_key,
             }
         }
     }
@@ -2750,18 +2766,14 @@ mod proptests {
     }
 
     #[test]
-    fn test_regression() {
+    fn test_regression_forked_remove() {
         let operations = vec![
-            ReplicaOp::Merge,
             ReplicaOp::InnerOp(
                 0,
-                FileSystemOp::Write(vec!["e".into()], ("a".into(), "a".into())),
+                FileSystemOp::Write(vec!["a".into()], ("a".into(), "f".into())),
             ),
             ReplicaOp::Fork(0),
-            ReplicaOp::InnerOp(
-                1,
-                FileSystemOp::Write(vec!["e".into()], ("a".into(), "b".into())),
-            ),
+            ReplicaOp::InnerOp(0, FileSystemOp::Remove(vec!["a".into()])),
             ReplicaOp::Merge,
         ];
 
@@ -2771,9 +2783,21 @@ mod proptests {
         let mut state = SimulatedReplicas::init_test(&ref_state);
 
         SimulatedReplicas::check_invariants(&state, &ref_state);
-        for op in operations {
+        for (i, op) in operations.into_iter().enumerate() {
+            println!("Operation {op:?}");
             ref_state = ReplicasStateMachine::<FileSystemState>::apply(ref_state, &op);
+            println!("Ref state: {ref_state:#?}");
             state = SimulatedReplicas::apply(state, &ref_state, op);
+            if i == 2 || i == 3 {
+                println!(
+                    "===== {:#?}",
+                    state
+                        .replicas
+                        .iter()
+                        .map(|r| r.root_dir.clone())
+                        .collect::<Vec<_>>()
+                );
+            }
             SimulatedReplicas::check_invariants(&state, &ref_state);
         }
     }
