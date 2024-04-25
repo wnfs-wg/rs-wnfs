@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1714053914396,
+  "lastUpdate": 1714057925883,
   "repoUrl": "https://github.com/wnfs-wg/rs-wnfs",
   "entries": {
     "Rust Benchmark": [
@@ -24805,6 +24805,126 @@ window.BENCHMARK_DATA = {
             "name": "NameAccumulator::<BigNumRug> serialization",
             "value": 646,
             "range": "± 40",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "philipp.krueger1@gmail.com",
+            "name": "Philipp Krüger",
+            "username": "matheus23"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "e265c94a2cb7b7f785570bd18ef21946ad5a7fa9",
+          "message": "fix: Public reconciliation of a concurrent write and remove (of independent paths) (#432)\n\n* chore: Write failing test case\r\n\r\nAlso: Add better debug impls for `PublicFile`, `PublicFile`, `PublicLink`, etc.\r\n\r\n* fix: Concurrent write and remove should reconcile correctly",
+          "timestamp": "2024-04-25T15:08:14Z",
+          "tree_id": "d9421267d5f7dfdcb74339951f81f41d288499c0",
+          "url": "https://github.com/wnfs-wg/rs-wnfs/commit/e265c94a2cb7b7f785570bd18ef21946ad5a7fa9"
+        },
+        "date": 1714057925170,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "node set",
+            "value": 15953,
+            "range": "± 212",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node set 1000 consecutive",
+            "value": 2278449,
+            "range": "± 68690",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and get",
+            "value": 46270,
+            "range": "± 611",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and remove",
+            "value": 54007,
+            "range": "± 2124",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt load and decode/0",
+            "value": 3205,
+            "range": "± 82",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt set and encode",
+            "value": 63880,
+            "range": "± 5019",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt diff",
+            "value": 38292,
+            "range": "± 1923",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt merge",
+            "value": 117369,
+            "range": "± 6530",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameSegment::<BigNumDig>::new_hashed",
+            "value": 1792985,
+            "range": "± 168361",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameSegment::<BigNumRug>::new_hashed",
+            "value": 313853,
+            "range": "± 36602",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameSegment::<BigNumDig>::new(rng)",
+            "value": 1829476,
+            "range": "± 195650",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameSegment::<BigNumRug>::new(rng)",
+            "value": 595368,
+            "range": "± 20737",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameAccumulator::<BigNumDig>::add",
+            "value": 1771387,
+            "range": "± 54863",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameAccumulator::<BigNumRug>::add",
+            "value": 1001703,
+            "range": "± 26367",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameAccumulator::<BigNumDig> serialization",
+            "value": 485,
+            "range": "± 45",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameAccumulator::<BigNumRug> serialization",
+            "value": 639,
+            "range": "± 30",
             "unit": "ns/iter"
           }
         ]
