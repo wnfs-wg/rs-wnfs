@@ -1453,13 +1453,13 @@ impl PrivateDirectory {
                             }
                             (PrivateNode::File(_), PrivateNode::Dir(_)) => {
                                 // a directory wins over a file
-                                *our_link = other_link.clone();
+                                our_link.clone_from(other_link);
                             }
                             // file vs. file and dir vs. dir cases
                             _ => {
                                 // We tie-break as usual
                                 if ord == Ordering::Greater {
-                                    *our_link = other_link.clone();
+                                    our_link.clone_from(other_link);
                                 }
                             }
                         }

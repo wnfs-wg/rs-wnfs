@@ -199,8 +199,12 @@ where
 {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Encoded { cid, .. } => f.debug_tuple("Link::Encoded").field(cid).finish(),
-            Self::Decoded { value, .. } => f.debug_tuple("Link::Decoded").field(value).finish(),
+            Self::Encoded { cid, value_cache } => f
+                .debug_struct("Link::Encoded")
+                .field("cid", &format!("{cid}"))
+                .field("value_cache", &value_cache.get())
+                .finish(),
+            Self::Decoded { value } => f.debug_tuple("Link::Decoded").field(value).finish(),
         }
     }
 }
