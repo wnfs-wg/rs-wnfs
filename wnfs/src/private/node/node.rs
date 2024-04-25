@@ -410,7 +410,7 @@ impl PrivateNode {
                 Ok(head)
             } else {
                 // We need to create a merge node
-                Self::merge(header, (cid, head), unmerged_heads).await
+                Self::merge(header, (cid, head), unmerged_heads, forest, store).await
             }
         } else {
             // If None, then there's nothing to merge in (and this node was never stored)
@@ -423,6 +423,8 @@ impl PrivateNode {
         header: PrivateNodeHeader,
         (cid, node): (Cid, PrivateNode),
         nodes: BTreeMap<Cid, PrivateNode>,
+        forest: &impl PrivateForest,
+        store: &impl BlockStore,
     ) -> Result<PrivateNode> {
         match node {
             PrivateNode::File(mut file) => {
@@ -449,7 +451,8 @@ impl PrivateNode {
                     // Need to pass in rng & mutable forest access
                     // for the cases where we haven't yet written a node to
                     // the forest, but need its hash for tie-breaking.
-                    dir.merge(header.clone(), cid, &other_dir, other_cid)?;
+                    dir.merge(header.clone(), cid, &other_dir, other_cid, forest, store)
+                        .await?;
                 }
 
                 Ok(PrivateNode::Dir(dir))

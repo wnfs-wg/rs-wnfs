@@ -10,6 +10,7 @@ use chrono::{DateTime, Utc};
 use libipld_core::cid::Cid;
 use rand_core::CryptoRngCore;
 use std::{
+    cmp::Ordering,
     collections::{btree_map::Entry, BTreeMap, BTreeSet},
     fmt::Debug,
 };
@@ -1358,18 +1359,22 @@ impl PrivateDirectory {
     }
 
     /// TODO(matheus23): DOCS
-    pub(crate) fn merge(
+    pub(crate) async fn merge(
         self: &mut Arc<Self>,
         target_header: PrivateNodeHeader,
         our_cid: Cid,
         other: &Arc<Self>,
         other_cid: Cid,
+        forest: &impl PrivateForest,
+        store: &impl BlockStore,
     ) -> Result<()> {
         if our_cid == other_cid {
             return Ok(());
         }
 
         let other_ratchet_diff = target_header.ratchet_diff_for_merge(&other.header)?;
+
+        let parent_name = Some(self.header.name.clone());
 
         let our = self.prepare_next_merge(our_cid, target_header)?;
 
@@ -1403,13 +1408,45 @@ impl PrivateDirectory {
                 }
                 Entry::Occupied(mut occupied) => {
                     let our_link = occupied.get_mut();
+
                     // We just tie-break on the content cid.
                     // It's assumed both links have been resolved to their
                     // PrivateRef before, and we can tie-break on their content_cid.
                     // Otherwise, how would we have gotten `our_cid` and `other_cid`
                     // in this context? Both of these were gotten from `.store()`ing the
                     // nodes, which includes resolving the children to `PrivateRef`s.
-                    our_link.tie_break_with(other_link)?;
+                    let our_content_hash = our_link.crdt_tiebreaker()?;
+                    let other_content_hash = other_link.crdt_tiebreaker()?;
+
+                    let ord = our_content_hash.cmp(&other_content_hash);
+                    if ord == Ordering::Equal {
+                        // there's nothing for us to do, they're equal
+                    } else {
+                        let our_node = our_link
+                            .resolve_node_mut(forest, store, parent_name.clone())
+                            .await?;
+
+                        let other_node = other_link
+                            .resolve_node(forest, store, parent_name.clone())
+                            .await?;
+
+                        match (our_node, other_node) {
+                            (PrivateNode::Dir(_), PrivateNode::File(_)) => {
+                                // our node wins, we don't need to do anything.
+                            }
+                            (PrivateNode::File(_), PrivateNode::Dir(_)) => {
+                                // a directory wins over a file
+                                *our_link = other_link.clone();
+                            }
+                            // file vs. file and dir vs. dir cases
+                            _ => {
+                                // We tie-break as usual
+                                if ord == Ordering::Greater {
+                                    *our_link = other_link.clone();
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }

@@ -162,17 +162,6 @@ impl PrivateLink {
     pub(crate) fn crdt_tiebreaker(&self) -> Result<MultihashGeneric<64>> {
         Ok(*self.get_content_cid().ok_or_else(|| anyhow!("Impossible case: CRDT tiebreaker needed on node wasn't persisted before tie breaking"))?.hash())
     }
-
-    pub(crate) fn tie_break_with(&mut self, other_link: &PrivateLink) -> Result<()> {
-        let our_hash = self.crdt_tiebreaker()?;
-        let other_hash = other_link.crdt_tiebreaker()?;
-
-        if other_hash.digest() < our_hash.digest() {
-            *self = other_link.clone();
-        }
-
-        Ok(())
-    }
 }
 
 impl PartialEq for PrivateLink {
