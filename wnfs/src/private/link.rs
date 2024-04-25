@@ -1,6 +1,7 @@
 use super::{
     forest::traits::PrivateForest, PrivateDirectory, PrivateFile, PrivateNode, PrivateRef,
 };
+use crate::utils::OnceCellDebug;
 use anyhow::{anyhow, Result};
 use async_once_cell::OnceCell;
 use async_recursion::async_recursion;
@@ -12,7 +13,6 @@ use wnfs_common::{
 };
 use wnfs_nameaccumulator::Name;
 
-#[derive(Debug)]
 pub(crate) enum PrivateLink {
     Encrypted {
         private_ref: PrivateRef,
@@ -23,6 +23,19 @@ pub(crate) enum PrivateLink {
         // which if full, combined with the `PrivateNode` derives the `PrivateRef`.
         node: PrivateNode,
     },
+}
+
+impl std::fmt::Debug for PrivateLink {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Encrypted { private_ref, cache } => f
+                .debug_struct("Encrypted")
+                .field("private_ref", private_ref)
+                .field("cache", &OnceCellDebug(cache.get()))
+                .finish(),
+            Self::Decrypted { node } => f.debug_struct("Decrypted").field("node", node).finish(),
+        }
+    }
 }
 
 impl PrivateLink {

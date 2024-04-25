@@ -1,4 +1,5 @@
 use super::TemporalKey;
+use crate::utils::OnceCellDebug;
 use anyhow::Result;
 use once_cell::sync::OnceCell;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
@@ -16,10 +17,22 @@ use serde::{de::DeserializeOwned, Deserialize, Serialize};
 /// It can be resolved to the plaintext value `T`, when
 /// you call `resolve_value`. Any subsequent calls to
 /// `resolve_value` will re-use a cached, decrypted value.
-#[derive(Debug, Clone, Eq)]
+#[derive(Clone, Eq)]
 pub struct Encrypted<T> {
     ciphertext: Vec<u8>,
     value_cache: OnceCell<T>,
+}
+
+impl<T: std::fmt::Debug> std::fmt::Debug for Encrypted<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Encrypted")
+            .field("ciphertext", &hex::encode(&self.ciphertext))
+            .field(
+                "value_cache",
+                &OnceCellDebug(self.value_cache.get().map(|inner| format!("{inner:?}"))),
+            )
+            .finish()
+    }
 }
 
 impl<T> Encrypted<T> {

@@ -81,12 +81,28 @@ pub struct PrivateFile {
     pub(crate) content: PrivateFileContent,
 }
 
-#[derive(Debug)]
 pub(crate) struct PrivateFileContent {
     pub(crate) persisted_as: OnceCell<Cid>,
     pub(crate) previous: BTreeSet<(usize, Encrypted<Cid>)>,
     pub(crate) metadata: Metadata,
     pub(crate) content: FileContent,
+}
+
+impl std::fmt::Debug for PrivateFileContent {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PrivateFileContent")
+            .field(
+                "persisted_as",
+                &self
+                    .persisted_as
+                    .get()
+                    .map_or("None".to_string(), |cid| format!("Some({cid})")),
+            )
+            .field("previous", &self.previous)
+            .field("metadata", &self.metadata)
+            .field("content", &self.content)
+            .finish()
+    }
 }
 
 /// The content of a file.

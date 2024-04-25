@@ -130,8 +130,8 @@ impl Debug for PrivateRef {
 
         f.debug_struct("PrivateRef")
             .field("label", &rev_name_hash_str)
-            .field("temporal_key", &self.temporal_key.0)
-            .field("content_cid", &self.content_cid)
+            .field("temporal_key", &hex::encode(self.temporal_key.0))
+            .field("content_cid", &format!("{}", self.content_cid))
             .finish()
     }
 }

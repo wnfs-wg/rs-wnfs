@@ -48,7 +48,6 @@ pub struct PrivateDirectory {
     pub(crate) content: PrivateDirectoryContent,
 }
 
-#[derive(Debug)]
 pub(crate) struct PrivateDirectoryContent {
     pub(crate) persisted_as: OnceCell<Cid>,
     pub(crate) previous: BTreeSet<(usize, Encrypted<Cid>)>,
@@ -1416,6 +1415,23 @@ impl PrivateDirectory {
         }
 
         Ok(())
+    }
+}
+
+impl Debug for PrivateDirectoryContent {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PrivateDirectoryContent")
+            .field(
+                "persisted_as",
+                &self
+                    .persisted_as
+                    .get()
+                    .map_or("None".to_string(), |cid| format!("Some({cid})")),
+            )
+            .field("previous", &self.previous)
+            .field("metadata", &self.metadata)
+            .field("entries", &self.entries)
+            .finish()
     }
 }
 
