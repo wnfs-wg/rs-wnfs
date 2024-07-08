@@ -64,7 +64,7 @@ rsa = "0.9"
 serde_json = "1.0.103"
 sha2 = "0.10"
 test-log = "0.2"
-test-strategy = "0.3"
+test-strategy = "0.4"
 testresult = "0.4.0"
 tiny-bip39 = "1.0"
 wnfs-common = { path = "../wnfs-common", features = ["test_utils"] }
