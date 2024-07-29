@@ -2023,9 +2023,9 @@ multicast-dns@^7.2.5:
     thunky "^1.0.2"
 
 multiformats@^13.0.0:
-  version "13.1.0"
-  resolved "https://registry.yarnpkg.com/multiformats/-/multiformats-13.1.0.tgz#5aa9d2175108a448fc3bdb54ba8a3d0b6cab3ac3"
-  integrity sha512-HzdtdBwxsIkzpeXzhQ5mAhhuxcHbjEHH+JQoxt7hG/2HGFjjwyolLo7hbaexcnhoEuV4e0TNJ8kkpMjiEYY4VQ==
+  version "13.2.1"
+  resolved "https://registry.yarnpkg.com/multiformats/-/multiformats-13.2.1.tgz#4fe7e0c693c3597d6a9f29a751d00a44195e0f8a"
+  integrity sha512-83SyOLC30MyJtUt92LBeOmiEC4MQX7Xm25kBW70k92e6Ec+E+z1UfgCOuKABQ/30I/kgGS9A+rguJRSXYNZ86Q==
 
 nanoid@^3.3.7:
   version "3.3.7"
