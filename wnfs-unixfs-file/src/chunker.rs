@@ -113,15 +113,15 @@ impl<'a> Stream for ChunkerStream<'a> {
         cx: &mut task::Context<'_>,
     ) -> task::Poll<Option<Self::Item>> {
         match &mut *self {
-            Self::Fixed(ref mut stream) => Pin::new(stream).poll_next(cx),
-            Self::Rabin(ref mut stream) => Pin::new(stream).poll_next(cx),
+            Self::Fixed(stream) => Pin::new(stream).poll_next(cx),
+            Self::Rabin(stream) => Pin::new(stream).poll_next(cx),
         }
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
         match self {
-            Self::Fixed(ref stream) => stream.size_hint(),
-            Self::Rabin(ref stream) => stream.size_hint(),
+            Self::Fixed(stream) => stream.size_hint(),
+            Self::Rabin(stream) => stream.size_hint(),
         }
     }
 }

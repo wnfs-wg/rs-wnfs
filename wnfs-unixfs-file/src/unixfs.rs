@@ -581,7 +581,7 @@ fn poll_read_file_at<'a>(
                     }
                 }
             }
-            CurrentNodeState::Loaded {
+            &mut CurrentNodeState::Loaded {
                 ref node_offset,
                 ref mut node_pos,
                 node: ref mut current_node_inner,

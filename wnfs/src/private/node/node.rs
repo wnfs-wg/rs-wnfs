@@ -404,17 +404,20 @@ impl PrivateNode {
         let mut header = self.get_header().clone();
         let mut unmerged_heads = header.seek_unmerged_heads(forest, store).await?;
 
-        if let Some((cid, head)) = unmerged_heads.pop_first() {
-            if unmerged_heads.is_empty() {
-                // There was only one unmerged head, we can fast forward
-                Ok(head)
-            } else {
-                // We need to create a merge node
-                Self::merge(header, (cid, head), unmerged_heads, forest, store).await
+        match unmerged_heads.pop_first() {
+            Some((cid, head)) => {
+                if unmerged_heads.is_empty() {
+                    // There was only one unmerged head, we can fast forward
+                    Ok(head)
+                } else {
+                    // We need to create a merge node
+                    Self::merge(header, (cid, head), unmerged_heads, forest, store).await
+                }
             }
-        } else {
-            // If None, then there's nothing to merge in (and this node was never stored)
-            Ok(self.clone())
+            _ => {
+                // If None, then there's nothing to merge in (and this node was never stored)
+                Ok(self.clone())
+            }
         }
     }
 

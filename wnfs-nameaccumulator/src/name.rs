@@ -302,7 +302,7 @@ fn poke_fiat_shamir_l_hash_data<B: Big>(
     modulus: &B::Num,
     base: &B::Num,
     commitment: &B::Num,
-) -> impl AsRef<[u8]> {
+) -> impl AsRef<[u8]> + use<B> {
     [
         B::to_bytes_be::<256>(modulus),
         B::to_bytes_be::<256>(base),

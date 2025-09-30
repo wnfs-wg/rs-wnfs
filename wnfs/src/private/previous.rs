@@ -409,20 +409,23 @@ impl<F: PrivateForest + Clone> PrivateNodeOnPathHistory<F> {
 
         loop {
             // Pop elements off the end of the path
-            if let Some(mut segment) = self.path.pop() {
-                // Try to find a path segment for which we have previous history entries
-                if let Some(prev) = segment.history.get_previous_dir(store).await? {
-                    segment.dir = prev;
-                    self.path.push(segment);
-                    // Once found, we can continue.
-                    break;
-                }
+            match self.path.pop() {
+                Some(mut segment) => {
+                    // Try to find a path segment for which we have previous history entries
+                    if let Some(prev) = segment.history.get_previous_dir(store).await? {
+                        segment.dir = prev;
+                        self.path.push(segment);
+                        // Once found, we can continue.
+                        break;
+                    }
 
-                working_stack.push((segment.dir, segment.path_segment));
-            } else {
-                // We have exhausted all histories of all path segments.
-                // There's no way we can produce more history entries.
-                return Ok(None);
+                    working_stack.push((segment.dir, segment.path_segment));
+                }
+                _ => {
+                    // We have exhausted all histories of all path segments.
+                    // There's no way we can produce more history entries.
+                    return Ok(None);
+                }
             }
         }
 

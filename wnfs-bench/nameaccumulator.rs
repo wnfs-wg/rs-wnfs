@@ -5,14 +5,14 @@ use wnfs_nameaccumulator::{AccumulatorSetup, BigNumDig, BigNumRug, NameAccumulat
 fn name_segment_from_digest(c: &mut Criterion) {
     c.bench_function("NameSegment::<BigNumDig>::new_hashed", |b| {
         b.iter_batched(
-            || thread_rng().gen::<[u8; 32]>(),
+            || thread_rng().r#gen::<[u8; 32]>(),
             |sth| NameSegment::<BigNumDig>::new_hashed("wnfs benchmarks", sth),
             BatchSize::SmallInput,
         );
     });
     c.bench_function("NameSegment::<BigNumRug>::new_hashed", |b| {
         b.iter_batched(
-            || thread_rng().gen::<[u8; 32]>(),
+            || thread_rng().r#gen::<[u8; 32]>(),
             |sth| NameSegment::<BigNumRug>::new_hashed("wnfs benchmarks", sth),
             BatchSize::SmallInput,
         );

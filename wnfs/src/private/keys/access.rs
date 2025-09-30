@@ -131,7 +131,7 @@ mod snapshot_tests {
         let rng = &mut ChaCha12Rng::seed_from_u64(0);
 
         let private_ref =
-            PrivateRef::with_temporal_key(rng.gen(), TemporalKey(rng.gen()), Cid::default());
+            PrivateRef::with_temporal_key(rng.r#gen(), TemporalKey(rng.r#gen()), Cid::default());
 
         let temporal_access_key = AccessKey::Temporal(TemporalAccessKey::from(&private_ref));
         let snapshot_access_key = AccessKey::Snapshot(SnapshotAccessKey::from(&private_ref));

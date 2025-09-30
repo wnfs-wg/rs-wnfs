@@ -378,7 +378,7 @@ where
             }
 
             match &mut node.pointers[value_index] {
-                Pointer::Values(ref mut values) => {
+                Pointer::Values(values) => {
                     if let Some(i) = values
                         .iter()
                         .position(|p| &H::hash(&p.key) == hashnibbles.digest)
@@ -534,7 +534,7 @@ where
                     }
                 }
                 // Otherwise, remove just the value.
-                Pointer::Values(ref mut values) => {
+                Pointer::Values(values) => {
                     match values
                         .iter()
                         .position(|p| &H::hash(&p.key) == hashnibbles.digest)
@@ -554,15 +554,16 @@ where
                     let removed = child.remove_value(hashnibbles, store).await?;
                     if removed.is_some() {
                         // If something has been deleted, we attempt to canonicalize the pointer.
-                        if let Some(pointer) =
-                            Pointer::Link(Link::from(child)).canonicalize(store).await?
-                        {
-                            node.pointers[value_index] = pointer;
-                        } else {
-                            // This is None if the pointer now points to an empty node.
-                            // In that case, we remove it from the parent.
-                            node.bitmask.set(bit_index, false);
-                            node.pointers.remove(value_index);
+                        match Pointer::Link(Link::from(child)).canonicalize(store).await? {
+                            Some(pointer) => {
+                                node.pointers[value_index] = pointer;
+                            }
+                            _ => {
+                                // This is None if the pointer now points to an empty node.
+                                // In that case, we remove it from the parent.
+                                node.bitmask.set(bit_index, false);
+                                node.pointers.remove(value_index);
+                            }
                         }
                     } else {
                         node.pointers[value_index] = Pointer::Link(Link::from(child))
