@@ -37,7 +37,7 @@ impl<'a> File<'a> {
     pub fn encode(
         self,
         store: &'a impl BlockStore,
-    ) -> Result<impl Stream<Item = Result<(Cid, Block)>> + '_> {
+    ) -> Result<impl Stream<Item = Result<(Cid, Block)>> + 'a> {
         let chunks = self.chunker.chunks(self.content);
         Ok(self.tree_builder.stream_tree(chunks, store))
     }

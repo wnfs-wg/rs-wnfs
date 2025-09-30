@@ -279,7 +279,7 @@ impl HashPrefix {
     ///    println!("{}", i);
     /// }
     /// ```
-    pub fn iter(&self) -> HashPrefixIterator {
+    pub fn iter(&self) -> HashPrefixIterator<'_> {
         HashPrefixIterator {
             hashprefix: self,
             cursor: 0,

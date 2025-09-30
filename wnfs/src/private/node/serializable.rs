@@ -13,6 +13,7 @@ use wnfs_nameaccumulator::{NameAccumulator, NameSegment};
 //--------------------------------------------------------------------------------------------------
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[allow(clippy::large_enum_variant)]
 pub(crate) enum PrivateNodeContentSerializable {
     #[serde(rename = "wnfs/priv/file")]
     File(PrivateFileContentSerializable),

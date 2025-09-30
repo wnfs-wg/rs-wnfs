@@ -72,7 +72,7 @@ pub mod sharer {
 
             let devices = root_dir.ls(&[], store).await?;
             for (device, _) in devices {
-                let value = root_dir.ls(&[device.clone()], store).await?;
+                let value = root_dir.ls(std::slice::from_ref(&device), store).await?;
                 for (name, _) in value {
                     if name == EXCHANGE_KEY_NAME {
                         yield root_dir.read(&[device, name], store).await?;

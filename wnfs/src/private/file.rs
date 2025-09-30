@@ -94,6 +94,7 @@ pub(crate) struct PrivateFileContent {
 /// It is stored inline or stored in blocks.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[allow(clippy::large_enum_variant)]
 pub(crate) enum FileContent {
     Inline { data: Vec<u8> },
     External(PrivateForestContent),

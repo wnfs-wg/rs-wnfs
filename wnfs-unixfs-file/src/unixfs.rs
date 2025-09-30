@@ -82,7 +82,7 @@ impl Node {
         None
     }
 
-    pub fn links(&self) -> Links {
+    pub fn links(&self) -> Links<'_> {
         Links::Node(PbLinks::new(&self.outer))
     }
 }

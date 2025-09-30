@@ -274,7 +274,7 @@ impl Big for BigNumRug {
 
 #[cfg(feature = "rug")]
 impl BigNumRug {
-    fn setup_rand_state(rng: &mut impl CryptoRngCore) -> RandState {
+    fn setup_rand_state(rng: &mut impl CryptoRngCore) -> RandState<'_> {
         let mut seed = [0u8; 32];
         rng.fill_bytes(&mut seed);
         let seed = Integer::from_digits(&seed, Order::LsfLe);
