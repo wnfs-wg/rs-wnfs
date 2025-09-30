@@ -2,7 +2,7 @@ use crate::{
     error::AccessKeyError,
     private::{PrivateRef, SnapshotKey, TemporalKey},
 };
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 use libipld_core::cid::Cid;
 use serde::{Deserialize, Serialize};
 use wnfs_common::HashOutput;

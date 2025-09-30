@@ -1,7 +1,7 @@
 use crate::private::{
-    forest::{hamt::HamtForest, traits::PrivateForest},
     FileContent, PrivateDirectory, PrivateForestContent, PrivateNode, PrivateRef, SnapshotKey,
     TemporalKey,
+    forest::{hamt::HamtForest, traits::PrivateForest},
 };
 use anyhow::Result;
 use bytes::Bytes;

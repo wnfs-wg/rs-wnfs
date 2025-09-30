@@ -630,13 +630,13 @@ mod tests {
     };
     use anyhow::Result;
     use libipld::{
+        Ipld,
         cbor::DagCborCodec,
         prelude::{Decode, Encode},
-        Ipld,
     };
     use num_bigint_dig::BigUint;
     use proptest::{prop_assert, prop_assert_eq};
-    use rand::{thread_rng, SeedableRng};
+    use rand::{SeedableRng, thread_rng};
     use rand_chacha::ChaCha12Rng;
     use std::io::Cursor;
     use test_strategy::proptest;

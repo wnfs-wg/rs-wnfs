@@ -1,13 +1,13 @@
 use super::{
-    encrypted::Encrypted, forest::traits::PrivateForest, PrivateDirectory, PrivateFile,
-    PrivateNode, PrivateNodeHeader, TemporalKey,
+    PrivateDirectory, PrivateFile, PrivateNode, PrivateNodeHeader, TemporalKey,
+    encrypted::Encrypted, forest::traits::PrivateForest,
 };
 use crate::error::FsError;
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 use libipld_core::cid::Cid;
 use skip_ratchet::{PreviousIterator, Ratchet};
 use std::collections::BTreeSet;
-use wnfs_common::{utils::Arc, BlockStore, PathNodes, PathNodesResult};
+use wnfs_common::{BlockStore, PathNodes, PathNodesResult, utils::Arc};
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions

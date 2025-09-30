@@ -6,8 +6,8 @@ use chrono::Utc;
 use rand_chacha::ChaCha12Rng;
 use rand_core::SeedableRng;
 use wnfs::private::{
-    forest::{hamt::HamtForest, traits::PrivateForest},
     PrivateFile, PrivateForestContent,
+    forest::{hamt::HamtForest, traits::PrivateForest},
 };
 use wnfs_common::MemoryBlockStore;
 

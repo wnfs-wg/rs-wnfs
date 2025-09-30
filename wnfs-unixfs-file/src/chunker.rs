@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Context};
+use anyhow::{Context, anyhow};
 use bytes::Bytes;
 use futures::Stream;
 use std::{
@@ -18,7 +18,7 @@ mod rabin;
 pub const DEFAULT_CHUNK_SIZE_LIMIT: usize = 1024 * 1024;
 
 pub use self::{
-    fixed::{Fixed, DEFAULT_CHUNKS_SIZE},
+    fixed::{DEFAULT_CHUNKS_SIZE, Fixed},
     rabin::Rabin,
 };
 

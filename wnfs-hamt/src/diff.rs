@@ -1,12 +1,12 @@
 use super::HashNibbles;
-use crate::{Hasher, Node, Pair, Pointer, HAMT_BITMASK_BIT_SIZE};
+use crate::{HAMT_BITMASK_BIT_SIZE, Hasher, Node, Pair, Pointer};
 use anyhow::{Ok, Result};
 use async_recursion::async_recursion;
-use serde::{de::DeserializeOwned, Serialize};
+use serde::{Serialize, de::DeserializeOwned};
 use std::{collections::HashMap, hash::Hash, mem};
 use wnfs_common::{
-    utils::{Arc, CondSync},
     BlockStore, Link, Storable,
+    utils::{Arc, CondSync},
 };
 
 //--------------------------------------------------------------------------------------------------
@@ -341,7 +341,7 @@ mod tests {
     mod helper {
         use crate::Hasher;
         use once_cell::sync::Lazy;
-        use wnfs_common::{utils, HashOutput};
+        use wnfs_common::{HashOutput, utils};
 
         pub(super) static HASH_KV_PAIRS: Lazy<Vec<(HashOutput, &'static str)>> = Lazy::new(|| {
             vec![
@@ -601,14 +601,14 @@ mod tests {
 #[cfg(test)]
 mod proptests {
     use crate::{
-        strategies::{self, generate_kvs, generate_ops_and_changes, Change, Operations},
         ChangeType,
+        strategies::{self, Change, Operations, generate_kvs, generate_ops_and_changes},
     };
     use async_std::task;
     use proptest::{prop_assert, prop_assert_eq};
     use std::collections::HashSet;
     use test_strategy::proptest;
-    use wnfs_common::{utils::Arc, Link, MemoryBlockStore};
+    use wnfs_common::{Link, MemoryBlockStore, utils::Arc};
 
     #[proptest(cases = 100, max_shrink_iters = 4000)]
     fn diff_correspondence(

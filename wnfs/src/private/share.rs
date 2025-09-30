@@ -18,7 +18,7 @@ const EXCHANGE_KEY_NAME: &str = "v1.exchange_key";
 pub mod sharer {
     use super::EXCHANGE_KEY_NAME;
     use crate::{
-        private::{forest::traits::PrivateForest, AccessKey, ExchangeKey, PublicKeyModulus},
+        private::{AccessKey, ExchangeKey, PublicKeyModulus, forest::traits::PrivateForest},
         public::PublicLink,
     };
     use anyhow::Result;
@@ -103,7 +103,7 @@ pub mod recipient {
     use super::sharer;
     use crate::{
         error::ShareError,
-        private::{forest::traits::PrivateForest, AccessKey, PrivateKey, PrivateNode},
+        private::{AccessKey, PrivateKey, PrivateNode, forest::traits::PrivateForest},
     };
     use anyhow::Result;
     use wnfs_common::BlockStore;
@@ -181,26 +181,27 @@ pub mod recipient {
 #[cfg(test)]
 mod tests {
     use super::{
+        EXCHANGE_KEY_NAME,
         recipient::{self, find_latest_share_counter},
-        sharer, EXCHANGE_KEY_NAME,
+        sharer,
     };
     use crate::{
         private::{
-            forest::{hamt::HamtForest, traits::PrivateForest},
             AccessKey, PrivateDirectory, RsaPublicKey,
+            forest::{hamt::HamtForest, traits::PrivateForest},
         },
         public::PublicLink,
     };
     use chrono::Utc;
     use rand_chacha::ChaCha12Rng;
     use rand_core::SeedableRng;
-    use wnfs_common::{utils::Arc, MemoryBlockStore};
+    use wnfs_common::{MemoryBlockStore, utils::Arc};
 
     mod helper {
         use crate::{
             private::{
-                forest::traits::PrivateForest, share::EXCHANGE_KEY_NAME, PrivateDirectory,
-                RsaPrivateKey,
+                PrivateDirectory, RsaPrivateKey, forest::traits::PrivateForest,
+                share::EXCHANGE_KEY_NAME,
             },
             public::PublicDirectory,
         };
@@ -208,8 +209,8 @@ mod tests {
         use chrono::Utc;
         use rand_core::CryptoRngCore;
         use wnfs_common::{
-            utils::{Arc, CondSend},
             BlockStore,
+            utils::{Arc, CondSend},
         };
 
         pub(super) async fn create_sharer_dir(

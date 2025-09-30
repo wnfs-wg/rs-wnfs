@@ -1,10 +1,10 @@
 use crate::{
     error::FsError,
-    private::{PrivateRefSerializable, TemporalKey, KEY_BYTE_SIZE},
+    private::{KEY_BYTE_SIZE, PrivateRefSerializable, TemporalKey},
 };
 use anyhow::Result;
 use libipld_core::cid::Cid;
-use serde::{de::Error as DeError, ser::Error as SerError, Deserialize, Serialize};
+use serde::{Deserialize, Serialize, de::Error as DeError, ser::Error as SerError};
 use std::fmt::Debug;
 use wnfs_common::HashOutput;
 

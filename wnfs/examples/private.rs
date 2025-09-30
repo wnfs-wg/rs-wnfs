@@ -10,11 +10,11 @@ use wnfs::{
     common::{BlockStore, MemoryBlockStore},
     nameaccumulator::AccumulatorSetup,
     private::{
-        forest::{hamt::HamtForest, traits::PrivateForest},
         AccessKey, PrivateDirectory, PrivateNode,
+        forest::{hamt::HamtForest, traits::PrivateForest},
     },
 };
-use wnfs_common::{utils::CondSend, Storable};
+use wnfs_common::{Storable, utils::CondSend};
 
 #[async_std::main]
 async fn main() -> Result<()> {

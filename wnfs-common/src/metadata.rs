@@ -1,12 +1,12 @@
 //! File system metadata.
 
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 use chrono::{DateTime, TimeZone, Utc};
 use libipld::{Ipld, Multihash};
 use multihash::{Code, MultihashDigest};
 use serde::{
-    de::{DeserializeOwned, Error as DeError},
     Deserialize, Deserializer, Serialize, Serializer,
+    de::{DeserializeOwned, Error as DeError},
 };
 use std::{collections::BTreeMap, fmt::Display};
 
@@ -308,7 +308,7 @@ impl<'de> Deserialize<'de> for NodeType {
 
 #[cfg(test)]
 mod tests {
-    use crate::{decode, encode, Metadata};
+    use crate::{Metadata, decode, encode};
     use chrono::Utc;
     use libipld::cbor::DagCborCodec;
 

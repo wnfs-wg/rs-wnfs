@@ -1,9 +1,9 @@
-use super::{PrivateNode, PrivateNodeHeaderSerializable, TemporalKey, REVISION_SEGMENT_DSI};
+use super::{PrivateNode, PrivateNodeHeaderSerializable, REVISION_SEGMENT_DSI, TemporalKey};
 use crate::{
     error::FsError,
-    private::{forest::traits::PrivateForest, RevisionRef},
+    private::{RevisionRef, forest::traits::PrivateForest},
 };
-use anyhow::{anyhow, bail, Result};
+use anyhow::{Result, anyhow, bail};
 use futures::TryStreamExt;
 use libipld_core::cid::Cid;
 use rand_core::CryptoRngCore;

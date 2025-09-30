@@ -2,12 +2,12 @@ use super::{PrivateNodeHeader, TemporalKey};
 use crate::{
     error::FsError,
     private::{
-        encrypted::Encrypted, forest::traits::PrivateForest, link::PrivateLink, AccessKey,
-        PrivateDirectory, PrivateFile, PrivateNodeContentSerializable, PrivateRef,
+        AccessKey, PrivateDirectory, PrivateFile, PrivateNodeContentSerializable, PrivateRef,
+        encrypted::Encrypted, forest::traits::PrivateForest, link::PrivateLink,
     },
     traits::Id,
 };
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 use async_once_cell::OnceCell;
 use async_recursion::async_recursion;
 use chrono::{DateTime, Utc};
@@ -20,8 +20,8 @@ use std::{
     fmt::Debug,
 };
 use wnfs_common::{
-    utils::{Arc, CondSend},
     BlockStore,
+    utils::{Arc, CondSend},
 };
 use wnfs_nameaccumulator::Name;
 

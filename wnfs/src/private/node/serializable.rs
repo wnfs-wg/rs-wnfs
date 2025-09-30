@@ -1,5 +1,5 @@
 use super::SnapshotKey;
-use crate::private::{encrypted::Encrypted, FileContent};
+use crate::private::{FileContent, encrypted::Encrypted};
 use libipld_core::cid::Cid;
 use semver::Version;
 use serde::{Deserialize, Serialize};

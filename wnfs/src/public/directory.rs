@@ -4,24 +4,24 @@ use super::{
     PublicDirectorySerializable, PublicFile, PublicLink, PublicNode, PublicNodeSerializable,
 };
 use crate::{
+    SearchResult, WNFS_VERSION,
     error::FsError,
     is_readable_wnfs_version,
     traits::Id,
     utils::{self, OnceCellDebug},
-    SearchResult, WNFS_VERSION,
 };
-use anyhow::{bail, ensure, Result};
+use anyhow::{Result, bail, ensure};
 use async_once_cell::OnceCell;
 use async_recursion::async_recursion;
 use chrono::{DateTime, Utc};
 use libipld_core::cid::Cid;
 use std::{
     cmp::Ordering,
-    collections::{btree_map::Entry, BTreeMap, BTreeSet},
+    collections::{BTreeMap, BTreeSet, btree_map::Entry},
 };
 use wnfs_common::{
-    utils::{boxed_fut, error, Arc},
     BlockStore, Metadata, NodeType, Storable,
+    utils::{Arc, boxed_fut, error},
 };
 
 //--------------------------------------------------------------------------------------------------
@@ -118,7 +118,7 @@ impl PublicDirectory {
     /// assert_eq!(dir.get_previous(), &BTreeSet::new());
     /// ```
     #[inline]
-    pub fn get_previous<'a>(self: &'a Arc<Self>) -> &'a BTreeSet<Cid> {
+    pub fn get_previous(self: &Arc<Self>) -> &BTreeSet<Cid> {
         &self.previous
     }
 
@@ -136,7 +136,7 @@ impl PublicDirectory {
     /// assert_eq!(dir.get_metadata(), &Metadata::new(time));
     /// ```
     #[inline]
-    pub fn get_metadata<'a>(self: &'a Arc<Self>) -> &'a Metadata {
+    pub fn get_metadata(self: &Arc<Self>) -> &Metadata {
         &self.metadata
     }
 
@@ -146,7 +146,7 @@ impl PublicDirectory {
     }
 
     /// Returns a mutable reference to this directory's metadata and ratchets forward the history, if necessary.
-    pub fn get_metadata_mut_rc<'a>(self: &'a mut Arc<Self>) -> &'a mut Metadata {
+    pub fn get_metadata_mut_rc(self: &mut Arc<Self>) -> &mut Metadata {
         self.prepare_next_revision().get_metadata_mut()
     }
 
@@ -154,7 +154,7 @@ impl PublicDirectory {
     /// directory was previously `.store()`ed.
     /// In any case it'll try to give you ownership of the directory if possible,
     /// otherwise it clones.
-    pub(crate) fn prepare_next_revision<'a>(self: &'a mut Arc<Self>) -> &'a mut Self {
+    pub(crate) fn prepare_next_revision(self: &mut Arc<Self>) -> &mut Self {
         let Some(previous_cid) = self.persisted_as.get().cloned() else {
             return Arc::make_mut(self);
         };
@@ -1084,7 +1084,7 @@ mod tests {
     use super::*;
     use libipld_core::ipld::Ipld;
     use testresult::TestResult;
-    use wnfs_common::{decode, libipld::cbor::DagCborCodec, MemoryBlockStore};
+    use wnfs_common::{MemoryBlockStore, decode, libipld::cbor::DagCborCodec};
 
     #[async_std::test]
     async fn look_up_can_fetch_file_added_to_directory() -> TestResult {
@@ -1139,37 +1139,45 @@ mod tests {
             )
             .await?;
 
-        assert!(root_dir
-            .get_node(
-                &["pictures".into(), "cats".into(), "tabby.jpg".into()],
-                store
-            )
-            .await?
-            .is_some());
+        assert!(
+            root_dir
+                .get_node(
+                    &["pictures".into(), "cats".into(), "tabby.jpg".into()],
+                    store
+                )
+                .await?
+                .is_some()
+        );
 
-        assert!(root_dir
-            .get_node(
-                &["pictures".into(), "cats".into(), "tabby.jpeg".into()],
-                store
-            )
-            .await?
-            .is_none());
+        assert!(
+            root_dir
+                .get_node(
+                    &["pictures".into(), "cats".into(), "tabby.jpeg".into()],
+                    store
+                )
+                .await?
+                .is_none()
+        );
 
-        assert!(root_dir
-            .get_node(
-                &["images".into(), "parrots".into(), "coco.png".into()],
-                store
-            )
-            .await?
-            .is_none());
+        assert!(
+            root_dir
+                .get_node(
+                    &["images".into(), "parrots".into(), "coco.png".into()],
+                    store
+                )
+                .await?
+                .is_none()
+        );
 
-        assert!(root_dir
-            .get_node(
-                &["pictures".into(), "dogs".into(), "bingo.jpg".into()],
-                store
-            )
-            .await?
-            .is_none());
+        assert!(
+            root_dir
+                .get_node(
+                    &["pictures".into(), "dogs".into(), "bingo.jpg".into()],
+                    store
+                )
+                .await?
+                .is_none()
+        );
 
         Ok(())
     }

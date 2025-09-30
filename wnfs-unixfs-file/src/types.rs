@@ -1,5 +1,5 @@
 use crate::{codecs::Codec, parse_links, protobufs};
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use bytes::Bytes;
 use libipld::Cid;
 use std::{io::Cursor, pin::Pin};

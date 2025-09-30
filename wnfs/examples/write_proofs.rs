@@ -8,12 +8,12 @@ use wnfs::{
     common::{BlockStore, MemoryBlockStore},
     nameaccumulator::NameAccumulator,
     private::{
+        AccessKey, PrivateDirectory, PrivateNode,
         forest::{
             hamt::HamtForest,
             proofs::{ForestProofs, ProvingHamtForest},
             traits::PrivateForest,
         },
-        AccessKey, PrivateDirectory, PrivateNode,
     },
 };
 use wnfs_common::Storable;

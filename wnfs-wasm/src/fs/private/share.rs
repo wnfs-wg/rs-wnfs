@@ -1,6 +1,6 @@
 use super::{AccessKey, ForeignExchangeKey, ForeignPrivateKey, PrivateForest, PrivateNode};
 use crate::{
-    fs::{utils::error, BlockStore, ForeignBlockStore, JsResult, Name, PrivateKey},
+    fs::{BlockStore, ForeignBlockStore, JsResult, Name, PrivateKey, utils::error},
     value,
 };
 use js_sys::Promise;

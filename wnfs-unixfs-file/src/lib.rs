@@ -7,8 +7,8 @@ mod types;
 pub mod unixfs;
 
 use crate::codecs::Codec;
-use anyhow::{bail, Result};
-use libipld::{prelude::Codec as _, Cid, Ipld, IpldCodec};
+use anyhow::{Result, bail};
+use libipld::{Cid, Ipld, IpldCodec, prelude::Codec as _};
 use std::collections::BTreeSet;
 
 /// Extract links from the given content.

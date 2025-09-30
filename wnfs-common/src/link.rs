@@ -1,4 +1,4 @@
-use crate::{utils::CondSync, BlockStore, Storable};
+use crate::{BlockStore, Storable, utils::CondSync};
 use anyhow::Result;
 use async_once_cell::OnceCell;
 use libipld::Cid;

@@ -11,7 +11,7 @@ categories = [
 ]
 license = "Apache-2.0"
 readme = "README.md"
-edition = "2021"
+edition = "2024"
 repository = "https://github.com/wnfs-wg/rs-wnfs/tree/main/wnfs"
 homepage = "https://fission.codes"
 authors = ["The Fission Authors"]

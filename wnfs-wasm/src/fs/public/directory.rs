@@ -2,9 +2,9 @@
 
 use crate::{
     fs::{
+        BlockStore, ForeignBlockStore, JsResult, PublicNode,
         metadata::JsMetadata,
         utils::{self, error},
-        BlockStore, ForeignBlockStore, JsResult, PublicNode,
     },
     value,
 };
@@ -12,7 +12,7 @@ use chrono::{DateTime, Utc};
 use js_sys::{Array, Date, Promise, Uint8Array};
 use libipld_core::cid::Cid;
 use std::rc::Rc;
-use wasm_bindgen::{prelude::wasm_bindgen, JsValue};
+use wasm_bindgen::{JsValue, prelude::wasm_bindgen};
 use wasm_bindgen_futures::future_to_promise;
 use wnfs::{
     common::Storable,

@@ -1,13 +1,13 @@
 #![cfg(test)]
-use super::{operations, Operations};
+use super::{Operations, operations};
 use crate::Node;
 use anyhow::Result;
 use proptest::{collection::vec, strategy::Strategy};
-use serde::{de::DeserializeOwned, Serialize};
+use serde::{Serialize, de::DeserializeOwned};
 use std::{collections::HashMap, fmt::Debug};
 use wnfs_common::{
-    utils::{Arc, CondSync},
     BlockStore, Storable,
+    utils::{Arc, CondSync},
 };
 
 //--------------------------------------------------------------------------------------------------
@@ -46,8 +46,8 @@ pub(crate) fn generate_changes<K: Debug + Clone, V: Debug + Clone>(
     })
 }
 
-pub(crate) fn generate_ops_and_changes(
-) -> impl Strategy<Value = (Operations<String, u64>, Vec<Change<String, u64>>)> {
+pub(crate) fn generate_ops_and_changes()
+-> impl Strategy<Value = (Operations<String, u64>, Vec<Change<String, u64>>)> {
     operations("[a-z0-9]{1,3}", 0..1000u64, 1..20).prop_flat_map(|ops| {
         let map = HashMap::from(&ops);
         let pairs = map.into_iter().collect::<Vec<_>>();

@@ -1,12 +1,12 @@
 #[cfg(feature = "num-bigint-dig")]
-use num_bigint_dig::{prime::probably_prime, BigUint, ModInverse, RandBigInt, RandPrime};
+use num_bigint_dig::{BigUint, ModInverse, RandBigInt, RandPrime, prime::probably_prime};
 use num_traits::{One, Zero};
 use rand_core::CryptoRngCore;
 #[cfg(feature = "rug")]
 use rug::{
+    Integer,
     integer::{IsPrime, Order},
     rand::RandState,
-    Integer,
 };
 use std::{
     fmt::{Debug, Display},

@@ -1,12 +1,12 @@
-use super::{error::HamtError, hash::Hasher, Node, HAMT_VALUES_BUCKET_SIZE};
+use super::{HAMT_VALUES_BUCKET_SIZE, Node, error::HamtError, hash::Hasher};
 use crate::serializable::PointerSerializable;
 use anyhow::Result;
 use libipld::Cid;
-use serde::{de::DeserializeOwned, Serialize};
+use serde::{Serialize, de::DeserializeOwned};
 use std::fmt::Debug;
 use wnfs_common::{
-    utils::{error, Arc, CondSync},
     BlockStore, Link, Storable,
+    utils::{Arc, CondSync, error},
 };
 
 //--------------------------------------------------------------------------------------------------

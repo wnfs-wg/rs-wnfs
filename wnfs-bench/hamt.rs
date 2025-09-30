@@ -1,18 +1,17 @@
 use async_std::task;
 use criterion::{
-    async_executor::AsyncStdExecutor, black_box, criterion_group, criterion_main, BatchSize,
-    Criterion, Throughput,
+    BatchSize, Criterion, Throughput, async_executor::AsyncStdExecutor, black_box, criterion_group,
+    criterion_main,
 };
 use proptest::{arbitrary::any, collection::vec, test_runner::TestRunner};
 use std::cmp;
 use wnfs_common::{
-    utils::{Arc, Sampleable},
     BlockStore, Link, MemoryBlockStore, Storable, StoreIpld,
+    utils::{Arc, Sampleable},
 };
 use wnfs_hamt::{
-    diff, merge,
+    Hamt, Node, diff, merge,
     strategies::{generate_kvs, node_from_kvs, node_from_operations, operations},
-    Hamt, Node,
 };
 
 fn node_set(c: &mut Criterion) {
@@ -88,12 +87,13 @@ fn node_load_get(c: &mut Criterion) {
             let hamt = Hamt::<String, i32>::load(&cid, &store).await.unwrap();
 
             for i in 0..50 {
-                assert!(hamt
-                    .root
-                    .get(&i.to_string(), &store)
-                    .await
-                    .unwrap()
-                    .is_some());
+                assert!(
+                    hamt.root
+                        .get(&i.to_string(), &store)
+                        .await
+                        .unwrap()
+                        .is_some()
+                );
             }
         })
     });

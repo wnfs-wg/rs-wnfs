@@ -1,15 +1,15 @@
 use super::{
-    forest::traits::PrivateForest, PrivateDirectory, PrivateFile, PrivateNode, PrivateRef,
+    PrivateDirectory, PrivateFile, PrivateNode, PrivateRef, forest::traits::PrivateForest,
 };
 use crate::utils::OnceCellDebug;
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use async_once_cell::OnceCell;
 use async_recursion::async_recursion;
 use libipld_core::{cid::Cid, multihash::MultihashGeneric};
 use rand_core::CryptoRngCore;
 use wnfs_common::{
-    utils::{Arc, CondSend},
     BlockStore,
+    utils::{Arc, CondSend},
 };
 use wnfs_nameaccumulator::Name;
 

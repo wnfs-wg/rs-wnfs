@@ -1,10 +1,11 @@
 use anyhow::Result;
 use libipld::{
+    Ipld,
     codec::{Decode, Encode},
     prelude::Codec,
-    serde as ipld_serde, Ipld,
+    serde as ipld_serde,
 };
-use serde::{de::DeserializeOwned, Serialize};
+use serde::{Serialize, de::DeserializeOwned};
 use std::io::Cursor;
 
 /// Encodes a serializable value into DagCbor bytes.

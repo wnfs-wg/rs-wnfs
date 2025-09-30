@@ -1,5 +1,5 @@
-use criterion::{criterion_group, criterion_main, BatchSize, Criterion};
-use rand::{thread_rng, Rng};
+use criterion::{BatchSize, Criterion, criterion_group, criterion_main};
+use rand::{Rng, thread_rng};
 use wnfs_nameaccumulator::{AccumulatorSetup, BigNumDig, BigNumRug, NameAccumulator, NameSegment};
 
 fn name_segment_from_digest(c: &mut Criterion) {

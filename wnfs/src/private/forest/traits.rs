@@ -8,8 +8,8 @@ use futures::Future;
 use libipld_core::cid::Cid;
 use std::collections::BTreeSet;
 use wnfs_common::{
-    utils::{BoxStream, CondSend, CondSync},
     BlockStore, HashOutput,
+    utils::{BoxStream, CondSend, CondSync},
 };
 use wnfs_hamt::Pair;
 use wnfs_nameaccumulator::{AccumulatorSetup, ElementsProof, Name, NameAccumulator};

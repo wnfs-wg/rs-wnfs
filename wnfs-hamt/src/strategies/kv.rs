@@ -1,11 +1,11 @@
 use crate::Node;
 use anyhow::Result;
 use proptest::{collection::vec, sample::SizeRange, strategy::Strategy};
-use serde::{de::DeserializeOwned, Serialize};
+use serde::{Serialize, de::DeserializeOwned};
 use std::{collections::HashMap, fmt::Debug, hash::Hash};
 use wnfs_common::{
-    utils::{Arc, CondSync},
     BlockStore, Storable,
+    utils::{Arc, CondSync},
 };
 
 //--------------------------------------------------------------------------------------------------

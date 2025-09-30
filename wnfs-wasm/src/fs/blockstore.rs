@@ -5,7 +5,7 @@ use bytes::Bytes;
 use js_sys::{Promise, Reflect, Uint8Array};
 use libipld_core::cid::Cid;
 use std::str::FromStr;
-use wasm_bindgen::{prelude::wasm_bindgen, JsValue};
+use wasm_bindgen::{JsValue, prelude::wasm_bindgen};
 use wasm_bindgen_futures::JsFuture;
 use wnfs::common::{BlockStore as WnfsBlockStore, BlockStoreError};
 

@@ -1,22 +1,22 @@
 use super::{
-    encrypted::Encrypted, forest::traits::PrivateForest, link::PrivateLink,
     PrivateDirectoryContentSerializable, PrivateFile, PrivateNode, PrivateNodeContentSerializable,
-    PrivateNodeHeader, PrivateRef, TemporalKey,
+    PrivateNodeHeader, PrivateRef, TemporalKey, encrypted::Encrypted,
+    forest::traits::PrivateForest, link::PrivateLink,
 };
-use crate::{error::FsError, is_readable_wnfs_version, traits::Id, SearchResult, WNFS_VERSION};
-use anyhow::{bail, ensure, Result};
+use crate::{SearchResult, WNFS_VERSION, error::FsError, is_readable_wnfs_version, traits::Id};
+use anyhow::{Result, bail, ensure};
 use async_once_cell::OnceCell;
 use chrono::{DateTime, Utc};
 use libipld_core::cid::Cid;
 use rand_core::CryptoRngCore;
 use std::{
     cmp::Ordering,
-    collections::{btree_map::Entry, BTreeMap, BTreeSet},
+    collections::{BTreeMap, BTreeSet, btree_map::Entry},
     fmt::Debug,
 };
 use wnfs_common::{
-    utils::{error, Arc, CondSend},
-    BlockStore, Metadata, PathNodes, PathNodesResult, CODEC_RAW,
+    BlockStore, CODEC_RAW, Metadata, PathNodes, PathNodesResult,
+    utils::{Arc, CondSend, error},
 };
 use wnfs_nameaccumulator::{Name, NameSegment};
 
@@ -211,7 +211,7 @@ impl PrivateDirectory {
     /// assert_eq!(dir.get_metadata(), &Metadata::new(time));
     /// ```
     #[inline]
-    pub fn get_metadata<'a>(self: &'a Arc<Self>) -> &'a Metadata {
+    pub fn get_metadata(self: &Arc<Self>) -> &Metadata {
         &self.content.metadata
     }
 
@@ -403,7 +403,7 @@ impl PrivateDirectory {
     /// This doesn't have any effect if the current state hasn't been `.store()`ed yet.
     /// Otherwise, it clones itself, stores its current CID in the previous links and
     /// advances its ratchet.
-    pub(crate) fn prepare_next_revision<'a>(self: &'a mut Arc<Self>) -> Result<&'a mut Self> {
+    pub(crate) fn prepare_next_revision(self: &mut Arc<Self>) -> Result<&mut Self> {
         let Some(previous_cid) = self.content.persisted_as.get().cloned() else {
             // The current revision wasn't written yet.
             // There's no point in advancing the revision even further.
@@ -428,11 +428,11 @@ impl PrivateDirectory {
     /// simply updates all previous links to use the correct steps back.
     /// Merge nodes preferably just grow in size. This allows them to combine more nicely
     /// without causing further conflicts.
-    pub(crate) fn prepare_next_merge<'a>(
-        self: &'a mut Arc<Self>,
+    pub(crate) fn prepare_next_merge(
+        self: &mut Arc<Self>,
         current_cid: Cid,
         target_header: PrivateNodeHeader,
-    ) -> Result<&'a mut Self> {
+    ) -> Result<&mut Self> {
         let ratchet_diff = target_header.ratchet_diff_for_merge(&self.header)?;
 
         if self.content.previous.len() > 1 {
@@ -998,7 +998,7 @@ impl PrivateDirectory {
     ///
     /// Other than [PrivateDirectory::ls] this returns only the names, without loading the
     /// metadata for each node from the store.
-    pub fn get_entries<'a>(self: &'a Arc<Self>) -> impl Iterator<Item = &'a String> {
+    pub fn get_entries(self: &Arc<Self>) -> impl Iterator<Item = &String> {
         self.content.entries.iter().map(|x| x.0)
     }
 
@@ -1681,49 +1681,57 @@ mod tests {
             .await
             .unwrap();
 
-        assert!(root_dir
-            .get_node(
-                &["pictures".into(), "cats".into(), "tabby.jpg".into()],
-                true,
-                forest,
-                store,
-            )
-            .await
-            .unwrap()
-            .is_some());
+        assert!(
+            root_dir
+                .get_node(
+                    &["pictures".into(), "cats".into(), "tabby.jpg".into()],
+                    true,
+                    forest,
+                    store,
+                )
+                .await
+                .unwrap()
+                .is_some()
+        );
 
-        assert!(root_dir
-            .get_node(
-                &["pictures".into(), "cats".into(), "tabby.jpeg".into()],
-                true,
-                forest,
-                store,
-            )
-            .await
-            .unwrap()
-            .is_none());
+        assert!(
+            root_dir
+                .get_node(
+                    &["pictures".into(), "cats".into(), "tabby.jpeg".into()],
+                    true,
+                    forest,
+                    store,
+                )
+                .await
+                .unwrap()
+                .is_none()
+        );
 
-        assert!(root_dir
-            .get_node(
-                &["images".into(), "parrots".into(), "coco.png".into()],
-                true,
-                forest,
-                store,
-            )
-            .await
-            .unwrap()
-            .is_none());
+        assert!(
+            root_dir
+                .get_node(
+                    &["images".into(), "parrots".into(), "coco.png".into()],
+                    true,
+                    forest,
+                    store,
+                )
+                .await
+                .unwrap()
+                .is_none()
+        );
 
-        assert!(root_dir
-            .get_node(
-                &["pictures".into(), "dogs".into(), "bingo.jpg".into()],
-                true,
-                forest,
-                store,
-            )
-            .await
-            .unwrap()
-            .is_none());
+        assert!(
+            root_dir
+                .get_node(
+                    &["pictures".into(), "dogs".into(), "bingo.jpg".into()],
+                    true,
+                    forest,
+                    store,
+                )
+                .await
+                .unwrap()
+                .is_none()
+        );
     }
 
     #[test(async_std::test)]
@@ -2553,7 +2561,7 @@ mod snapshot_tests {
     use chrono::TimeZone;
     use rand_chacha::ChaCha12Rng;
     use rand_core::SeedableRng;
-    use wnfs_common::{utils::SnapshotBlockStore, Storable};
+    use wnfs_common::{Storable, utils::SnapshotBlockStore};
 
     #[async_std::test]
     async fn test_private_fs() -> Result<()> {

@@ -4,7 +4,7 @@ use crate::{
     protobufs,
     types::{Block, Link, LinkRef, Links, PbLinks},
 };
-use anyhow::{anyhow, bail, ensure, Result};
+use anyhow::{Result, anyhow, bail, ensure};
 use bytes::Bytes;
 use futures::FutureExt;
 use libipld::Cid;
@@ -17,8 +17,8 @@ use std::{
 };
 use tokio::io::{AsyncRead, AsyncSeek};
 use wnfs_common::{
-    utils::{boxed_fut, BoxFuture},
     BlockStore, LoadIpld, Storable, StoreIpld,
+    utils::{BoxFuture, boxed_fut},
 };
 
 #[derive(

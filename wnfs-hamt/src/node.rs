@@ -1,10 +1,10 @@
 use super::{
+    HAMT_BITMASK_BIT_SIZE, HAMT_BITMASK_BYTE_SIZE, HashPrefix, Pair, Pointer,
     error::HamtError,
     hash::{HashNibbles, Hasher},
-    HashPrefix, Pair, Pointer, HAMT_BITMASK_BIT_SIZE, HAMT_BITMASK_BYTE_SIZE,
 };
-use crate::{serializable::NodeSerializable, HAMT_VALUES_BUCKET_SIZE};
-use anyhow::{bail, Result};
+use crate::{HAMT_VALUES_BUCKET_SIZE, serializable::NodeSerializable};
+use anyhow::{Result, bail};
 use async_once_cell::OnceCell;
 use async_recursion::async_recursion;
 use bitvec::array::BitArray;
@@ -12,7 +12,7 @@ use either::{Either, Either::*};
 use libipld::Cid;
 #[cfg(feature = "log")]
 use log::debug;
-use serde::{de::DeserializeOwned, Serialize};
+use serde::{Serialize, de::DeserializeOwned};
 use serde_byte_array::ByteArray;
 use std::{
     collections::HashMap,
@@ -21,8 +21,8 @@ use std::{
     marker::PhantomData,
 };
 use wnfs_common::{
-    utils::{boxed_fut, Arc, BoxFuture, CondSend, CondSync},
     BlockStore, HashOutput, Link, Storable,
+    utils::{Arc, BoxFuture, CondSend, CondSync, boxed_fut},
 };
 
 //--------------------------------------------------------------------------------------------------
@@ -903,12 +903,12 @@ where
 mod tests {
     use super::*;
     use helper::*;
-    use wnfs_common::{utils, MemoryBlockStore};
+    use wnfs_common::{MemoryBlockStore, utils};
 
     mod helper {
         use crate::Hasher;
         use once_cell::sync::Lazy;
-        use wnfs_common::{utils, HashOutput};
+        use wnfs_common::{HashOutput, utils};
 
         pub(super) static HASH_KV_PAIRS: Lazy<Vec<(HashOutput, &'static str)>> = Lazy::new(|| {
             vec![
@@ -1208,7 +1208,7 @@ mod tests {
 mod proptests {
     use super::*;
     use crate::strategies::{
-        node_from_operations, operations, operations_and_shuffled, Operations,
+        Operations, node_from_operations, operations, operations_and_shuffled,
     };
     use proptest::prelude::*;
     use test_strategy::proptest;

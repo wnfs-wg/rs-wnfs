@@ -1,6 +1,6 @@
 use super::{Name, Rng};
 use crate::{
-    fs::{utils, utils::error, BlockStore, ForeignBlockStore, ForestChange, JsResult},
+    fs::{BlockStore, ForeignBlockStore, ForestChange, JsResult, utils, utils::error},
     value,
 };
 use js_sys::{Array, Promise, Uint8Array};
@@ -104,10 +104,11 @@ impl PrivateForest {
                 .await
                 .map_err(error("Error in private forest 'merge'"))?;
 
-            Ok(value!(diff
-                .into_iter()
-                .map(|c| value!(ForestChange(c.map(&|c| c.0))))
-                .collect::<Array>()))
+            Ok(value!(
+                diff.into_iter()
+                    .map(|c| value!(ForestChange(c.map(&|c| c.0))))
+                    .collect::<Array>()
+            ))
         }))
     }
 

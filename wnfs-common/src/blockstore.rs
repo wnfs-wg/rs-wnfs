@@ -1,15 +1,14 @@
 use crate::{
-    decode, encode,
+    BlockStoreError, MAX_BLOCK_SIZE, decode, encode,
     utils::{Arc, CondSend, CondSync},
-    BlockStoreError, MAX_BLOCK_SIZE,
 };
 use bytes::Bytes;
 use futures::Future;
 use libipld::{
+    Cid,
     cbor::DagCborCodec,
     cid::Version,
     multihash::{Code, MultihashDigest},
-    Cid,
 };
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};

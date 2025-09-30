@@ -1,17 +1,17 @@
 use crate::{
-    balanced_tree::{TreeBuilder, DEFAULT_DEGREE},
+    balanced_tree::{DEFAULT_DEGREE, TreeBuilder},
     chunker::{self, Chunker, ChunkerConfig, DEFAULT_CHUNK_SIZE_LIMIT},
     protobufs,
     types::{Block, BoxAsyncRead},
 };
-use anyhow::{anyhow, ensure, Result};
+use anyhow::{Result, anyhow, ensure};
 use bytes::Bytes;
 use futures::{Stream, TryStreamExt};
 use libipld::Cid;
 use prost::Message;
 use std::fmt::Debug;
 use tokio::io::AsyncRead;
-use wnfs_common::{utils::CondSend, BlockStore};
+use wnfs_common::{BlockStore, utils::CondSend};
 
 /// Representation of a constructed File.
 pub struct File<'a> {
@@ -232,9 +232,11 @@ mod tests {
         );
 
         assert!("fixed-".parse::<ChunkerConfig>().is_err());
-        assert!(format!("fixed-{}", DEFAULT_CHUNK_SIZE_LIMIT + 1)
-            .parse::<ChunkerConfig>()
-            .is_err());
+        assert!(
+            format!("fixed-{}", DEFAULT_CHUNK_SIZE_LIMIT + 1)
+                .parse::<ChunkerConfig>()
+                .is_err()
+        );
         assert!("foo-123".parse::<ChunkerConfig>().is_err());
         assert!("foo".parse::<ChunkerConfig>().is_err());
 
@@ -256,7 +258,7 @@ mod proptests {
     use test_strategy::proptest;
     use testresult::TestResult;
     use tokio::io::{AsyncReadExt, AsyncSeekExt};
-    use wnfs_common::{MemoryBlockStore, MAX_BLOCK_SIZE};
+    use wnfs_common::{MAX_BLOCK_SIZE, MemoryBlockStore};
 
     fn arb_chunker() -> impl Strategy<Value = ChunkerConfig> {
         option::of(1_000..MAX_BLOCK_SIZE).prop_map(|opt| match opt {

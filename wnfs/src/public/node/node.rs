@@ -6,12 +6,12 @@ use crate::{
     public::{PublicDirectory, PublicFile},
     traits::Id,
 };
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 use async_once_cell::OnceCell;
 use chrono::{DateTime, Utc};
 use libipld_core::cid::Cid;
 use std::{cmp::Ordering, collections::BTreeSet};
-use wnfs_common::{utils::Arc, BlockStore, Storable};
+use wnfs_common::{BlockStore, Storable, utils::Arc};
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
@@ -413,7 +413,7 @@ mod tests {
 #[cfg(test)]
 mod proptests {
     use super::*;
-    use futures::{stream, StreamExt, TryStreamExt};
+    use futures::{StreamExt, TryStreamExt, stream};
     use proptest::{collection::vec, prelude::*};
     use test_strategy::proptest;
     use wnfs_common::MemoryBlockStore;
@@ -602,12 +602,12 @@ mod proptests {
                 (Ordering::Less, Ordering::Greater) => {
                     return Err(TestCaseError::reject(
                         "a < b and b > c, there's no transitivity to test here",
-                    ))
+                    ));
                 }
                 (Ordering::Greater, Ordering::Less) => {
                     return Err(TestCaseError::reject(
                         "a > b and b < c, there's no transitivity to test here",
-                    ))
+                    ));
                 }
             }
 

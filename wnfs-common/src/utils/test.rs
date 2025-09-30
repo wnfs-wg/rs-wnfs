@@ -1,13 +1,13 @@
 use super::{Arc, CondSend, CondSync};
-use crate::{BlockStore, BlockStoreError, MemoryBlockStore, CODEC_DAG_CBOR, CODEC_RAW};
+use crate::{BlockStore, BlockStoreError, CODEC_DAG_CBOR, CODEC_RAW, MemoryBlockStore};
 use anyhow::Result;
 use base64_serde::base64_serde_type;
 use bytes::Bytes;
 use libipld::{
+    Cid, Ipld, IpldCodec,
     cbor::DagCborCodec,
     json::DagJsonCodec,
     prelude::{Decode, Encode, References},
-    Cid, Ipld, IpldCodec,
 };
 use parking_lot::Mutex;
 use proptest::{

@@ -8,13 +8,12 @@ use semver::Version;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 use wnfs_common::{
-    impl_storable_from_serde,
+    BlockStore, HashOutput, Link, Storable, impl_storable_from_serde,
     utils::{Arc, CondSend},
-    BlockStore, HashOutput, Link, Storable,
 };
 use wnfs_hamt::{
-    constants::HAMT_VERSION, merge, serializable::NodeSerializable, Hamt, Hasher, KeyValueChange,
-    Node, Pair,
+    Hamt, Hasher, KeyValueChange, Node, Pair, constants::HAMT_VERSION, merge,
+    serializable::NodeSerializable,
 };
 use wnfs_nameaccumulator::{AccumulatorSetup, ElementsProof, Name, NameAccumulator};
 

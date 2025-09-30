@@ -1,13 +1,13 @@
 use crate::{
+    WNFS_VERSION,
     error::FsError,
     private::{
-        forest::{hamt::HamtForest, traits::PrivateForest},
         AccessKey, PrivateDirectory, PrivateNode,
+        forest::{hamt::HamtForest, traits::PrivateForest},
     },
     public::PublicDirectory,
-    WNFS_VERSION,
 };
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 #[cfg(test)]
 use chrono::TimeZone;
 use chrono::{DateTime, Utc};
@@ -20,10 +20,9 @@ use std::collections::BTreeMap;
 #[cfg(test)]
 use wnfs_common::MemoryBlockStore;
 use wnfs_common::{
-    decode, encode,
+    BlockStore, Metadata, Storable, decode, encode,
     libipld::cbor::DagCborCodec,
     utils::{Arc, CondSend},
-    BlockStore, Metadata, Storable,
 };
 
 //--------------------------------------------------------------------------------------------------

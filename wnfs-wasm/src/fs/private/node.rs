@@ -1,9 +1,9 @@
 use super::{AccessKey, Name, NameAccumulator};
 use crate::{
     fs::{
+        BlockStore, ForeignBlockStore, JsResult, Rng,
         private::{PrivateDirectory, PrivateFile, PrivateForest},
         utils::{self, error},
-        BlockStore, ForeignBlockStore, JsResult, Rng,
     },
     value,
 };

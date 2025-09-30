@@ -101,7 +101,7 @@ pub(crate) fn blake3_prime_digest_fast<B: Big>(
 
 #[cfg(test)]
 mod tests {
-    use super::{blake3_prime_digest, TEST_DSI};
+    use super::{TEST_DSI, blake3_prime_digest};
     use crate::BigNumDig;
 
     /// This test makes sure we don't accidentally (only intentionally)
@@ -119,10 +119,10 @@ mod tests {
 #[cfg(test)]
 mod proptests {
     use crate::{
-        fns::{blake3_prime_digest, blake3_prime_digest_fast, multi_exp, nlogn_product, TEST_DSI},
         BigNumDig,
+        fns::{TEST_DSI, blake3_prime_digest, blake3_prime_digest_fast, multi_exp, nlogn_product},
     };
-    use num_bigint_dig::{prime::probably_prime, BigUint, RandPrime};
+    use num_bigint_dig::{BigUint, RandPrime, prime::probably_prime};
     use num_traits::One;
     use proptest::{
         collection::vec, prelude::any, prop_assert, prop_assert_eq, strategy::Strategy,

@@ -21,23 +21,25 @@ impl TryFrom<JsMetadata<'_>> for JsValue {
     fn try_from(value: JsMetadata<'_>) -> Result<Self, Self::Error> {
         let metadata = Object::new();
 
-        if let Some(Ipld::Integer(i)) = value.0 .0.get("created") {
+        if let Some(Ipld::Integer(i)) = value.0.0.get("created") {
             Reflect::set(
                 &metadata,
                 &value!("created"),
-                &value!(i64::try_from(*i)
-                    .map_err(error("Cannot convert 'created' metadata value"))?
-                    as f64),
+                &value!(
+                    i64::try_from(*i).map_err(error("Cannot convert 'created' metadata value"))?
+                        as f64
+                ),
             )?;
         }
 
-        if let Some(Ipld::Integer(i)) = value.0 .0.get("modified") {
+        if let Some(Ipld::Integer(i)) = value.0.0.get("modified") {
             Reflect::set(
                 &metadata,
                 &value!("modified"),
-                &value!(i64::try_from(*i)
-                    .map_err(error("Cannot convert 'modified' metadata value"))?
-                    as f64),
+                &value!(
+                    i64::try_from(*i).map_err(error("Cannot convert 'modified' metadata value"))?
+                        as f64
+                ),
             )?;
         }
 

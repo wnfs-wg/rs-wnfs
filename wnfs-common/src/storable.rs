@@ -2,15 +2,15 @@
 //! that are implemented for most WNFS structures, such as `PublicFile`, `PublicDirectory`,
 //! `PublicNode`, `HamtForest` etc.
 use crate::{
-    utils::{Arc, CondSend, CondSync},
     BlockStore,
+    utils::{Arc, CondSend, CondSync},
 };
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 use async_once_cell::OnceCell;
 use bytes::Bytes;
 use futures::Future;
-use libipld::{cbor::DagCborCodec, Cid};
-use serde::{de::DeserializeOwned, Serialize};
+use libipld::{Cid, cbor::DagCborCodec};
+use serde::{Serialize, de::DeserializeOwned};
 
 //--------------------------------------------------------------------------------------------------
 // Macros

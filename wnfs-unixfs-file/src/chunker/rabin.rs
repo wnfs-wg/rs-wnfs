@@ -3,7 +3,7 @@
 use bytes::{Bytes, BytesMut};
 use std::io;
 use tokio::io::{AsyncRead, AsyncReadExt};
-use wnfs_common::utils::{boxed_stream, BoxStream, CondSend};
+use wnfs_common::utils::{BoxStream, CondSend, boxed_stream};
 
 /// Rabin fingerprinting based chunker.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -782,7 +782,7 @@ mod tests {
     use super::*;
     use futures::TryStreamExt;
     use proptest::prelude::*;
-    use rand::{rngs::StdRng, Rng, RngCore, SeedableRng};
+    use rand::{Rng, RngCore, SeedableRng, rngs::StdRng};
 
     #[tokio::test]
     async fn test_simple_chunks() {
