@@ -11,7 +11,6 @@ use anyhow::{Result, bail};
 #[cfg(test)]
 use chrono::TimeZone;
 use chrono::{DateTime, Utc};
-use libipld_core::cid::Cid;
 use rand_chacha::ChaCha12Rng;
 use rand_core::{CryptoRngCore, SeedableRng};
 use semver::Version;
@@ -20,8 +19,7 @@ use std::collections::BTreeMap;
 #[cfg(test)]
 use wnfs_common::MemoryBlockStore;
 use wnfs_common::{
-    BlockStore, Metadata, Storable, decode, encode,
-    libipld::cbor::DagCborCodec,
+    BlockStore, CODEC_DAG_CBOR, Cid, Metadata, Storable,
     utils::{Arc, CondSend},
 };
 
@@ -424,7 +422,7 @@ impl<B: BlockStore> RootTree<B> {
 
         let cid = self
             .store
-            .put_block(encode(&serializable, DagCborCodec)?, DagCborCodec.into())
+            .put_block(serde_ipld_dagcbor::to_vec(&serializable)?, CODEC_DAG_CBOR)
             .await?;
 
         Ok(cid)
@@ -432,7 +430,7 @@ impl<B: BlockStore> RootTree<B> {
 
     pub async fn load(cid: &Cid, store: B) -> Result<RootTree<B>> {
         let deserialized: RootTreeSerializable =
-            decode(&store.get_block(cid).await?, DagCborCodec)?;
+            serde_ipld_dagcbor::from_slice(&store.get_block(cid).await?)?;
         let forest = Arc::new(HamtForest::load(&deserialized.forest, &store).await?);
         let public_root = Arc::new(PublicDirectory::load(&deserialized.public, &store).await?);
         let exchange_root = Arc::new(PublicDirectory::load(&deserialized.exchange, &store).await?);

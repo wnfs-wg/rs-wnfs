@@ -3,10 +3,9 @@ use crate::{
     private::{KEY_BYTE_SIZE, PrivateRefSerializable, TemporalKey},
 };
 use anyhow::Result;
-use libipld_core::cid::Cid;
 use serde::{Deserialize, Serialize, de::Error as DeError, ser::Error as SerError};
 use std::fmt::Debug;
-use wnfs_common::HashOutput;
+use wnfs_common::{Cid, HashOutput};
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions

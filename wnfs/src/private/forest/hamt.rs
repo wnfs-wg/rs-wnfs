@@ -1,14 +1,13 @@
 use super::traits::PrivateForest;
 use crate::error::FsError;
 use anyhow::Result;
-use libipld_core::cid::Cid;
 use quick_cache::sync::Cache;
 use rand_core::CryptoRngCore;
 use semver::Version;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 use wnfs_common::{
-    BlockStore, HashOutput, Link, Storable, impl_storable_from_serde,
+    BlockStore, Cid, HashOutput, Link, Storable, impl_storable_from_serde,
     utils::{Arc, CondSend},
 };
 use wnfs_hamt::{

@@ -14,13 +14,12 @@ use anyhow::{Result, bail, ensure};
 use async_once_cell::OnceCell;
 use async_recursion::async_recursion;
 use chrono::{DateTime, Utc};
-use libipld_core::cid::Cid;
 use std::{
     cmp::Ordering,
     collections::{BTreeMap, BTreeSet, btree_map::Entry},
 };
 use wnfs_common::{
-    BlockStore, Metadata, NodeType, Storable,
+    BlockStore, Cid, Metadata, NodeType, Storable,
     utils::{Arc, boxed_fut, error},
 };
 
@@ -327,7 +326,7 @@ impl PublicDirectory {
     /// };
     /// use std::sync::Arc;
     /// use chrono::Utc;
-    /// use wnfs_common::libipld::Ipld;
+    /// use ipld_core::ipld::Ipld;
     ///
     /// #[async_std::main]
     /// async fn main() -> Result<()> {
@@ -583,9 +582,8 @@ impl PublicDirectory {
     /// ```
     /// use wnfs::{
     ///     public::PublicDirectory,
-    ///     common::MemoryBlockStore
+    ///     common::MemoryBlockStore,
     /// };
-    /// use libipld_core::cid::Cid;
     /// use chrono::Utc;
     ///
     /// #[async_std::main]
@@ -713,7 +711,6 @@ impl PublicDirectory {
     ///     public::PublicDirectory,
     ///     common::MemoryBlockStore
     /// };
-    /// use libipld_core::cid::Cid;
     /// use chrono::Utc;
     ///
     /// #[async_std::main]
@@ -782,7 +779,6 @@ impl PublicDirectory {
     ///
     /// ```
     /// use anyhow::Result;
-    /// use libipld_core::cid::Cid;
     /// use chrono::Utc;
     /// use wnfs::{
     ///     public::PublicDirectory,
@@ -1082,9 +1078,9 @@ impl Storable for PublicDirectory {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use libipld_core::ipld::Ipld;
+    use ipld_core::ipld::Ipld;
     use testresult::TestResult;
-    use wnfs_common::{MemoryBlockStore, decode, libipld::cbor::DagCborCodec};
+    use wnfs_common::MemoryBlockStore;
 
     #[async_std::test]
     async fn look_up_can_fetch_file_added_to_directory() -> TestResult {
@@ -1443,12 +1439,11 @@ mod tests {
 
         root_dir.mkdir(&["test".into()], time, store).await.unwrap();
 
-        let ipld: Ipld = decode(
+        let ipld: Ipld = serde_ipld_dagcbor::from_slice(
             &store
                 .get_block(&root_dir.store(store).await.unwrap())
                 .await
                 .unwrap(),
-            DagCborCodec,
         )
         .unwrap();
         match ipld {
@@ -1517,7 +1512,7 @@ mod tests {
 #[cfg(test)]
 mod proptests {
     use super::*;
-    use libipld_core::ipld::Ipld;
+    use ipld_core::ipld::Ipld;
     use proptest::{
         collection::{btree_map, vec},
         prelude::*,

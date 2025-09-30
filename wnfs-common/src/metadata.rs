@@ -1,9 +1,10 @@
 //! File system metadata.
 
+use crate::MULTIHASH_BLAKE3;
 use anyhow::{Result, bail};
 use chrono::{DateTime, TimeZone, Utc};
-use libipld::{Ipld, Multihash};
-use multihash::{Code, MultihashDigest};
+use ipld_core::ipld::Ipld;
+use multihash::Multihash;
 use serde::{
     Deserialize, Deserializer, Serialize, Serializer,
     de::{DeserializeOwned, Error as DeError},
@@ -174,14 +175,14 @@ impl Metadata {
 
     /// Serializes and inserts given value at given key in metadata.
     pub fn put_serializable(&mut self, key: &str, value: impl Serialize) -> Result<Option<Ipld>> {
-        let serialized = libipld::serde::to_ipld(value)?;
+        let serialized = ipld_core::serde::to_ipld(value)?;
         Ok(self.put(key, serialized))
     }
 
     /// Returns deserialized metadata value behind given key.
     pub fn get_deserializable<D: DeserializeOwned>(&self, key: &str) -> Option<Result<D>> {
         self.get(key)
-            .map(|ipld| Ok(libipld::serde::from_ipld(ipld.clone())?))
+            .map(|ipld| Ok(ipld_core::serde::from_ipld(ipld.clone())?))
     }
 
     /// Deletes a key from the metadata.
@@ -225,9 +226,9 @@ impl Metadata {
         }
     }
 
-    pub(crate) fn hash(&self) -> Result<Multihash> {
+    pub(crate) fn hash(&self) -> Result<Multihash<64>> {
         let vec = serde_ipld_dagcbor::to_vec(self)?;
-        let hash = Code::Blake3_256.digest(&vec);
+        let hash = Multihash::wrap(MULTIHASH_BLAKE3, blake3::hash(&vec).as_bytes()).unwrap();
         Ok(hash)
     }
 
@@ -308,16 +309,15 @@ impl<'de> Deserialize<'de> for NodeType {
 
 #[cfg(test)]
 mod tests {
-    use crate::{Metadata, decode, encode};
+    use crate::Metadata;
     use chrono::Utc;
-    use libipld::cbor::DagCborCodec;
 
     #[async_std::test]
     async fn metadata_can_encode_decode_as_cbor() {
         let metadata = Metadata::new(Utc::now());
 
-        let encoded_metadata = encode(&metadata, DagCborCodec).unwrap();
-        let decoded_metadata: Metadata = decode(encoded_metadata.as_ref(), DagCborCodec).unwrap();
+        let encoded_metadata = serde_ipld_dagcbor::to_vec(&metadata).unwrap();
+        let decoded_metadata: Metadata = serde_ipld_dagcbor::from_slice(&encoded_metadata).unwrap();
 
         assert_eq!(metadata, decoded_metadata);
     }

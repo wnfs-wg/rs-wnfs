@@ -20,6 +20,21 @@ expression: values
     "bytes": "pGZmb3Jlc3TYKlglAAFxHiCybEPPmr0P5wSbgMO7HtxapCA8UlnwnfAUV2t/1TBeS2ZwdWJsaWPYKlglAAFxHiD7VpD7WhHEVsmy03LYDk//0ZTWX++8Kdc9NpRjpotfhGd2ZXJzaW9uZTEuMC4waGV4Y2hhbmdl2CpYJQABcR4g+1aQ+1oRxFbJstNy2A5P/9GU1l/vvCnXPTaUY6aLX4Q="
   },
   {
+    "cid": "bafyr4ih3k2ipwwqryrlmtmwtolma4t772gknmx7pxqu5opjwsrr2nc27qq",
+    "value": {
+      "wnfs/pub/dir": {
+        "metadata": {
+          "created": 0,
+          "modified": 0
+        },
+        "previous": [],
+        "userland": {},
+        "version": "1.0.0"
+      }
+    },
+    "bytes": "oWx3bmZzL3B1Yi9kaXKkZ3ZlcnNpb25lMS4wLjBobWV0YWRhdGGiZ2NyZWF0ZWQAaG1vZGlmaWVkAGhwcmV2aW91c4BodXNlcmxhbmSg"
+  },
+  {
     "cid": "bafyr4ifsnrb47gv5b7tqjg4ayo5r5xc2uqqdyusz6co7afcxnn75kmc6jm",
     "value": {
       "accumulator": {
@@ -112,21 +127,6 @@ expression: values
       "version": "0.1.0"
     },
     "bytes": "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"
-  },
-  {
-    "cid": "bafyr4ih3k2ipwwqryrlmtmwtolma4t772gknmx7pxqu5opjwsrr2nc27qq",
-    "value": {
-      "wnfs/pub/dir": {
-        "metadata": {
-          "created": 0,
-          "modified": 0
-        },
-        "previous": [],
-        "userland": {},
-        "version": "1.0.0"
-      }
-    },
-    "bytes": "oWx3bmZzL3B1Yi9kaXKkZ3ZlcnNpb25lMS4wLjBobWV0YWRhdGGiZ2NyZWF0ZWQAaG1vZGlmaWVkAGhwcmV2aW91c4BodXNlcmxhbmSg"
   },
   {
     "cid": "bafkr4ia7j7qr7tr5mjtfubc3gymkywenrgox467roubruh5zxk25h3zaoq",

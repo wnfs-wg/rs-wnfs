@@ -11,8 +11,7 @@ use async_once_cell::OnceCell;
 use async_stream::try_stream;
 use chrono::{DateTime, Utc};
 use futures::{AsyncRead, Stream, StreamExt, TryStreamExt, future};
-use libipld_core::{
-    cid::Cid,
+use ipld_core::{
     ipld::Ipld,
     serde::{from_ipld, to_ipld},
 };
@@ -20,7 +19,7 @@ use rand_core::CryptoRngCore;
 use serde::{Deserialize, Serialize};
 use std::{cmp::Ordering, collections::BTreeSet, iter};
 use wnfs_common::{
-    BlockStore, CODEC_RAW, MAX_BLOCK_SIZE, Metadata,
+    BlockStore, CODEC_RAW, Cid, MAX_BLOCK_SIZE, Metadata,
     utils::{self, Arc, BoxStream},
 };
 use wnfs_nameaccumulator::{Name, NameAccumulator, NameSegment};

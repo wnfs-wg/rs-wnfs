@@ -7,7 +7,6 @@ use crate::{SearchResult, WNFS_VERSION, error::FsError, is_readable_wnfs_version
 use anyhow::{Result, bail, ensure};
 use async_once_cell::OnceCell;
 use chrono::{DateTime, Utc};
-use libipld_core::cid::Cid;
 use rand_core::CryptoRngCore;
 use std::{
     cmp::Ordering,
@@ -15,7 +14,7 @@ use std::{
     fmt::Debug,
 };
 use wnfs_common::{
-    BlockStore, CODEC_RAW, Metadata, PathNodes, PathNodesResult,
+    BlockStore, CODEC_RAW, Cid, Metadata, PathNodes, PathNodesResult,
     utils::{Arc, CondSend, error},
 };
 use wnfs_nameaccumulator::{Name, NameSegment};

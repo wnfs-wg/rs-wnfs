@@ -1,10 +1,9 @@
 use crate::{codecs::Codec, parse_links, protobufs};
 use anyhow::{Result, anyhow};
 use bytes::Bytes;
-use libipld::Cid;
 use std::{io::Cursor, pin::Pin};
 use tokio::io::AsyncRead;
-use wnfs_common::BlockStore;
+use wnfs_common::{BlockStore, Cid};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Block {

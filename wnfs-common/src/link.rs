@@ -1,7 +1,7 @@
 use crate::{BlockStore, Storable, utils::CondSync};
 use anyhow::Result;
 use async_once_cell::OnceCell;
-use libipld::Cid;
+use cid::Cid;
 use std::fmt::{self, Debug, Formatter};
 
 //--------------------------------------------------------------------------------------------------
@@ -218,7 +218,7 @@ mod tests {
     use crate::{BlockStore, Link, MemoryBlockStore, Storable};
     use anyhow::Result;
     use async_once_cell::OnceCell;
-    use libipld::Cid;
+    use cid::Cid;
     use serde::{Deserialize, Serialize};
 
     #[derive(Debug, Serialize, Deserialize)]

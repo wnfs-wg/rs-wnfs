@@ -1,12 +1,11 @@
 use super::{HAMT_VERSION, KeyValueChange, Node};
 use crate::{Hasher, serializable::HamtSerializable};
 use anyhow::Result;
-use libipld::Cid;
 use semver::Version;
 use serde::{Serialize, de::DeserializeOwned};
 use std::hash::Hash;
 use wnfs_common::{
-    BlockStore, Link, Storable,
+    BlockStore, Cid, Link, Storable,
     utils::{Arc, CondSync},
 };
 

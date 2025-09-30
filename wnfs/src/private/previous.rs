@@ -4,10 +4,9 @@ use super::{
 };
 use crate::error::FsError;
 use anyhow::{Result, bail};
-use libipld_core::cid::Cid;
 use skip_ratchet::{PreviousIterator, Ratchet};
 use std::collections::BTreeSet;
-use wnfs_common::{BlockStore, PathNodes, PathNodesResult, utils::Arc};
+use wnfs_common::{BlockStore, Cid, PathNodes, PathNodesResult, utils::Arc};
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions

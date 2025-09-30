@@ -6,11 +6,10 @@
 use anyhow::Result;
 use bytes::Bytes;
 use chrono::Utc;
-use libipld_core::cid::Cid;
 use rand_chacha::ChaCha12Rng;
 use rand_core::SeedableRng;
 use wnfs::{
-    common::{BlockStore, MemoryBlockStore},
+    common::{BlockStore, Cid, MemoryBlockStore},
     private::{
         PrivateDirectory, PrivateNode,
         forest::{hamt::HamtForest, traits::PrivateForest},

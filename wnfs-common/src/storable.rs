@@ -2,14 +2,14 @@
 //! that are implemented for most WNFS structures, such as `PublicFile`, `PublicDirectory`,
 //! `PublicNode`, `HamtForest` etc.
 use crate::{
-    BlockStore,
+    BlockStore, CODEC_DAG_CBOR,
     utils::{Arc, CondSend, CondSync},
 };
 use anyhow::{Result, bail};
 use async_once_cell::OnceCell;
 use bytes::Bytes;
+use cid::Cid;
 use futures::Future;
-use libipld::{Cid, cbor::DagCborCodec};
 use serde::{Serialize, de::DeserializeOwned};
 
 //--------------------------------------------------------------------------------------------------
@@ -27,7 +27,7 @@ macro_rules! impl_storable_from_serde {
                     Ok(self.clone())
                 }
 
-                async fn from_serializable(_cid: Option<&$crate::libipld::Cid>, serializable: Self::Serializable) -> ::anyhow::Result<Self> {
+                async fn from_serializable(_cid: Option<&$crate::Cid>, serializable: Self::Serializable) -> ::anyhow::Result<Self> {
                     Ok(serializable)
                 }
             }
@@ -126,14 +126,14 @@ pub trait LoadIpld: Sized {
 impl<T: Serialize> StoreIpld for T {
     fn encode_ipld(&self) -> Result<(Bytes, u64)> {
         let bytes = serde_ipld_dagcbor::to_vec(self)?;
-        Ok((bytes.into(), DagCborCodec.into()))
+        Ok((bytes.into(), CODEC_DAG_CBOR))
     }
 }
 
 impl<T: DeserializeOwned + Sized> LoadIpld for T {
     fn decode_ipld(cid: &Cid, bytes: Bytes) -> Result<Self> {
         let codec = cid.codec();
-        let dag_cbor: u64 = DagCborCodec.into();
+        let dag_cbor: u64 = CODEC_DAG_CBOR;
         if codec != dag_cbor {
             bail!("Expected dag-cbor codec, but got {codec:X} in CID {cid}");
         }

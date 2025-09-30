@@ -11,7 +11,6 @@ use anyhow::{Result, bail};
 use async_once_cell::OnceCell;
 use async_recursion::async_recursion;
 use chrono::{DateTime, Utc};
-use libipld_core::cid::Cid;
 use rand_core::CryptoRngCore;
 use skip_ratchet::{JumpSize, RatchetSeeker};
 use std::{
@@ -20,7 +19,7 @@ use std::{
     fmt::Debug,
 };
 use wnfs_common::{
-    BlockStore,
+    BlockStore, Cid,
     utils::{Arc, CondSend},
 };
 use wnfs_nameaccumulator::Name;

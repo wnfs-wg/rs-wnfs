@@ -1,6 +1,5 @@
 //! This crate contains the common types and functions used by the WNFS crates.
 pub mod blockstore;
-mod encoding;
 mod error;
 mod link;
 mod metadata;
@@ -9,7 +8,6 @@ mod storable;
 pub mod utils;
 
 pub use blockstore::*;
-pub use encoding::*;
 pub use error::*;
 pub use link::*;
 pub use metadata::*;
@@ -34,6 +32,8 @@ pub type HashOutput = [u8; HASH_BYTE_SIZE];
 // Re-exports
 //--------------------------------------------------------------------------------------------------
 
-pub mod libipld {
-    pub use libipld::*;
+pub use cid::Cid;
+
+pub mod ipld_core {
+    pub use ipld_core::*;
 }

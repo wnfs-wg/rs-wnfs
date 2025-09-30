@@ -2,8 +2,7 @@
 
 use super::{PublicDirectory, PublicFile, PublicNode};
 use anyhow::Result;
-use libipld_core::cid::Cid;
-use wnfs_common::{BlockStore, Link, utils::Arc};
+use wnfs_common::{BlockStore, Cid, Link, utils::Arc};
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions

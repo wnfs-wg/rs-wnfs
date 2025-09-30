@@ -9,9 +9,8 @@ use crate::{
 use anyhow::{Result, bail};
 use async_once_cell::OnceCell;
 use chrono::{DateTime, Utc};
-use libipld_core::cid::Cid;
 use std::{cmp::Ordering, collections::BTreeSet};
-use wnfs_common::{BlockStore, Storable, utils::Arc};
+use wnfs_common::{BlockStore, Cid, Storable, utils::Arc};
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
@@ -80,9 +79,8 @@ impl PublicNode {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::public::{PublicDirectory, PublicNode};
+    /// use wnfs::{common::Cid, public::{PublicDirectory, PublicNode}};
     /// use chrono::Utc;
-    /// use libipld_core::cid::Cid;
     /// use std::{sync::Arc, collections::BTreeSet};
     ///
     /// let dir = PublicDirectory::new_rc(Utc::now());

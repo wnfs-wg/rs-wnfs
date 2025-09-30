@@ -1,10 +1,9 @@
 use super::{hamt::HamtForest, traits::PrivateForest};
 use crate::error::{FsError, VerificationError};
 use anyhow::{Result, bail};
-use libipld_core::cid::Cid;
 use std::collections::{BTreeSet, HashMap};
 use wnfs_common::{
-    BlockStore, HashOutput,
+    BlockStore, Cid, HashOutput,
     utils::{Arc, CondSend},
 };
 use wnfs_hamt::Pair;
@@ -225,11 +224,10 @@ mod tests {
     use super::{ForestProofs, ProvingHamtForest};
     use crate::private::forest::{hamt::HamtForest, traits::PrivateForest};
     use anyhow::Result;
-    use libipld_core::cid::Cid;
     use rand_chacha::ChaCha12Rng;
     use rand_core::SeedableRng;
     use std::collections::BTreeSet;
-    use wnfs_common::{MemoryBlockStore, utils::Arc};
+    use wnfs_common::{Cid, MemoryBlockStore, utils::Arc};
     use wnfs_nameaccumulator::{AccumulatorSetup, Name, NameAccumulator, NameSegment};
 
     #[test]

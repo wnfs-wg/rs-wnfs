@@ -7,7 +7,6 @@ use crate::{
 use anyhow::{Result, anyhow, bail, ensure};
 use bytes::Bytes;
 use futures::FutureExt;
-use libipld::Cid;
 use prost::Message;
 use std::{
     collections::VecDeque,
@@ -17,7 +16,7 @@ use std::{
 };
 use tokio::io::{AsyncRead, AsyncSeek};
 use wnfs_common::{
-    BlockStore, LoadIpld, Storable, StoreIpld,
+    BlockStore, Cid, LoadIpld, Storable, StoreIpld,
     utils::{BoxFuture, boxed_fut},
 };
 

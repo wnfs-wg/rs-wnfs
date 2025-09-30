@@ -22,11 +22,14 @@ anyhow = "1.0"
 async-stream = "0.3"
 bytes = "1.5"
 futures = "0.3"
-libipld = { version = "0.16", features = [] }
+ipld-core = { version = "0.4" }
+ipld-dagpb = "0.2"
 num_enum = "0.5"
 proptest = { version = "1.1", optional = true }
 prost = "0.12"
 rand_core = "0.6"
+serde_ipld_dagcbor = "0.6"
+serde_ipld_dagjson = "0.2"
 testresult = "0.3"
 tokio = { version = "1.34", features = ["io-util"] }
 wnfs-common = { path = "../wnfs-common", version = "=0.2.0" }

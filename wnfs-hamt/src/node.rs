@@ -9,7 +9,6 @@ use async_once_cell::OnceCell;
 use async_recursion::async_recursion;
 use bitvec::array::BitArray;
 use either::{Either, Either::*};
-use libipld::Cid;
 #[cfg(feature = "log")]
 use log::debug;
 use serde::{Serialize, de::DeserializeOwned};
@@ -21,7 +20,7 @@ use std::{
     marker::PhantomData,
 };
 use wnfs_common::{
-    BlockStore, HashOutput, Link, Storable,
+    BlockStore, Cid, HashOutput, Link, Storable,
     utils::{Arc, BoxFuture, CondSend, CondSync, boxed_fut},
 };
 

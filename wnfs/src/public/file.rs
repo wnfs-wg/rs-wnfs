@@ -8,12 +8,11 @@ use anyhow::{Result, anyhow, bail};
 use async_once_cell::OnceCell;
 use chrono::{DateTime, Utc};
 use futures::{AsyncRead, AsyncReadExt};
-use libipld_core::cid::Cid;
 use std::{cmp::Ordering, collections::BTreeSet, io::SeekFrom};
 use tokio::io::AsyncSeekExt;
 use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
 use wnfs_common::{
-    BlockStore, Link, Metadata, NodeType, Storable,
+    BlockStore, Cid, Link, Metadata, NodeType, Storable,
     utils::{Arc, CondSend},
 };
 use wnfs_unixfs_file::{builder::FileBuilder, unixfs::UnixFsFile};

@@ -8,9 +8,8 @@ use anyhow::Result;
 use async_stream::try_stream;
 use bytes::Bytes;
 use futures::{Stream, StreamExt};
-use libipld::Cid;
 use std::collections::VecDeque;
-use wnfs_common::{BlockStore, utils::CondSend};
+use wnfs_common::{BlockStore, Cid, utils::CondSend};
 
 /// Default degree number for balanced tree, taken from unixfs specs
 /// <https://github.com/ipfs/specs/blob/main/UNIXFS.md#layout>

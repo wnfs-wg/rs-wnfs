@@ -7,11 +7,10 @@ use crate::{
 use anyhow::{Result, anyhow, ensure};
 use bytes::Bytes;
 use futures::{Stream, TryStreamExt};
-use libipld::Cid;
 use prost::Message;
 use std::fmt::Debug;
 use tokio::io::AsyncRead;
-use wnfs_common::{BlockStore, utils::CondSend};
+use wnfs_common::{BlockStore, Cid, utils::CondSend};
 
 /// Representation of a constructed File.
 pub struct File<'a> {
