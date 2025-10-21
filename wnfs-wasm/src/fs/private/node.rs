@@ -8,11 +8,11 @@ use crate::{
     value,
 };
 use js_sys::{Error, Promise, Uint8Array};
-use libipld_core::cid::Cid;
 use std::{collections::BTreeSet, rc::Rc};
 use wasm_bindgen::prelude::wasm_bindgen;
 use wasm_bindgen_futures::future_to_promise;
 use wnfs::{
+    common::Cid,
     hamt::{ChangeType, KeyValueChange},
     private::PrivateNode as WnfsPrivateNode,
     traits::Id,

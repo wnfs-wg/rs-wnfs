@@ -1,4 +1,5 @@
 [target.'cfg(target_arch = "wasm32")']
+runner = "wasm-bindgen-test-runner"
 rustflags = [
     "-C", "panic=abort",
     # "-C", "lto=yes", // https://users.rust-lang.org/t/error-lto-can-only-be-run-for-executables-cdylibs-and-static-library-outputs/73369
@@ -7,4 +8,5 @@ rustflags = [
     "-C", "opt-level=z",
     "-C", "codegen-units=1",
     "-C", "debug-assertions=no",
+    "--cfg", 'getrandom_backend="wasm_js"', # for getrandom to work in wasm_js
 ]

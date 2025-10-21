@@ -192,7 +192,6 @@ impl<B: BlockStore> BlockStore for Box<B> {
 /// An in-memory block store to simulate IPFS.
 ///
 /// IPFS is basically a glorified HashMap.
-
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct MemoryBlockStore(
     #[serde(serialize_with = "crate::utils::serialize_cid_map")]

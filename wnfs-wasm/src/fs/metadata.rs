@@ -1,7 +1,7 @@
 use super::utils::error;
 use crate::value;
+use ipld_core::ipld::Ipld;
 use js_sys::{Object, Reflect};
-use libipld_core::ipld::Ipld;
 use wasm_bindgen::JsValue;
 use wnfs::common::Metadata;
 

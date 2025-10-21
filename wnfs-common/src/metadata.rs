@@ -154,7 +154,7 @@ impl Metadata {
     /// ```
     /// use wnfs_common::Metadata;
     /// use chrono::Utc;
-    /// use libipld::Ipld;
+    /// use ipld_core::ipld::Ipld;
     ///
     /// let mut metadata = Metadata::new(Utc::now());
     /// metadata.put("foo", Ipld::String("bar".into()));
@@ -191,7 +191,7 @@ impl Metadata {
     /// ```
     /// use wnfs_common::Metadata;
     /// use chrono::Utc;
-    /// use libipld::Ipld;
+    /// use ipld_core::ipld::Ipld;
     ///
     /// let mut metadata = Metadata::new(Utc::now());
     /// metadata.put("foo", Ipld::String("bar".into()));
@@ -211,7 +211,7 @@ impl Metadata {
     /// ```
     /// use wnfs_common::Metadata;
     /// use chrono::Utc;
-    /// use libipld::Ipld;
+    /// use ipld_core::ipld::Ipld;
     ///
     /// let mut metadata1 = Metadata::new(Utc::now());
     /// metadata1.put("foo", Ipld::String("bar".into()));
