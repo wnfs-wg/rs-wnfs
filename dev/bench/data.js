@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1716878738310,
+  "lastUpdate": 1761053177132,
   "repoUrl": "https://github.com/wnfs-wg/rs-wnfs",
   "entries": {
     "Rust Benchmark": [
@@ -25045,6 +25045,126 @@ window.BENCHMARK_DATA = {
             "name": "NameAccumulator::<BigNumRug> serialization",
             "value": 656,
             "range": "± 22",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "philipp.krueger1@gmail.com",
+            "name": "Philipp Krüger",
+            "username": "matheus23"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "404e1f672a12145944660291151967fa5729017e",
+          "message": "feat: Update to new rust edition, switch from `libipld` to `ipld-core` (#460)\n\n* `cargo update`\n\n* Small fixes\n\n* `cargo fix --edition`\n\n* Update edition && `cargo +nightly fmt` && `cargo clippy --fix`\n\n* Update everything to `ipld-core` in favor of `libipld`\n\n* Update rust version in CI checks\n\n* Fix some doctests and update wnfs-wasm\n\n* Fix some clippy warnings\n\n* Try to fix the wasm tests\n\n* Update yarn lockfile\n\n* update node version",
+          "timestamp": "2025-10-21T15:19:56+02:00",
+          "tree_id": "fa59cb5c60dd516b4ee9b1d5b4dc807a14ef9a0a",
+          "url": "https://github.com/wnfs-wg/rs-wnfs/commit/404e1f672a12145944660291151967fa5729017e"
+        },
+        "date": 1761053176092,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "node set",
+            "value": 18851,
+            "range": "± 121",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node set 1000 consecutive",
+            "value": 2081501,
+            "range": "± 14344",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and get",
+            "value": 42079,
+            "range": "± 229",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and remove",
+            "value": 50039,
+            "range": "± 165",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt load and decode/0",
+            "value": 3632,
+            "range": "± 9",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt set and encode",
+            "value": 57231,
+            "range": "± 494",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt diff",
+            "value": 36276,
+            "range": "± 2628",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt merge",
+            "value": 106547,
+            "range": "± 7941",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameSegment::<BigNumDig>::new_hashed",
+            "value": 1867018,
+            "range": "± 197404",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameSegment::<BigNumRug>::new_hashed",
+            "value": 316262,
+            "range": "± 22834",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameSegment::<BigNumDig>::new(rng)",
+            "value": 1905954,
+            "range": "± 190439",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameSegment::<BigNumRug>::new(rng)",
+            "value": 604656,
+            "range": "± 21965",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameAccumulator::<BigNumDig>::add",
+            "value": 1911247,
+            "range": "± 64752",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameAccumulator::<BigNumRug>::add",
+            "value": 1010594,
+            "range": "± 31691",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameAccumulator::<BigNumDig> serialization",
+            "value": 506,
+            "range": "± 18",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameAccumulator::<BigNumRug> serialization",
+            "value": 574,
+            "range": "± 47",
             "unit": "ns/iter"
           }
         ]
