@@ -11,8 +11,8 @@ categories = [
 ]
 license = "Apache-2.0"
 readme = "README.md"
-edition = "2021"
-rust-version = "1.75"
+edition = "2024"
+rust-version = "1.85"
 repository = "https://github.com/wnfs-wg/rs-wnfs/tree/main/wnfs-hamt"
 homepage = "https://fission.codes"
 authors = ["The Fission Authors"]
@@ -27,7 +27,7 @@ chrono = { version = "0.4.23", default-features = false, features = ["clock", "s
 either = "1.8"
 futures = "0.3"
 insta = { version = "1.30", features = ["json"] }
-libipld = { version = "0.16", features = ["dag-cbor", "derive", "serde-codec"] }
+ipld-core = { version = "0.4", features = ["serde"] }
 log = { version = "0.4", optional = true }
 multihash = "0.18"
 once_cell = "1.16"

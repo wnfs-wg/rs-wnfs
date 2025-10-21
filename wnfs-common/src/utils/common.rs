@@ -2,8 +2,8 @@ use super::Arc;
 use crate::HashOutput;
 use anyhow::Result;
 use bytes::Bytes;
+use cid::Cid;
 use futures::{AsyncRead, AsyncReadExt};
-use libipld::{Cid, IpldCodec};
 use parking_lot::Mutex;
 use rand_core::CryptoRngCore;
 use serde::{Deserialize, Serialize, Serializer};
@@ -78,11 +78,6 @@ pub fn to_hash_output(bytes: &[u8]) -> HashOutput {
     let mut nibbles = [0u8; 32];
     nibbles[..bytes.len()].copy_from_slice(bytes);
     nibbles
-}
-
-/// Tries to convert a u64 value to IPLD codec.
-pub fn u64_to_ipld(value: u64) -> Result<IpldCodec> {
-    Ok(value.try_into()?)
 }
 
 pub(crate) fn serialize_cid_map<S>(

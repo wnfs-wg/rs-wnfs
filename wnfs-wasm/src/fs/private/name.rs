@@ -1,4 +1,4 @@
-use crate::fs::{utils::error, JsResult, PrivateForest};
+use crate::fs::{JsResult, PrivateForest, utils::error};
 use std::rc::Rc;
 use wasm_bindgen::prelude::wasm_bindgen;
 use wnfs::private::forest::traits::PrivateForest as WnfsPrivateForest;

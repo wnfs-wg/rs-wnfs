@@ -1,15 +1,15 @@
 use super::{
-    forest::traits::PrivateForest, PrivateDirectory, PrivateFile, PrivateNode, PrivateRef,
+    PrivateDirectory, PrivateFile, PrivateNode, PrivateRef, forest::traits::PrivateForest,
 };
 use crate::utils::OnceCellDebug;
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use async_once_cell::OnceCell;
 use async_recursion::async_recursion;
-use libipld_core::{cid::Cid, multihash::MultihashGeneric};
+use multihash::Multihash;
 use rand_core::CryptoRngCore;
 use wnfs_common::{
+    BlockStore, Cid,
     utils::{Arc, CondSend},
-    BlockStore,
 };
 use wnfs_nameaccumulator::Name;
 
@@ -159,7 +159,7 @@ impl PrivateLink {
         Self::from(PrivateNode::File(Arc::new(file)))
     }
 
-    pub(crate) fn crdt_tiebreaker(&self) -> Result<MultihashGeneric<64>> {
+    pub(crate) fn crdt_tiebreaker(&self) -> Result<Multihash<64>> {
         Ok(*self.get_content_cid().ok_or_else(|| anyhow!("Impossible case: CRDT tiebreaker needed on node wasn't persisted before tie breaking"))?.hash())
     }
 }

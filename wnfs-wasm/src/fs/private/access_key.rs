@@ -1,4 +1,4 @@
-use crate::fs::{utils::error, JsResult};
+use crate::fs::{JsResult, utils::error};
 use wasm_bindgen::prelude::wasm_bindgen;
 use wnfs::private::AccessKey as WnfsAccessKey;
 

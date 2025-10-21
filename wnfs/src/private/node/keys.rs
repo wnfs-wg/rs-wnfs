@@ -1,10 +1,10 @@
 use crate::error::CryptError;
 use aes_kw::KekAes256;
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use blake3::traits::digest::Digest;
 use chacha20poly1305::{
-    aead::{Aead, AeadCore, KeyInit},
     AeadInPlace, Tag, XChaCha20Poly1305, XNonce,
+    aead::{Aead, AeadCore, KeyInit},
 };
 use rand_core::CryptoRngCore;
 use serde::{Deserialize, Serialize};

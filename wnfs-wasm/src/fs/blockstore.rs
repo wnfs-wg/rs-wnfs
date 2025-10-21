@@ -3,11 +3,10 @@
 use anyhow::Result;
 use bytes::Bytes;
 use js_sys::{Promise, Reflect, Uint8Array};
-use libipld_core::cid::Cid;
 use std::str::FromStr;
-use wasm_bindgen::{prelude::wasm_bindgen, JsValue};
+use wasm_bindgen::{JsValue, prelude::wasm_bindgen};
 use wasm_bindgen_futures::JsFuture;
-use wnfs::common::{BlockStore as WnfsBlockStore, BlockStoreError};
+use wnfs::common::{BlockStore as WnfsBlockStore, BlockStoreError, Cid};
 
 //--------------------------------------------------------------------------------------------------
 // Externs
@@ -139,7 +138,7 @@ fn into_blockstore_err(js_err: JsValue) -> Result<BlockStoreError, BlockStoreErr
                     .as_string()
                     .ok_or_else(|| reflection_err("'cid' field on error not a string"))?,
             )?),
-            "CID_ERROR" => BlockStoreError::CIDError(libipld_core::cid::Error::ParsingError),
+            "CID_ERROR" => BlockStoreError::CIDError(ipld_core::cid::Error::ParsingError),
             _ => {
                 // It may just be another error type
                 BlockStoreError::Custom(anyhow::anyhow!("Blockstore operation failed: {js_err:?}"))

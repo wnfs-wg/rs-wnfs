@@ -1,14 +1,14 @@
 use super::{AccessKey, ForeignExchangeKey, ForeignPrivateKey, PrivateForest, PrivateNode};
 use crate::{
-    fs::{utils::error, BlockStore, ForeignBlockStore, JsResult, Name, PrivateKey},
+    fs::{BlockStore, ForeignBlockStore, JsResult, Name, PrivateKey, utils::error},
     value,
 };
 use js_sys::Promise;
-use libipld_core::cid::Cid;
 use std::rc::Rc;
 use wasm_bindgen::prelude::wasm_bindgen;
 use wasm_bindgen_futures::future_to_promise;
 use wnfs::{
+    common::Cid,
     private::share::{recipient, sharer},
     public::PublicLink,
 };

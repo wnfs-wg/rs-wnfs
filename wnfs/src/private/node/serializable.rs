@@ -1,11 +1,10 @@
 use super::SnapshotKey;
-use crate::private::{encrypted::Encrypted, FileContent};
-use libipld_core::cid::Cid;
+use crate::private::{FileContent, encrypted::Encrypted};
 use semver::Version;
 use serde::{Deserialize, Serialize};
 use skip_ratchet::Ratchet;
 use std::collections::BTreeMap;
-use wnfs_common::{HashOutput, Metadata};
+use wnfs_common::{Cid, HashOutput, Metadata};
 use wnfs_nameaccumulator::{NameAccumulator, NameSegment};
 
 //--------------------------------------------------------------------------------------------------
@@ -13,6 +12,7 @@ use wnfs_nameaccumulator::{NameAccumulator, NameSegment};
 //--------------------------------------------------------------------------------------------------
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[allow(clippy::large_enum_variant)]
 pub(crate) enum PrivateNodeContentSerializable {
     #[serde(rename = "wnfs/priv/file")]
     File(PrivateFileContentSerializable),

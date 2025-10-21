@@ -2,19 +2,18 @@
 
 use super::{PublicFileSerializable, PublicNodeSerializable};
 use crate::{
-    error::FsError, is_readable_wnfs_version, traits::Id, utils::OnceCellDebug, WNFS_VERSION,
+    WNFS_VERSION, error::FsError, is_readable_wnfs_version, traits::Id, utils::OnceCellDebug,
 };
-use anyhow::{anyhow, bail, Result};
+use anyhow::{Result, anyhow, bail};
 use async_once_cell::OnceCell;
 use chrono::{DateTime, Utc};
 use futures::{AsyncRead, AsyncReadExt};
-use libipld_core::cid::Cid;
 use std::{cmp::Ordering, collections::BTreeSet, io::SeekFrom};
 use tokio::io::AsyncSeekExt;
 use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
 use wnfs_common::{
+    BlockStore, Cid, Link, Metadata, NodeType, Storable,
     utils::{Arc, CondSend},
-    BlockStore, Link, Metadata, NodeType, Storable,
 };
 use wnfs_unixfs_file::{builder::FileBuilder, unixfs::UnixFsFile};
 
@@ -394,7 +393,7 @@ impl PublicFile {
     /// file was previously `.store()`ed.
     /// In any case it'll try to give you ownership of the file if possible,
     /// otherwise it clones.
-    pub fn prepare_next_revision<'a>(self: &'a mut Arc<Self>) -> &'a mut Self {
+    pub fn prepare_next_revision(self: &mut Arc<Self>) -> &mut Self {
         let Some(previous_cid) = self.persisted_as.get().cloned() else {
             return Arc::make_mut(self);
         };
@@ -485,7 +484,7 @@ impl PublicFile {
     }
 
     /// Returns a mutable reference to this file's metadata and ratchets forward the history, if necessary.
-    pub fn get_metadata_mut_rc<'a>(self: &'a mut Arc<Self>) -> &'a mut Metadata {
+    pub fn get_metadata_mut_rc(self: &mut Arc<Self>) -> &mut Metadata {
         self.prepare_next_revision().get_metadata_mut()
     }
 

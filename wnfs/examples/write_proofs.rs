@@ -1,19 +1,18 @@
 use anyhow::Result;
 use chrono::Utc;
-use libipld_core::cid::Cid;
 use rand_chacha::ChaCha12Rng;
 use rand_core::SeedableRng;
 use std::{collections::BTreeSet, sync::Arc};
 use wnfs::{
-    common::{BlockStore, MemoryBlockStore},
+    common::{BlockStore, Cid, MemoryBlockStore},
     nameaccumulator::NameAccumulator,
     private::{
+        AccessKey, PrivateDirectory, PrivateNode,
         forest::{
             hamt::HamtForest,
             proofs::{ForestProofs, ProvingHamtForest},
             traits::PrivateForest,
         },
-        AccessKey, PrivateDirectory, PrivateNode,
     },
 };
 use wnfs_common::Storable;

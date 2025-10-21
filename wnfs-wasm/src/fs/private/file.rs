@@ -2,16 +2,16 @@
 use super::Name;
 use crate::{
     fs::{
+        BlockStore, ForeignBlockStore, JsResult, PrivateForest, PrivateNode, Rng,
         metadata::JsMetadata,
         utils::{self, error},
-        BlockStore, ForeignBlockStore, JsResult, PrivateForest, PrivateNode, Rng,
     },
     value,
 };
 use chrono::{DateTime, Utc};
 use js_sys::{Date, Number, Promise, Uint8Array};
 use std::rc::Rc;
-use wasm_bindgen::{prelude::wasm_bindgen, JsValue};
+use wasm_bindgen::{JsValue, prelude::wasm_bindgen};
 use wasm_bindgen_futures::future_to_promise;
 use wnfs::{
     private::{PrivateFile as WnfsPrivateFile, PrivateNode as WnfsPrivateNode},

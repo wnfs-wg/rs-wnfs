@@ -1,18 +1,17 @@
 use super::{
-    encrypted::Encrypted, forest::traits::PrivateForest, PrivateFileContentSerializable,
-    PrivateNode, PrivateNodeContentSerializable, PrivateNodeHeader, PrivateRef, SnapshotKey,
-    TemporalKey, AUTHENTICATION_TAG_SIZE, BLOCK_SEGMENT_DSI, HIDING_SEGMENT_DSI, NONCE_SIZE,
+    AUTHENTICATION_TAG_SIZE, BLOCK_SEGMENT_DSI, HIDING_SEGMENT_DSI, NONCE_SIZE,
+    PrivateFileContentSerializable, PrivateNode, PrivateNodeContentSerializable, PrivateNodeHeader,
+    PrivateRef, SnapshotKey, TemporalKey, encrypted::Encrypted, forest::traits::PrivateForest,
 };
 use crate::{
-    error::FsError, is_readable_wnfs_version, traits::Id, utils::OnceCellDebug, WNFS_VERSION,
+    WNFS_VERSION, error::FsError, is_readable_wnfs_version, traits::Id, utils::OnceCellDebug,
 };
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 use async_once_cell::OnceCell;
 use async_stream::try_stream;
 use chrono::{DateTime, Utc};
-use futures::{future, AsyncRead, Stream, StreamExt, TryStreamExt};
-use libipld_core::{
-    cid::Cid,
+use futures::{AsyncRead, Stream, StreamExt, TryStreamExt, future};
+use ipld_core::{
     ipld::Ipld,
     serde::{from_ipld, to_ipld},
 };
@@ -20,8 +19,8 @@ use rand_core::CryptoRngCore;
 use serde::{Deserialize, Serialize};
 use std::{cmp::Ordering, collections::BTreeSet, iter};
 use wnfs_common::{
+    BlockStore, CODEC_RAW, Cid, MAX_BLOCK_SIZE, Metadata,
     utils::{self, Arc, BoxStream},
-    BlockStore, Metadata, CODEC_RAW, MAX_BLOCK_SIZE,
 };
 use wnfs_nameaccumulator::{Name, NameAccumulator, NameSegment};
 
@@ -94,6 +93,7 @@ pub(crate) struct PrivateFileContent {
 /// It is stored inline or stored in blocks.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[allow(clippy::large_enum_variant)]
 pub(crate) enum FileContent {
     Inline { data: Vec<u8> },
     External(PrivateForestContent),
@@ -583,7 +583,7 @@ impl PrivateFile {
     }
 
     /// Returns a mutable reference to this file's metadata and ratchets forward its revision, if necessary.
-    pub fn get_metadata_mut_rc<'a>(self: &'a mut Arc<Self>) -> Result<&'a mut Metadata> {
+    pub fn get_metadata_mut_rc(self: &mut Arc<Self>) -> Result<&mut Metadata> {
         Ok(self.prepare_next_revision()?.get_metadata_mut())
     }
 
@@ -731,7 +731,7 @@ impl PrivateFile {
     /// This doesn't have any effect if the current state hasn't been `.store()`ed yet.
     /// Otherwise, it clones itself, stores its current CID in the previous links and
     /// advances its ratchet.
-    pub(crate) fn prepare_next_revision<'a>(self: &'a mut Arc<Self>) -> Result<&'a mut Self> {
+    pub(crate) fn prepare_next_revision(self: &mut Arc<Self>) -> Result<&mut Self> {
         let previous_cid = match self.content.persisted_as.get() {
             Some(cid) => *cid,
             None => {
@@ -759,11 +759,11 @@ impl PrivateFile {
     /// simply updates all previous links to use the correct steps back.
     /// Merge nodes preferably just grow in size. This allows them to combine more nicely
     /// without causing further conflicts.
-    pub(crate) fn prepare_next_merge<'a>(
-        self: &'a mut Arc<Self>,
+    pub(crate) fn prepare_next_merge(
+        self: &mut Arc<Self>,
         current_cid: Cid,
         target_header: PrivateNodeHeader,
-    ) -> Result<&'a mut Self> {
+    ) -> Result<&mut Self> {
         let ratchet_diff = target_header.ratchet_diff_for_merge(&self.header)?;
 
         if self.content.previous.len() > 1 {
@@ -1406,12 +1406,12 @@ mod tests {
 mod proptests {
     use super::MAX_BLOCK_CONTENT_SIZE;
     use crate::private::{
-        forest::{hamt::HamtForest, traits::PrivateForest},
         PrivateFile,
+        forest::{hamt::HamtForest, traits::PrivateForest},
     };
     use async_std::io::Cursor;
     use chrono::Utc;
-    use futures::{future, StreamExt};
+    use futures::{StreamExt, future};
     use proptest::{prop_assert, prop_assert_eq};
     use rand_chacha::ChaCha12Rng;
     use rand_core::SeedableRng;

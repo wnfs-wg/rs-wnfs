@@ -1,11 +1,11 @@
 #[cfg(test)]
 use crate::error::RsaError;
+use anyhow::Result;
 #[cfg(test)]
 use anyhow::anyhow;
-use anyhow::Result;
 use futures::Future;
 #[cfg(test)]
-use rsa::{traits::PublicKeyParts, BigUint, Oaep};
+use rsa::{BigUint, Oaep, traits::PublicKeyParts};
 #[cfg(test)]
 use sha2::Sha256;
 use wnfs_common::utils::CondSend;

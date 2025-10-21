@@ -2,10 +2,9 @@ use crate::{
     error::AccessKeyError,
     private::{PrivateRef, SnapshotKey, TemporalKey},
 };
-use anyhow::{bail, Result};
-use libipld_core::cid::Cid;
+use anyhow::{Result, bail};
 use serde::{Deserialize, Serialize};
-use wnfs_common::HashOutput;
+use wnfs_common::{Cid, HashOutput};
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
@@ -124,14 +123,13 @@ mod snapshot_tests {
     use rand_chacha::ChaCha12Rng;
     use rand_core::SeedableRng;
     use testresult::TestResult;
-    use wnfs_common::{encode, libipld::json::DagJsonCodec};
 
     #[async_std::test]
     async fn test_access_key() -> TestResult {
         let rng = &mut ChaCha12Rng::seed_from_u64(0);
 
         let private_ref =
-            PrivateRef::with_temporal_key(rng.gen(), TemporalKey(rng.gen()), Cid::default());
+            PrivateRef::with_temporal_key(rng.r#gen(), TemporalKey(rng.r#gen()), Cid::default());
 
         let temporal_access_key = AccessKey::Temporal(TemporalAccessKey::from(&private_ref));
         let snapshot_access_key = AccessKey::Snapshot(SnapshotAccessKey::from(&private_ref));
@@ -146,7 +144,7 @@ mod snapshot_tests {
     }
 
     fn as_dag_json_value(s: impl Serialize) -> Result<serde_json::Value> {
-        let dag_json = encode(&libipld_core::serde::to_ipld(s)?, DagJsonCodec)?;
+        let dag_json = serde_ipld_dagjson::to_vec(&s)?;
         let value = serde_json::from_slice(&dag_json)?;
         Ok(value)
     }

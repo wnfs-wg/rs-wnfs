@@ -6,17 +6,16 @@
 use anyhow::Result;
 use bytes::Bytes;
 use chrono::Utc;
-use libipld_core::cid::Cid;
 use rand_chacha::ChaCha12Rng;
 use rand_core::SeedableRng;
 use wnfs::{
-    common::{BlockStore, MemoryBlockStore},
+    common::{BlockStore, Cid, MemoryBlockStore},
     private::{
-        forest::{hamt::HamtForest, traits::PrivateForest},
         PrivateDirectory, PrivateNode,
+        forest::{hamt::HamtForest, traits::PrivateForest},
     },
 };
-use wnfs_common::{utils::CondSend, BlockStoreError, Storable};
+use wnfs_common::{BlockStoreError, Storable, utils::CondSend};
 
 #[async_std::main]
 async fn main() -> Result<()> {
@@ -67,10 +66,12 @@ async fn main() -> Result<()> {
         .as_dir()?;
 
     // Reading the file's data will fail when only provided the hot store:
-    assert!(directory
-        .read(&file_path, true, &forest, &hot_store)
-        .await
-        .is_err());
+    assert!(
+        directory
+            .read(&file_path, true, &forest, &hot_store)
+            .await
+            .is_err()
+    );
 
     // What we can do instead is construct a 'tiered blockstore' that first
     // tries to fetch from the hot store and if that doesn't work, tries the cold one:

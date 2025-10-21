@@ -1,15 +1,14 @@
 use super::{Name, Rng};
 use crate::{
-    fs::{utils, utils::error, BlockStore, ForeignBlockStore, ForestChange, JsResult},
+    fs::{BlockStore, ForeignBlockStore, ForestChange, JsResult, utils, utils::error},
     value,
 };
 use js_sys::{Array, Promise, Uint8Array};
-use libipld_core::cid::Cid;
 use std::rc::Rc;
 use wasm_bindgen::prelude::wasm_bindgen;
 use wasm_bindgen_futures::future_to_promise;
 use wnfs::{
-    common::Storable,
+    common::{Cid, Storable},
     private::forest::{
         hamt::HamtForest as WnfsHamtForest, traits::PrivateForest as WnfsPrivateForest,
     },
@@ -104,10 +103,11 @@ impl PrivateForest {
                 .await
                 .map_err(error("Error in private forest 'merge'"))?;
 
-            Ok(value!(diff
-                .into_iter()
-                .map(|c| value!(ForestChange(c.map(&|c| c.0))))
-                .collect::<Array>()))
+            Ok(value!(
+                diff.into_iter()
+                    .map(|c| value!(ForestChange(c.map(&|c| c.0))))
+                    .collect::<Array>()
+            ))
         }))
     }
 

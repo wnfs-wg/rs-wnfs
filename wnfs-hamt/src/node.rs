@@ -1,18 +1,17 @@
 use super::{
+    HAMT_BITMASK_BIT_SIZE, HAMT_BITMASK_BYTE_SIZE, HashPrefix, Pair, Pointer,
     error::HamtError,
     hash::{HashNibbles, Hasher},
-    HashPrefix, Pair, Pointer, HAMT_BITMASK_BIT_SIZE, HAMT_BITMASK_BYTE_SIZE,
 };
-use crate::{serializable::NodeSerializable, HAMT_VALUES_BUCKET_SIZE};
-use anyhow::{bail, Result};
+use crate::{HAMT_VALUES_BUCKET_SIZE, serializable::NodeSerializable};
+use anyhow::{Result, bail};
 use async_once_cell::OnceCell;
 use async_recursion::async_recursion;
 use bitvec::array::BitArray;
 use either::{Either, Either::*};
-use libipld::Cid;
 #[cfg(feature = "log")]
 use log::debug;
-use serde::{de::DeserializeOwned, Serialize};
+use serde::{Serialize, de::DeserializeOwned};
 use serde_byte_array::ByteArray;
 use std::{
     collections::HashMap,
@@ -21,8 +20,8 @@ use std::{
     marker::PhantomData,
 };
 use wnfs_common::{
-    utils::{boxed_fut, Arc, BoxFuture, CondSend, CondSync},
-    BlockStore, HashOutput, Link, Storable,
+    BlockStore, Cid, HashOutput, Link, Storable,
+    utils::{Arc, BoxFuture, CondSend, CondSync, boxed_fut},
 };
 
 //--------------------------------------------------------------------------------------------------
@@ -378,7 +377,7 @@ where
             }
 
             match &mut node.pointers[value_index] {
-                Pointer::Values(ref mut values) => {
+                Pointer::Values(values) => {
                     if let Some(i) = values
                         .iter()
                         .position(|p| &H::hash(&p.key) == hashnibbles.digest)
@@ -534,7 +533,7 @@ where
                     }
                 }
                 // Otherwise, remove just the value.
-                Pointer::Values(ref mut values) => {
+                Pointer::Values(values) => {
                     match values
                         .iter()
                         .position(|p| &H::hash(&p.key) == hashnibbles.digest)
@@ -554,15 +553,16 @@ where
                     let removed = child.remove_value(hashnibbles, store).await?;
                     if removed.is_some() {
                         // If something has been deleted, we attempt to canonicalize the pointer.
-                        if let Some(pointer) =
-                            Pointer::Link(Link::from(child)).canonicalize(store).await?
-                        {
-                            node.pointers[value_index] = pointer;
-                        } else {
-                            // This is None if the pointer now points to an empty node.
-                            // In that case, we remove it from the parent.
-                            node.bitmask.set(bit_index, false);
-                            node.pointers.remove(value_index);
+                        match Pointer::Link(Link::from(child)).canonicalize(store).await? {
+                            Some(pointer) => {
+                                node.pointers[value_index] = pointer;
+                            }
+                            _ => {
+                                // This is None if the pointer now points to an empty node.
+                                // In that case, we remove it from the parent.
+                                node.bitmask.set(bit_index, false);
+                                node.pointers.remove(value_index);
+                            }
                         }
                     } else {
                         node.pointers[value_index] = Pointer::Link(Link::from(child))
@@ -902,12 +902,12 @@ where
 mod tests {
     use super::*;
     use helper::*;
-    use wnfs_common::{utils, MemoryBlockStore};
+    use wnfs_common::{MemoryBlockStore, utils};
 
     mod helper {
         use crate::Hasher;
         use once_cell::sync::Lazy;
-        use wnfs_common::{utils, HashOutput};
+        use wnfs_common::{HashOutput, utils};
 
         pub(super) static HASH_KV_PAIRS: Lazy<Vec<(HashOutput, &'static str)>> = Lazy::new(|| {
             vec![
@@ -1207,7 +1207,7 @@ mod tests {
 mod proptests {
     use super::*;
     use crate::strategies::{
-        node_from_operations, operations, operations_and_shuffled, Operations,
+        Operations, node_from_operations, operations, operations_and_shuffled,
     };
     use proptest::prelude::*;
     use test_strategy::proptest;

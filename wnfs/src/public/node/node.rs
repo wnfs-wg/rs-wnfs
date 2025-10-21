@@ -6,12 +6,11 @@ use crate::{
     public::{PublicDirectory, PublicFile},
     traits::Id,
 };
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 use async_once_cell::OnceCell;
 use chrono::{DateTime, Utc};
-use libipld_core::cid::Cid;
 use std::{cmp::Ordering, collections::BTreeSet};
-use wnfs_common::{utils::Arc, BlockStore, Storable};
+use wnfs_common::{BlockStore, Cid, Storable, utils::Arc};
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
@@ -80,9 +79,8 @@ impl PublicNode {
     /// # Examples
     ///
     /// ```
-    /// use wnfs::public::{PublicDirectory, PublicNode};
+    /// use wnfs::{common::Cid, public::{PublicDirectory, PublicNode}};
     /// use chrono::Utc;
-    /// use libipld_core::cid::Cid;
     /// use std::{sync::Arc, collections::BTreeSet};
     ///
     /// let dir = PublicDirectory::new_rc(Utc::now());
@@ -413,7 +411,7 @@ mod tests {
 #[cfg(test)]
 mod proptests {
     use super::*;
-    use futures::{stream, StreamExt, TryStreamExt};
+    use futures::{StreamExt, TryStreamExt, stream};
     use proptest::{collection::vec, prelude::*};
     use test_strategy::proptest;
     use wnfs_common::MemoryBlockStore;
@@ -602,12 +600,12 @@ mod proptests {
                 (Ordering::Less, Ordering::Greater) => {
                     return Err(TestCaseError::reject(
                         "a < b and b > c, there's no transitivity to test here",
-                    ))
+                    ));
                 }
                 (Ordering::Greater, Ordering::Less) => {
                     return Err(TestCaseError::reject(
                         "a > b and b < c, there's no transitivity to test here",
-                    ))
+                    ));
                 }
             }
 

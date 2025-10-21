@@ -1,7 +1,7 @@
 use bytes::{Bytes, BytesMut};
 use std::io;
 use tokio::io::{AsyncRead, AsyncReadExt};
-use wnfs_common::utils::{boxed_stream, BoxStream, CondSend};
+use wnfs_common::utils::{BoxStream, CondSend, boxed_stream};
 
 /// Default size for chunks.
 pub const DEFAULT_CHUNKS_SIZE: usize = 1024 * 256;

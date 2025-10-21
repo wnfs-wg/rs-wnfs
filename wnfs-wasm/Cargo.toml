@@ -11,8 +11,8 @@ categories = [
 ]
 license = "Apache-2.0"
 readme = "README.md"
-edition = "2021"
-rust-version = "1.75"
+edition = "2024"
+rust-version = "1.85"
 repository = "https://github.com/wnfs-wg/rs-wnfs/tree/main/wnfs-wasm"
 homepage = "https://fission.codes"
 authors = ["The Fission Authors"]
@@ -24,8 +24,9 @@ cfg-if = "1.0"
 chrono = { version = "0.4", default-features = false, features = ["clock", "std", "wasmbind"] }
 console_error_panic_hook = { version = "0.1", optional = true }
 getrandom = { version = "0.2", features = ["js"] }
+getrandom_new = { package = "getrandom", version = "0.3", features = ["wasm_js"] }
+ipld-core = { version = "0.4" }
 js-sys = { version = "0.3", optional = true }
-libipld-core = { version = "0.16" }
 rand_core = "0.6"
 wasm-bindgen = { version = "0.2.87", optional = true, features = ["serde-serialize"] }
 wasm-bindgen-futures = { version = "0.4", optional = true }

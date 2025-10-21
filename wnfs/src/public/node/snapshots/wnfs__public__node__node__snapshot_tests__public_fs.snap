@@ -67,6 +67,23 @@ expression: values
     "bytes": "oWx3bmZzL3B1Yi9kaXKkZ3ZlcnNpb25lMS4wLjBobWV0YWRhdGGiZ2NyZWF0ZWQAaG1vZGlmaWVkAGhwcmV2aW91c4BodXNlcmxhbmShZGphenrYKlglAAFxHiDyN5fjdnbnQbyfQ0LeeMwFaHz8C+N47ho0RiKTgUBHbQ=="
   },
   {
+    "cid": "bafyr4ihsg6l6g5tw45a3zh2dilphrtafnb6pyc7dpdxbuncgekjycqchnu",
+    "value": {
+      "wnfs/pub/file": {
+        "metadata": {
+          "created": 0,
+          "modified": 0
+        },
+        "previous": [],
+        "userland": {
+          "/": "bafkr4ibirkdkphzauplnztoko4j35lwrpb4yffv57j4rh6rkmlmxe67y7a"
+        },
+        "version": "1.0.0"
+      }
+    },
+    "bytes": "oW13bmZzL3B1Yi9maWxlpGd2ZXJzaW9uZTEuMC4waG1ldGFkYXRhomdjcmVhdGVkAGhtb2RpZmllZABocHJldmlvdXOAaHVzZXJsYW5k2CpYJQABVR4gKIqGp58go9bczcp3E76u0Xh5gpa9+nkT+ipi2XJ7+Pg="
+  },
+  {
     "cid": "bafyr4ifobgzwli26fibfladmtouh32okhnmhc7jpy5dvmocz5dgg3wqrnq",
     "value": {
       "wnfs/pub/dir": {
@@ -86,21 +103,13 @@ expression: values
     "bytes": "oWx3bmZzL3B1Yi9kaXKkZ3ZlcnNpb25lMS4wLjBobWV0YWRhdGGiZ2NyZWF0ZWQAaG1vZGlmaWVkAGhwcmV2aW91c4BodXNlcmxhbmShZm1vdmllc9gqWCUAAXEeIEnEfBEh9YZNROzCmBByTeSFzIaTebfyq3CYzFunJvY5"
   },
   {
-    "cid": "bafyr4ihsg6l6g5tw45a3zh2dilphrtafnb6pyc7dpdxbuncgekjycqchnu",
+    "cid": "bafkr4ibirkdkphzauplnztoko4j35lwrpb4yffv57j4rh6rkmlmxe67y7a",
     "value": {
-      "wnfs/pub/file": {
-        "metadata": {
-          "created": 0,
-          "modified": 0
-        },
-        "previous": [],
-        "userland": {
-          "/": "bafkr4ibirkdkphzauplnztoko4j35lwrpb4yffv57j4rh6rkmlmxe67y7a"
-        },
-        "version": "1.0.0"
+      "/": {
+        "bytes": "SGVsbG8sIFdvcmxkIQ"
       }
     },
-    "bytes": "oW13bmZzL3B1Yi9maWxlpGd2ZXJzaW9uZTEuMC4waG1ldGFkYXRhomdjcmVhdGVkAGhtb2RpZmllZABocHJldmlvdXOAaHVzZXJsYW5k2CpYJQABVR4gKIqGp58go9bczcp3E76u0Xh5gpa9+nkT+ipi2XJ7+Pg="
+    "bytes": "SGVsbG8sIFdvcmxkIQ=="
   },
   {
     "cid": "bafyr4icjyr6bcipvqzguj3gctaihetpeqxgine3zw7zkw4eyzrn2ojxwhe",
@@ -120,14 +129,5 @@ expression: values
       }
     },
     "bytes": "oWx3bmZzL3B1Yi9kaXKkZ3ZlcnNpb25lMS4wLjBobWV0YWRhdGGiZ2NyZWF0ZWQAaG1vZGlmaWVkAGhwcmV2aW91c4BodXNlcmxhbmShZWFuaW1l2CpYJQABcR4g8jeX43Z250G8n0NC3njMBWh8/AvjeO4aNEYik4FAR20="
-  },
-  {
-    "cid": "bafkr4ibirkdkphzauplnztoko4j35lwrpb4yffv57j4rh6rkmlmxe67y7a",
-    "value": {
-      "/": {
-        "bytes": "SGVsbG8sIFdvcmxkIQ"
-      }
-    },
-    "bytes": "SGVsbG8sIFdvcmxkIQ=="
   }
 ]

@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Context};
+use anyhow::{Context, anyhow};
 use bytes::Bytes;
 use futures::Stream;
 use std::{
@@ -18,7 +18,7 @@ mod rabin;
 pub const DEFAULT_CHUNK_SIZE_LIMIT: usize = 1024 * 1024;
 
 pub use self::{
-    fixed::{Fixed, DEFAULT_CHUNKS_SIZE},
+    fixed::{DEFAULT_CHUNKS_SIZE, Fixed},
     rabin::Rabin,
 };
 
@@ -96,7 +96,7 @@ pub enum ChunkerStream<'a> {
     Rabin(BoxStream<'a, io::Result<Bytes>>),
 }
 
-impl<'a> Debug for ChunkerStream<'a> {
+impl Debug for ChunkerStream<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Fixed(_) => write!(f, "Fixed(impl Stream<Item=Bytes>)"),
@@ -105,7 +105,7 @@ impl<'a> Debug for ChunkerStream<'a> {
     }
 }
 
-impl<'a> Stream for ChunkerStream<'a> {
+impl Stream for ChunkerStream<'_> {
     type Item = io::Result<Bytes>;
 
     fn poll_next(
@@ -113,15 +113,15 @@ impl<'a> Stream for ChunkerStream<'a> {
         cx: &mut task::Context<'_>,
     ) -> task::Poll<Option<Self::Item>> {
         match &mut *self {
-            Self::Fixed(ref mut stream) => Pin::new(stream).poll_next(cx),
-            Self::Rabin(ref mut stream) => Pin::new(stream).poll_next(cx),
+            Self::Fixed(stream) => Pin::new(stream).poll_next(cx),
+            Self::Rabin(stream) => Pin::new(stream).poll_next(cx),
         }
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
         match self {
-            Self::Fixed(ref stream) => stream.size_hint(),
-            Self::Rabin(ref stream) => stream.size_hint(),
+            Self::Fixed(stream) => stream.size_hint(),
+            Self::Rabin(stream) => stream.size_hint(),
         }
     }
 }

@@ -1,14 +1,12 @@
 use super::{Arc, CondSend, CondSync};
-use crate::{BlockStore, BlockStoreError, MemoryBlockStore, CODEC_DAG_CBOR, CODEC_RAW};
+use crate::{
+    BlockStore, BlockStoreError, CODEC_DAG_CBOR, CODEC_DAG_PB, CODEC_RAW, MemoryBlockStore,
+};
 use anyhow::Result;
 use base64_serde::base64_serde_type;
 use bytes::Bytes;
-use libipld::{
-    cbor::DagCborCodec,
-    json::DagJsonCodec,
-    prelude::{Decode, Encode, References},
-    Cid, Ipld, IpldCodec,
-};
+use cid::Cid;
+use ipld_core::ipld::Ipld;
 use parking_lot::Mutex;
 use proptest::{
     strategy::{Strategy, ValueTree},
@@ -16,10 +14,7 @@ use proptest::{
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::{
-    collections::{HashMap, HashSet, VecDeque},
-    io::Cursor,
-};
+use std::collections::{HashMap, HashSet, VecDeque};
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
@@ -64,7 +59,7 @@ impl SnapshotBlockStore {
 
     pub fn handle_block(&self, cid: &Cid, bytes: &Bytes) -> Result<BlockSnapshot> {
         let ipld = match cid.codec() {
-            CODEC_DAG_CBOR => Ipld::decode(DagCborCodec, &mut Cursor::new(bytes))?,
+            CODEC_DAG_CBOR => serde_ipld_dagcbor::from_slice(&bytes)?,
             CODEC_RAW => match self.block_handlers.lock().get(cid) {
                 Some(func) => func.convert(bytes)?,
                 None => Ipld::Bytes(bytes.to_vec()),
@@ -72,10 +67,9 @@ impl SnapshotBlockStore {
             _ => unimplemented!(),
         };
 
-        let mut json_bytes = Vec::new();
-        ipld.encode(DagJsonCodec, &mut json_bytes)?;
-
+        let json_bytes = serde_ipld_dagjson::to_vec(&ipld)?;
         let value = serde_json::from_slice(&json_bytes)?;
+
         Ok(BlockSnapshot {
             cid: cid.to_string(),
             value,
@@ -94,12 +88,14 @@ impl SnapshotBlockStore {
             }
 
             let snapshot = self.get_block_snapshot(&cid).await?;
-            let codec: IpldCodec = cid.codec().try_into()?;
-            <Ipld as References<IpldCodec>>::references(
-                codec,
-                &mut Cursor::new(&snapshot.bytes),
-                &mut frontier,
-            )?;
+            // Compute further references:
+            match cid.codec() {
+                CODEC_DAG_CBOR => serde_ipld_dagcbor::from_slice::<Ipld>(&snapshot.bytes)?
+                    .references(&mut frontier),
+                CODEC_DAG_PB => ipld_dagpb::links(&snapshot.bytes, &mut frontier)?,
+                CODEC_RAW => {}
+                other => unimplemented!("unimplemented codec: {other}"),
+            };
             snapshots.push(snapshot);
         }
 

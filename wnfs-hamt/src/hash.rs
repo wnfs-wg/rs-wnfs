@@ -1,7 +1,7 @@
 use crate::error::HamtError;
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 use std::fmt::Debug;
-use wnfs_common::{utils, HashOutput, HASH_BYTE_SIZE};
+use wnfs_common::{HASH_BYTE_SIZE, HashOutput, utils};
 
 //--------------------------------------------------------------------------------------------------
 // Constants
@@ -279,7 +279,7 @@ impl HashPrefix {
     ///    println!("{}", i);
     /// }
     /// ```
-    pub fn iter(&self) -> HashPrefixIterator {
+    pub fn iter(&self) -> HashPrefixIterator<'_> {
         HashPrefixIterator {
             hashprefix: self,
             cursor: 0,

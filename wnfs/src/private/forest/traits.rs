@@ -5,11 +5,10 @@ use crate::{
 use anyhow::Result;
 use async_stream::stream;
 use futures::Future;
-use libipld_core::cid::Cid;
 use std::collections::BTreeSet;
 use wnfs_common::{
+    BlockStore, Cid, HashOutput,
     utils::{BoxStream, CondSend, CondSync},
-    BlockStore, HashOutput,
 };
 use wnfs_hamt::Pair;
 use wnfs_nameaccumulator::{AccumulatorSetup, ElementsProof, Name, NameAccumulator};

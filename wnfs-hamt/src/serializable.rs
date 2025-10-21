@@ -1,16 +1,14 @@
 use crate::constants::HAMT_BITMASK_BYTE_SIZE;
-use libipld::{
-    cid::serde::{BytesToCidVisitor, CID_SERDE_PRIVATE_IDENTIFIER},
-    Cid,
-};
+use ipld_core::cid::serde::{BytesToCidVisitor, CID_SERDE_PRIVATE_IDENTIFIER};
 use semver::Version;
 use serde::{
-    de::{SeqAccess, Visitor},
     Deserialize, Deserializer, Serialize, Serializer,
+    de::{SeqAccess, Visitor},
 };
 use serde_byte_array::ByteArray;
 use serde_bytes::ByteBuf;
 use std::marker::PhantomData;
+use wnfs_common::Cid;
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions

@@ -2,7 +2,7 @@ use super::TemporalKey;
 use crate::utils::OnceCellDebug;
 use anyhow::Result;
 use once_cell::sync::OnceCell;
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
 
 /// A wrapper for AES-KWP deterministically encrypted (key-wrapped) data.
 ///

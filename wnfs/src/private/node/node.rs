@@ -2,16 +2,15 @@ use super::{PrivateNodeHeader, TemporalKey};
 use crate::{
     error::FsError,
     private::{
-        encrypted::Encrypted, forest::traits::PrivateForest, link::PrivateLink, AccessKey,
-        PrivateDirectory, PrivateFile, PrivateNodeContentSerializable, PrivateRef,
+        AccessKey, PrivateDirectory, PrivateFile, PrivateNodeContentSerializable, PrivateRef,
+        encrypted::Encrypted, forest::traits::PrivateForest, link::PrivateLink,
     },
     traits::Id,
 };
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 use async_once_cell::OnceCell;
 use async_recursion::async_recursion;
 use chrono::{DateTime, Utc};
-use libipld_core::cid::Cid;
 use rand_core::CryptoRngCore;
 use skip_ratchet::{JumpSize, RatchetSeeker};
 use std::{
@@ -20,8 +19,8 @@ use std::{
     fmt::Debug,
 };
 use wnfs_common::{
+    BlockStore, Cid,
     utils::{Arc, CondSend},
-    BlockStore,
 };
 use wnfs_nameaccumulator::Name;
 
@@ -404,17 +403,20 @@ impl PrivateNode {
         let mut header = self.get_header().clone();
         let mut unmerged_heads = header.seek_unmerged_heads(forest, store).await?;
 
-        if let Some((cid, head)) = unmerged_heads.pop_first() {
-            if unmerged_heads.is_empty() {
-                // There was only one unmerged head, we can fast forward
-                Ok(head)
-            } else {
-                // We need to create a merge node
-                Self::merge(header, (cid, head), unmerged_heads, forest, store).await
+        match unmerged_heads.pop_first() {
+            Some((cid, head)) => {
+                if unmerged_heads.is_empty() {
+                    // There was only one unmerged head, we can fast forward
+                    Ok(head)
+                } else {
+                    // We need to create a merge node
+                    Self::merge(header, (cid, head), unmerged_heads, forest, store).await
+                }
             }
-        } else {
-            // If None, then there's nothing to merge in (and this node was never stored)
-            Ok(self.clone())
+            _ => {
+                // If None, then there's nothing to merge in (and this node was never stored)
+                Ok(self.clone())
+            }
         }
     }
 

@@ -1,13 +1,12 @@
 use super::{
-    encrypted::Encrypted, forest::traits::PrivateForest, PrivateDirectory, PrivateFile,
-    PrivateNode, PrivateNodeHeader, TemporalKey,
+    PrivateDirectory, PrivateFile, PrivateNode, PrivateNodeHeader, TemporalKey,
+    encrypted::Encrypted, forest::traits::PrivateForest,
 };
 use crate::error::FsError;
-use anyhow::{bail, Result};
-use libipld_core::cid::Cid;
+use anyhow::{Result, bail};
 use skip_ratchet::{PreviousIterator, Ratchet};
 use std::collections::BTreeSet;
-use wnfs_common::{utils::Arc, BlockStore, PathNodes, PathNodesResult};
+use wnfs_common::{BlockStore, Cid, PathNodes, PathNodesResult, utils::Arc};
 
 //--------------------------------------------------------------------------------------------------
 // Type Definitions
@@ -409,20 +408,23 @@ impl<F: PrivateForest + Clone> PrivateNodeOnPathHistory<F> {
 
         loop {
             // Pop elements off the end of the path
-            if let Some(mut segment) = self.path.pop() {
-                // Try to find a path segment for which we have previous history entries
-                if let Some(prev) = segment.history.get_previous_dir(store).await? {
-                    segment.dir = prev;
-                    self.path.push(segment);
-                    // Once found, we can continue.
-                    break;
-                }
+            match self.path.pop() {
+                Some(mut segment) => {
+                    // Try to find a path segment for which we have previous history entries
+                    if let Some(prev) = segment.history.get_previous_dir(store).await? {
+                        segment.dir = prev;
+                        self.path.push(segment);
+                        // Once found, we can continue.
+                        break;
+                    }
 
-                working_stack.push((segment.dir, segment.path_segment));
-            } else {
-                // We have exhausted all histories of all path segments.
-                // There's no way we can produce more history entries.
-                return Ok(None);
+                    working_stack.push((segment.dir, segment.path_segment));
+                }
+                _ => {
+                    // We have exhausted all histories of all path segments.
+                    // There's no way we can produce more history entries.
+                    return Ok(None);
+                }
             }
         }
 

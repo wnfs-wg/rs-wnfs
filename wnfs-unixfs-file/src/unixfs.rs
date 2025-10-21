@@ -4,10 +4,9 @@ use crate::{
     protobufs,
     types::{Block, Link, LinkRef, Links, PbLinks},
 };
-use anyhow::{anyhow, bail, ensure, Result};
+use anyhow::{Result, anyhow, bail, ensure};
 use bytes::Bytes;
 use futures::FutureExt;
-use libipld::Cid;
 use prost::Message;
 use std::{
     collections::VecDeque,
@@ -17,8 +16,8 @@ use std::{
 };
 use tokio::io::{AsyncRead, AsyncSeek};
 use wnfs_common::{
-    utils::{boxed_fut, BoxFuture},
-    BlockStore, LoadIpld, Storable, StoreIpld,
+    BlockStore, Cid, LoadIpld, Storable, StoreIpld,
+    utils::{BoxFuture, boxed_fut},
 };
 
 #[derive(
@@ -82,7 +81,7 @@ impl Node {
         None
     }
 
-    pub fn links(&self) -> Links {
+    pub fn links(&self) -> Links<'_> {
         Links::Node(PbLinks::new(&self.outer))
     }
 }
@@ -264,7 +263,7 @@ pub struct UnixFsFileReader<'a, B: BlockStore> {
     store: &'a B,
 }
 
-impl<'a, B: BlockStore> UnixFsFileReader<'a, B> {
+impl<B: BlockStore> UnixFsFileReader<'_, B> {
     /// Returns the size in bytes, if known in advance.
     pub fn size(&self) -> Option<u64> {
         self.root_node.filesize()
@@ -431,7 +430,7 @@ pub enum CurrentNodeState<'a> {
     },
 }
 
-impl<'a> Debug for CurrentNodeState<'a> {
+impl Debug for CurrentNodeState<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             CurrentNodeState::Outer => write!(f, "CurrentNodeState::Outer"),
@@ -581,7 +580,7 @@ fn poll_read_file_at<'a>(
                     }
                 }
             }
-            CurrentNodeState::Loaded {
+            &mut CurrentNodeState::Loaded {
                 ref node_offset,
                 ref mut node_pos,
                 node: ref mut current_node_inner,

@@ -1,4 +1,4 @@
-use super::{metadata::JsMetadata, PrivateDirectory, PrivateForest, PublicDirectory};
+use super::{PrivateDirectory, PrivateForest, PublicDirectory, metadata::JsMetadata};
 use crate::{fs::JsResult, value};
 use js_sys::{Array, Error, Object, Reflect};
 use std::{fmt::Debug, rc::Rc};
@@ -6,7 +6,7 @@ use wasm_bindgen::JsValue;
 use wnfs::{
     common::Metadata,
     private::{
-        forest::hamt::HamtForest as WnfsHamtForest, PrivateDirectory as WnfsPrivateDirectory,
+        PrivateDirectory as WnfsPrivateDirectory, forest::hamt::HamtForest as WnfsHamtForest,
     },
     public::PublicDirectory as WnfsPublicDirectory,
 };

@@ -1,11 +1,11 @@
 use super::{ChangeType, Node};
-use crate::{error::HamtError, Hasher};
+use crate::{Hasher, error::HamtError};
 use anyhow::Result;
-use serde::{de::DeserializeOwned, Serialize};
+use serde::{Serialize, de::DeserializeOwned};
 use std::hash::Hash;
 use wnfs_common::{
-    utils::{Arc, CondSync},
     BlockStore, Link, Storable,
+    utils::{Arc, CondSync},
 };
 
 //--------------------------------------------------------------------------------------------------
@@ -72,7 +72,7 @@ mod proptests {
     use proptest::prop_assert_eq;
     use std::cmp;
     use test_strategy::proptest;
-    use wnfs_common::{utils::Arc, Link, MemoryBlockStore};
+    use wnfs_common::{Link, MemoryBlockStore, utils::Arc};
 
     #[proptest(cases = 100)]
     fn merge_associativity(

@@ -3,7 +3,7 @@
 use bytes::{Bytes, BytesMut};
 use std::io;
 use tokio::io::{AsyncRead, AsyncReadExt};
-use wnfs_common::utils::{boxed_stream, BoxStream, CondSend};
+use wnfs_common::utils::{BoxStream, CondSend, boxed_stream};
 
 /// Rabin fingerprinting based chunker.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -782,7 +782,7 @@ mod tests {
     use super::*;
     use futures::TryStreamExt;
     use proptest::prelude::*;
-    use rand::{rngs::StdRng, SeedableRng};
+    use rand::{Rng, RngCore, SeedableRng, rngs::StdRng};
 
     #[tokio::test]
     async fn test_simple_chunks() {
@@ -804,7 +804,7 @@ mod tests {
     #[tokio::test]
     async fn test_more_chunks() {
         let seed = 1;
-        let mut rng = StdRng::seed_from_u64(seed);
+        let mut rng = rand_chacha::ChaCha20Rng::seed_from_u64(seed);
         for size in [
             0,
             100,
@@ -826,7 +826,7 @@ mod tests {
         let config = Config::default();
         let chunker = Rabin::new(config.clone(), GO_IPFS_V0_PRESET);
 
-        let mut rng = StdRng::seed_from_u64(0);
+        let mut rng = rand_chacha::ChaCha20Rng::seed_from_u64(0);
         // split into randomized chunks
         let mut chunks: Vec<Vec<u8>> = Vec::new();
         let mut index = 0;

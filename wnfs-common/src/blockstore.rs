@@ -1,16 +1,12 @@
 use crate::{
-    decode, encode,
-    utils::{Arc, CondSend, CondSync},
     BlockStoreError, MAX_BLOCK_SIZE,
+    utils::{Arc, CondSend, CondSync},
 };
 use bytes::Bytes;
+use cid::Cid;
 use futures::Future;
-use libipld::{
-    cbor::DagCborCodec,
-    cid::Version,
-    multihash::{Code, MultihashDigest},
-    Cid,
-};
+use ipld_core::cid::Version;
+use multihash::Multihash;
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -42,6 +38,11 @@ pub const CODEC_DAG_PB: u64 = 0x70;
 /// - <https://ipld.io/docs/codecs/#known-codecs>
 /// - <https://github.com/multiformats/multicodec/blob/master/table.csv>
 pub const CODEC_RAW: u64 = 0x55;
+
+/// The multihash marker for blake3 hashes.
+///
+/// <https://github.com/multiformats/multicodec/blob/master/table.csv#L21>
+pub const MULTIHASH_BLAKE3: u64 = 0x1e;
 
 //--------------------------------------------------------------------------------------------------
 // Traits
@@ -115,7 +116,7 @@ pub trait BlockStore: CondSync {
         }
 
         // Compute the Blake3 hash of the bytes
-        let hash = Code::Blake3_256.digest(bytes);
+        let hash = Multihash::wrap(MULTIHASH_BLAKE3, blake3::hash(bytes).as_bytes()).unwrap();
 
         // Represent the hash as a V1 CID
         let cid = Cid::new(Version::V1, codec, hash)?;
@@ -191,7 +192,6 @@ impl<B: BlockStore> BlockStore for Box<B> {
 /// An in-memory block store to simulate IPFS.
 ///
 /// IPFS is basically a glorified HashMap.
-
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct MemoryBlockStore(
     #[serde(serialize_with = "crate::utils::serialize_cid_map")]
@@ -230,96 +230,5 @@ impl BlockStore for MemoryBlockStore {
 
     async fn has_block(&self, cid: &Cid) -> Result<bool, BlockStoreError> {
         Ok(self.0.lock().contains_key(cid))
-    }
-}
-
-//--------------------------------------------------------------------------------------------------
-// Tests
-//--------------------------------------------------------------------------------------------------
-
-/// Tests the retrieval property of a BlockStore-conforming type.
-pub async fn bs_retrieval_test<T>(store: impl BlockStore) -> Result<(), BlockStoreError> {
-    // Example objects to insert and remove from the blockstore
-    let first_bytes = vec![1, 2, 3, 4, 5];
-    let second_bytes = b"hello world".to_vec();
-
-    // Insert the objects into the blockstore
-    let first_cid = store.put_block(first_bytes.clone(), CODEC_RAW).await?;
-    let second_cid = store.put_block(second_bytes.clone(), CODEC_RAW).await?;
-
-    // Retrieve the objects from the blockstore
-    let first_loaded = store.get_block(&first_cid).await?;
-    let second_loaded = store.get_block(&second_cid).await?;
-
-    // Assert that the objects are the same as the ones we inserted
-    assert_eq!(first_loaded, first_bytes);
-    assert_eq!(second_loaded, second_bytes);
-
-    Ok(())
-}
-
-/// Tests the duplication of a BlockStore-conforming type.
-pub async fn bs_duplication_test<T>(store: impl BlockStore) -> Result<(), BlockStoreError> {
-    // Example objects to insert and remove from the blockstore
-    let first_bytes = vec![1, 2, 3, 4, 5];
-    let second_bytes = first_bytes.clone();
-
-    // Insert the objects into the blockstore
-    let first_cid = store.put_block(first_bytes.clone(), CODEC_RAW).await?;
-    let second_cid = store.put_block(second_bytes.clone(), CODEC_RAW).await?;
-
-    // Assert that the two vecs produced the same CID
-    assert_eq!(first_cid, second_cid);
-
-    // Retrieve the objects from the blockstore
-    let first_loaded = store.get_block(&first_cid).await?;
-    let second_loaded = store.get_block(&second_cid).await?;
-
-    // Assert that the objects are the same as the ones we inserted
-    assert_eq!(first_loaded, first_bytes);
-    assert_eq!(second_loaded, second_bytes);
-
-    // Assert that the objects we loaded are the same
-    assert_eq!(first_loaded, second_loaded);
-
-    Ok(())
-}
-
-/// Tests the serialization of a BlockStore-conforming type.
-pub async fn bs_serialization_test<T>(store: &T) -> Result<(), BlockStoreError>
-where
-    T: BlockStore + Serialize + for<'de> Deserialize<'de>,
-{
-    // Example objects to insert and remove from the blockstore
-    let bytes = vec![1, 2, 3, 4, 5];
-
-    // Insert the object into the blockstore
-    let cid = store.put_block(bytes.clone(), CODEC_RAW).await?;
-
-    // Serialize the BlockStore
-    let serial_store: Vec<u8> = encode(&store, DagCborCodec)?;
-    // Construct a new BlockStore from the Serialized object
-    let deserial_store: T = decode(&serial_store, DagCborCodec)?;
-    // Retrieve the object from the blockstore
-    let loaded = deserial_store.get_block(&cid).await?;
-
-    // Assert that the objects are the same as the ones we inserted
-    assert_eq!(loaded, bytes);
-
-    Ok(())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use anyhow::Result;
-
-    #[async_std::test]
-    async fn memory_blockstore() -> Result<()> {
-        let store = &MemoryBlockStore::new();
-        bs_retrieval_test::<MemoryBlockStore>(store).await?;
-        bs_duplication_test::<MemoryBlockStore>(store).await?;
-        bs_serialization_test::<MemoryBlockStore>(store).await?;
-        Ok(())
     }
 }

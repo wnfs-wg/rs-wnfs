@@ -3,18 +3,17 @@
 
 use anyhow::Result;
 use chrono::Utc;
-use libipld_core::cid::Cid;
 use rand_chacha::ChaCha12Rng;
 use rand_core::{CryptoRngCore, SeedableRng};
 use wnfs::{
     common::{BlockStore, MemoryBlockStore},
     nameaccumulator::AccumulatorSetup,
     private::{
-        forest::{hamt::HamtForest, traits::PrivateForest},
         AccessKey, PrivateDirectory, PrivateNode,
+        forest::{hamt::HamtForest, traits::PrivateForest},
     },
 };
-use wnfs_common::{utils::CondSend, Storable};
+use wnfs_common::{Cid, Storable, utils::CondSend};
 
 #[async_std::main]
 async fn main() -> Result<()> {
