@@ -94,7 +94,7 @@ class ExchangeKey {
         name: "RSA-OAEP",
       },
       this.key,
-      data
+      data as unknown as ArrayBuffer
     );
 
     return new Uint8Array(encryptedData);
@@ -135,7 +135,7 @@ class PrivateKey {
         name: "RSA-OAEP",
       },
       this.key.privateKey,
-      data
+      data as unknown as ArrayBuffer
     );
 
     return new Uint8Array(decryptedData);
