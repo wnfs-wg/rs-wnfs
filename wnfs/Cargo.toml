@@ -1,6 +1,6 @@
 [package]
 name = "wnfs"
-version = "0.2.2"
+version = "0.3.0"
 description = "WebNative filesystem core implementation"
 keywords = ["wnfs", "webnative", "ipfs", "decentralisation"]
 categories = [

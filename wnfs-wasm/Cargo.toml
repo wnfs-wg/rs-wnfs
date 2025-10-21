@@ -1,6 +1,6 @@
 [package]
 name = "wnfs-wasm"
-version = "0.2.2"
+version = "0.3.0"
 description = "WebNative Filesystem API (WebAssembly)"
 keywords = ["wnfs", "wasm", "webnative", "ipfs", "decentralisation"]
 categories = [

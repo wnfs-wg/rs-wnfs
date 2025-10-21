@@ -1,10 +1,14 @@
 # Changelog
 
-## 0.2.2 (2023-03-08)
+## 0.3.0 (2025-10-21)
+
+* Update to rust edition 2024, switch from libipld to ipld-core ([#460](https://github.com/wnfs-wg/rs-wnfs/pull/460))
+
+## 0.2.2 (2024-03-08)
 
 * Remove leftover println debugging ([#406](https://github.com/wnfs-wg/rs-wnfs/pull/406))
 
-## 0.2.1 (2023-02-28)
+## 0.2.1 (2024-02-28)
 
 * Added `PublicFile::size` and `PrivateFile::size` functions
 * Changed return type of `PrivateFile::get_size_upper_bound` to be `u64` instead of `usize`
