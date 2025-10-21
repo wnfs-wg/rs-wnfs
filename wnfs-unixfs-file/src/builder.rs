@@ -19,7 +19,7 @@ pub struct File<'a> {
     chunker: Chunker,
 }
 
-impl<'a> Debug for File<'a> {
+impl Debug for File<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("File")
             .field(
@@ -62,7 +62,7 @@ pub struct FileBuilder<'a> {
     degree: usize,
 }
 
-impl<'a> Default for FileBuilder<'a> {
+impl Default for FileBuilder<'_> {
     fn default() -> Self {
         Self {
             reader: None,
@@ -72,7 +72,7 @@ impl<'a> Default for FileBuilder<'a> {
     }
 }
 
-impl<'a> Debug for FileBuilder<'a> {
+impl Debug for FileBuilder<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let reader = if self.reader.is_some() {
             "Some(Box<AsyncRead>)"

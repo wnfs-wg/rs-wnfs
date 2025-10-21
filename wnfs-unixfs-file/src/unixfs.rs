@@ -263,7 +263,7 @@ pub struct UnixFsFileReader<'a, B: BlockStore> {
     store: &'a B,
 }
 
-impl<'a, B: BlockStore> UnixFsFileReader<'a, B> {
+impl<B: BlockStore> UnixFsFileReader<'_, B> {
     /// Returns the size in bytes, if known in advance.
     pub fn size(&self) -> Option<u64> {
         self.root_node.filesize()
@@ -430,7 +430,7 @@ pub enum CurrentNodeState<'a> {
     },
 }
 
-impl<'a> Debug for CurrentNodeState<'a> {
+impl Debug for CurrentNodeState<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             CurrentNodeState::Outer => write!(f, "CurrentNodeState::Outer"),

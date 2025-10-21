@@ -96,7 +96,7 @@ pub enum ChunkerStream<'a> {
     Rabin(BoxStream<'a, io::Result<Bytes>>),
 }
 
-impl<'a> Debug for ChunkerStream<'a> {
+impl Debug for ChunkerStream<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Fixed(_) => write!(f, "Fixed(impl Stream<Item=Bytes>)"),
@@ -105,7 +105,7 @@ impl<'a> Debug for ChunkerStream<'a> {
     }
 }
 
-impl<'a> Stream for ChunkerStream<'a> {
+impl Stream for ChunkerStream<'_> {
     type Item = io::Result<Bytes>;
 
     fn poll_next(
