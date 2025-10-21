@@ -3233,7 +3233,7 @@ checksum = "f17a85883d4e6d00e8a97c586de764dabcc06133f7f1d55dce5cdc070ad7fe59"
 
 [[package]]
 name = "wnfs"
-version = "0.2.2"
+version = "0.3.0"
 dependencies = [
  "aes-kw",
  "anyhow",
@@ -3284,7 +3284,7 @@ dependencies = [
 
 [[package]]
 name = "wnfs-bench"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "async-std",
  "blake3",
@@ -3300,7 +3300,7 @@ dependencies = [
 
 [[package]]
 name = "wnfs-common"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "anyhow",
  "async-once-cell",
@@ -3330,7 +3330,7 @@ dependencies = [
 
 [[package]]
 name = "wnfs-hamt"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "anyhow",
  "async-once-cell",
@@ -3363,7 +3363,7 @@ dependencies = [
 
 [[package]]
 name = "wnfs-nameaccumulator"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "anyhow",
  "async-std",
@@ -3392,7 +3392,7 @@ dependencies = [
 
 [[package]]
 name = "wnfs-unixfs-file"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "anyhow",
  "async-std",
@@ -3421,7 +3421,7 @@ dependencies = [
 
 [[package]]
 name = "wnfs-wasm"
-version = "0.2.2"
+version = "0.3.0"
 dependencies = [
  "anyhow",
  "bytes",
