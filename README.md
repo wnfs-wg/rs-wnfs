@@ -29,7 +29,7 @@
 
 > [!NOTE]
 > This repository isn't actively developed at the moment, but we do have some maintainers.
-> Feel free to open issues and get into contact (e.g. with @matheus23) if you are thinking of using this, picking up some maintanence work or even developing this further.
+> Feel free to open issues and get into contact (e.g. with @matheus23) if you are thinking of using this, picking up some maintenance work or even developing this further.
 
 ##
 
