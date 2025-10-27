@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1761054989305,
+  "lastUpdate": 1761563595068,
   "repoUrl": "https://github.com/wnfs-wg/rs-wnfs",
   "entries": {
     "Rust Benchmark": [
@@ -25285,6 +25285,126 @@ window.BENCHMARK_DATA = {
             "name": "NameAccumulator::<BigNumRug> serialization",
             "value": 593,
             "range": "± 38",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "philipp.krueger1@gmail.com",
+            "name": "Philipp Krüger",
+            "username": "matheus23"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "29c55cc1f5bb65931bcfc68d68c9223b3a7d1c2f",
+          "message": "docs: Add development notice (#461)\n\n* docs: Add development notice\n\n* Fix typo\n\nCo-authored-by: Steven Vandevelde <icid.asset@gmail.com>\nSigned-off-by: Philipp Krüger <philipp.krueger1@gmail.com>\n\n---------\n\nSigned-off-by: Philipp Krüger <philipp.krueger1@gmail.com>\nCo-authored-by: Steven Vandevelde <icid.asset@gmail.com>",
+          "timestamp": "2025-10-27T11:09:03Z",
+          "tree_id": "074444151a2a1411c82960edbe0c40a8ff7352ac",
+          "url": "https://github.com/wnfs-wg/rs-wnfs/commit/29c55cc1f5bb65931bcfc68d68c9223b3a7d1c2f"
+        },
+        "date": 1761563594495,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "node set",
+            "value": 17400,
+            "range": "± 325",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node set 1000 consecutive",
+            "value": 1946752,
+            "range": "± 31080",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and get",
+            "value": 41880,
+            "range": "± 756",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and remove",
+            "value": 46049,
+            "range": "± 600",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt load and decode/0",
+            "value": 3307,
+            "range": "± 46",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt set and encode",
+            "value": 53960,
+            "range": "± 984",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt diff",
+            "value": 34386,
+            "range": "± 2771",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt merge",
+            "value": 99901,
+            "range": "± 7546",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameSegment::<BigNumDig>::new_hashed",
+            "value": 1740866,
+            "range": "± 212678",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameSegment::<BigNumRug>::new_hashed",
+            "value": 306654,
+            "range": "± 31062",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameSegment::<BigNumDig>::new(rng)",
+            "value": 1746163,
+            "range": "± 239424",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameSegment::<BigNumRug>::new(rng)",
+            "value": 567017,
+            "range": "± 22100",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameAccumulator::<BigNumDig>::add",
+            "value": 1803814,
+            "range": "± 92859",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameAccumulator::<BigNumRug>::add",
+            "value": 964887,
+            "range": "± 34717",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameAccumulator::<BigNumDig> serialization",
+            "value": 478,
+            "range": "± 28",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameAccumulator::<BigNumRug> serialization",
+            "value": 569,
+            "range": "± 57",
             "unit": "ns/iter"
           }
         ]
