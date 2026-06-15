@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1761563595068,
+  "lastUpdate": 1781522327029,
   "repoUrl": "https://github.com/wnfs-wg/rs-wnfs",
   "entries": {
     "Rust Benchmark": [
@@ -25405,6 +25405,126 @@ window.BENCHMARK_DATA = {
             "name": "NameAccumulator::<BigNumRug> serialization",
             "value": 569,
             "range": "± 57",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "alex@arigativa.ru",
+            "name": "Alexander Hasselbach",
+            "username": "klpx"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "855b771fd2dc0deb376fa5eba21c13a71cbaa72c",
+          "message": "fix: update hamt dependencies to get rid of yanked core2 crate (#464)",
+          "timestamp": "2026-06-15T13:12:44+02:00",
+          "tree_id": "ba4e1956d953698e939bd35486924f10cc94eda5",
+          "url": "https://github.com/wnfs-wg/rs-wnfs/commit/855b771fd2dc0deb376fa5eba21c13a71cbaa72c"
+        },
+        "date": 1781522326081,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "node set",
+            "value": 18819,
+            "range": "± 416",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node set 1000 consecutive",
+            "value": 2048403,
+            "range": "± 47995",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and get",
+            "value": 44369,
+            "range": "± 184",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "node load and remove",
+            "value": 51301,
+            "range": "± 525",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt load and decode/0",
+            "value": 3706,
+            "range": "± 58",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt set and encode",
+            "value": 58693,
+            "range": "± 547",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt diff",
+            "value": 36638,
+            "range": "± 2634",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "hamt merge",
+            "value": 106882,
+            "range": "± 7601",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameSegment::<BigNumDig>::new_hashed",
+            "value": 1917231,
+            "range": "± 203635",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameSegment::<BigNumRug>::new_hashed",
+            "value": 325173,
+            "range": "± 30251",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameSegment::<BigNumDig>::new(rng)",
+            "value": 1954009,
+            "range": "± 191722",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameSegment::<BigNumRug>::new(rng)",
+            "value": 606613,
+            "range": "± 22228",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameAccumulator::<BigNumDig>::add",
+            "value": 1766026,
+            "range": "± 64761",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameAccumulator::<BigNumRug>::add",
+            "value": 1007545,
+            "range": "± 17429",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameAccumulator::<BigNumDig> serialization",
+            "value": 487,
+            "range": "± 13",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "NameAccumulator::<BigNumRug> serialization",
+            "value": 659,
+            "range": "± 44",
             "unit": "ns/iter"
           }
         ]
