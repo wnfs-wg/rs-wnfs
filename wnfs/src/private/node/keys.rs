@@ -18,7 +18,7 @@ use wnfs_common::utils;
 
 /// The size of the nonce used when encrypting using snapshot keys.
 /// The algorithm used is XChaCha20-Poly1305, i.e. the extended nonce variant,
-/// so it's 196 bit.
+/// so it's 192 bits.
 pub(crate) const NONCE_SIZE: usize = 24;
 /// The size of the authentication tag used when encrypting using snapshot keys.
 /// The algorithm used is XChaCha20-Poly1305, so it's 128 bit.
